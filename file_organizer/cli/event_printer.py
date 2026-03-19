@@ -4,14 +4,11 @@
 def scanner_ui_handler(event_type, data, cli=default_cli):
     """处理扫描过程中的各种反馈。"""
     if event_type == "model_wait_start":
-        cli.start_waiting(data.get("message", "????????..."))
+        cli.start_waiting(data.get("message", "模型回复中..."))
     elif event_type == "model_wait_end":
         cli.stop_waiting()
     elif event_type == "cycle_start":
-        attempt = data["attempt"]
-        max_attempts = data.get("max_attempts")
-        title = f"目录分析 · 第 {attempt} / {max_attempts} 轮" if max_attempts else f"目录分析 · 第 {attempt} 轮"
-        cli.stage(title, style="blue")
+        pass
     elif event_type == "tool_start":
         cli.stream_status("工具调用", f"{data['name']}({data['args']})", style="dim")
     elif event_type == "ai_streaming_start":
@@ -65,3 +62,4 @@ def scanner_ui_handler(event_type, data, cli=default_cli):
         cli.error("命令流自动重试已耗尽，即将进入修复模式。", title="命令流失败")
     elif event_type == "repair_mode_start":
         cli.warning("已进入修复模式，将根据权威分析结构重新生成最终计划。", title="修复模式")
+

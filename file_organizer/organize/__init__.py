@@ -1,7 +1,7 @@
-﻿from .models import FinalPlan, PendingPlan, PlanMove
+﻿from .models import FinalPlan, PendingPlan, PlanDiff, PlanDisplayRequest, PlanMove
 from .prompts import PROMPT_TEMPLATE, build_prompt
 from .service import (
-    apply_plan_patch,
+    apply_plan_diff,
     build_command_retry_message,
     build_initial_messages,
     chat_one_round,

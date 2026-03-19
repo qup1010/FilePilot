@@ -51,14 +51,15 @@ class EventPrinterTests(unittest.TestCase):
         self.assertIn("工具调用", output)
         self.assertIn("list_local_files", output)
 
-    def test_cycle_start_renders_retry_fraction_when_max_attempts_present(self):
+    def test_cycle_start_does_not_render_round_banner(self):
         cli, buffer = self.build_cli()
 
         scanner_ui_handler("cycle_start", {"attempt": 2, "max_attempts": 3}, cli=cli)
 
         output = buffer.getvalue()
-        self.assertIn("2 / 3", output)
+        self.assertEqual(output, "")
 
 
 if __name__ == "__main__":
     unittest.main()
+

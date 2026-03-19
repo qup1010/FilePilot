@@ -38,15 +38,16 @@ class ScannerServiceTests(unittest.TestCase):
         self.assertIn("zip", description.lower())
         self.assertIn("编码", description)
 
-    def test_organizer_prompt_requires_patch_display_and_final_tools(self):
+    def test_organizer_prompt_requires_diff_display_and_final_tools(self):
         prompt = organizer_service.build_prompt("合同.pdf | 财务/合同 | 付款协议")
 
-        self.assertIn("submit_plan_patch", prompt)
+        self.assertIn("submit_plan_diff", prompt)
+        self.assertNotIn("submit_plan_patch", prompt)
         self.assertIn("present_current_plan", prompt)
         self.assertIn("submit_final_plan", prompt)
         self.assertIn("unresolved_items", prompt)
 
-    def test_organizer_prompt_restores_classification_rules_and_patch_semantics(self):
+    def test_organizer_prompt_restores_classification_rules_and_diff_semantics(self):
         prompt = organizer_service.build_prompt("合同.pdf | 财务/合同 | 付款协议")
 
         self.assertIn("若用途不明确，再结合“内容摘要”判断", prompt)
@@ -57,8 +58,10 @@ class ScannerServiceTests(unittest.TestCase):
         self.assertIn("Projects > Documents", prompt)
         self.assertIn("Study > Media", prompt)
         self.assertIn("Screenshots > Media", prompt)
-        self.assertIn("submit_plan_patch 必须提交“当前完整的待定计划状态”", prompt)
-        self.assertIn("系统会根据前后两次计划状态自行计算差异摘要", prompt)
+        self.assertIn("submit_plan_diff", prompt)
+        self.assertIn("directory_renames", prompt)
+        self.assertIn("move_updates", prompt)
+        self.assertIn("未回答则归入 Review", prompt)
 
     def test_organizer_prompt_describes_directory_semantics_and_user_preference_priority(self):
         prompt = organizer_service.build_prompt("合同.pdf | 财务/合同 | 付款协议")
@@ -69,6 +72,9 @@ class ScannerServiceTests(unittest.TestCase):
         self.assertIn("Archives：备份、历史归档、旧资料；不能仅因为是压缩包就放入此类", prompt)
         self.assertIn("若用户没有明确要求，优先复用推荐目录名", prompt)
         self.assertIn("若用户明确指定目录命名或归类方式，应优先遵循用户偏好", prompt)
+        self.assertIn("默认展示“摘要视图”", prompt)
+        self.assertIn("summary", prompt)
+        self.assertIn("details", prompt)
         self.assertIn("不要在自然语言中重复完整计划", prompt)
         self.assertNotIn("目标路径必须与原路径一致", prompt)
 
@@ -95,3 +101,6 @@ class ScannerServiceTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+

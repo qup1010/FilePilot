@@ -40,7 +40,7 @@ class ConsoleUiTests(unittest.TestCase):
         status_handle.start.assert_called_once_with()
         status_handle.stop.assert_called_once_with()
 
-    def test_show_pending_plan_renders_summary_groups_and_unresolved_items(self):
+    def test_show_pending_plan_renders_summary_groups_and_unresolved_questions(self):
         cli, buffer = self.build_cli()
         plan = PendingPlan(
             directories=["Finance", "Review"],
@@ -52,13 +52,16 @@ class ConsoleUiTests(unittest.TestCase):
             summary="已形成初版方案",
         )
 
-        cli.show_pending_plan(plan, focus="full", summary="请先确认目录结构")
+        cli.show_pending_plan(plan, focus="summary", summary="请先确认目录结构")
 
         output = buffer.getvalue()
-        self.assertIn("Finance", output)
+        self.assertIn("当前待定计划", output)
+        self.assertIn("计划概览", output)
+        self.assertIn("目标目录分组", output)
+        self.assertIn("待确认问题", output)
         self.assertIn("Review", output)
-        self.assertIn("Finance/", output)
-        self.assertIn("Review/", output)
+        self.assertIn("如无异议", output)
+        self.assertNotIn("目录列表", output)
 
     def test_show_execution_preview_renders_summary_and_rows(self):
         cli, buffer = self.build_cli()
@@ -157,3 +160,4 @@ class ConsoleUiTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+

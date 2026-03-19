@@ -1,8 +1,15 @@
-﻿import json
+import json
 import re
 from collections import Counter, defaultdict
 
-from file_organizer.organize.models import FinalPlan, PendingPlan, PlanDisplayRequest, PlanMove
+from file_organizer.organize.models import (
+    FinalPlan,
+    PendingPlan,
+    PlanDiff,
+    PlanDisplayRequest,
+    PlanMove,
+    derive_directories_from_moves,
+)
 from file_organizer.organize.prompts import build_prompt
 from file_organizer.shared.config import ORGANIZER_MODEL_NAME, RESULT_FILE_PATH, create_openai_client
 from file_organizer.shared.events import emit
@@ -12,7 +19,7 @@ from file_organizer.shared.path_utils import normalize_source_name, split_relati
 COMMANDS_BLOCK_RE = re.compile(r"<COMMANDS>(.*?)</COMMANDS>", flags=re.S | re.I)
 MOVE_LINE_RE = re.compile(r'^\s*MOVE\s+"(.*?)"\s+"(.*?)"\s*$', flags=re.I)
 MKDIR_LINE_RE = re.compile(r'^\s*MKDIR\s+"(.*?)"\s*$', flags=re.I)
-PLAN_PATCH_TOOL_NAME = "submit_plan_patch"
+PLAN_DIFF_TOOL_NAME = "submit_plan_diff"
 PRESENT_PLAN_TOOL_NAME = "present_current_plan"
 FINAL_PLAN_TOOL_NAME = "submit_final_plan"
 MODEL_WAIT_MESSAGE = "正在等待模型回复..."
@@ -180,6 +187,7 @@ def validate_final_plan(scan_lines: str, final_plan: FinalPlan | dict) -> dict:
 
     scan_items = extract_scan_items(scan_lines)
     expected_set = set(scan_items)
+    expected_lower_map = {item.lower(): item for item in scan_items}
     actual_sources = []
     required_mkdirs = set()
     normalized_targets = defaultdict(set)
@@ -193,6 +201,10 @@ def validate_final_plan(scan_lines: str, final_plan: FinalPlan | dict) -> dict:
             result["path_errors"].append(f"非法源路径: {move.to_move_command()}")
             continue
 
+        lower_source = source_name.lower()
+        if lower_source in expected_lower_map:
+            source_name = expected_lower_map[lower_source]
+
         actual_sources.append(source_name)
         if source_name not in expected_set:
             continue
@@ -201,6 +213,9 @@ def validate_final_plan(scan_lines: str, final_plan: FinalPlan | dict) -> dict:
         if not target_parts:
             result["path_errors"].append(f"非法目标路径: {move.to_move_command()}")
             continue
+
+        if target_parts[-1].lower() == source_name.lower():
+            target_parts[-1] = source_name
 
         normalized_target = "/".join(target_parts)
         if len(target_parts) > 1 and target_parts[0] == source_name:
@@ -213,7 +228,8 @@ def validate_final_plan(scan_lines: str, final_plan: FinalPlan | dict) -> dict:
 
         normalized_targets[normalized_target].add(source_name)
         if len(target_parts) > 1:
-            required_mkdirs.add(target_parts[0])
+            for i in range(1, len(target_parts)):
+                required_mkdirs.add("/".join(target_parts[:i]))
 
     actual_set = set(actual_sources)
     actual_counter = Counter(actual_sources)
@@ -284,11 +300,27 @@ def validate_command_flow(scan_lines: str, content: str) -> dict:
     return validation
 
 
-def apply_plan_patch(current_plan: PendingPlan | None, patch_plan: PendingPlan | dict) -> tuple[PendingPlan, list[str]]:
-    previous = current_plan or PendingPlan()
-    updated = patch_plan if isinstance(patch_plan, PendingPlan) else PendingPlan.from_dict(patch_plan)
+def _copy_pending_plan(plan: PendingPlan) -> PendingPlan:
+    return PendingPlan(
+        directories=list(plan.directories),
+        moves=[PlanMove(source=move.source, target=move.target, raw=move.raw) for move in plan.moves],
+        user_constraints=list(plan.user_constraints),
+        unresolved_items=list(plan.unresolved_items),
+        summary=plan.summary,
+    ).with_derived_directories()
 
+
+def _rename_target_root(target: str, from_name: str, to_name: str) -> str:
+    target_parts = split_relative_parts(target)
+    if not target_parts or len(target_parts) <= 1 or target_parts[0].lower() != from_name.lower():
+        return target
+    target_parts[0] = to_name
+    return "/".join(target_parts)
+
+
+def _build_plan_change_summary(previous: PendingPlan, updated: PendingPlan) -> list[str]:
     diff_summary: list[str] = []
+
     previous_dirs = set(previous.directories)
     updated_dirs = set(updated.directories)
     for directory in sorted(updated_dirs - previous_dirs):
@@ -318,7 +350,71 @@ def apply_plan_patch(current_plan: PendingPlan | None, patch_plan: PendingPlan |
 
     if updated.summary:
         diff_summary.insert(0, updated.summary)
-    return updated, diff_summary or ["计划未发生结构性变化"]
+    return diff_summary or ["计划未发生结构性变化"]
+
+
+def apply_plan_diff(current_plan: PendingPlan | None, patch_diff: PlanDiff | dict, valid_sources: list[str] | None = None) -> tuple[PendingPlan, list[str], list[str]]:
+    previous = (current_plan or PendingPlan()).with_derived_directories()
+    diff = patch_diff if isinstance(patch_diff, PlanDiff) else PlanDiff.from_dict(patch_diff)
+
+    errors = []
+    valid_lower_map = {s.lower(): s for s in valid_sources} if valid_sources is not None else None
+
+    previous_moves = [PlanMove(source=move.source, target=move.target, raw=move.raw) for move in previous.moves]
+    move_order = [move.source for move in previous_moves]
+    moves_by_source = {move.source: move for move in previous_moves}
+
+    for rename in diff.directory_renames:
+        for source, move in list(moves_by_source.items()):
+            moves_by_source[source] = PlanMove(
+                source=move.source,
+                target=_rename_target_root(move.target, rename.from_name, rename.to_name),
+                raw="",
+            )
+
+    for move in diff.move_updates:
+        src = move.source
+        if valid_lower_map is not None:
+            if src.lower() not in valid_lower_map:
+                errors.append(f"无法移动不存在的源文件或目录: {src}")
+                continue
+            src = valid_lower_map[src.lower()]
+            
+            target_parts = split_relative_parts(move.target)
+            if target_parts and target_parts[-1].lower() == src.lower():
+                target_parts[-1] = src
+                move.target = "/".join(target_parts)
+
+        if src not in move_order:
+            move_order.append(src)
+        moves_by_source[src] = PlanMove(source=src, target=move.target, raw=move.raw)
+
+    if valid_sources is not None:
+        for original_source in valid_sources:
+            if original_source not in moves_by_source:
+                moves_by_source[original_source] = PlanMove(source=original_source, target=original_source, raw="")
+                move_order.append(original_source)
+
+    updated_moves = [moves_by_source[source] for source in move_order if source in moves_by_source]
+
+    unresolved_order = list(previous.unresolved_items)
+    unresolved_set = set(previous.unresolved_items)
+    for item in diff.unresolved_removals:
+        unresolved_set.discard(item)
+    for item in diff.unresolved_adds:
+        if item not in unresolved_set:
+            unresolved_order.append(item)
+            unresolved_set.add(item)
+    updated_unresolved = [item for item in unresolved_order if item in unresolved_set]
+
+    updated = PendingPlan(
+        directories=derive_directories_from_moves(updated_moves),
+        moves=updated_moves,
+        user_constraints=list(previous.user_constraints),
+        unresolved_items=updated_unresolved,
+        summary=diff.summary or previous.summary,
+    )
+    return updated, _build_plan_change_summary(previous, updated), errors
 
 
 def _pending_from_final(final_plan: FinalPlan) -> PendingPlan:
@@ -328,7 +424,7 @@ def _pending_from_final(final_plan: FinalPlan) -> PendingPlan:
         user_constraints=[],
         unresolved_items=list(final_plan.unresolved_items),
         summary=final_plan.summary,
-    )
+    ).with_derived_directories()
 
 
 def build_command_retry_message(validation: dict, scan_lines: str | None = None, user_constraints: list[str] | None = None) -> str:
@@ -381,20 +477,25 @@ def _build_repair_messages(scan_lines: str, user_constraints: list[str], validat
     ]
 
 
-def _extract_plan_submissions(message) -> tuple[str, PendingPlan | None, FinalPlan | None, PlanDisplayRequest | None]:
+def _extract_plan_submissions(message) -> tuple[str, PlanDiff | None, FinalPlan | None, PlanDisplayRequest | None]:
     content = getattr(message, "content", "") or ""
-    patch_plan = None
+    plan_diff = None
     final_plan = None
     display_request = None
     for tool_call in getattr(message, "tool_calls", None) or []:
         args = json.loads(tool_call.function.arguments)
-        if tool_call.function.name == PLAN_PATCH_TOOL_NAME:
-            patch_plan = PendingPlan.from_dict(args)
+        if tool_call.function.name == PLAN_DIFF_TOOL_NAME:
+            plan_diff = PlanDiff.from_dict(args)
         elif tool_call.function.name == PRESENT_PLAN_TOOL_NAME:
             display_request = PlanDisplayRequest.from_dict(args)
         elif tool_call.function.name == FINAL_PLAN_TOOL_NAME:
             final_plan = FinalPlan.from_dict(args)
-    return content, patch_plan, final_plan, display_request
+            
+    if plan_diff is not None and final_plan is not None:
+        final_plan = None
+        content += "\n[系统提示: 你在同一轮回复中既提交了 plan_diff 增量更新，又提交了 final_plan 最终计划。系统已优先执行 plan_diff 更新状态。请在之后用户确认无误的一轮中，单独调用 final_plan。]"
+        
+    return content, plan_diff, final_plan, display_request
 
 
 def run_organizer_cycle(
@@ -409,16 +510,51 @@ def run_organizer_cycle(
     current_pending = pending_plan or PendingPlan()
     current_constraints = list(user_constraints or [])
 
+    # === Context Truncation (修剪长对话记忆) ===
+    # 限制 messages 的总长度，避免在几十轮对话后超出大模型 token 限制或导致遗忘 System Prompt
+    MAX_HISTORY = 8
+    if len(messages) > MAX_HISTORY + 1:
+        system_prompt = messages[0]
+        tail = messages[-MAX_HISTORY:]
+        state_snapshot = "[系统内部快照：由于对话过长，早期的交互记录已被清除]\n当前已形成的待定计划如下，请基于此状态继续与用户讨论增量修改，不要遗失已有分类：\n"
+        state_snapshot += f"当前摘要：{current_pending.summary}\n"
+        if current_pending.moves:
+            state_snapshot += "移动关系：\n" + "\n".join(f"- {m.source} -> {m.target}" for m in current_pending.moves[:30])
+            if len(current_pending.moves) > 30:
+                state_snapshot += f"\n... (还有 {len(current_pending.moves) - 30} 项已省略)"
+        if current_pending.unresolved_items:
+            state_snapshot += f"\n待确认项：{current_pending.unresolved_items}"
+        if current_constraints:
+            state_snapshot += f"\n用户强制约束：{current_constraints}"
+            
+        messages.clear()
+        messages.extend([system_prompt, {"role": "system", "content": state_snapshot}] + tail)
+
     for attempt in range(1, max_retries + 1):
         message = chat_one_round(messages, event_handler=event_handler, model=model, return_message=True)
-        content, patch_plan, final_plan, display_request = _extract_plan_submissions(message)
+        content, plan_diff, final_plan, display_request = _extract_plan_submissions(message)
         display_plan = display_request.to_dict() if display_request else None
 
         if content:
             messages.append({"role": "assistant", "content": content})
 
-        if patch_plan is not None:
-            updated_pending, diff_summary = apply_plan_patch(current_pending, patch_plan)
+        if plan_diff is not None:
+            scan_items = extract_scan_items(scan_lines)
+            updated_pending, diff_summary, diff_errors = apply_plan_diff(current_pending, plan_diff, valid_sources=scan_items)
+            
+            if diff_errors:
+                if attempt < max_retries:
+                    err_msg = "增量更新由于包含不存在的文件源而失败:\n" + "\n".join(f"- {e}" for e in diff_errors) + "\n请务必只处理真正的当前层条名称。"
+                    messages.append({"role": "user", "content": err_msg})
+                    continue
+                else:
+                    return content, None
+
+            if display_plan is None:
+                display_plan = PlanDisplayRequest(
+                    focus="summary",
+                    summary=updated_pending.summary or "请先看整理摘要",
+                ).to_dict()
             return content, {
                 "is_valid": False,
                 "pending_plan": updated_pending,
@@ -443,7 +579,8 @@ def run_organizer_cycle(
         validation = validate_final_plan(scan_lines, final_plan)
         if validation["is_valid"]:
             emit(event_handler, "command_validation_pass", {"attempt": attempt, "details": validation})
-            updated_pending, diff_summary = apply_plan_patch(current_pending, _pending_from_final(final_plan))
+            updated_pending = _pending_from_final(final_plan)
+            diff_summary = _build_plan_change_summary((current_pending or PendingPlan()).with_derived_directories(), updated_pending)
             return content, {
                 "is_valid": True,
                 "pending_plan": updated_pending,
@@ -473,7 +610,8 @@ def run_organizer_cycle(
         repair_validation = validate_final_plan(scan_lines, repaired_plan or FinalPlan())
         if repaired_plan is not None and repair_validation["is_valid"]:
             emit(event_handler, "command_validation_pass", {"attempt": attempt + 1, "details": repair_validation})
-            updated_pending, diff_summary = apply_plan_patch(current_pending, _pending_from_final(repaired_plan))
+            updated_pending = _pending_from_final(repaired_plan)
+            diff_summary = _build_plan_change_summary((current_pending or PendingPlan()).with_derived_directories(), updated_pending)
             return repair_content, {
                 "is_valid": True,
                 "pending_plan": updated_pending,
@@ -503,13 +641,23 @@ organizer_tools = [
     {
         "type": "function",
         "function": {
-            "name": PLAN_PATCH_TOOL_NAME,
-            "description": "提交待定整理计划的最新状态，用于更新目录、移动建议、用户约束和待确认项。",
+            "name": PLAN_DIFF_TOOL_NAME,
+            "description": "提交待定整理计划的增量变更。只要用户对某个 unresolved 项表达了确认或指定了位置，必须通过 unresolved_removals 将其移除，即使 target 路径未变。",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "directories": {"type": "array", "items": {"type": "string"}},
-                    "moves": {
+                    "directory_renames": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "from": {"type": "string"},
+                                "to": {"type": "string"},
+                            },
+                            "required": ["from", "to"],
+                        },
+                    },
+                    "move_updates": {
                         "type": "array",
                         "items": {
                             "type": "object",
@@ -520,11 +668,11 @@ organizer_tools = [
                             "required": ["source", "target"],
                         },
                     },
-                    "user_constraints": {"type": "array", "items": {"type": "string"}},
-                    "unresolved_items": {"type": "array", "items": {"type": "string"}},
+                    "unresolved_adds": {"type": "array", "items": {"type": "string"}},
+                    "unresolved_removals": {"type": "array", "items": {"type": "string"}},
                     "summary": {"type": "string"},
                 },
-                "required": ["directories", "moves", "user_constraints", "unresolved_items", "summary"],
+                "required": ["directory_renames", "move_updates", "unresolved_adds", "unresolved_removals", "summary"],
             },
         },
     },
@@ -532,11 +680,11 @@ organizer_tools = [
         "type": "function",
         "function": {
             "name": PRESENT_PLAN_TOOL_NAME,
-            "description": "请求系统把当前待定整理计划展示给用户，避免在自然语言中重复整套目录和移动列表。",
+            "description": "请求系统把当前待定整理计划展示给用户，优先使用摘要视图，避免在自然语言中重复整套列表。",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "focus": {"type": "string", "enum": ["full", "changes", "unresolved"]},
+                    "focus": {"type": "string", "enum": ["summary", "changes", "details", "unresolved"]},
                     "summary": {"type": "string"},
                 },
                 "required": ["focus", "summary"],
@@ -575,3 +723,4 @@ organizer_tools = [
 # 兼容旧模块内部辅助函数命名
 _normalize_source_name = normalize_source_name
 _split_relative_parts = split_relative_parts
+

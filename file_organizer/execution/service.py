@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import json
 import shutil
@@ -177,6 +177,39 @@ def render_execution_preview(plan: ExecutionPlan, precheck: PrecheckResult) -> s
 
     return "\n".join(lines)
 
+
+def get_empty_source_dirs(plan: ExecutionPlan) -> list[Path]:
+    source_dirs = set()
+    for action in plan.move_actions:
+        assert action.source is not None
+        parent = action.source.parent
+        # 收集从源文件所在父目录一直向上追溯到 base_dir 的所有目录
+        while parent != plan.base_dir and plan.base_dir in parent.parents:
+            source_dirs.add(parent)
+            parent = parent.parent
+            
+    empty_dirs = []
+    # 从最深层目录开始检查，以便准确判断
+    for d in sorted(source_dirs, key=lambda p: len(p.parts), reverse=True):
+        if d.exists() and d.is_dir():
+            try:
+                if not any(d.iterdir()):
+                    empty_dirs.append(d)
+            except PermissionError:
+                pass
+    return empty_dirs
+
+
+def cleanup_empty_dirs(dirs: list[Path]) -> list[Path]:
+    cleaned = []
+    for d in dirs:
+        try:
+            if d.exists() and d.is_dir() and not any(d.iterdir()):
+                d.rmdir()
+                cleaned.append(d)
+        except Exception:
+            pass
+    return cleaned
 
 def _build_running_journal(plan: ExecutionPlan) -> ExecutionJournal:
     return ExecutionJournal(

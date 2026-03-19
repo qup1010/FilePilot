@@ -77,62 +77,84 @@ class CLI:
         display = relative_display(path, base_dir)
         return "根目录" if display in {"", "."} else display
 
-    def show_plan_diff(self, items: list[str], title: str = "????") -> None:
+    def show_plan_diff(self, items: list[str], title: str = "计划变化") -> None:
         if not items:
             return
         self.show_list(title, items, style="blue")
 
     def _pending_group_name(self, target: str) -> str:
         parent = PurePosixPath(target).parent.as_posix()
-        return "???" if parent in {"", "."} else parent
+        return "根目录" if parent in {"", "."} else parent
 
-    def show_pending_plan(self, plan: PendingPlan, *, focus: str = "full", summary: str = "") -> None:
-        self.panel("??????", summary or plan.summary or "???????????", style="blue")
+    def _pending_groups(self, plan: PendingPlan) -> list[tuple[str, list[tuple[str, str]]]]:
+        grouped: dict[str, list[tuple[str, str]]] = defaultdict(list)
+        for move in plan.moves:
+            grouped[self._pending_group_name(move.target)].append((move.source, move.target))
+        return sorted(grouped.items(), key=lambda item: (-len(item[1]), item[0].lower()))
+
+    def _show_pending_group_summary(self, plan: PendingPlan) -> None:
+        ordered_groups = self._pending_groups(plan)
+        if not ordered_groups:
+            return
+        summary_rows = [(group_name, f"{len(items)} 项") for group_name, items in ordered_groups[: self.GROUP_PANEL_LIMIT]]
+        remaining_groups = len(ordered_groups) - len(summary_rows)
+        if remaining_groups > 0:
+            summary_rows.append(("其他目录", f"{remaining_groups} 组已省略"))
+        self.show_summary("目标目录分组", summary_rows, style="cyan")
+
+    def _show_pending_move_details(self, plan: PendingPlan) -> None:
+        for group_name, items in self._pending_groups(plan)[: self.GROUP_PANEL_LIMIT]:
+            table = Table(box=box.SIMPLE_HEAVY, expand=False)
+            table.add_column("序号", style="bold cyan", justify="right")
+            table.add_column("源项目", style="white")
+            table.add_column("目标路径", style="green")
+            for index, (source_text, target_text) in enumerate(items[: self.GROUP_PREVIEW_LIMIT], start=1):
+                table.add_row(str(index), source_text, target_text)
+
+            hidden_count = len(items) - min(len(items), self.GROUP_PREVIEW_LIMIT)
+            if hidden_count > 0:
+                table.add_row("…", "", f"其余 {hidden_count} 条已省略")
+
+            self.console.print(
+                Panel(
+                    table,
+                    title=f"{group_name} ({len(items)} 项)",
+                    border_style="cyan",
+                    box=box.ROUNDED,
+                    expand=False,
+                )
+            )
+
+    def _format_unresolved_question(self, plan: PendingPlan, item: str) -> str:
+        target_by_source = {move.source: move.target for move in plan.moves}
+        target = target_by_source.get(item, f"Review/{item}")
+        if target.startswith("Review/"):
+            return f"{item}：当前默认归入 Review，如无异议可直接继续。"
+        return f"{item}：当前暂归入 {self._pending_group_name(target)}，如需更精确分类请直接说明。"
+
+    def show_pending_plan(self, plan: PendingPlan, *, focus: str = "summary", summary: str = "") -> None:
+        self.panel("当前待定计划", summary or plan.summary or "请先查看整理摘要", style="blue")
         self.show_summary(
-            "????",
-            [("????", str(len(plan.directories))), ("????", str(len(plan.moves))), ("????", str(len(plan.unresolved_items)))],
+            "计划概览",
+            [("目录数", str(len(plan.directories))), ("移动数", str(len(plan.moves))), ("待确认", str(len(plan.unresolved_items)))],
             style="blue",
         )
 
-        if plan.directories and focus in {"full", "changes"}:
-            self.show_list("????", plan.directories, style="blue")
+        if plan.moves and focus in {"summary", "full", "changes", "details"}:
+            self._show_pending_group_summary(plan)
 
-        if plan.moves and focus in {"full", "changes"}:
-            grouped: dict[str, list[tuple[str, str]]] = defaultdict(list)
-            for move in plan.moves:
-                grouped[self._pending_group_name(move.target)].append((move.source, move.target))
+        if plan.directories and focus in {"full", "details", "changes"}:
+            self.show_list("目录列表", plan.directories, style="blue")
 
-            ordered_groups = sorted(grouped.items(), key=lambda item: (-len(item[1]), item[0].lower()))
-            summary_rows = [(group_name, f"{len(items)} ?") for group_name, items in ordered_groups[: self.GROUP_PANEL_LIMIT]]
-            remaining_groups = len(ordered_groups) - len(summary_rows)
-            if remaining_groups > 0:
-                summary_rows.append(("????", f"{remaining_groups} ????"))
-            self.show_summary("????", summary_rows, style="cyan")
+        if plan.moves and focus in {"full", "details", "changes"}:
+            self._show_pending_move_details(plan)
 
-            for group_name, items in ordered_groups[: self.GROUP_PANEL_LIMIT]:
-                table = Table(box=box.SIMPLE_HEAVY, expand=False)
-                table.add_column("??", style="bold cyan", justify="right")
-                table.add_column("??", style="white")
-                table.add_column("??", style="green")
-                for index, (source_text, target_text) in enumerate(items[: self.GROUP_PREVIEW_LIMIT], start=1):
-                    table.add_row(str(index), source_text, target_text)
-
-                hidden_count = len(items) - min(len(items), self.GROUP_PREVIEW_LIMIT)
-                if hidden_count > 0:
-                    table.add_row("?", "", f"?? {hidden_count} ????")
-
-                self.console.print(
-                    Panel(
-                        table,
-                        title=f"{group_name} ({len(items)} ?)",
-                        border_style="cyan",
-                        box=box.ROUNDED,
-                        expand=False,
-                    )
-                )
-
-        if plan.unresolved_items and focus in {"full", "unresolved"}:
-            self.show_list("????", plan.unresolved_items, style="yellow")
+        if plan.unresolved_items and focus in {"full", "summary", "unresolved"}:
+            self.show_list(
+                "待确认问题",
+                [self._format_unresolved_question(plan, item) for item in plan.unresolved_items],
+                style="yellow",
+            )
 
     def show_grouped_execution_preview(self, plan: ExecutionPlan) -> None:
         if not plan.move_actions:
@@ -352,5 +374,3 @@ class CLI:
 
 
 default_cli = CLI()
-
-

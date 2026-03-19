@@ -1,4 +1,4 @@
-﻿import os
+import os
 from pathlib import Path
 
 from openai import OpenAI
@@ -45,10 +45,17 @@ def _get_bool_env(name: str, default: bool = False) -> bool:
     return value.strip().lower() in {"1", "true", "yes", "on"}
 
 
+_SPOOF_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "Accept": "application/json",
+}
+
+
 def create_openai_client() -> OpenAI:
     return OpenAI(
         api_key=get_env("OPENAI_API_KEY", required=True),
         base_url=get_env("OPENAI_BASE_URL", DEFAULT_BASE_URL),
+        default_headers=_SPOOF_HEADERS,
     )
 
 
@@ -73,6 +80,7 @@ def create_image_analysis_client() -> OpenAI:
     return OpenAI(
         api_key=settings["api_key"],
         base_url=settings["base_url"] or DEFAULT_BASE_URL,
+        default_headers=_SPOOF_HEADERS,
     )
 
 

@@ -1,4 +1,4 @@
-﻿import json
+import json
 import re
 from collections import Counter
 from pathlib import Path
@@ -182,7 +182,7 @@ def run_analysis_cycle(target_dir: Path, event_handler=None, model: str = ANALYS
         submitted_items: list[AnalysisItem] | None = None
 
         while True:
-            emit(event_handler, "model_wait_start", {"message": "?????????"})
+            emit(event_handler, "model_wait_start", {"message": "正在分析目录内容"})
             try:
                 response = client.chat.completions.create(model=model, messages=curr_messages, tools=tools, tool_choice="auto")
             finally:

@@ -8,7 +8,7 @@ def build_system_prompt(files_info: str, target_dir: Path | None = None) -> str:
         f"当前工作目录绝对路径：{target_dir}\n"
         f"{files_info}\n"
         "你可以使用 read_local_file 工具读取文件内容，使用 list_local_files 工具查看目录结构。\n"
-        "read_local_file 除了普通文本、PDF、Word、Excel 外，也可以返回图片的简短摘要和 zip 压缩包的索引预览，并对文本尝试常见中文 Windows 编码。\n"
+        "注意在使用list_local_files时不要读取过于深入的目录，最多只能深入到当前目录的下一层。\n"
         "你的最终提交必须使用 submit_analysis_result 工具\n"
         "submit_analysis_result.items 必须与当前目录当前层真实条目一一对应，不能遗漏、不能新增、不能重复。\n"
         "每个 item 需要提供：entry_name、entry_type、suggested_purpose、summary、evidence_sources、confidence。\n"
