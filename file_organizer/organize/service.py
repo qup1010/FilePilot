@@ -32,7 +32,10 @@ def get_scan_content() -> str:
 
 
 def build_initial_messages(scan_lines: str) -> list:
-    return [{"role": "system", "content": build_prompt(scan_lines)}]
+    return [
+        {"role": "system", "content": build_prompt(scan_lines)},
+        {"role": "user", "content": "请基于上述扫描结果和整理规则，为我生成初始的整理建议。请先调用 submit_plan_diff 提交你的初步设想，然后告诉我你的整体思路。"}
+    ]
 
 
 def _emit_text_response(content: str, event_handler=None) -> None:
@@ -45,6 +48,16 @@ def _emit_text_response(content: str, event_handler=None) -> None:
 
 def chat_one_round(messages: list, event_handler=None, model: str = ORGANIZER_MODEL_NAME, tools=None, tool_choice="auto", return_message=False):
     client = create_openai_client()
+    # DEBUG: 打印发送给模型的请求关键信息
+    print(f"\n[DEBUG] 开始 AI 对话循环录制:")
+    print(f"  - 目标模型: {model}")
+    print(f"  - 历史消息条数: {len(messages)}")
+    if messages:
+        print(f"  - 最后一贴角色: {messages[-1]['role']}")
+        print(f"  - 系统提示词预览 (前50字): {messages[0]['content'][:50]}...")
+    else:
+        print("  - [ERROR] messages 列表为空！")
+
     emit(event_handler, "model_wait_start", {"message": MODEL_WAIT_MESSAGE})
     try:
         response = client.chat.completions.create(
@@ -399,8 +412,15 @@ def apply_plan_diff(current_plan: PendingPlan | None, patch_diff: PlanDiff | dic
 
     unresolved_order = list(previous.unresolved_items)
     unresolved_set = set(previous.unresolved_items)
-    for item in diff.unresolved_removals:
-        unresolved_set.discard(item)
+    
+    # 支持模糊删除（只要待清理的 removal 字符串是现有选项的前缀或者包含在其内，就删除）
+    for removal in diff.unresolved_removals:
+        to_remove = set()
+        for item in unresolved_set:
+            if item.startswith(removal) or removal in item or item.split(" ")[0].startswith(removal.split(" ")[0]) or item.split("（")[0].startswith(removal.split("（")[0]):
+                to_remove.add(item)
+        unresolved_set.difference_update(to_remove)
+
     for item in diff.unresolved_adds:
         if item not in unresolved_set:
             unresolved_order.append(item)

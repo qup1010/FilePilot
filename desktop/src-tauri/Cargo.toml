@@ -1,0 +1,26 @@
+[package]
+name = "file-organizer-desktop"
+version = "0.1.0"
+edition = "2021"
+description = "Tauri desktop host for the File Organizer workbench"
+authors = ["OpenAI Codex"]
+license = "MIT"
+
+[lib]
+name = "file_organizer_desktop_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[package.metadata.file-organizer]
+host = "tauri"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tauri = { version = "2", features = [] }
+uuid = { version = "1", features = ["v4"] }
+
+[dev-dependencies]
+tempfile = "3"

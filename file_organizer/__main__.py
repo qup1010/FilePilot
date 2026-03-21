@@ -1,4 +1,4 @@
-﻿from file_organizer.workflows.organize_pipeline import run_pipeline
+from file_organizer.cli.session_cli import run_session_pipeline as run_pipeline
 
 
 def main() -> None:

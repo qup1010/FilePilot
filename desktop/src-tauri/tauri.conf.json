@@ -1,0 +1,35 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "File Organizer Desktop",
+  "version": "0.1.0",
+  "identifier": "com.fileorganizer.desktop",
+  "build": {
+    "beforeDevCommand": "npm.cmd --prefix ../frontend run dev -- --hostname 127.0.0.1 --port 3000",
+    "beforeBuildCommand": "npm.cmd --prefix ../frontend run build",
+    "frontendDist": "../frontend/out",
+    "devUrl": "http://127.0.0.1:3000"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "File Organizer Desktop",
+        "width": 1440,
+        "height": 960,
+        "minWidth": 1100,
+        "minHeight": 760,
+        "resizable": true
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": false,
+    "targets": "all",
+    "icon": [
+      "icons/icon.ico"
+    ]
+  }
+}

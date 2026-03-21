@@ -1,4 +1,5 @@
-﻿import re
+import os
+import re
 from pathlib import Path
 
 
@@ -64,3 +65,9 @@ def relative_display(path: Path, base_dir: Path) -> str:
         return path.resolve(strict=False).relative_to(base_dir.resolve()).as_posix()
     except ValueError:
         return path.as_posix()
+
+
+def canonical_target_dir(value: str | Path) -> str:
+    resolved = Path(value).expanduser().resolve(strict=False)
+    normalized = os.path.normcase(str(resolved))
+    return normalized.rstrip("\\/").replace("\\", "/")

@@ -22,3 +22,29 @@ legacy_drafts/
 .DS_Store
 .idea/
 .vscode/
+
+# Frontend
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/build/
+frontend/.vercel
+frontend/.turbo
+frontend/npm-debug.log*
+frontend/yarn-debug.log*
+frontend/yarn-error.log*
+frontend/.env.local
+frontend/.env.development.local
+frontend/.env.test.local
+frontend/.env.production.local
+
+# Desktop (Tauri/Rust)
+desktop/src-tauri/target/
+desktop/src-tauri/gen/
+desktop/node_modules/
+desktop/src-tauri/binaries/
+desktop/src-tauri/target/
+
+# System / Logs
+.tmp-tauri-stdout.log
+*.log

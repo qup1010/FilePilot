@@ -1,0 +1,12 @@
+{
+  "name": "file-organizer-desktop-shell",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "tauri:dev": "tauri dev --config src-tauri/tauri.conf.json",
+    "tauri:build": "tauri build --config src-tauri/tauri.conf.json"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.9.1"
+  }
+}

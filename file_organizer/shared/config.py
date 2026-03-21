@@ -92,7 +92,10 @@ RESULT_FILE_PATH = OUTPUT_DIR / "result.txt"
 HISTORY_DIR = (OUTPUT_DIR / "history").resolve()
 EXECUTION_LOG_DIR = (HISTORY_DIR / "executions").resolve()
 LATEST_BY_DIRECTORY_PATH = HISTORY_DIR / "latest_by_directory.json"
+RUNTIME_DIR = (OUTPUT_DIR / "runtime").resolve()
+BACKEND_RUNTIME_PATH = RUNTIME_DIR / "backend.json"
 
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 HISTORY_DIR.mkdir(parents=True, exist_ok=True)
 EXECUTION_LOG_DIR.mkdir(parents=True, exist_ok=True)
+RUNTIME_DIR.mkdir(parents=True, exist_ok=True)
