@@ -47,16 +47,18 @@ def _emit_text_response(content: str, event_handler=None) -> None:
 
 
 def chat_one_round(messages: list, event_handler=None, model: str = ORGANIZER_MODEL_NAME, tools=None, tool_choice="auto", return_message=False):
+    from file_organizer.shared.config import DEBUG_MODE
     client = create_openai_client()
     # DEBUG: 打印发送给模型的请求关键信息
-    print(f"\n[DEBUG] 开始 AI 对话循环录制:")
-    print(f"  - 目标模型: {model}")
-    print(f"  - 历史消息条数: {len(messages)}")
-    if messages:
-        print(f"  - 最后一贴角色: {messages[-1]['role']}")
-        print(f"  - 系统提示词预览 (前50字): {messages[0]['content'][:50]}...")
-    else:
-        print("  - [ERROR] messages 列表为空！")
+    if DEBUG_MODE:
+        print(f"\n[DEBUG] 开始 AI 对话循环录制:")
+        print(f"  - 目标模型: {model}")
+        print(f"  - 历史消息条数: {len(messages)}")
+        if messages:
+            print(f"  - 最后一贴角色: {messages[-1]['role']}")
+            print(f"  - 系统提示词预览 (前50字): {messages[0]['content'][:50]}...")
+        else:
+            print("  - [ERROR] messages 列表为空！")
 
     emit(event_handler, "model_wait_start", {"message": MODEL_WAIT_MESSAGE})
     try:

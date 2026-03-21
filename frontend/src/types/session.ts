@@ -1,4 +1,5 @@
 export type SessionStage =
+  | "idle"
   | "draft"
   | "scanning"
   | "planning"
@@ -113,6 +114,7 @@ export interface SessionSnapshot {
   last_journal_id: string | null;
   integrity_flags: IntegrityFlags;
   available_actions: string[];
+  messages: AssistantMessage[];
   updated_at: string;
   stale_reason?: string | null;
   last_error?: string | null;
@@ -146,7 +148,7 @@ export interface MessageResponse {
 export interface UpdateItemRequest {
   item_id: string;
   target_dir?: string;
-  move_to_review: boolean;
+  move_to_review?: boolean;
 }
 
 export interface PrecheckResponse {
@@ -180,6 +182,13 @@ export interface JournalSummary {
   success_count: number;
   failure_count: number;
   rollback_attempt_count: number;
+  items?: {
+    action_type: string;
+    status: string;
+    source: string | null;
+    target: string | null;
+    display_name: string;
+  }[];
 }
 
 export interface RuntimeConfig {
@@ -329,6 +338,9 @@ export function createDemoSessionSnapshot(stage: SessionStage): SessionSnapshot 
         : stage === "ready_to_execute"
           ? ["execute", "abandon", "view_journal"]
           : ["submit_intent", "update_item", "precheck", "abandon"],
+    messages: [
+      { role: "assistant", content: "你好！我是你的文件整理助手。我已经完成了初步扫描。" }
+    ],
     updated_at: now,
     stale_reason: stage === "stale" ? "directory_changed" : null,
     last_error: null,

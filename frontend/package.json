@@ -9,9 +9,16 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@tailwindcss/postcss": "^4.2.2",
+    "clsx": "^2.1.1",
+    "lucide-react": "^0.577.0",
+    "motion": "^12.38.0",
     "next": "^15.2.0",
+    "postcss": "^8.5.8",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "tailwind-merge": "^3.5.0",
+    "tailwindcss": "^4.2.2"
   },
   "devDependencies": {
     "@types/node": "^22.13.0",
