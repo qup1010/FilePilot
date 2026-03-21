@@ -1,17 +1,16 @@
 import { Suspense } from "react";
-
-import { AppFrame } from "@/components/app-frame";
-import { WorkspaceClient } from "@/components/workspace-client";
+import WorkspaceClient from "@/components/workspace-client";
 
 export default function WorkspacePage() {
   return (
-    <AppFrame
-      title="Workspace"
-      subtitle="这里会承接扫描进度、待确认项、计划分组、自然语言输入和本轮变化。"
-    >
-      <Suspense fallback={<section className="panel"><p className="muted">Loading workspace…</p></section>}>
-        <WorkspaceClient />
-      </Suspense>
-    </AppFrame>
+    <Suspense fallback={
+      <div className="flex-1 flex items-center justify-center bg-surface">
+        <div className="text-center space-y-4">
+          <p className="text-on-surface-variant font-medium">加载工作台中...</p>
+        </div>
+      </div>
+    }>
+      <WorkspaceClient />
+    </Suspense>
   );
 }
