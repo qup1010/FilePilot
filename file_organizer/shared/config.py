@@ -4,14 +4,11 @@ from pathlib import Path
 from openai import OpenAI
 
 
-from file_organizer.shared.constants import (
-    PROJECT_ROOT,
-    DEFAULT_BASE_URL,
-    DEFAULT_ANALYSIS_MODEL,
-    DEFAULT_ORGANIZER_MODEL
-)
-
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
 ENV_PATH = PROJECT_ROOT / ".env"
+DEFAULT_BASE_URL = "https://api.openai.com/v1"
+DEFAULT_ANALYSIS_MODEL = "gpt-5.2"
+DEFAULT_ORGANIZER_MODEL = "gpt-5.2"
 
 
 def load_env_file(env_path: Path = ENV_PATH) -> None:
@@ -54,22 +51,20 @@ _SPOOF_HEADERS = {
 }
 
 
-from file_organizer.shared.config_manager import config_manager
-
 def create_openai_client() -> OpenAI:
     return OpenAI(
-        api_key=config_manager.get("OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY"),
-        base_url=config_manager.get("OPENAI_BASE_URL", DEFAULT_BASE_URL),
+        api_key=get_env("OPENAI_API_KEY", required=True),
+        base_url=get_env("OPENAI_BASE_URL", DEFAULT_BASE_URL),
         default_headers=_SPOOF_HEADERS,
     )
 
 
 def get_image_analysis_settings() -> dict[str, str | bool | None]:
     return {
-        "enabled": config_manager.get("IMAGE_ANALYSIS_ENABLED", False),
-        "base_url": config_manager.get("IMAGE_ANALYSIS_BASE_URL"),
-        "api_key": config_manager.get("IMAGE_ANALYSIS_API_KEY"),
-        "model": config_manager.get("IMAGE_ANALYSIS_MODEL"),
+        "enabled": _get_bool_env("IMAGE_ANALYSIS_ENABLED", default=False),
+        "base_url": get_env("IMAGE_ANALYSIS_BASE_URL"),
+        "api_key": get_env("IMAGE_ANALYSIS_API_KEY"),
+        "model": get_env("IMAGE_ANALYSIS_MODEL"),
     }
 
 
@@ -79,6 +74,8 @@ def create_image_analysis_client() -> OpenAI:
         raise ValueError("未启用图片分析配置")
     if not settings["api_key"]:
         raise ValueError("缺少必要配置: IMAGE_ANALYSIS_API_KEY")
+    if not settings["model"]:
+        raise ValueError("缺少必要配置: IMAGE_ANALYSIS_MODEL")
 
     return OpenAI(
         api_key=settings["api_key"],
@@ -87,14 +84,8 @@ def create_image_analysis_client() -> OpenAI:
     )
 
 
-def get_model_names() -> tuple[str, str]:
-    return (
-        config_manager.get("OPENAI_ANALYSIS_MODEL", DEFAULT_ANALYSIS_MODEL),
-        config_manager.get("OPENAI_ORGANIZER_MODEL", DEFAULT_ORGANIZER_MODEL)
-    )
-
-ANALYSIS_MODEL_NAME, ORGANIZER_MODEL_NAME = get_model_names()
-DEBUG_MODE = config_manager.get("DEBUG_MODE", False)
+ANALYSIS_MODEL_NAME = get_env("OPENAI_ANALYSIS_MODEL", DEFAULT_ANALYSIS_MODEL)
+ORGANIZER_MODEL_NAME = get_env("OPENAI_ORGANIZER_MODEL", DEFAULT_ORGANIZER_MODEL)
 
 OUTPUT_DIR = (PROJECT_ROOT / "output").resolve()
 RESULT_FILE_PATH = OUTPUT_DIR / "result.txt"

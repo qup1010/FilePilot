@@ -15,8 +15,6 @@ from file_organizer.app.session_store import SessionStore
 class SessionApiTests(unittest.TestCase):
     def setUp(self):
         self.root = Path("test_temp_api")
-        if self.root.exists():
-            shutil.rmtree(self.root)
         self.target_dir = self.root / "Inbox"
         self.target_dir.mkdir(parents=True, exist_ok=True)
         self.store = SessionStore(self.root / "sessions")
@@ -138,30 +136,6 @@ class SessionApiTests(unittest.TestCase):
         self.assertEqual(response.status_code, 409)
         self.assertEqual(response.json()["error_code"], "SESSION_STAGE_CONFLICT")
         self.assertEqual(response.json()["session_snapshot"]["stage"], "scanning")
-
-    def test_update_item_uses_target_dir_and_returns_updated_snapshot(self):
-        created = self.service.create_session(str(self.target_dir), resume_if_exists=False)
-        session = created.session
-        assert session is not None
-        session.stage = "planning"
-        session.pending_plan = {
-            "directories": ["Review"],
-            "moves": [{"source": "md", "target": "Review/md"}],
-            "unresolved_items": ["md"],
-            "summary": "needs review",
-        }
-        self.store.save(session)
-
-        response = self.client.post(
-            f"/api/sessions/{session.session_id}/update-item",
-            json={"item_id": "md", "target_dir": "Study", "move_to_review": False},
-        )
-
-        self.assertEqual(response.status_code, 200)
-        snapshot = response.json()["session_snapshot"]
-        updated_item = next(item for item in snapshot["plan_snapshot"]["items"] if item["item_id"] == "md")
-        self.assertEqual(updated_item["target_relpath"], "Study/md")
-        self.assertEqual(snapshot["plan_snapshot"]["unresolved_items"], [])
 
     def test_precheck_execute_and_rollback_endpoints_use_session_snapshot(self):
         (self.target_dir / "a.txt").write_text("hello", encoding="utf-8")

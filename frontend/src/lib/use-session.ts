@@ -230,7 +230,7 @@ export function useSession(sessionId: string | null) {
 
   async function openExplorer(path: string) {
     try {
-      await api.openDir(path);
+      await api.post("/api/utils/open-dir", { path });
     } catch (err) {
       setError("无法打开文件夹: 路径不存在或系统错误");
     }
@@ -247,22 +247,7 @@ export function useSession(sessionId: string | null) {
     }
   }
 
-  async function updateItem(payload: { item_id: string; target_dir?: string; move_to_review?: boolean }) {
-    if (!sessionId) return;
-    setLoading(true);
-    setError(null);
-    try {
-      const response = await api.updateItem(sessionId, payload);
-      setSnapshot(response.session_snapshot);
-    } catch (err: any) {
-      setError(err instanceof Error ? err.message : "调整项目失败");
-    } finally {
-      setLoading(false);
-    }
-  }
-
   return {
-
     snapshot,
     journal,
     loading,
@@ -281,6 +266,5 @@ export function useSession(sessionId: string | null) {
     activeAction,
     aiTyping,
     actionLog,
-    updateItem,
   };
 }

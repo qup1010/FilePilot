@@ -171,60 +171,6 @@ class OrganizerSessionServiceTests(unittest.TestCase):
         self.assertEqual(result.assistant_message["content"], "已更新计划")
         self.assertEqual(result.session_snapshot["plan_snapshot"]["summary"], "moved")
 
-    def test_update_item_target_uses_target_dir_and_removes_unresolved_item(self):
-        created = self.service.create_session(str(self.target_dir), resume_if_exists=False)
-        session = created.session
-        assert session is not None
-        session.stage = "planning"
-        session.pending_plan = {
-            "directories": ["Review"],
-            "moves": [{"source": "md", "target": "Review/md"}],
-            "unresolved_items": ["md"],
-            "summary": "needs review",
-        }
-        self.store.save(session)
-
-        result = self.service.update_item_target(
-            session.session_id,
-            "md",
-            "Study",
-            False,
-        )
-
-        updated_item = next(
-            item for item in result.session_snapshot["plan_snapshot"]["items"] if item["item_id"] == "md"
-        )
-        self.assertEqual(updated_item["target_relpath"], "Study/md")
-        self.assertEqual(result.session_snapshot["plan_snapshot"]["unresolved_items"], [])
-        self.assertEqual(result.session_snapshot["plan_snapshot"]["stats"]["unresolved_count"], 0)
-
-    def test_update_item_target_move_to_review_removes_unresolved_item_immediately(self):
-        created = self.service.create_session(str(self.target_dir), resume_if_exists=False)
-        session = created.session
-        assert session is not None
-        session.stage = "planning"
-        session.pending_plan = {
-            "directories": ["Docs"],
-            "moves": [{"source": "md", "target": "Docs/md"}],
-            "unresolved_items": ["md"],
-            "summary": "needs confirmation",
-        }
-        self.store.save(session)
-
-        result = self.service.update_item_target(
-            session.session_id,
-            "md",
-            None,
-            True,
-        )
-
-        updated_item = next(
-            item for item in result.session_snapshot["plan_snapshot"]["items"] if item["item_id"] == "md"
-        )
-        self.assertEqual(updated_item["target_relpath"], "Review/md")
-        self.assertEqual(updated_item["status"], "review")
-        self.assertEqual(result.session_snapshot["plan_snapshot"]["unresolved_items"], [])
-
     def test_refresh_session_rebuilds_plan_and_marks_invalidated_items(self):
         created = self.service.create_session(str(self.target_dir), resume_if_exists=False)
         session = created.session

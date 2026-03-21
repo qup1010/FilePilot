@@ -397,16 +397,6 @@ class OrganizerSessionService:
             "success_count": sum(1 for item in journal.items if item.status == "success"),
             "failure_count": sum(1 for item in journal.items if item.status == "failed"),
             "rollback_attempt_count": len(journal.rollback_attempts),
-            "items": [
-                {
-                    "action_type": item.action_type,
-                    "status": item.status,
-                    "source": item.source_before,
-                    "target": item.target_after,
-                    "display_name": Path(item.source_before).name if item.source_before else (Path(item.created_path).name if item.created_path else "unknown")
-                }
-                for item in journal.items
-            ]
         }
 
     def cleanup_empty_dirs(self, session_id: str) -> dict:
@@ -551,7 +541,6 @@ class OrganizerSessionService:
             "last_journal_id": session.last_journal_id,
             "integrity_flags": dict(session.integrity_flags),
             "available_actions": self._available_actions_for(session.stage),
-            "messages": list(session.messages),
             "updated_at": session.updated_at,
             "stale_reason": session.stale_reason,
             "last_error": session.last_error,
