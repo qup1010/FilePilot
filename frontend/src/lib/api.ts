@@ -13,6 +13,7 @@ import {
   type HistoryItem,
   type AppConfig,
   type UpdateItemRequest,
+  type SessionStrategySelection,
 } from "@/types/session";
 
 function joinUrl(baseUrl: string, path: string): string {
@@ -31,7 +32,7 @@ async function parseResponse<T>(response: Response): Promise<T> {
 }
 
 export interface ApiClient {
-  createSession(target_dir: string, resume_if_exists?: boolean): Promise<CreateSessionResponse>;
+  createSession(target_dir: string, resume_if_exists?: boolean, strategy?: SessionStrategySelection): Promise<CreateSessionResponse>;
   getSession(session_id: string): Promise<GetSessionResponse>;
   resumeSession(session_id: string): Promise<ResumeSessionResponse>;
   abandonSession(session_id: string): Promise<{ session_id: string; session_snapshot: SessionSnapshot }>;
@@ -59,11 +60,11 @@ export interface ApiClient {
 
 export function createApiClient(baseUrl: string): ApiClient {
   return {
-    async createSession(target_dir, resume_if_exists = true) {
+    async createSession(target_dir, resume_if_exists = true, strategy) {
       const response = await fetch(joinUrl(baseUrl, "/api/sessions"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ target_dir, resume_if_exists }),
+        body: JSON.stringify({ target_dir, resume_if_exists, strategy }),
       });
       return parseResponse<CreateSessionResponse>(response);
     },

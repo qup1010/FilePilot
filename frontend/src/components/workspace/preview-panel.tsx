@@ -72,6 +72,11 @@ export function PreviewPanel({
 }: PreviewPanelProps) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
+  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
+
+  const toggleGroup = (dir: string) => {
+    setExpandedGroups((prev) => ({ ...prev, [dir]: !prev[dir] }));
+  };
 
   const handleEditSubmit = (itemId: string) => {
     if (!editValue.trim()) {
@@ -91,15 +96,15 @@ export function PreviewPanel({
             <h2 className="text-sm font-bold font-headline text-on-surface tracking-widest uppercase">建议目录树</h2>
             {plan.unresolved_items.length > 0 ? (
               <div className="px-3 py-1 bg-warning-container/30 text-warning rounded text-[9px] font-black tracking-widest uppercase border border-warning/10">
-                Pending Conflict
+                存在冲突
               </div>
             ) : stage === "ready_to_execute" ? (
-              <div className="px-3 py-1 bg-emerald-500 text-white rounded text-[9px] font-black tracking-widest uppercase shadow-sm">
-                Verified
+              <div className="px-3 py-1 bg-emerald-500 text-white rounded text-[11px] font-black shadow-sm">
+                已通过预检
               </div>
             ) : (
-              <div className="px-3 py-1 bg-surface-container-highest text-on-surface-variant/40 rounded text-[9px] font-black tracking-widest uppercase">
-                Drafting
+              <div className="px-3 py-1 bg-surface-container-highest text-on-surface-variant/60 rounded text-[11px] font-black">
+                草案生成中
               </div>
             )}
           </div>
@@ -108,7 +113,7 @@ export function PreviewPanel({
             <div className="bg-surface-container-low p-5 rounded-md border border-on-surface/5 flex flex-col gap-2">
               <div className="flex items-center gap-2 opacity-40">
                 <Archive className="w-3.5 h-3.5 text-on-surface" />
-                <span className="text-[10px] font-bold text-on-surface uppercase tracking-widest">预测目录</span>
+                <span className="text-[11px] font-bold text-on-surface">预测目录数</span>
               </div>
               <p className="text-2xl font-black text-on-surface tabular-nums leading-none tracking-tight">
                 {plan.stats.directory_count}
@@ -117,7 +122,7 @@ export function PreviewPanel({
             <div className="bg-surface-container-low p-5 rounded-md border border-on-surface/5 flex flex-col gap-2">
               <div className="flex items-center gap-2 mb-2 opacity-40">
                 <Activity className="w-3.5 h-3.5 text-on-surface" />
-                <span className="text-[10px] font-bold text-on-surface uppercase tracking-widest">操作节点</span>
+                <span className="text-[11px] font-bold text-on-surface">待执行操作</span>
               </div>
               <p className="text-2xl font-black text-on-surface tabular-nums leading-none tracking-tight">
                 {plan.stats.move_count}
@@ -133,7 +138,7 @@ export function PreviewPanel({
                 exit={{ opacity: 0, height: 0 }}
                 className="p-6 bg-warning-container/10 border border-warning/20 rounded-md space-y-4 overflow-hidden shadow-sm"
               >
-                <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-warning flex items-center gap-2">
+                <h3 className="text-xs font-black text-warning flex items-center gap-2">
                   <AlertTriangle className="w-4 h-4" /> 架构冲突待决
                 </h3>
                 <div className="space-y-2">
@@ -149,14 +154,13 @@ export function PreviewPanel({
                         <div className="flex-1">
                           <p className="text-[12.5px] font-bold text-on-surface leading-normal">{item}</p>
                           <p className="mt-2 text-[10px] text-on-surface-variant leading-relaxed">
-                            点击这里不再默认等同于“已解决”。你可以继续向 AI 澄清，或者直接把它移到
-                            Review。
+                            点击这里不再默认等同于“已解决”。你可以继续向 AI 澄清，或者直接把它移到 Review。
                           </p>
                           <div className="mt-4 flex flex-wrap gap-2">
                             <button
                               type="button"
                               onClick={() => onPromptConflict(item)}
-                              className="inline-flex items-center gap-1.5 rounded-md border border-warning/20 px-3 py-2 text-[10px] font-black uppercase tracking-wider text-warning transition-colors hover:bg-warning/10"
+                              className="inline-flex items-center gap-1.5 rounded-md border border-warning/20 px-3 py-2 text-[11px] font-black text-warning transition-colors hover:bg-warning/10"
                             >
                               继续向 AI 澄清
                               <ChevronRight className="w-3 h-3" />
@@ -165,7 +169,7 @@ export function PreviewPanel({
                               <button
                                 type="button"
                                 onClick={() => onUpdateItem(matchedItem.item_id, { move_to_review: true })}
-                                className="inline-flex items-center gap-1.5 rounded-md border border-on-surface/10 px-3 py-2 text-[10px] font-black uppercase tracking-wider text-on-surface-variant transition-colors hover:bg-surface-container-low hover:text-on-surface"
+                                className="inline-flex items-center gap-1.5 rounded-md border border-on-surface/10 px-3 py-2 text-[11px] font-black text-on-surface-variant transition-colors hover:bg-surface-container-low hover:text-on-surface"
                               >
                                 直接移到 Review
                                 <ArrowRight className="w-3 h-3" />
@@ -183,7 +187,7 @@ export function PreviewPanel({
 
           <div className="space-y-6">
             <div className="flex items-center justify-between opacity-40">
-              <h3 className="text-[10px] font-black uppercase tracking-[0.3em] flex items-center gap-2">
+              <h3 className="text-xs font-black text-on-surface-variant/70 flex items-center gap-2">
                 <Layers className="w-4 h-4" /> 架构层级预览
               </h3>
               <button
@@ -197,8 +201,8 @@ export function PreviewPanel({
 
             <div className="space-y-1">
               {plan.groups.length === 0 ? (
-                <div className="p-16 border border-dashed border-on-surface/5 rounded-md text-center text-[10px] font-bold text-on-surface-variant/20 uppercase tracking-widest italic">
-                  Awaiting Neural Mapping...
+                <div className="p-16 border border-dashed border-on-surface/5 rounded-md text-center text-xs font-bold text-on-surface-variant/40 italic">
+                  等待生成目录映射...
                 </div>
               ) : (
                 plan.groups.map((group, gIdx) => (
@@ -218,13 +222,13 @@ export function PreviewPanel({
                           {group.directory}
                         </span>
                       </div>
-                      <span className="text-[10px] font-mono text-on-surface-variant/40 tabular-nums uppercase">
-                        {group.items.length} Nodes
+                      <span className="text-[11px] font-mono text-on-surface-variant/50 tabular-nums">
+                        {group.items.length} 项
                       </span>
                     </div>
 
                     <div className="pl-12 grid grid-cols-1 gap-2">
-                      {group.items.slice(0, 8).map((item) => {
+                      {(expandedGroups[group.directory] ? group.items : group.items.slice(0, 8)).map((item) => {
                         const Icon = getFileIcon(item.display_name);
                         const isEditing = editingId === item.item_id;
                         return (
@@ -284,11 +288,22 @@ export function PreviewPanel({
                           </div>
                         );
                       })}
-                      {group.items.length > 8 ? (
-                        <div className="text-[9px] text-on-surface-variant/30 font-black uppercase tracking-widest pl-7 pt-2 italic">
-                          + {group.items.length - 8} Nodes Hidden
-                        </div>
-                      ) : null}
+                      {group.items.length > 8 && (
+                        <button
+                          onClick={() => toggleGroup(group.directory)}
+                          className="w-fit text-[11px] text-primary font-black pl-0 pt-2 pb-2 italic hover:underline flex items-center gap-1 transition-all"
+                        >
+                          {expandedGroups[group.directory]
+                            ? "收起部分列表"
+                            : `查看全部 ${group.items.length} 个文件项`}
+                          <ChevronRight
+                            className={cn(
+                              "w-3 h-3 transition-transform",
+                              expandedGroups[group.directory] ? "-rotate-90" : "rotate-90",
+                            )}
+                          />
+                        </button>
+                      )}
                     </div>
                   </motion.div>
                 ))

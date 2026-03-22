@@ -2,14 +2,15 @@
 
 import React, { useMemo, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { Bot, Layers } from "lucide-react";
+import { AlertTriangle, Bot, Layers, RefreshCw } from "lucide-react";
+
 import { useSession } from "@/lib/use-session";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ScanningOverlay } from "./workspace/scanning-overlay";
 import { PrecheckView } from "./workspace/precheck-view";
 import { CompletionView } from "./workspace/completion-view";
-import { ConversationPanel } from "./workspace/conversation-panel";
+import { ConversationPanel, type ConversationNotice } from "./workspace/conversation-panel";
 import { PreviewPanel } from "./workspace/preview-panel";
 
 export default function WorkspaceClient() {
@@ -20,10 +21,18 @@ export default function WorkspaceClient() {
 
   const {
     snapshot,
+    stage,
     journal,
+    journalLoading,
     loading,
+    chatMessages,
+    assistantDraft,
+    activityFeed,
+    chatError,
+    composerMode,
     sendMessage,
     scan,
+    refreshPlan,
     runPrecheck,
     execute,
     rollback,
@@ -31,17 +40,12 @@ export default function WorkspaceClient() {
     abandonSession,
     openExplorer,
     loadJournal,
-    activeAction,
-    aiTyping,
-    actionLog,
     updateItem,
   } = useSession(sessionIdParam);
 
   const [messageInput, setMessageInput] = useState("");
   const [leftWidth, setLeftWidth] = useState(62);
   const isResizing = React.useRef(false);
-
-  const stage = snapshot?.stage || "idle";
 
   const scanner = useMemo(
     () => ({
@@ -84,11 +88,11 @@ export default function WorkspaceClient() {
     document.body.style.cursor = "col-resize";
   };
 
-  const handleMouseMove = (e: MouseEvent) => {
+  const handleMouseMove = (event: MouseEvent) => {
     if (!isResizing.current) {
       return;
     }
-    const newWidth = (e.clientX / window.innerWidth) * 100;
+    const newWidth = (event.clientX / window.innerWidth) * 100;
     if (newWidth > 35 && newWidth < 75) {
       setLeftWidth(newWidth);
     }
@@ -117,47 +121,135 @@ export default function WorkspaceClient() {
     }
   };
 
-  // 执行完成后，需要显式加载一次 journal 以展示汇总
+  const handleExitWorkbench = () => {
+    if (window.confirm("确定要放弃当前会话并返回首页吗？")) {
+      void abandonSession().then(() => router.push("/"));
+    }
+  };
+
+  const statusNotice = useMemo<ConversationNotice | null>(() => {
+    if (stage === "ready_to_execute") {
+      return {
+        tone: "info",
+        title: "方案已进入预检确认阶段",
+        description: "当前聊天输入已收起。请在右侧确认执行，或返回上一阶段继续修改方案。",
+        primaryAction: {
+          label: "返回修改方案",
+          onClick: () => {
+            void sendMessage("我需要修改方案，请重新评估。");
+          },
+        },
+      };
+    }
+
+    if (stage === "stale") {
+      return {
+        tone: "warning",
+        title: "会话已失效",
+        description: "目录内容发生了变化，请重新刷新当前方案后再继续整理。",
+        primaryAction: {
+          label: "重新扫描并刷新",
+          onClick: () => void refreshPlan(),
+        },
+        secondaryAction: {
+          label: "放弃会话",
+          onClick: handleExitWorkbench,
+        },
+      };
+    }
+
+    if (stage === "interrupted") {
+      return {
+        tone: "danger",
+        title: "上一次运行被中断",
+        description: snapshot?.last_error || "请重新刷新方案，确认当前目录状态后再继续。",
+        primaryAction: {
+          label: "重新刷新方案",
+          onClick: () => void refreshPlan(),
+        },
+        secondaryAction: {
+          label: "放弃会话",
+          onClick: handleExitWorkbench,
+        },
+      };
+    }
+
+    if (stage === "completed") {
+      return {
+        tone: "info",
+        title: "整理已完成",
+        description: "左侧保留本次会话摘要，右侧展示执行结果与回退操作。",
+      };
+    }
+
+    return null;
+  }, [refreshPlan, sendMessage, snapshot?.last_error, stage]);
+
   React.useEffect(() => {
-    if (stage === "completed" && !journal && !isBusy) {
+    if (stage === "completed" && !journal && !journalLoading && !isBusy) {
       void loadJournal();
     }
-  }, [stage, journal, isBusy, loadJournal]);
+  }, [stage, journal, journalLoading, isBusy, loadJournal]);
 
   return (
-    <div className="flex-1 flex overflow-hidden relative bg-surface">
+    <div className="flex-1 flex min-h-0 overflow-hidden relative bg-surface">
       <ErrorBoundary fallbackTitle="工作台引擎崩溃" className="flex-1">
-        <section style={{ width: `${leftWidth}%` }} className="flex flex-col min-w-[400px] h-full relative">
-          <div className="px-8 py-6 h-20 flex items-center justify-between border-b border-on-surface/5 bg-surface-container-low z-10">
-            <div className="flex items-center gap-4">
-              <div className="w-10 h-10 rounded-md bg-white flex items-center justify-center text-primary shadow-sm border border-on-surface/5">
-                <Bot className="w-5 h-5" />
+        <section style={{ width: `${leftWidth}%` }} className="relative flex min-h-0 h-full min-w-[400px] flex-col">
+          <div className="shrink-0 px-8 py-5 min-h-[104px] flex items-start justify-between border-b border-on-surface/5 bg-surface/88 backdrop-blur-sm z-10 gap-4">
+            <div className="flex items-start gap-4">
+              <div className="w-10 h-10 rounded-2xl bg-white/80 flex items-center justify-center text-primary border border-on-surface/5">
+                <Bot className="w-4.5 h-4.5" />
               </div>
-              <div>
-                <h2 className="text-sm font-bold font-headline text-on-surface tracking-tight uppercase tracking-widest">
-                  组织器助手
-                </h2>
-                <p className="text-[10px] text-on-surface-variant font-mono truncate max-w-[200px]">
-                  {dirParam || "..."}
+              <div className="space-y-2">
+                <div className="flex flex-wrap items-center gap-3">
+                  <h2 className="text-base font-bold font-headline text-on-surface tracking-tight">
+                    文件整理助手
+                  </h2>
+                  <span className="rounded-full bg-surface-container px-2.5 py-1 text-xs font-medium text-on-surface-variant">
+                    {stage}
+                  </span>
+                  {snapshot?.strategy ? (
+                    <span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary">
+                      {snapshot.strategy.template_label}
+                    </span>
+                  ) : null}
+                </div>
+                <p className="text-xs text-on-surface-variant truncate max-w-[320px]">
+                  {snapshot?.target_dir || dirParam || "..."}
                 </p>
+                {snapshot?.strategy ? (
+                  <div className="space-y-1.5">
+                    <div className="flex flex-wrap gap-2">
+                      <span className="rounded-full bg-white px-2.5 py-1 text-xs font-medium text-on-surface-variant border border-on-surface/8">
+                        {snapshot.strategy.naming_style_label}
+                      </span>
+                      <span className="rounded-full bg-white px-2.5 py-1 text-xs font-medium text-on-surface-variant border border-on-surface/8">
+                        {snapshot.strategy.caution_level_label}
+                      </span>
+                    </div>
+                    {snapshot.strategy.note ? (
+                      <p className="max-w-[340px] truncate text-xs leading-5 text-on-surface-variant/75">
+                        偏好：{snapshot.strategy.note}
+                      </p>
+                    ) : null}
+                  </div>
+                ) : null}
               </div>
             </div>
             <button
-              onClick={() => {
-                if (window.confirm("确定要放弃当前会话并返回首页吗？")) {
-                  void abandonSession().then(() => router.push("/"));
-                }
-              }}
-              className="text-[11px] font-bold text-on-surface-variant hover:text-error px-3 py-2 rounded-md transition-colors hover:bg-error-container/10"
+              onClick={handleExitWorkbench}
+              className="text-xs font-medium text-on-surface-variant hover:text-error px-3 py-2 rounded-full transition-colors hover:bg-error-container/10"
             >
               退出工作台
             </button>
           </div>
 
           <ConversationPanel
-            messages={snapshot?.messages || []}
-            actionLog={actionLog}
-            aiTyping={!!aiTyping}
+            messages={chatMessages}
+            assistantDraft={assistantDraft}
+            activityFeed={activityFeed}
+            error={chatError}
+            composerMode={composerMode}
             isBusy={isBusy}
             stage={stage}
             messageInput={messageInput}
@@ -165,6 +257,7 @@ export default function WorkspaceClient() {
             onSendMessage={handleSendMessage}
             onStartScan={() => void scan()}
             unresolvedCount={plan.unresolved_items.length}
+            notice={statusNotice}
           />
         </section>
 
@@ -178,7 +271,7 @@ export default function WorkspaceClient() {
 
         <section
           style={{ width: `${100 - leftWidth}%` }}
-          className="flex flex-col bg-surface overflow-y-auto min-w-[340px] h-full"
+          className="flex min-h-0 h-full min-w-[340px] flex-col bg-surface overflow-y-auto"
         >
           <div className="flex-1">
             {stage === "scanning" ? (
@@ -189,6 +282,7 @@ export default function WorkspaceClient() {
               <div className="p-10 max-w-4xl mx-auto">
                 <CompletionView
                   journal={journal}
+                  loading={journalLoading || !journal}
                   targetDir={snapshot?.target_dir || ""}
                   isBusy={isBusy}
                   onOpenExplorer={() => void openExplorer(snapshot?.target_dir || "")}
@@ -198,11 +292,10 @@ export default function WorkspaceClient() {
               </div>
             ) : stage === "ready_to_execute" ? (
               <div className="p-10">
-                {/* @ts-ignore - Prop name mismatch fix in next step */}
-                <PrecheckView 
-                  summary={precheck} 
-                  isBusy={isBusy} 
-                  onExecute={() => void execute()} 
+                <PrecheckView
+                  summary={precheck}
+                  isBusy={isBusy}
+                  onExecute={() => void execute()}
                   onBack={() => {
                     void sendMessage("我需要修改方案，请重新评估。");
                   }}
@@ -217,6 +310,42 @@ export default function WorkspaceClient() {
                     description="在此预览 AI 架构师为你构建的目录映射。请先点击左侧启动深度扫描。"
                     className="h-[70vh]"
                   />
+                ) : stage === "stale" || stage === "interrupted" ? (
+                  <div className="p-10">
+                    <div className="rounded-2xl border border-warning/20 bg-warning-container/15 p-6 shadow-sm">
+                      <div className="flex items-start gap-4">
+                        <div className="mt-1 rounded-full bg-warning/15 p-3 text-warning">
+                          {stage === "interrupted" ? <AlertTriangle className="h-5 w-5" /> : <RefreshCw className="h-5 w-5" />}
+                        </div>
+                        <div className="space-y-3">
+                          <h3 className="text-lg font-bold text-on-surface">
+                            {stage === "interrupted" ? "会话已中断" : "会话已失效"}
+                          </h3>
+                          <p className="text-sm leading-6 text-on-surface-variant">
+                            {stage === "interrupted"
+                              ? (snapshot?.last_error || "请重新刷新方案，确认目录状态后再继续。")
+                              : "目录内容已经变化，原先方案可能不再安全，请先重新刷新。"}
+                          </p>
+                          <div className="flex flex-wrap gap-3">
+                            <button
+                              type="button"
+                              onClick={() => void refreshPlan()}
+                              className="rounded-xl bg-primary px-4 py-2.5 text-sm font-bold text-white shadow-sm transition-opacity hover:opacity-90"
+                            >
+                              重新刷新方案
+                            </button>
+                            <button
+                              type="button"
+                              onClick={handleExitWorkbench}
+                              className="rounded-xl border border-on-surface/10 px-4 py-2.5 text-sm font-bold text-on-surface-variant transition-colors hover:bg-surface-container-low hover:text-on-surface"
+                            >
+                              放弃当前会话
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 ) : (
                   <PreviewPanel
                     plan={plan}

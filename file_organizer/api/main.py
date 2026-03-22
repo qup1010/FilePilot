@@ -5,7 +5,7 @@ import os
 from pathlib import Path
 from queue import Empty
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 
@@ -28,7 +28,12 @@ def create_app(service: OrganizerSessionService | None = None) -> FastAPI:
     app.state.service = service or OrganizerSessionService(SessionStore(Path("output/sessions")))
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],
+        allow_origins=[
+            "http://127.0.0.1:3000",
+            "http://localhost:3000",
+            "tauri://localhost",
+            "http://tauri.localhost",
+        ],
         allow_methods=["*"],
         allow_headers=["*"],
     )
@@ -43,6 +48,7 @@ def create_app(service: OrganizerSessionService | None = None) -> FastAPI:
             result = app.state.service.create_session(
                 payload["target_dir"],
                 bool(payload.get("resume_if_exists", False)),
+                payload.get("strategy"),
             )
         except RuntimeError as exc:
             if str(exc) == "SESSION_LOCKED":
@@ -131,6 +137,23 @@ def create_app(service: OrganizerSessionService | None = None) -> FastAPI:
         except RuntimeError:
             return _error_response(app.state.service, session_id, "SESSION_STAGE_CONFLICT", 409)
 
+    @app.post("/api/sessions/{session_id}/update-item")
+    def update_item(session_id: str, payload: dict):
+        try:
+            result = app.state.service.update_item_target(
+                session_id,
+                payload["item_id"],
+                payload.get("target_dir"),
+                bool(payload.get("move_to_review", False)),
+            )
+            return {"session_id": session_id, "session_snapshot": result.session_snapshot}
+        except FileNotFoundError:
+            raise HTTPException(status_code=404, detail="SESSION_NOT_FOUND")
+        except RuntimeError as exc:
+            if str(exc) == "ITEM_NOT_FOUND":
+                raise HTTPException(status_code=404, detail="ITEM_NOT_FOUND")
+            return _error_response(app.state.service, session_id, "SESSION_STAGE_CONFLICT", 409)
+
 
     @app.post("/api/sessions/{session_id}/precheck")
     def precheck(session_id: str):
@@ -191,7 +214,7 @@ def create_app(service: OrganizerSessionService | None = None) -> FastAPI:
         return app.state.service.list_history()
 
     @app.get("/api/sessions/{session_id}/events")
-    def events(session_id: str):
+    def events(session_id: str, request: Request):
         def stream():
             snapshot = app.state.service.get_snapshot(session_id)
             initial_event = {
@@ -202,6 +225,8 @@ def create_app(service: OrganizerSessionService | None = None) -> FastAPI:
             }
             yield "event: session.snapshot\n"
             yield f"data: {json.dumps(initial_event, ensure_ascii=False)}\n\n"
+            if request.headers.get("x-file-organizer-once") == "1":
+                return
             subscriber = app.state.service.subscribe(session_id)
             try:
                 while True:

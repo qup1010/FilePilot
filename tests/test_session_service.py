@@ -1,4 +1,5 @@
 import shutil
+import time
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -8,9 +9,22 @@ from file_organizer.app.session_store import SessionStore
 from file_organizer.organize.models import PendingPlan, PlanMove
 
 
+class ImmediateScanner:
+    def start(self, session_id, target_dir, run_scan, on_complete, on_error):
+        try:
+            on_complete(session_id, run_scan(target_dir))
+        except Exception as exc:
+            on_error(session_id, exc)
+
+    def get_progress(self, session_id):
+        return {"running": False}
+
+
 class OrganizerSessionServiceTests(unittest.TestCase):
     def setUp(self):
         self.root = Path("test_temp_session_service")
+        if self.root.exists():
+            shutil.rmtree(self.root, ignore_errors=True)
         self.target_dir = self.root / "Inbox"
         self.target_dir.mkdir(parents=True, exist_ok=True)
         self.store = SessionStore(self.root / "sessions")
@@ -18,7 +32,16 @@ class OrganizerSessionServiceTests(unittest.TestCase):
 
     def tearDown(self):
         if self.root.exists():
-            shutil.rmtree(self.root)
+            last_error = None
+            for _ in range(5):
+                try:
+                    shutil.rmtree(self.root)
+                    return
+                except PermissionError as exc:
+                    last_error = exc
+                    time.sleep(0.1)
+            if last_error is not None:
+                raise last_error
 
     def test_create_session_returns_created_mode(self):
         result = self.service.create_session(str(self.target_dir), resume_if_exists=False)
@@ -36,6 +59,32 @@ class OrganizerSessionServiceTests(unittest.TestCase):
         self.assertEqual(resumed.mode, "resume_available")
         self.assertIsNotNone(resumed.restorable_session)
         self.assertEqual(resumed.restorable_session.session_id, created.session.session_id)
+
+    def test_create_session_persists_strategy_and_exposes_snapshot_summary(self):
+        created = self.service.create_session(
+            str(self.target_dir),
+            resume_if_exists=False,
+            strategy={
+                "template_id": "project_workspace",
+                "naming_style": "en",
+                "caution_level": "balanced",
+                "note": "项目文件尽量按交付物归档",
+            },
+        )
+
+        session = created.session
+        assert session is not None
+        snapshot = self.service.get_snapshot(session.session_id)
+
+        self.assertEqual(session.strategy_template_id, "project_workspace")
+        self.assertEqual(session.naming_style, "en")
+        self.assertEqual(session.caution_level, "balanced")
+        self.assertEqual(session.strategy_note, "项目文件尽量按交付物归档")
+        self.assertEqual(session.user_constraints, ["项目文件尽量按交付物归档"])
+        self.assertEqual(snapshot["strategy"]["template_id"], "project_workspace")
+        self.assertEqual(snapshot["strategy"]["template_label"], "项目资料")
+        self.assertEqual(snapshot["strategy"]["naming_style_label"], "英文目录")
+        self.assertEqual(snapshot["strategy"]["note"], "项目文件尽量按交付物归档")
 
     def test_create_session_requires_abandon_before_replacing_active_session(self):
         self.service.create_session(str(self.target_dir), resume_if_exists=False)
@@ -238,6 +287,67 @@ class OrganizerSessionServiceTests(unittest.TestCase):
         self.assertEqual(result.session_snapshot["messages"][-1]["content"], "已更新计划")
         self.assertTrue(all(message["role"] != "tool" for message in result.session_snapshot["messages"]))
 
+    def test_get_snapshot_assigns_stable_message_ids(self):
+        created = self.service.create_session(str(self.target_dir), resume_if_exists=False)
+        session = created.session
+        assert session is not None
+        session.stage = "planning"
+        session.messages = [{"role": "assistant", "content": "hello"}]
+        self.store.save(session)
+
+        first_snapshot = self.service.get_snapshot(session.session_id)
+        second_snapshot = self.service.get_snapshot(session.session_id)
+
+        self.assertIn("id", first_snapshot["messages"][0])
+        self.assertEqual(first_snapshot["messages"][0]["id"], second_snapshot["messages"][0]["id"])
+
+    def test_start_scan_emits_scan_ai_typing_events_without_polluting_plan_stream(self):
+        service = OrganizerSessionService(self.store, scanner=ImmediateScanner())
+        created = service.create_session(str(self.target_dir), resume_if_exists=False)
+        session = created.session
+        assert session is not None
+
+        pending = PendingPlan(
+            directories=["Docs"],
+            moves=[PlanMove(source="a.txt", target="Docs/a.txt")],
+            unresolved_items=[],
+            summary="planned",
+        )
+
+        def fake_scan_runner(_target_dir, event_handler=None):
+            if event_handler is not None:
+                event_handler("ai_chunk", {"content": "扫描阶段摘要"})
+            return "a.txt | 文档 | A"
+
+        with mock.patch(
+            "file_organizer.app.session_service.analysis_service.run_analysis_cycle",
+            side_effect=fake_scan_runner,
+        ), mock.patch(
+            "file_organizer.app.session_service.organize_service.build_initial_messages",
+            return_value=[{"role": "system", "content": "scan"}],
+        ), mock.patch(
+            "file_organizer.app.session_service.organize_service.run_organizer_cycle",
+            return_value=("已规划", {"pending_plan": pending, "is_valid": False, "diff_summary": ["planned"]}),
+        ):
+            service.start_scan(session.session_id)
+
+        event_types = [event["event_type"] for event in service.read_events(session.session_id)]
+        self.assertIn("scan.ai_typing", event_types)
+        self.assertNotIn("plan.ai_typing", [event["event_type"] for event in service.read_events(session.session_id) if event.get("content") == "扫描阶段摘要"])
+
+    def test_get_snapshot_recovers_orphaned_scanning_session_to_interrupted(self):
+        created = self.service.create_session(str(self.target_dir), resume_if_exists=False)
+        session = created.session
+        assert session is not None
+        session.stage = "scanning"
+        self.store.save(session)
+
+        snapshot = self.service.get_snapshot(session.session_id)
+
+        self.assertEqual(snapshot["stage"], "interrupted")
+        self.assertEqual(snapshot["integrity_flags"]["interrupted_during"], "scanning")
+        self.assertEqual(snapshot["last_error"], "scanning_interrupted")
+
     def test_update_item_target_uses_target_dir_and_removes_unresolved_item(self):
         created = self.service.create_session(str(self.target_dir), resume_if_exists=False)
         session = created.session
@@ -332,6 +442,39 @@ class OrganizerSessionServiceTests(unittest.TestCase):
             ["a.txt"],
         )
 
+    def test_refresh_session_keeps_existing_strategy_summary(self):
+        created = self.service.create_session(
+            str(self.target_dir),
+            resume_if_exists=False,
+            strategy={
+                "template_id": "study_materials",
+                "naming_style": "zh",
+                "caution_level": "conservative",
+                "note": "模糊项都进待确认",
+            },
+        )
+        session = created.session
+        assert session is not None
+        session.stage = "stale"
+        session.scan_lines = "a.txt | 文档 | A"
+        session.pending_plan = {
+            "directories": ["课程资料"],
+            "moves": [{"source": "a.txt", "target": "课程资料/a.txt"}],
+            "unresolved_items": [],
+            "summary": "old plan",
+            "user_constraints": ["模糊项都进待确认"],
+        }
+        self.store.save(session)
+
+        result = self.service.refresh_session(
+            session.session_id,
+            scan_runner=lambda path: "a.txt | 文档 | A",
+        )
+
+        self.assertEqual(result.session_snapshot["strategy"]["template_id"], "study_materials")
+        self.assertEqual(result.session_snapshot["strategy"]["caution_level"], "conservative")
+        self.assertEqual(result.session_snapshot["strategy"]["note"], "模糊项都进待确认")
+
     def test_refresh_session_rejects_locked_stage(self):
         created = self.service.create_session(str(self.target_dir), resume_if_exists=False)
         session = created.session
@@ -375,6 +518,31 @@ class OrganizerSessionServiceTests(unittest.TestCase):
         self.assertEqual(summary["status"], "completed")
         self.assertEqual(summary["item_count"], 2)
         self.assertEqual(summary["execution_id"], summary["journal_id"])
+        self.assertEqual(summary["restore_items"], [])
+
+    def test_get_journal_summary_prefers_latest_rollback_restore_mapping(self):
+        (self.target_dir / "a.txt").write_text("hello", encoding="utf-8")
+        created = self.service.create_session(str(self.target_dir), resume_if_exists=False)
+        session = created.session
+        assert session is not None
+        session.stage = "ready_to_execute"
+        session.pending_plan = {
+            "directories": ["Docs"],
+            "moves": [{"source": "a.txt", "target": "Docs/a.txt"}],
+            "unresolved_items": [],
+            "summary": "move to docs",
+        }
+        self.store.save(session)
+        self.service.execute(session.session_id, confirm=True)
+        self.service.rollback(session.session_id, confirm=True)
+
+        summary = self.service.get_journal_summary(session.session_id)
+
+        self.assertEqual(summary["status"], "rolled_back")
+        self.assertEqual(len(summary["restore_items"]), 1)
+        self.assertEqual(summary["restore_items"][0]["source"].replace("\\", "/").split("/")[-2:], ["Docs", "a.txt"])
+        self.assertEqual(summary["restore_items"][0]["target"].replace("\\", "/").split("/")[-1], "a.txt")
+        self.assertEqual(summary["restore_items"][0]["display_name"], "a.txt")
 
     def test_cleanup_empty_dirs_returns_cleaned_count(self):
         docs_dir = self.target_dir / "Docs"

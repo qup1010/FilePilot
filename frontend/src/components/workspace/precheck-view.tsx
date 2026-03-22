@@ -1,9 +1,10 @@
 "use client";
 
-import { AlertCircle, CheckCircle2, ListChecks, ArrowRight, FolderPlus, Info } from "lucide-react";
+import { AlertCircle, CheckCircle2, ListChecks, ArrowRight, FolderPlus, Info, HelpCircle, ShieldAlert, FileSearch } from "lucide-react";
 import { PrecheckSummary } from "@/types/session";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
+import { motion } from "motion/react";
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -22,108 +23,145 @@ export function PrecheckView({ summary, isBusy, onExecute, onBack }: PrecheckVie
   const hasErrors = summary.blocking_errors.length > 0;
   const hasWarnings = summary.warnings.length > 0;
 
+  // 计算进入 Review 的项
+  const reviewCount = summary.move_preview.filter(m => 
+    m.target.split(/[\\/]/).some(part => part.toLowerCase() === "review")
+  ).length;
+
   return (
-    <div className="space-y-10 animate-in slide-in-from-bottom-4 duration-500 max-w-4xl mx-auto">
-      {/* Header */}
-      <div className="flex items-center justify-between border-b border-on-surface/5 pb-6">
-        <div className="space-y-1">
-          <h2 className="text-xl font-black font-headline text-on-surface tracking-tight uppercase tracking-widest leading-none">执行预检汇报</h2>
-          <p className="text-[10px] text-on-surface-variant font-black uppercase tracking-[0.2em] opacity-40 mt-1">Ready for File Transformation</p>
+    <div className="space-y-12 animate-in slide-in-from-bottom-4 duration-700 max-w-4xl mx-auto py-6">
+      {/* 1. Header & Verdict */}
+      <div className="flex items-end justify-between border-b border-on-surface/5 pb-8">
+        <div className="space-y-2">
+          <h2 className="text-2xl font-black font-headline text-on-surface tracking-tight uppercase tracking-widest leading-none">执行最终确认</h2>
+          <p className="text-[11px] text-on-surface-variant font-bold uppercase tracking-[0.3em] opacity-40">Final Architectural Pre-flight Check</p>
         </div>
-        {!hasErrors && (
-          <div className="px-3 py-1 bg-emerald-500/10 text-emerald-600 rounded text-[10px] font-black tracking-widest flex items-center gap-1.5 border border-emerald-500/20">
-            <CheckCircle2 className="w-3.5 h-3.5" />
-            PASS
-          </div>
-        )}
+        <div className={cn(
+          "px-4 py-2 rounded-xl text-[11px] font-black tracking-[0.2em] flex items-center gap-2 border shadow-sm",
+          hasErrors 
+            ? "bg-red-500/10 text-red-600 border-red-500/20" 
+            : "bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
+        )}>
+          {hasErrors ? (
+            <><ShieldAlert className="w-4 h-4" /> REJECTED</>
+          ) : (
+            <><CheckCircle2 className="w-4 h-4" /> VERIFIED</>
+          )}
+        </div>
       </div>
 
-      {/* Constraints */}
+      {/* 2. User-Centric Impact Summary */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="bg-surface-container-lowest p-5 rounded-2xl border border-outline-variant/5 shadow-sm space-y-3 transition-transform hover:scale-[1.02]">
+           <div className="w-8 h-8 rounded-lg bg-primary/5 text-primary flex items-center justify-center">
+             <FolderPlus className="w-4 h-4" />
+           </div>
+           <div>
+             <span className="block text-2xl font-black text-on-surface leading-none">{summary.mkdir_preview.length}</span>
+             <span className="text-[10px] font-bold text-on-surface-variant/40 uppercase tracking-widest mt-1">新建目录数</span>
+           </div>
+        </div>
+        
+        <div className="bg-surface-container-lowest p-5 rounded-2xl border border-outline-variant/5 shadow-sm space-y-3 transition-transform hover:scale-[1.02]">
+           <div className="w-8 h-8 rounded-lg bg-emerald-500/5 text-emerald-600 flex items-center justify-center">
+             <ArrowRight className="w-4 h-4" />
+           </div>
+           <div>
+             <span className="block text-2xl font-black text-on-surface leading-none">{summary.move_preview.length}</span>
+             <span className="text-[10px] font-bold text-on-surface-variant/40 uppercase tracking-widest mt-1">计划移动文件</span>
+           </div>
+        </div>
+
+        <div className="bg-surface-container-lowest p-5 rounded-2xl border border-outline-variant/5 shadow-sm space-y-3 transition-transform hover:scale-[1.02]">
+           <div className="w-8 h-8 rounded-lg bg-warning/5 text-warning flex items-center justify-center">
+             <HelpCircle className="w-4 h-4" />
+           </div>
+           <div>
+             <span className="block text-2xl font-black text-on-surface leading-none">{reviewCount}</span>
+             <span className="text-[10px] font-bold text-on-surface-variant/40 uppercase tracking-widest mt-1">进入 Review 库</span>
+           </div>
+        </div>
+
+        <div className={cn(
+          "p-5 rounded-2xl border shadow-sm space-y-3 transition-transform hover:scale-[1.02]",
+          hasErrors ? "bg-red-500/5 border-red-100" : "bg-surface-container-lowest border-outline-variant/5"
+        )}>
+           <div className={cn(
+             "w-8 h-8 rounded-lg flex items-center justify-center",
+             hasErrors ? "bg-red-500/10 text-red-600" : "bg-outline-variant/10 text-on-surface-variant/40"
+           )}>
+             <FileSearch className="w-4 h-4" />
+           </div>
+           <div>
+             <span className={cn("block text-2xl font-black leading-none", hasErrors ? "text-red-600" : "text-on-surface")}>
+               {summary.blocking_errors.length + summary.warnings.length}
+             </span>
+             <span className="text-[10px] font-bold text-on-surface-variant/40 uppercase tracking-widest mt-1">潜在风险提醒</span>
+           </div>
+        </div>
+      </div>
+
+      {/* 3. Risk Detail & Policy */}
       {(hasErrors || hasWarnings) && (
-        <div className="space-y-4">
-          <h3 className="text-[10px] font-black text-on-surface-variant/40 uppercase tracking-[0.3em] flex items-center gap-2">
-            <AlertCircle className="w-3.5 h-3.5" /> 约束与风险
-          </h3>
-          <div className="space-y-2">
+        <div className="bg-surface-container-low/50 rounded-2xl p-8 space-y-6">
+          <div className="flex items-center gap-3">
+             <ShieldAlert className="w-5 h-5 text-on-surface/30" />
+             <h3 className="text-[10px] font-black text-on-surface-variant/60 uppercase tracking-[0.4em]">冲突与安全性评估</h3>
+          </div>
+          <div className="space-y-3">
             {summary.blocking_errors.map((err, i) => (
-              <div key={i} className="flex items-start gap-3 p-4 bg-red-50 border border-red-100 rounded-md text-xs text-red-800 animate-in fade-in slide-in-from-left-2 transition-all">
-                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-                <p className="font-bold">{err}</p>
+              <div key={i} className="flex items-start gap-4 p-5 bg-white border-l-4 border-red-500 rounded-r-xl shadow-sm animate-in fade-in slide-in-from-left-2">
+                <AlertCircle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
+                <div className="space-y-1">
+                  <p className="text-xs font-bold text-on-surface">阻塞性冲突：文件可能无法正确写入</p>
+                  <p className="text-[11px] text-on-surface-variant leading-relaxed">{err}</p>
+                </div>
               </div>
             ))}
             {summary.warnings.map((warn, i) => (
-              <div key={i} className="flex items-start gap-3 p-4 bg-warning-container/30 border border-warning/10 rounded-md text-xs text-warning animate-in fade-in slide-in-from-left-2 transition-all">
-                <Info className="w-4 h-4 shrink-0 mt-0.5 opacity-60" />
-                <p className="font-medium">{warn}</p>
+              <div key={i} className="flex items-start gap-4 p-5 bg-white border-l-4 border-warning rounded-r-xl shadow-sm animate-in fade-in slide-in-from-left-2 transition-all">
+                <Info className="w-5 h-5 text-warning shrink-0 mt-0.5 opacity-60" />
+                <div className="space-y-1">
+                  <p className="text-xs font-bold text-on-surface">路径覆盖风险：可能覆盖已有文件</p>
+                  <p className="text-[11px] text-on-surface-variant leading-relaxed">{warn}</p>
+                </div>
               </div>
             ))}
           </div>
         </div>
       )}
 
-      {/* Directory Creation Preview */}
-      {summary.mkdir_preview.length > 0 && (
-         <div className="space-y-4">
-            <h3 className="text-[10px] font-black text-on-surface-variant/40 uppercase tracking-[0.3em] flex items-center gap-2">
-              <FolderPlus className="w-3.5 h-3.5" /> 将创建的新目录 ({summary.mkdir_preview.length})
-            </h3>
-            <div className="flex flex-wrap gap-2">
-               {summary.mkdir_preview.map((dir, i) => (
-                 <span key={i} className="px-3 py-1.5 bg-surface-container-low border border-on-surface/5 rounded-md text-[11px] font-mono text-on-surface-variant">
-                    {dir}
-                 </span>
-               ))}
-            </div>
-         </div>
-      )}
-
-      {/* Move Operations Preview */}
-      <div className="space-y-4">
-        <h3 className="text-[10px] font-black text-on-surface-variant/40 uppercase tracking-[0.3em] flex items-center gap-2">
-          <ArrowRight className="w-3.5 h-3.5" /> 文件迁移预览 ({summary.move_preview.length})
-        </h3>
-        <div className="bg-surface-container-low/30 border border-on-surface/5 rounded-xl overflow-hidden shadow-xs">
-          <div className="grid grid-cols-2 bg-on-surface/5 px-6 py-3 border-b border-on-surface/5">
-             <span className="text-[9px] font-black text-on-surface-variant uppercase tracking-widest opacity-40">源路径 (Source)</span>
-             <span className="text-[9px] font-black text-on-surface-variant uppercase tracking-widest opacity-40">目标路径 (Target)</span>
-          </div>
-          <div className="max-h-[320px] overflow-y-auto divide-y divide-on-surface/5 scrollbar-thin">
-            {summary.move_preview.map((move, i) => (
-              <div key={i} className="grid grid-cols-2 px-6 py-4 items-center gap-8 hover:bg-white transition-colors group">
-                <div className="text-[11px] font-mono text-on-surface-variant truncate pr-4 group-hover:text-on-surface transition-colors" title={move.source}>
-                  {move.source}
-                </div>
-                <div className="flex items-center gap-3 overflow-hidden">
-                  <ArrowRight className="w-3 h-3 shrink-0 text-primary opacity-20 group-hover:opacity-100 transition-opacity" />
-                  <div className="text-[11px] font-mono font-bold text-primary truncate" title={move.target}>
-                    {move.target}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
+      {/* 4. Action Confirmation */}
+      <div className="flex flex-col gap-6 pt-6">
+        <div className="bg-primary/5 p-6 rounded-2xl flex items-center gap-6 border border-primary/10">
+           <div className="w-12 h-12 rounded-xl bg-primary text-white flex items-center justify-center shrink-0">
+             <ListChecks className="w-6 h-6" />
+           </div>
+           <div className="space-y-1">
+              <h4 className="text-sm font-bold text-on-surface">确认执行批量架构调整？</h4>
+              <p className="text-xs text-on-surface-variant opacity-60">此操作将物理移动您的本地文件。若结果不理想，可以在执行后进行整体回退。</p>
+           </div>
         </div>
-      </div>
 
-      {/* Footer Actions */}
-      <div className="pt-10 flex items-center gap-4">
-        <button 
-          onClick={onBack}
-          disabled={isBusy}
-          className="px-8 py-3.5 bg-surface-container-highest text-on-surface text-[10px] font-black uppercase tracking-widest rounded-lg hover:bg-on-surface hover:text-white transition-all disabled:opacity-50 active:scale-95"
-        >
-          返回修改方案
-        </button>
-        <button 
-          onClick={() => onExecute(true)}
-          disabled={isBusy || hasErrors}
-          className={cn(
-            "flex-1 py-4 bg-primary text-white font-black rounded-lg shadow-xl shadow-primary/20 hover:opacity-95 active:scale-[0.98] transition-all flex items-center justify-center gap-3 text-xs uppercase tracking-widest disabled:opacity-20 disabled:grayscale",
-          )}
-        >
-          {isBusy ? <RefreshCw className="w-4 h-4 animate-spin" /> : <ListChecks className="w-4 h-4" />}
-          确认并开始批量迁移
-        </button>
+        <div className="flex items-center gap-4">
+          <button 
+            onClick={onBack}
+            disabled={isBusy}
+            className="px-10 py-5 bg-surface-container-highest text-on-surface text-[11px] font-black uppercase tracking-widest rounded-2xl hover:bg-on-surface hover:text-white transition-all disabled:opacity-30 active:scale-95 shadow-sm"
+          >
+            返回上一阶段
+          </button>
+          <button 
+            onClick={() => onExecute(true)}
+            disabled={isBusy || hasErrors}
+            className={cn(
+              "flex-1 py-5 bg-primary text-white font-black rounded-2xl shadow-2xl shadow-primary/20 hover:opacity-95 active:scale-[0.98] transition-all flex items-center gap-4 justify-center text-xs uppercase tracking-[0.2em] font-headline disabled:opacity-20 disabled:grayscale",
+            )}
+          >
+            {isBusy ? <RefreshCw className="w-5 h-5 animate-spin" /> : <ArrowRight className="w-5 h-5" />}
+            确认执行重构
+          </button>
+        </div>
       </div>
     </div>
   );

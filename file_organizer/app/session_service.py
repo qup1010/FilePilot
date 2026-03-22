@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import uuid
 from queue import Queue
 from pathlib import Path
 
@@ -11,6 +12,10 @@ from file_organizer.app.session_store import SessionStore
 from file_organizer.execution import service as execution_service
 from file_organizer.organize import service as organize_service
 from file_organizer.organize.models import FinalPlan, PendingPlan, PlanMove
+from file_organizer.organize.strategy_templates import (
+    build_strategy_prompt_fragment,
+    normalize_strategy_selection,
+)
 from file_organizer.rollback import service as rollback_service
 
 
@@ -24,7 +29,7 @@ class OrganizerSessionService:
         self._event_log: dict[str, list[dict]] = {}
         self._subscribers: dict[str, list[Queue]] = {}
 
-    def create_session(self, target_dir: str, resume_if_exists: bool) -> CreateSessionResult:
+    def create_session(self, target_dir: str, resume_if_exists: bool, strategy: dict | None = None) -> CreateSessionResult:
         path = Path(target_dir)
         latest = self.store.find_latest_by_directory(path)
         if latest is not None and latest.stage not in self._TERMINAL_STAGES:
@@ -33,6 +38,13 @@ class OrganizerSessionService:
             raise RuntimeError("SESSION_LOCKED")
 
         session = self.store.create(path)
+        normalized_strategy = normalize_strategy_selection(strategy)
+        session.strategy_template_id = normalized_strategy["template_id"]
+        session.strategy_template_label = normalized_strategy["template_label"]
+        session.naming_style = normalized_strategy["naming_style"]
+        session.caution_level = normalized_strategy["caution_level"]
+        session.strategy_note = normalized_strategy["note"]
+        session.user_constraints = [normalized_strategy["note"]] if normalized_strategy["note"] else []
         lock_result = self.store.acquire_directory_lock(path, session.session_id)
         if not lock_result.acquired:
             raise RuntimeError("SESSION_LOCKED")
@@ -147,7 +159,7 @@ class OrganizerSessionService:
             if event_type in {"tool_start", "model_wait_start"}:
                 self._record_event("scan.action", session_id=session.session_id, action=data)
             elif event_type == "ai_chunk":
-                self._record_event("plan.ai_typing", session_id=session.session_id, content=data.get("content"))
+                self._record_event("scan.ai_typing", session_id=session.session_id, content=data.get("content"))
 
         self.async_scanner.start(
             session_id=session.session_id,
@@ -160,6 +172,7 @@ class OrganizerSessionService:
 
     def get_snapshot(self, session_id: str) -> dict:
         session = self._load_or_raise(session_id)
+        self._recover_orphaned_locked_session(session)
         return self._build_snapshot(session)
 
     def read_events(self, session_id: str) -> list[dict]:
@@ -181,11 +194,28 @@ class OrganizerSessionService:
             self._subscribers.pop(session_id, None)
 
     @staticmethod
-    def _assistant_messages_from_cycle(display_text: str, cycle_result: dict | None) -> tuple[dict, list[dict]]:
+    def _new_message_id(role: str | None = None) -> str:
+        prefix = (role or "msg").replace("_", "-")
+        return f"{prefix}-{uuid.uuid4().hex}"
+
+    def _ensure_message_id(self, message: dict) -> dict:
+        message.setdefault("id", self._new_message_id(message.get("role")))
+        return message
+
+    def _ensure_message_ids(self, messages: list[dict]) -> bool:
+        changed = False
+        for message in messages:
+            if not message.get("id"):
+                self._ensure_message_id(message)
+                changed = True
+        return changed
+
+    def _assistant_messages_from_cycle(self, display_text: str, cycle_result: dict | None) -> tuple[dict, list[dict]]:
         result = cycle_result or {}
         assistant_message = dict(result.get("assistant_message") or {"role": "assistant", "content": display_text or ""})
         assistant_message.setdefault("role", "assistant")
         assistant_message.setdefault("content", display_text or "")
+        self._ensure_message_id(assistant_message)
 
         assistant_context_messages = result.get("assistant_context_messages")
         if assistant_context_messages:
@@ -195,13 +225,14 @@ class OrganizerSessionService:
             assistant_context_message.setdefault("role", "assistant")
             assistant_context_message.setdefault("content", display_text or "")
             context_messages = [assistant_context_message]
+        self._ensure_message_ids(context_messages)
         return assistant_message, context_messages
 
 
     def submit_user_intent(self, session_id: str, content: str) -> SessionMutationResult:
         session = self._load_or_raise(session_id)
         self._ensure_mutable_stage(session)
-        session.messages.append({"role": "user", "content": content})
+        session.messages.append(self._ensure_message_id({"role": "user", "content": content}))
         pending_plan = self._pending_plan_from_session(session)
         def on_plan_event(event_type: str, data: dict):
             if event_type in {"model_wait_start", "tool_start"}:
@@ -214,6 +245,7 @@ class OrganizerSessionService:
             scan_lines=session.scan_lines,
             pending_plan=pending_plan,
             user_constraints=list(session.user_constraints),
+            strategy_instructions=self._strategy_prompt_fragment(session),
             event_handler=on_plan_event,
         )
         updated_pending = cycle_result.get("pending_plan", pending_plan) if cycle_result else pending_plan
@@ -222,6 +254,7 @@ class OrganizerSessionService:
         session.assistant_message, assistant_context_messages = self._assistant_messages_from_cycle(assistant_message, cycle_result)
         session.messages.extend(assistant_context_messages)
         session.summary = updated_pending.summary
+        session.user_constraints = list(updated_pending.user_constraints or session.user_constraints)
         session.stage = "planning" if not (cycle_result or {}).get("is_valid") else "ready_for_precheck"
         self.store.save(session)
         self._record_event("plan.updated", session)
@@ -253,6 +286,45 @@ class OrganizerSessionService:
         session.stage = "ready_to_execute" if precheck.can_execute else "planning"
         self.store.save(session)
         self._record_event("precheck.ready", session)
+        return SessionMutationResult(session_snapshot=self._build_snapshot(session))
+
+    def update_item_target(
+        self,
+        session_id: str,
+        item_id: str,
+        target_dir: str | None,
+        move_to_review: bool,
+    ) -> SessionMutationResult:
+        session = self._load_or_raise(session_id)
+        self._ensure_mutable_stage(session)
+
+        pending = self._pending_plan_from_session(session)
+        filename = Path(item_id).name
+        updated = False
+
+        for move in pending.moves:
+            if move.source != item_id:
+                continue
+            destination_dir = "Review" if move_to_review else (target_dir or "")
+            normalized_dir = destination_dir.strip().strip("/\\").replace("\\", "/")
+            move.target = f"{normalized_dir}/{filename}" if normalized_dir else filename
+            updated = True
+            break
+
+        if not updated:
+            raise RuntimeError("ITEM_NOT_FOUND")
+
+        if move_to_review or target_dir is not None:
+            pending.unresolved_items = [value for value in pending.unresolved_items if value != item_id]
+
+        pending.directories = self._directories_from_moves(pending.moves)
+        session.pending_plan = self._pending_plan_to_dict(pending)
+        session.plan_snapshot = self._plan_snapshot(pending, {"diff_summary": ["update_item"]}, scan_lines=session.scan_lines)
+        session.summary = pending.summary
+        session.precheck_summary = None
+        session.stage = "planning" if pending.unresolved_items else "ready_for_precheck"
+        self.store.save(session)
+        self._record_event("plan.updated", session)
         return SessionMutationResult(session_snapshot=self._build_snapshot(session))
 
     def execute(self, session_id: str, confirm: bool) -> SessionMutationResult:
@@ -364,6 +436,20 @@ class OrganizerSessionService:
         journal = execution_service.load_execution_journal(journal_id)
         if journal is None:
             raise FileNotFoundError("latest_execution")
+        restore_items = []
+        if journal.rollback_attempts:
+            latest_attempt = journal.rollback_attempts[-1]
+            restore_items = [
+                {
+                    "action_type": item.get("action_type"),
+                    "status": item.get("status"),
+                    "source": item.get("source"),
+                    "target": item.get("target"),
+                    "display_name": Path(item.get("source") or item.get("target") or "unknown").name,
+                }
+                for item in latest_attempt.get("results", [])
+                if item.get("action_type") == "MOVE"
+            ]
         return {
             "journal_id": journal.execution_id,
             "execution_id": journal.execution_id,
@@ -374,6 +460,7 @@ class OrganizerSessionService:
             "success_count": sum(1 for item in journal.items if item.status == "success"),
             "failure_count": sum(1 for item in journal.items if item.status == "failed"),
             "rollback_attempt_count": len(journal.rollback_attempts),
+            "restore_items": restore_items,
             "items": [
                 {
                     "action_type": item.action_type,
@@ -432,7 +519,12 @@ class OrganizerSessionService:
         
         # Initialize messages if empty
         if not session.messages:
-            session.messages = organize_service.build_initial_messages(session.scan_lines)
+            session.messages = organize_service.build_initial_messages(
+                session.scan_lines,
+                strategy=self._strategy_summary(session),
+                user_constraints=list(session.user_constraints),
+            )
+            self._ensure_message_ids(session.messages)
             
         self.store.save(session)
         self._record_event("scan.completed", session)
@@ -451,6 +543,7 @@ class OrganizerSessionService:
                     scan_lines=session.scan_lines,
                     pending_plan=self._pending_plan_from_session(session),
                     user_constraints=list(session.user_constraints),
+                    strategy_instructions=self._strategy_prompt_fragment(session),
                     event_handler=on_plan_event,
                 )
                 # NOTE: 即使 content 为空字符串也必须追加，否则后续对话上下文断裂
@@ -561,21 +654,26 @@ class OrganizerSessionService:
         ui_messages = []
         for index, message in enumerate(session.messages):
             role = message.get("role")
-            if role == "tool":
+            if role not in {"assistant", "user"}:
                 continue
 
             ui_message = dict(message)
+            self._ensure_message_id(ui_message)
             if role == "assistant":
                 ui_message["content"] = self._display_content_for_assistant(session, index)
             ui_messages.append(ui_message)
         return ui_messages
 
     def _build_snapshot(self, session: OrganizerSession) -> dict:
+        self._ensure_message_ids(session.messages)
+        if session.assistant_message:
+            self._ensure_message_id(session.assistant_message)
         return {
             "session_id": session.session_id,
             "target_dir": session.target_dir,
             "stage": session.stage,
             "summary": session.summary,
+            "strategy": self._strategy_summary(session),
             "assistant_message": session.assistant_message,
             "scanner_progress": dict(session.scanner_progress),
             "plan_snapshot": dict(session.plan_snapshot),
@@ -615,7 +713,7 @@ class OrganizerSessionService:
         }
         
         # Only build heavy snapshot if it's a state-change event
-        if session and event_type not in {"scan.action", "plan.action", "plan.ai_typing"}:
+        if session and event_type not in {"scan.action", "scan.ai_typing", "plan.action", "plan.ai_typing"}:
             payload["session_snapshot"] = self._build_snapshot(session)
             
         payload.update(extra)
@@ -628,9 +726,32 @@ class OrganizerSessionService:
             for subscriber in self._subscribers.get(sid, []):
                 subscriber.put(payload)
 
+    def _recover_orphaned_locked_session(self, session: OrganizerSession) -> bool:
+        if session.stage not in self._LOCKED_STAGES:
+            return False
+
+        if session.stage == "scanning":
+            progress = self.async_scanner.get_progress(session.session_id)
+            if progress.get("running"):
+                return False
+
+        session.integrity_flags["interrupted_during"] = session.stage
+        session.last_error = session.last_error or f"{session.stage}_interrupted"
+        session.stage = "interrupted"
+        self.store.save(session)
+        self._record_event("session.interrupted", session)
+        return True
+
     def _load_or_raise(self, session_id: str) -> OrganizerSession:
         session = self.store.load(session_id)
         if session is not None:
+            changed = self._ensure_message_ids(session.messages)
+            if session.assistant_message:
+                if not session.assistant_message.get("id"):
+                    self._ensure_message_id(session.assistant_message)
+                    changed = True
+            if changed:
+                self.store.save(session)
             return session
             
         # Try to restore from execution journal if session file is missing
@@ -677,7 +798,7 @@ class OrganizerSessionService:
                 PlanMove(source=move["source"], target=move["target"], raw=move.get("raw", ""))
                 for move in pending.get("moves", [])
             ],
-            user_constraints=list(pending.get("user_constraints", [])),
+            user_constraints=list(pending.get("user_constraints", session.user_constraints)),
             unresolved_items=list(pending.get("unresolved_items", [])),
             summary=pending.get("summary", ""),
         )
@@ -783,3 +904,16 @@ class OrganizerSessionService:
         if not target_dir.exists():
             return 0
         return sum(1 for entry in target_dir.iterdir() if not entry.name.startswith("."))
+
+    def _strategy_summary(self, session: OrganizerSession) -> dict:
+        return normalize_strategy_selection(
+            {
+                "template_id": session.strategy_template_id,
+                "naming_style": session.naming_style,
+                "caution_level": session.caution_level,
+                "note": session.strategy_note,
+            }
+        )
+
+    def _strategy_prompt_fragment(self, session: OrganizerSession) -> str:
+        return build_strategy_prompt_fragment(self._strategy_summary(session))

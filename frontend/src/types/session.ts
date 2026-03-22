@@ -12,6 +12,32 @@ export type SessionStage =
   | "stale"
   | "interrupted";
 
+export type StrategyTemplateId =
+  | "general_downloads"
+  | "project_workspace"
+  | "study_materials"
+  | "office_admin"
+  | "conservative";
+
+export type StrategyNamingStyle = "zh" | "en" | "minimal";
+
+export type StrategyCautionLevel = "conservative" | "balanced";
+
+export interface SessionStrategySelection {
+  template_id: StrategyTemplateId;
+  naming_style: StrategyNamingStyle;
+  caution_level: StrategyCautionLevel;
+  note: string;
+}
+
+export interface SessionStrategySummary extends SessionStrategySelection {
+  template_label: string;
+  template_description?: string;
+  naming_style_label: string;
+  caution_level_label: string;
+  preview_directories?: string[];
+}
+
 export interface RecentAnalysisItem {
   item_id: string;
   display_name: string;
@@ -92,9 +118,20 @@ export interface RollbackReport {
 }
 
 export interface AssistantMessage {
+  id: string;
   role: string;
   content: string;
 }
+
+export interface ActivityFeedEntry {
+  id: string;
+  phase: "scan" | "plan" | "execution" | "rollback" | "system";
+  message: string;
+  time: string;
+  important?: boolean;
+}
+
+export type ComposerMode = "hidden" | "readonly" | "editable";
 
 export type IntegrityFlags = Record<string, unknown> & {
   notes?: string[];
@@ -105,6 +142,7 @@ export interface SessionSnapshot {
   target_dir: string;
   stage: SessionStage;
   summary: string;
+  strategy: SessionStrategySummary;
   assistant_message: AssistantMessage | null;
   scanner_progress: ScannerProgress;
   plan_snapshot: PlanSnapshot;
@@ -124,7 +162,9 @@ export interface SessionEvent {
   event_type: string;
   session_id: string;
   stage: SessionStage;
-  session_snapshot: SessionSnapshot;
+  session_snapshot?: SessionSnapshot;
+  content?: string;
+  action?: Record<string, any>;
 }
 
 export interface CreateSessionResponse {
@@ -211,6 +251,13 @@ export interface JournalSummary {
   success_count: number;
   failure_count: number;
   rollback_attempt_count: number;
+  restore_items?: {
+    action_type: string;
+    status: string;
+    source: string | null;
+    target: string | null;
+    display_name: string;
+  }[];
   items?: {
     action_type: string;
     status: string;
@@ -266,10 +313,21 @@ export function createDemoSessionSnapshot(stage: SessionStage): SessionSnapshot 
           ? "预检已通过，等待用户确认执行。"
           : stage === "scanning"
             ? "正在分析目录内容，并持续更新最近理解结果。"
-            : "当前是桌面工作台骨架，后续会接入真实 session_snapshot。",
+        : "当前是桌面工作台骨架，后续会接入真实 session_snapshot。",
+    strategy: {
+      template_id: "general_downloads",
+      template_label: "通用下载",
+      template_description: "适合混合下载目录、桌面暂存区等场景。",
+      naming_style: "zh",
+      naming_style_label: "中文目录",
+      caution_level: "balanced",
+      caution_level_label: "平衡",
+      note: "",
+      preview_directories: ["项目资料", "学习资料", "财务票据", "待确认"],
+    },
     assistant_message:
       stage === "planning"
-        ? { role: "assistant", content: "已将发票归入 Docs，未确认的二进制文件保留在 Review。" }
+        ? { id: "msg-demo-assistant", role: "assistant", content: "已将发票归入 Docs，未确认的二进制文件保留在 Review。" }
         : null,
     scanner_progress: {
       status: stage === "scanning" ? "running" : "completed",
@@ -368,7 +426,7 @@ export function createDemoSessionSnapshot(stage: SessionStage): SessionSnapshot 
           ? ["execute", "abandon", "view_journal"]
           : ["submit_intent", "update_item", "precheck", "abandon"],
     messages: [
-      { role: "assistant", content: "你好！我是你的文件整理助手。我已经完成了初步扫描。" }
+      { id: "msg-demo-welcome", role: "assistant", content: "你好！我是你的文件整理助手。我已经完成了初步扫描。" }
     ],
     updated_at: now,
     stale_reason: stage === "stale" ? "directory_changed" : null,

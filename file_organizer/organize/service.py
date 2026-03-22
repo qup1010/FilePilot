@@ -31,10 +31,20 @@ def get_scan_content() -> str:
     return RESULT_FILE_PATH.read_text(encoding="utf-8").strip()
 
 
-def build_initial_messages(scan_lines: str) -> list:
+def _build_initial_request_text(user_constraints: list[str] | None = None) -> str:
+    lines = [
+        "请基于上述扫描结果和整理规则，为我生成初始的整理建议。请先用一句话说明你的整理思路，再调用 submit_plan_diff 提交你的初步设想。"
+    ]
+    if user_constraints:
+        lines.append("本次已确认的补充偏好：")
+        lines.extend(f"- {item}" for item in user_constraints)
+    return "\n".join(lines)
+
+
+def build_initial_messages(scan_lines: str, strategy: dict | None = None, user_constraints: list[str] | None = None) -> list:
     return [
-        {"role": "system", "content": build_prompt(scan_lines)},
-        {"role": "user", "content": "请基于上述扫描结果和整理规则，为我生成初始的整理建议。请先用一句话说明你的整理思路，再调用 submit_plan_diff 提交你的初步设想。"}
+        {"role": "system", "content": build_prompt(scan_lines, strategy)},
+        {"role": "user", "content": _build_initial_request_text(user_constraints)},
     ]
 
 
@@ -761,12 +771,20 @@ def build_command_retry_message(validation: dict, scan_lines: str | None = None,
     return "\n".join(details)
 
 
-def _build_repair_messages(scan_lines: str, user_constraints: list[str], validation: dict) -> list[dict]:
+def _build_repair_messages(
+    scan_lines: str,
+    user_constraints: list[str],
+    validation: dict,
+    strategy_instructions: str | None = None,
+) -> list[dict]:
     repair_prompt = [
         "进入修复模式。请忽略之前失败的命令文本，只根据以下权威信息重新提交最终计划。",
         "当前层条目：",
         scan_lines,
     ]
+    if strategy_instructions:
+        repair_prompt.append("当前固定整理策略：")
+        repair_prompt.append(strategy_instructions)
     if user_constraints:
         repair_prompt.append("已确认用户偏好：")
         repair_prompt.extend(f"- {item}" for item in user_constraints)
@@ -804,6 +822,7 @@ def run_organizer_cycle(
     scan_lines: str,
     pending_plan: PendingPlan | None = None,
     user_constraints: list[str] | None = None,
+    strategy_instructions: str | None = None,
     event_handler=None,
     model: str = ORGANIZER_MODEL_NAME,
     max_retries: int = 3,
@@ -938,7 +957,7 @@ def run_organizer_cycle(
         emit(event_handler, "command_retry_exhausted", {"attempt": attempt, "details": validation})
         emit(event_handler, "repair_mode_start", {"attempt": attempt, "details": validation})
         repair_message = chat_one_round(
-            _build_repair_messages(scan_lines, current_constraints, validation),
+            _build_repair_messages(scan_lines, current_constraints, validation, strategy_instructions),
             event_handler=event_handler,
             model=model,
             tools=[tool for tool in organizer_tools if tool["function"]["name"] == FINAL_PLAN_TOOL_NAME],

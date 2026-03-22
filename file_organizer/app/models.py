@@ -3,6 +3,12 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 
+from file_organizer.organize.strategy_templates import (
+    DEFAULT_CAUTION_LEVEL,
+    DEFAULT_NAMING_STYLE,
+    DEFAULT_TEMPLATE_ID,
+)
+
 
 def utc_now_iso() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
@@ -20,6 +26,11 @@ class OrganizerSession:
     session_id: str
     target_dir: str
     stage: str = "draft"
+    strategy_template_id: str = DEFAULT_TEMPLATE_ID
+    strategy_template_label: str = "通用下载"
+    naming_style: str = DEFAULT_NAMING_STYLE
+    caution_level: str = DEFAULT_CAUTION_LEVEL
+    strategy_note: str = ""
     messages: list[dict] = field(default_factory=list)
     scan_lines: str = ""
     pending_plan: dict = field(default_factory=dict)
@@ -50,6 +61,11 @@ class OrganizerSession:
             session_id=data["session_id"],
             target_dir=data["target_dir"],
             stage=data.get("stage", "draft"),
+            strategy_template_id=data.get("strategy_template_id", DEFAULT_TEMPLATE_ID),
+            strategy_template_label=data.get("strategy_template_label", "通用下载"),
+            naming_style=data.get("naming_style", DEFAULT_NAMING_STYLE),
+            caution_level=data.get("caution_level", DEFAULT_CAUTION_LEVEL),
+            strategy_note=data.get("strategy_note", ""),
             messages=list(data.get("messages", [])),
             scan_lines=data.get("scan_lines", ""),
             pending_plan=dict(data.get("pending_plan", {})),

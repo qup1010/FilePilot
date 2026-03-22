@@ -16,7 +16,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="zh-CN" suppressHydrationWarning>
-      <body className="min-h-screen bg-surface font-sans antialiased text-on-surface select-none overflow-hidden">
+      <body className="min-h-screen bg-surface font-sans antialiased text-on-surface overflow-hidden">
         <AppShell>{children}</AppShell>
       </body>
     </html>

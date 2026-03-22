@@ -1,6 +1,7 @@
-﻿import unittest
+import unittest
 
 from file_organizer.organize import service as organizer_service
+from file_organizer.organize.prompts import build_prompt
 
 
 class OrganizerServiceTests(unittest.TestCase):
@@ -39,7 +40,22 @@ class OrganizerServiceTests(unittest.TestCase):
         self.assertFalse(validation["is_valid"])
         self.assertTrue(validation["rename_errors"])
 
+    def test_build_prompt_injects_selected_strategy_rules(self):
+        prompt = build_prompt(
+            "合同.pdf | 财务/合同 | 付款协议",
+            {
+                "template_id": "office_admin",
+                "naming_style": "en",
+                "caution_level": "conservative",
+                "note": "票据优先归财务目录",
+            },
+        )
+
+        self.assertIn("办公事务", prompt)
+        self.assertIn("英文目录", prompt)
+        self.assertIn("整理保守度：保守", prompt)
+        self.assertIn("票据优先归财务目录", prompt)
+
 
 if __name__ == "__main__":
     unittest.main()
-

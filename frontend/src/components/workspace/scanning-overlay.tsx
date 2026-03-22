@@ -21,13 +21,13 @@ export function ScanningOverlay({ scanner, progressPercent }: ScanningOverlayPro
         </div>
         <div className="space-y-1">
           <h3 className="text-base font-bold font-headline text-on-surface tracking-tight">扫描目录元数据中</h3>
-          <p className="text-[10px] text-on-surface-variant uppercase tracking-widest font-black opacity-40">Architectural Analysis Phase</p>
+          <p className="text-[10px] text-on-surface-variant uppercase tracking-widest font-black opacity-40">架构分析阶段</p>
         </div>
       </div>
 
       <div className="space-y-4">
         <div className="flex justify-between text-[11px] font-bold text-on-surface-variant tabular-nums">
-          <span>PROGRESS</span>
+          <span>进度</span>
           <span>{Math.round(progressPercent)}%</span>
         </div>
         <div className="h-1 bg-surface-container-low rounded-full overflow-hidden flex relative">

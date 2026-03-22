@@ -1,6 +1,7 @@
 import json
 import os
 import shutil
+import time
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -25,7 +26,16 @@ class SessionApiTests(unittest.TestCase):
 
     def tearDown(self):
         if self.root.exists():
-            shutil.rmtree(self.root)
+            last_error = None
+            for _ in range(5):
+                try:
+                    shutil.rmtree(self.root)
+                    return
+                except PermissionError as exc:
+                    last_error = exc
+                    time.sleep(0.1)
+            if last_error is not None:
+                raise last_error
 
     def test_health_endpoint_returns_ok(self):
         response = self.client.get("/api/health")
@@ -66,21 +76,62 @@ class SessionApiTests(unittest.TestCase):
         self.assertEqual(payload["mode"], "created")
         self.assertEqual(payload["session_snapshot"]["stage"], "draft")
 
+    def test_post_sessions_accepts_strategy_payload_and_returns_strategy_snapshot(self):
+        response = self.client.post(
+            "/api/sessions",
+            json={
+                "target_dir": str(self.target_dir),
+                "resume_if_exists": False,
+                "strategy": {
+                    "template_id": "office_admin",
+                    "naming_style": "en",
+                    "caution_level": "balanced",
+                    "note": "票据优先归财务目录",
+                },
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["session_snapshot"]["strategy"]["template_id"], "office_admin")
+        self.assertEqual(payload["session_snapshot"]["strategy"]["template_label"], "办公事务")
+        self.assertEqual(payload["session_snapshot"]["strategy"]["note"], "票据优先归财务目录")
+
     def test_post_sessions_returns_resume_available_when_previous_session_exists(self):
         created = self.client.post(
             "/api/sessions",
-            json={"target_dir": str(self.target_dir), "resume_if_exists": False},
+            json={
+                "target_dir": str(self.target_dir),
+                "resume_if_exists": False,
+                "strategy": {
+                    "template_id": "project_workspace",
+                    "naming_style": "en",
+                    "caution_level": "balanced",
+                    "note": "旧策略",
+                },
+            },
         ).json()
 
         response = self.client.post(
             "/api/sessions",
-            json={"target_dir": str(self.target_dir), "resume_if_exists": True},
+            json={
+                "target_dir": str(self.target_dir),
+                "resume_if_exists": True,
+                "strategy": {
+                    "template_id": "study_materials",
+                    "naming_style": "zh",
+                    "caution_level": "conservative",
+                    "note": "新策略不应覆盖旧会话",
+                },
+            },
         )
 
         self.assertEqual(response.status_code, 200)
         payload = response.json()
         self.assertEqual(payload["mode"], "resume_available")
         self.assertEqual(payload["restorable_session"]["session_id"], created["session_id"])
+        self.assertEqual(payload["restorable_session"]["strategy"]["template_id"], "project_workspace")
+        self.assertEqual(payload["restorable_session"]["strategy"]["note"], "旧策略")
 
     def test_get_session_returns_snapshot(self):
         created = self.client.post(
@@ -143,7 +194,8 @@ class SessionApiTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 409)
         self.assertEqual(response.json()["error_code"], "SESSION_STAGE_CONFLICT")
-        self.assertEqual(response.json()["session_snapshot"]["stage"], "scanning")
+        self.assertEqual(response.json()["session_snapshot"]["stage"], "interrupted")
+        self.assertEqual(response.json()["session_snapshot"]["integrity_flags"]["interrupted_during"], "scanning")
 
     def test_update_item_uses_target_dir_and_returns_updated_snapshot(self):
         created = self.service.create_session(str(self.target_dir), resume_if_exists=False)
@@ -245,12 +297,23 @@ class SessionApiTests(unittest.TestCase):
             json={"target_dir": str(self.target_dir), "resume_if_exists": False},
         ).json()
 
-        response = self.client.get(f"/api/sessions/{created['session_id']}/events")
+        with self.client.stream(
+            "GET",
+            f"/api/sessions/{created['session_id']}/events",
+            headers={"x-file-organizer-once": "1"},
+        ) as response:
+            chunks = []
+            for chunk in response.iter_text():
+                if chunk:
+                    chunks.append(chunk)
+                if "data: " in "".join(chunks):
+                    break
+            body = "".join(chunks)
 
         self.assertEqual(response.status_code, 200)
         self.assertIn("text/event-stream", response.headers["content-type"])
-        self.assertIn("event: session.snapshot", response.text)
-        payload_line = next(line for line in response.text.splitlines() if line.startswith("data: "))
+        self.assertIn("event: session.snapshot", body)
+        payload_line = next(line for line in body.splitlines() if line.startswith("data: "))
         payload = json.loads(payload_line[len("data: "):])
         self.assertEqual(payload["session_snapshot"]["session_id"], created["session_id"])
 

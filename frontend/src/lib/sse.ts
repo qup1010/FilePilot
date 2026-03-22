@@ -45,6 +45,7 @@ export function createSessionEventStream(
     "rollback.completed",
     "session.error",
     "scan.action",
+    "scan.ai_typing",
     "plan.action",
     "plan.ai_typing",
   ];

@@ -31,28 +31,28 @@
 
 @layer base {
   :root {
-    --surface: #f8f9fa;
-    --surface-container: #eaeff1;
-    --surface-container-low: #f1f4f6;
-    --surface-container-high: #e3e9ec;
-    --surface-container-highest: #dbe4e7;
+    --surface: #f5f6f3;
+    --surface-container: #e8ece7;
+    --surface-container-low: #eef1ec;
+    --surface-container-high: #e1e6e0;
+    --surface-container-highest: #d7dfd8;
     --surface-container-lowest: #ffffff;
     
-    --primary: #496177;
-    --primary-dim: #3d556a;
-    --primary-container: #cce5ff;
+    --primary: #4c6258;
+    --primary-dim: #41564d;
+    --primary-container: #dbe8df;
     
-    --on-surface: #2b3437;
-    --on-surface-variant: #586064;
+    --on-surface: #24302a;
+    --on-surface-variant: #5f6b65;
     
-    --outline: #737c7f;
-    --outline-variant: #abb3b7;
+    --outline: #7b857f;
+    --outline-variant: #b7bdb8;
     
     --error: #9f403d;
     --error-container: #fe8983;
     
-    --warning: #854d0e;
-    --warning-container: #fef9c3;
+    --warning: #8f5e16;
+    --warning-container: #fbf2c6;
   }
 
   .dark {
@@ -82,6 +82,7 @@
 
   body {
     @apply bg-surface text-on-surface font-sans antialiased;
+    background-image: radial-gradient(circle at top left, rgba(76, 98, 88, 0.07), transparent 30%), linear-gradient(180deg, rgba(255,255,255,0.75), rgba(255,255,255,0));
   }
   
   h1, h2, h3, h4 {
@@ -90,8 +91,8 @@
 }
 
 .glass-surface {
-  background: rgba(255, 255, 255, 0.85);
-  backdrop-filter: blur(12px);
+  background: rgba(255, 255, 255, 0.78);
+  backdrop-filter: blur(14px);
 }
 
 .dark .glass-surface {

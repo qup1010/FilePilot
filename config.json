@@ -10,7 +10,7 @@
       "IMAGE_ANALYSIS_BASE_URL": "https://ai.qaq.al/v1",
       "IMAGE_ANALYSIS_API_KEY": "sk-363dd6eea97e6845b4ed41345b1bc4a9f9213ab3cebaf84490d4d1174545566b",
       "IMAGE_ANALYSIS_MODEL": "gpt-5.2",
-      "DEBUG_MODE": true
+      "DEBUG_MODE": false
     }
   }
 }

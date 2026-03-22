@@ -164,7 +164,7 @@ export default function SettingsPage() {
       <div className="flex-1 flex items-center justify-center bg-surface">
         <div className="flex flex-col items-center gap-4 opacity-20">
           <RefreshCw className="w-8 h-8 animate-spin" />
-          <p className="text-[10px] font-black uppercase tracking-widest italic">Synchronizing Core Engine...</p>
+          <p className="text-[10px] font-black uppercase tracking-widest italic">同步系统核心配置中...</p>
         </div>
       </div>
     );
@@ -183,9 +183,9 @@ export default function SettingsPage() {
           </Link>
           <div>
             <div className="flex items-center gap-3">
-               <h1 className="text-xl font-black font-headline text-on-surface tracking-tight uppercase tracking-widest leading-none">Settings</h1>
+               <h1 className="text-xl font-black font-headline text-on-surface tracking-tight uppercase tracking-widest leading-none">系统设置</h1>
                <div className="h-4 w-px bg-on-surface/10" />
-               <p className="text-[11px] text-on-surface-variant font-bold uppercase tracking-widest opacity-60">System Core</p>
+               <p className="text-[11px] text-on-surface-variant font-bold uppercase tracking-widest opacity-60">核心引擎控制</p>
             </div>
           </div>
         </div>
@@ -203,7 +203,7 @@ export default function SettingsPage() {
             className="bg-on-surface text-surface px-7 py-3 rounded-lg text-xs font-black uppercase tracking-widest shadow-xl shadow-on-surface/10 hover:opacity-90 active:scale-95 transition-all flex items-center gap-3 disabled:opacity-50"
           >
             {saving ? <RefreshCw className="w-4 h-4 animate-spin text-surface/50" /> : <Save className="w-4 h-4" />}
-            Save active configuration
+            保存全局配置
           </button>
         </div>
       </header>
@@ -212,7 +212,7 @@ export default function SettingsPage() {
         {/* Left Sidebar: Profiles */}
         <aside className="w-72 border-r border-on-surface/5 bg-surface-container-low/30 overflow-y-auto p-6 space-y-8 shrink-0">
            <div className="flex items-center justify-between px-2">
-              <h2 className="text-[10px] font-black uppercase tracking-[0.3em] text-on-surface-variant/40">Configuration Profiles</h2>
+              <h2 className="text-[10px] font-black uppercase tracking-[0.3em] text-on-surface-variant/40">配置方案预设</h2>
               <button 
                 onClick={handleAddProfile}
                 className="p-1 hover:bg-on-surface/5 rounded transition-colors text-primary"
@@ -265,8 +265,8 @@ export default function SettingsPage() {
                     <Cpu className="w-5 h-5" />
                   </div>
                   <div>
-                    <h2 className="text-[11px] font-black uppercase tracking-[0.3em] text-on-surface">Integrated Intelligence</h2>
-                    <p className="text-[10px] text-on-surface-variant/40 font-bold uppercase tracking-widest mt-0.5">Core Text Reasoning Pathway</p>
+                    <h2 className="text-[11px] font-black uppercase tracking-[0.3em] text-on-surface">集成智能推理</h2>
+                    <p className="text-[10px] text-on-surface-variant/40 font-bold uppercase tracking-widest mt-0.5">核心文本理解链路</p>
                   </div>
                 </div>
                 <button 
@@ -275,7 +275,7 @@ export default function SettingsPage() {
                   className="bg-white border border-on-surface/5 px-4 py-2 rounded text-[10px] font-black uppercase tracking-widest text-on-surface-variant hover:text-primary transition-all flex items-center gap-2 hover:shadow-sm"
                 >
                   {testing ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <ShieldCheck className="w-3.5 h-3.5" />}
-                  Verify Text Link
+                  验证连接状态
                 </button>
              </div>
 
@@ -292,7 +292,7 @@ export default function SettingsPage() {
              <div className="space-y-8">
                <div className="flex flex-col gap-3">
                   <label className="text-[10px] font-black text-on-surface-variant uppercase tracking-[0.2em] px-1 group flex items-center gap-2">
-                    <Edit3 className="w-3 h-3 opacity-30" /> Scheme Name
+                    <Edit3 className="w-3 h-3 opacity-30" /> 方案名称
                   </label>
                   <input 
                     value={config.name}
@@ -305,7 +305,7 @@ export default function SettingsPage() {
                <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
                   <div className="space-y-8">
                     <div className="flex flex-col gap-3">
-                        <label className="text-[10px] font-black text-on-surface-variant uppercase tracking-[0.2em] px-1">Endpoint Base URL</label>
+                        <label className="text-[10px] font-black text-on-surface-variant uppercase tracking-[0.2em] px-1">接口代理地址 (Base URL)</label>
                         <div className="flex items-center gap-2 bg-surface-container-low border border-on-surface/5 p-1 rounded-xl focus-within:border-primary transition-all group">
                            <div className="px-3 opacity-20 group-focus-within:opacity-100 transition-opacity">
                               <Globe className="w-4 h-4" />
@@ -320,7 +320,7 @@ export default function SettingsPage() {
                     </div>
                     
                     <div className="flex flex-col gap-3">
-                        <label className="text-[10px] font-black text-on-surface-variant uppercase tracking-[0.2em] px-1">Access Token (API Key)</label>
+                        <label className="text-[10px] font-black text-on-surface-variant uppercase tracking-[0.2em] px-1">访问令牌 (API Key)</label>
                         <div className="relative flex items-center bg-surface-container-low border border-on-surface/5 p-1 rounded-xl focus-within:border-primary transition-all group">
                            <div className="px-3 opacity-20 group-focus-within:opacity-100 transition-opacity">
                               <ShieldCheck className="w-4 h-4" />
@@ -344,7 +344,7 @@ export default function SettingsPage() {
 
                   <div className="space-y-8">
                      <div className="flex flex-col gap-3">
-                        <label className="text-[10px] font-black text-on-surface-variant uppercase tracking-[0.2em] px-1">Consolidated Model Name</label>
+                        <label className="text-[10px] font-black text-on-surface-variant uppercase tracking-[0.2em] px-1">统一模型标识符</label>
                         <div className="flex items-center gap-2 bg-surface-container-low border border-on-surface/5 p-1 rounded-xl focus-within:border-primary transition-all group">
                            <div className="px-3 opacity-20 group-focus-within:opacity-100 transition-opacity">
                               <Terminal className="w-4 h-4" />
@@ -362,7 +362,7 @@ export default function SettingsPage() {
                      <div className="p-6 bg-surface-container-low/40 rounded-xl border border-dashed border-on-surface/5 flex items-center justify-center h-[106px]">
                         <div className="text-center group">
                            <p className="text-[11px] font-bold text-on-surface-variant group-hover:text-primary transition-colors">切换方案可以快速尝试不同服务商</p>
-                           <p className="text-[9px] text-on-surface-variant/30 mt-1 uppercase tracking-widest font-black">Multi-Profile Architecture</p>
+                           <p className="text-[9px] text-on-surface-variant/30 mt-1 uppercase tracking-widest font-black">多方案架构体系</p>
                         </div>
                      </div>
                   </div>
@@ -381,8 +381,8 @@ export default function SettingsPage() {
                     <Globe className="w-5 h-5" />
                   </div>
                   <div>
-                    <h2 className={cn("text-[11px] font-black uppercase tracking-[0.3em] transition-colors", config.IMAGE_ANALYSIS_ENABLED ? "text-on-surface" : "text-on-surface-variant/40")}>Multimodal Vision Expansion</h2>
-                    <p className="text-[10px] text-on-surface-variant/40 font-bold uppercase tracking-widest mt-0.5">Image Understanding Layer</p>
+                    <h2 className={cn("text-[11px] font-black uppercase tracking-[0.3em] transition-colors", config.IMAGE_ANALYSIS_ENABLED ? "text-on-surface" : "text-on-surface-variant/40")}>多模态视觉扩展</h2>
+                    <p className="text-[10px] text-on-surface-variant/40 font-bold uppercase tracking-widest mt-0.5">图像理解与 OCR 层</p>
                   </div>
                 </div>
 
@@ -394,7 +394,7 @@ export default function SettingsPage() {
                         className="bg-white border border-on-surface/5 px-4 py-2 rounded text-[10px] font-black uppercase tracking-widest text-on-surface-variant hover:text-primary transition-all flex items-center gap-2 hover:shadow-sm"
                       >
                         {testVision ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Info className="w-3.5 h-3.5" />}
-                        Verify Vision Link
+                        验证视觉连接
                       </button>
                    )}
                    <button 
@@ -424,7 +424,7 @@ export default function SettingsPage() {
                !config.IMAGE_ANALYSIS_ENABLED && "opacity-20 pointer-events-none grayscale blur-[1px]"
              )}>
                 <div className="flex flex-col gap-3">
-                  <label className="text-[10px] font-black text-on-surface-variant uppercase tracking-[0.2em] px-1">Independent Vision API Base</label>
+                  <label className="text-[10px] font-black text-on-surface-variant uppercase tracking-[0.2em] px-1">独立视觉 API 地址</label>
                   <div className="flex items-center gap-2 bg-surface-container-low border border-on-surface/5 p-1 rounded-xl focus-within:border-primary transition-all">
                     <div className="px-3 opacity-20">
                       <Globe className="w-4 h-4" />
@@ -433,13 +433,13 @@ export default function SettingsPage() {
                       value={config.IMAGE_ANALYSIS_BASE_URL}
                       onChange={(e) => handleChange('IMAGE_ANALYSIS_BASE_URL', e.target.value)}
                       className="flex-1 bg-transparent py-4 text-sm font-mono text-on-surface outline-none"
-                      placeholder="Inherit from main endpoint"
+                      placeholder="默认继承文本接口地址"
                     />
                   </div>
                 </div>
 
                 <div className="flex flex-col gap-3">
-                  <label className="text-[10px] font-black text-on-surface-variant uppercase tracking-[0.2em] px-1">Vision API Token</label>
+                  <label className="text-[10px] font-black text-on-surface-variant uppercase tracking-[0.2em] px-1">视觉 API 密钥</label>
                   <div className="relative flex items-center bg-surface-container-low border border-on-surface/5 p-1 rounded-xl focus-within:border-primary transition-all">
                     <div className="px-3 opacity-20">
                       <ShieldCheck className="w-4 h-4" />
@@ -449,7 +449,7 @@ export default function SettingsPage() {
                       value={config.IMAGE_ANALYSIS_API_KEY}
                       onChange={(e) => handleChange('IMAGE_ANALYSIS_API_KEY', e.target.value)}
                       className="flex-1 bg-transparent py-4 text-sm font-mono text-on-surface outline-none pr-12"
-                      placeholder="Inherit from main key"
+                      placeholder="默认继承文本接口密钥"
                     />
                     <button 
                       onClick={() => setShowVisionKey(!showVisionKey)}
@@ -461,7 +461,7 @@ export default function SettingsPage() {
                 </div>
 
                 <div className="flex flex-col gap-3 md:col-span-2">
-                  <label className="text-[10px] font-black text-on-surface-variant uppercase tracking-[0.2em] px-1">Vision-Capable Model</label>
+                  <label className="text-[10px] font-black text-on-surface-variant uppercase tracking-[0.2em] px-1">视觉专用模型名称</label>
                   <div className="flex items-center gap-2 bg-surface-container-low border border-on-surface/5 p-1 rounded-xl focus-within:border-primary transition-all">
                     <div className="px-3 opacity-20">
                       <Terminal className="w-4 h-4" />
@@ -484,14 +484,14 @@ export default function SettingsPage() {
                   <ShieldCheck className="w-5 h-5" />
                 </div>
                 <div>
-                   <h2 className="text-[11px] font-black uppercase tracking-[0.3em]">Hardware & Logs</h2>
-                   <p className="text-[10px] font-bold uppercase tracking-widest mt-0.5">Control Interface</p>
+                   <h2 className="text-[11px] font-black uppercase tracking-[0.3em]">系统调试与实验性控制</h2>
+                   <p className="text-[10px] font-bold uppercase tracking-widest mt-0.5">开发者调试开关</p>
                 </div>
              </div>
 
              <div className="flex items-center justify-between bg-white p-7 rounded-xl border border-on-surface/5 shadow-sm group hover:border-primary/20 transition-all">
                 <div className="space-y-1.5 px-1">
-                   <h3 className="text-sm font-black text-on-surface tracking-tight uppercase">Debugging Protocol</h3>
+                   <h3 className="text-sm font-black text-on-surface tracking-tight uppercase">深度调试模式 (Debug Mode)</h3>
                    <p className="text-[11px] text-on-surface-variant/60 font-medium">开启深度 Prompt 追踪，日志将详细记录每一次大模型交互内容。</p>
                 </div>
                 <button 
@@ -512,8 +512,8 @@ export default function SettingsPage() {
                  <SettingsIcon className="w-10 h-10" />
               </div>
               <div className="mt-8 text-center space-y-1">
-                 <p className="text-[10px] text-on-surface-variant/20 font-black uppercase tracking-[0.5em]">Antigravity System Shell</p>
-                 <p className="text-[9px] text-on-surface-variant/10 font-bold uppercase tracking-widest">Built for precision architecture</p>
+                 <p className="text-[10px] text-on-surface-variant/20 font-black uppercase tracking-[0.5em]">Antigravity 文件架构辅助外壳</p>
+                 <p className="text-[9px] text-on-surface-variant/10 font-bold uppercase tracking-widest">专为精准目录重构而设计</p>
               </div>
           </footer>
         </main>
