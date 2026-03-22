@@ -180,16 +180,21 @@ class OrganizerSessionService:
             self._subscribers.pop(session_id, None)
 
     @staticmethod
-    def _assistant_messages_from_cycle(display_text: str, cycle_result: dict | None) -> tuple[dict, dict]:
+    def _assistant_messages_from_cycle(display_text: str, cycle_result: dict | None) -> tuple[dict, list[dict]]:
         result = cycle_result or {}
         assistant_message = dict(result.get("assistant_message") or {"role": "assistant", "content": display_text or ""})
         assistant_message.setdefault("role", "assistant")
         assistant_message.setdefault("content", display_text or "")
 
-        assistant_context_message = dict(result.get("assistant_context_message") or assistant_message)
-        assistant_context_message.setdefault("role", "assistant")
-        assistant_context_message.setdefault("content", display_text or "")
-        return assistant_message, assistant_context_message
+        assistant_context_messages = result.get("assistant_context_messages")
+        if assistant_context_messages:
+            context_messages = [dict(message) for message in assistant_context_messages]
+        else:
+            assistant_context_message = dict(result.get("assistant_context_message") or assistant_message)
+            assistant_context_message.setdefault("role", "assistant")
+            assistant_context_message.setdefault("content", display_text or "")
+            context_messages = [assistant_context_message]
+        return assistant_message, context_messages
 
 
     def submit_user_intent(self, session_id: str, content: str) -> SessionMutationResult:
@@ -213,8 +218,8 @@ class OrganizerSessionService:
         updated_pending = cycle_result.get("pending_plan", pending_plan) if cycle_result else pending_plan
         session.pending_plan = self._pending_plan_to_dict(updated_pending)
         session.plan_snapshot = self._plan_snapshot(updated_pending, cycle_result or {}, scan_lines=session.scan_lines)
-        session.assistant_message, assistant_context_message = self._assistant_messages_from_cycle(assistant_message, cycle_result)
-        session.messages.append(assistant_context_message)
+        session.assistant_message, assistant_context_messages = self._assistant_messages_from_cycle(assistant_message, cycle_result)
+        session.messages.extend(assistant_context_messages)
         session.summary = updated_pending.summary
         session.stage = "planning" if not (cycle_result or {}).get("is_valid") else "ready_for_precheck"
         self.store.save(session)
@@ -448,11 +453,11 @@ class OrganizerSessionService:
                     event_handler=on_plan_event,
                 )
                 # NOTE: 即使 content 为空字符串也必须追加，否则后续对话上下文断裂
-                session.assistant_message, assistant_context_message = self._assistant_messages_from_cycle(
+                session.assistant_message, assistant_context_messages = self._assistant_messages_from_cycle(
                     assistant_message or "",
                     cycle_result,
                 )
-                session.messages.append(assistant_context_message)
+                session.messages.extend(assistant_context_messages)
                 
                 if cycle_result:
                     updated_pending = cycle_result.get("pending_plan")

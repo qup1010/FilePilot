@@ -86,6 +86,51 @@ def _build_assistant_message(content: str, tool_calls=None) -> dict:
     return message
 
 
+def _build_tool_result_message(tool_call_id: str | None, name: str, content: dict) -> dict:
+    return {
+        "role": "tool",
+        "tool_call_id": tool_call_id,
+        "name": name,
+        "content": json.dumps(content, ensure_ascii=False),
+    }
+
+
+def _build_tool_result_messages(
+    message,
+    *,
+    plan_diff=None,
+    diff_errors: list[str] | None = None,
+    display_request: PlanDisplayRequest | None = None,
+    validation: dict | None = None,
+) -> list[dict]:
+    tool_messages = []
+    for tool_call in getattr(message, "tool_calls", None) or []:
+        name = getattr(tool_call.function, "name", "")
+        if name == PLAN_DIFF_TOOL_NAME:
+            payload = {
+                "ok": not bool(diff_errors),
+                "summary": getattr(plan_diff, "summary", ""),
+                "errors": diff_errors or [],
+            }
+        elif name == PRESENT_PLAN_TOOL_NAME:
+            payload = {
+                "ok": display_request is not None,
+                "display_plan": display_request.to_dict() if display_request else None,
+            }
+        elif name == FINAL_PLAN_TOOL_NAME:
+            payload = {
+                "ok": bool(validation and validation.get("is_valid")),
+                "validation": validation,
+            }
+        else:
+            payload = {"ok": True}
+
+        tool_messages.append(
+            _build_tool_result_message(getattr(tool_call, "id", None), name, payload)
+        )
+    return tool_messages
+
+
 def _debug_enabled() -> bool:
     import os
 
@@ -765,19 +810,24 @@ def run_organizer_cycle(
             chunks=None,
             synthetic_content_used=synthetic_content_used,
         )
-
-        # 这里的 content 是用于返回给上层的（用于渲染 UI 对话气泡），不要污染原始历史直到最终落盘。
-        llm_messages.append(assistant_context_message)
             
         display_plan = display_request.to_dict() if display_request else None
 
         if plan_diff is not None:
             scan_items = extract_scan_items(scan_lines)
             updated_pending, diff_summary, diff_errors = apply_plan_diff(current_pending, plan_diff, valid_sources=scan_items)
+            tool_result_messages = _build_tool_result_messages(
+                message,
+                plan_diff=plan_diff,
+                diff_errors=diff_errors,
+                display_request=display_request,
+            )
+            assistant_context_messages = [assistant_context_message, *tool_result_messages]
             
             if diff_errors:
                 if attempt < max_retries:
                     err_msg = "增量更新由于包含不存在的文件源而失败:\n" + "\n".join(f"- {e}" for e in diff_errors) + "\n请务必只处理真正的当前层条名称。"
+                    llm_messages.extend(assistant_context_messages)
                     llm_messages.append({"role": "user", "content": err_msg})
                     continue
                 else:
@@ -798,10 +848,15 @@ def run_organizer_cycle(
                 "user_constraints": current_constraints,
                 "assistant_message": assistant_display_message,
                 "assistant_context_message": assistant_context_message,
+                "assistant_context_messages": assistant_context_messages,
             }
 
         # 场景 B: AI 仅回复文字说明，未发起任何方案层面的增量修改或最终提交
         if final_plan is None:
+            tool_result_messages = _build_tool_result_messages(
+                message,
+                display_request=display_request,
+            )
             return content, {
                 "is_valid": False,
                 "pending_plan": current_pending,
@@ -812,11 +867,18 @@ def run_organizer_cycle(
                 "user_constraints": current_constraints,
                 "assistant_message": assistant_display_message,
                 "assistant_context_message": assistant_context_message,
+                "assistant_context_messages": [assistant_context_message, *tool_result_messages],
             }
 
         # 场景 C: AI 尝试提交最终可执行方案
         # NOTE: 严苛校验是防止 AI 幻觉引发文件丢失/错误操作的最后防线。
         validation = validate_final_plan(scan_lines, final_plan)
+        tool_result_messages = _build_tool_result_messages(
+            message,
+            display_request=display_request,
+            validation=validation,
+        )
+        assistant_context_messages = [assistant_context_message, *tool_result_messages]
         if validation["is_valid"]:
             emit(event_handler, "command_validation_pass", {"attempt": attempt, "details": validation})
             updated_pending = _pending_from_final(final_plan)
@@ -832,11 +894,13 @@ def run_organizer_cycle(
                 "validation": validation,
                 "assistant_message": assistant_display_message,
                 "assistant_context_message": assistant_context_message,
+                "assistant_context_messages": assistant_context_messages,
             }
 
         # 如果最终方案校验失败（例如 AI 忽略了部分文件或生成了错误的 mkdir 路径），则反馈具体原因并递归重试。
         emit(event_handler, "command_validation_fail", {"attempt": attempt, "details": validation})
         if attempt < max_retries:
+            llm_messages.extend(assistant_context_messages)
             llm_messages.append({"role": "user", "content": build_command_retry_message(validation, scan_lines, current_constraints)})
             continue
 
@@ -861,6 +925,10 @@ def run_organizer_cycle(
             repair_raw_content = getattr(repair_message, "content", "") or ""
             repair_display_message = _build_assistant_message(repair_content, getattr(repair_message, "tool_calls", None))
             repair_context_message = _build_assistant_message(repair_raw_content, getattr(repair_message, "tool_calls", None))
+            repair_tool_messages = _build_tool_result_messages(
+                repair_message,
+                validation=repair_validation,
+            )
             return repair_content, {
                 "is_valid": True,
                 "pending_plan": updated_pending,
@@ -872,11 +940,16 @@ def run_organizer_cycle(
                 "validation": repair_validation,
                 "assistant_message": repair_display_message,
                 "assistant_context_message": repair_context_message,
+                "assistant_context_messages": [repair_context_message, *repair_tool_messages],
             }
 
         repair_raw_content = getattr(repair_message, "content", "") or ""
         repair_display_message = _build_assistant_message(repair_content, getattr(repair_message, "tool_calls", None))
         repair_context_message = _build_assistant_message(repair_raw_content, getattr(repair_message, "tool_calls", None))
+        repair_tool_messages = _build_tool_result_messages(
+            repair_message,
+            validation=repair_validation,
+        )
         return repair_content, {
             "is_valid": False,
             "pending_plan": current_pending,
@@ -888,6 +961,7 @@ def run_organizer_cycle(
             "validation": repair_validation,
             "assistant_message": repair_display_message,
             "assistant_context_message": repair_context_message,
+            "assistant_context_messages": [repair_context_message, *repair_tool_messages],
         }
 
     return "", None

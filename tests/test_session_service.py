@@ -199,6 +199,15 @@ class OrganizerSessionServiceTests(unittest.TestCase):
                 }
             ],
         }
+        assistant_context_messages = [
+            assistant_message,
+            {
+                "role": "tool",
+                "tool_call_id": "call_1",
+                "name": "submit_plan_diff",
+                "content": '{"ok": true}',
+            },
+        ]
 
         with mock.patch(
             "file_organizer.app.session_service.organize_service.run_organizer_cycle",
@@ -210,6 +219,7 @@ class OrganizerSessionServiceTests(unittest.TestCase):
                     "diff_summary": ["moved"],
                     "display_plan": {"focus": "summary", "summary": "moved"},
                     "assistant_message": assistant_message,
+                    "assistant_context_messages": assistant_context_messages,
                 },
             ),
         ):
@@ -220,7 +230,9 @@ class OrganizerSessionServiceTests(unittest.TestCase):
         assert stored is not None
         self.assertEqual(result.assistant_message["content"], "已更新计划")
         self.assertEqual(result.assistant_message["tool_calls"][0]["function"]["name"], "submit_plan_diff")
-        self.assertEqual(stored.messages[-1]["tool_calls"][0]["id"], "call_1")
+        self.assertEqual(stored.messages[-2]["tool_calls"][0]["id"], "call_1")
+        self.assertEqual(stored.messages[-1]["role"], "tool")
+        self.assertEqual(stored.messages[-1]["tool_call_id"], "call_1")
 
     def test_update_item_target_uses_target_dir_and_removes_unresolved_item(self):
         created = self.service.create_session(str(self.target_dir), resume_if_exists=False)

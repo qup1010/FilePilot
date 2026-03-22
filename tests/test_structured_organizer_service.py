@@ -213,7 +213,9 @@ class StructuredOrganizerServiceTests(unittest.TestCase):
         self.assertEqual(retry_messages[1]["role"], "assistant")
         self.assertEqual(retry_messages[1]["content"], "")
         self.assertEqual(retry_messages[1]["tool_calls"][0]["function"]["name"], "submit_plan_diff")
-        self.assertIn("不存在的文件源", retry_messages[2]["content"])
+        self.assertEqual(retry_messages[2]["role"], "tool")
+        self.assertEqual(retry_messages[2]["tool_call_id"], "call_1")
+        self.assertIn("不存在的文件源", retry_messages[3]["content"])
 
     def test_run_organizer_cycle_retries_with_validation_feedback_in_llm_messages(self):
         invalid_final_call = self._tool_call(
@@ -240,7 +242,9 @@ class StructuredOrganizerServiceTests(unittest.TestCase):
         retry_messages = chat_mock.call_args_list[1].args[0]
         self.assertEqual(retry_messages[1]["role"], "assistant")
         self.assertEqual(retry_messages[1]["tool_calls"][0]["function"]["name"], "submit_final_plan")
-        self.assertIn("未通过结构化校验", retry_messages[2]["content"])
+        self.assertEqual(retry_messages[2]["role"], "tool")
+        self.assertEqual(retry_messages[2]["tool_call_id"], "call_1")
+        self.assertIn("未通过结构化校验", retry_messages[3]["content"])
 
     def test_chat_one_round_debug_log_records_chunk_and_synthetic_fields(self):
         chunk_1 = SimpleNamespace(
