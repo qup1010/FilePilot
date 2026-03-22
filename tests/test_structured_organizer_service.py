@@ -1,4 +1,7 @@
 import unittest
+import json
+import shutil
+from pathlib import Path
 from types import SimpleNamespace
 from unittest import mock
 
@@ -7,6 +10,14 @@ from file_organizer.organize import service as organizer_service
 
 
 class StructuredOrganizerServiceTests(unittest.TestCase):
+    @staticmethod
+    def _tool_call(name: str, arguments: str, tool_id: str = "call_1") -> SimpleNamespace:
+        return SimpleNamespace(
+            id=tool_id,
+            type="function",
+            function=SimpleNamespace(name=name, arguments=arguments),
+        )
+
     def test_validate_final_plan_accepts_valid_sequence(self):
         scan_lines = "合同.pdf | 财务/合同 | 付款协议\n截图1.png | 截图记录 | 报错界面"
         final_plan = FinalPlan(
@@ -163,6 +174,131 @@ class StructuredOrganizerServiceTests(unittest.TestCase):
 
         self.assertEqual(result, "先讨论整理方案。")
         self.assertEqual(events[:3], ["model_wait_start", "model_wait_end", "ai_streaming_start"])
+
+    def test_build_initial_messages_prioritizes_text_before_tool_call(self):
+        messages = organizer_service.build_initial_messages("合同.pdf | 财务/合同 | 付款协议")
+
+        self.assertIn("先用一句话说明你的整理思路", messages[1]["content"])
+        self.assertIn("再调用 submit_plan_diff", messages[1]["content"])
+        self.assertNotIn("请先调用 submit_plan_diff", messages[1]["content"])
+
+    def test_run_organizer_cycle_retries_with_full_assistant_message_for_invalid_plan_diff(self):
+        initial_messages = [{"role": "user", "content": "请整理"}]
+        first_message = SimpleNamespace(
+            content="",
+            tool_calls=[
+                self._tool_call(
+                    "submit_plan_diff",
+                    '{"directory_renames": [], "move_updates": [{"source": "不存在.txt", "target": "Study/不存在.txt"}], "unresolved_adds": [], "unresolved_removals": [], "summary": "已更新"}',
+                )
+            ],
+        )
+        second_message = SimpleNamespace(content="第二轮说明", tool_calls=None)
+
+        with mock.patch.object(
+            organizer_service,
+            "chat_one_round",
+            side_effect=[first_message, second_message],
+        ) as chat_mock:
+            content, result = organizer_service.run_organizer_cycle(
+                messages=list(initial_messages),
+                scan_lines="合同.pdf | 财务/合同 | 付款协议",
+                pending_plan=PendingPlan(),
+                max_retries=2,
+            )
+
+        self.assertEqual(content, "第二轮说明")
+        self.assertFalse(result["is_valid"])
+        retry_messages = chat_mock.call_args_list[1].args[0]
+        self.assertEqual(retry_messages[1]["role"], "assistant")
+        self.assertEqual(retry_messages[1]["content"], "")
+        self.assertEqual(retry_messages[1]["tool_calls"][0]["function"]["name"], "submit_plan_diff")
+        self.assertIn("不存在的文件源", retry_messages[2]["content"])
+
+    def test_run_organizer_cycle_retries_with_validation_feedback_in_llm_messages(self):
+        invalid_final_call = self._tool_call(
+            "submit_final_plan",
+            '{"directories": ["Finance"], "moves": [], "unresolved_items": []}',
+        )
+        first_message = SimpleNamespace(content="我来提交最终计划。", tool_calls=[invalid_final_call])
+        second_message = SimpleNamespace(content="我会重新整理后再提交。", tool_calls=None)
+
+        with mock.patch.object(
+            organizer_service,
+            "chat_one_round",
+            side_effect=[first_message, second_message],
+        ) as chat_mock:
+            content, result = organizer_service.run_organizer_cycle(
+                messages=[{"role": "user", "content": "可以执行了"}],
+                scan_lines="合同.pdf | 财务/合同 | 付款协议",
+                pending_plan=PendingPlan(),
+                max_retries=2,
+            )
+
+        self.assertEqual(content, "我会重新整理后再提交。")
+        self.assertFalse(result["is_valid"])
+        retry_messages = chat_mock.call_args_list[1].args[0]
+        self.assertEqual(retry_messages[1]["role"], "assistant")
+        self.assertEqual(retry_messages[1]["tool_calls"][0]["function"]["name"], "submit_final_plan")
+        self.assertIn("未通过结构化校验", retry_messages[2]["content"])
+
+    def test_chat_one_round_debug_log_records_chunk_and_synthetic_fields(self):
+        chunk_1 = SimpleNamespace(
+            choices=[SimpleNamespace(delta=SimpleNamespace(content="先说明", tool_calls=None), finish_reason=None)]
+        )
+        chunk_2 = SimpleNamespace(
+            choices=[
+                SimpleNamespace(
+                    delta=SimpleNamespace(
+                        content=None,
+                        tool_calls=[
+                            SimpleNamespace(
+                                index=0,
+                                id="call_1",
+                                function=SimpleNamespace(
+                                    name="submit_plan_diff",
+                                    arguments='{"summary":"已分类 1 项"}',
+                                ),
+                            )
+                        ],
+                    ),
+                    finish_reason="tool_calls",
+                )
+            ]
+        )
+        client = SimpleNamespace(
+            chat=SimpleNamespace(
+                completions=SimpleNamespace(create=mock.Mock(return_value=iter([chunk_1, chunk_2])))
+            )
+        )
+
+        runtime_dir = Path("test_temp_debug_runtime")
+        if runtime_dir.exists():
+            shutil.rmtree(runtime_dir)
+        runtime_dir.mkdir(parents=True, exist_ok=True)
+        debug_log = runtime_dir / "debug_prompt.json"
+        try:
+            with mock.patch.object(organizer_service, "create_openai_client", return_value=client), \
+                 mock.patch("file_organizer.shared.config.RUNTIME_DIR", runtime_dir), \
+                 mock.patch(
+                     "file_organizer.shared.config.config_manager.get",
+                     side_effect=lambda key, default=None: True if key == "DEBUG_MODE" else default,
+                 ):
+                organizer_service.chat_one_round(
+                    [{"role": "user", "content": "请整理"}],
+                    return_message=True,
+                )
+
+            history = json.loads(debug_log.read_text(encoding="utf-8"))
+        finally:
+            if runtime_dir.exists():
+                shutil.rmtree(runtime_dir)
+
+        self.assertEqual(history[-1]["response"]["raw_content"], "先说明")
+        self.assertEqual(history[-1]["response"]["display_content"], "先说明")
+        self.assertFalse(history[-1]["response"]["synthetic_content_used"])
+        self.assertEqual(history[-1]["response"]["chunks"][0]["delta_content"], "先说明")
+        self.assertEqual(history[-1]["response"]["chunks"][1]["finish_reason"], "tool_calls")
 
 
 if __name__ == "__main__":

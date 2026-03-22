@@ -171,6 +171,57 @@ class OrganizerSessionServiceTests(unittest.TestCase):
         self.assertEqual(result.assistant_message["content"], "已更新计划")
         self.assertEqual(result.session_snapshot["plan_snapshot"]["summary"], "moved")
 
+    def test_submit_user_intent_preserves_assistant_tool_calls_in_session_messages(self):
+        created = self.service.create_session(str(self.target_dir), resume_if_exists=False)
+        session = created.session
+        assert session is not None
+        session.stage = "planning"
+        session.scan_lines = "a.txt | 文档 | A"
+        self.store.save(session)
+
+        pending = PendingPlan(
+            directories=["Docs"],
+            moves=[PlanMove(source="a.txt", target="Docs/a.txt")],
+            unresolved_items=[],
+            summary="moved",
+        )
+        assistant_message = {
+            "role": "assistant",
+            "content": "已更新计划",
+            "tool_calls": [
+                {
+                    "id": "call_1",
+                    "type": "function",
+                    "function": {
+                        "name": "submit_plan_diff",
+                        "arguments": '{"summary":"moved"}',
+                    },
+                }
+            ],
+        }
+
+        with mock.patch(
+            "file_organizer.app.session_service.organize_service.run_organizer_cycle",
+            return_value=(
+                "已更新计划",
+                {
+                    "pending_plan": pending,
+                    "is_valid": False,
+                    "diff_summary": ["moved"],
+                    "display_plan": {"focus": "summary", "summary": "moved"},
+                    "assistant_message": assistant_message,
+                },
+            ),
+        ):
+            result = self.service.submit_user_intent(session.session_id, "放到文档")
+
+        stored = self.store.load(session.session_id)
+        self.assertIsNotNone(stored)
+        assert stored is not None
+        self.assertEqual(result.assistant_message["content"], "已更新计划")
+        self.assertEqual(result.assistant_message["tool_calls"][0]["function"]["name"], "submit_plan_diff")
+        self.assertEqual(stored.messages[-1]["tool_calls"][0]["id"], "call_1")
+
     def test_update_item_target_uses_target_dir_and_removes_unresolved_item(self):
         created = self.service.create_session(str(self.target_dir), resume_if_exists=False)
         session = created.session

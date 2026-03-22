@@ -34,17 +34,124 @@ def get_scan_content() -> str:
 def build_initial_messages(scan_lines: str) -> list:
     return [
         {"role": "system", "content": build_prompt(scan_lines)},
-        {"role": "user", "content": "请基于上述扫描结果和整理规则，为我生成初始的整理建议。请先调用 submit_plan_diff 提交你的初步设想，然后告诉我你的整体思路。"}
+        {"role": "user", "content": "请基于上述扫描结果和整理规则，为我生成初始的整理建议。请先用一句话说明你的整理思路，再调用 submit_plan_diff 提交你的初步设想。"}
     ]
+
+
+def _serialize_tool_call(tool_call) -> dict:
+    if isinstance(tool_call, dict):
+        function = tool_call.get("function", {}) or {}
+        return {
+            "id": tool_call.get("id"),
+            "type": tool_call.get("type", "function"),
+            "function": {
+                "name": function.get("name", "") or "",
+                "arguments": function.get("arguments", "") or "",
+            },
+        }
+
+    function = getattr(tool_call, "function", None)
+    return {
+        "id": getattr(tool_call, "id", None),
+        "type": getattr(tool_call, "type", "function"),
+        "function": {
+            "name": getattr(function, "name", "") or "",
+            "arguments": getattr(function, "arguments", "") or "",
+        },
+    }
+
+
+def _serialize_tool_calls(tool_calls) -> list[dict]:
+    return [_serialize_tool_call(tool_call) for tool_call in (tool_calls or [])]
+
+
+def _serialize_tool_call_delta(tool_call_delta) -> dict:
+    function = getattr(tool_call_delta, "function", None)
+    return {
+        "index": getattr(tool_call_delta, "index", None),
+        "id": getattr(tool_call_delta, "id", None),
+        "type": getattr(tool_call_delta, "type", "function"),
+        "function": {
+            "name": getattr(function, "name", None),
+            "arguments": getattr(function, "arguments", None),
+        },
+    }
+
+
+def _build_assistant_message(content: str, tool_calls=None) -> dict:
+    message = {"role": "assistant", "content": content or ""}
+    serialized_tool_calls = _serialize_tool_calls(tool_calls)
+    if serialized_tool_calls:
+        message["tool_calls"] = serialized_tool_calls
+    return message
+
+
+def _debug_enabled() -> bool:
+    import os
+
+    from file_organizer.shared.config import config_manager
+
+    return config_manager.get("DEBUG_MODE", False) or os.getenv("DEBUG_MODE") == "True"
+
+
+def _load_debug_history(debug_log) -> list:
+    if not debug_log.exists():
+        return []
+    try:
+        with open(debug_log, "r", encoding="utf-8") as file:
+            history = json.load(file)
+        return history if isinstance(history, list) else []
+    except Exception:
+        return []
+
+
+def _write_debug_history(debug_log, history: list) -> None:
+    with open(debug_log, "w", encoding="utf-8") as file:
+        json.dump(history, file, indent=2, ensure_ascii=False)
+
+
+def _update_debug_log_response(
+    *,
+    raw_content: str,
+    display_content: str,
+    tool_calls: list[dict],
+    chunks: list[dict] | None = None,
+    synthetic_content_used: bool,
+) -> None:
+    from file_organizer.shared.config import RUNTIME_DIR
+
+    if not _debug_enabled():
+        return
+
+    debug_log = RUNTIME_DIR / "debug_prompt.json"
+    history = _load_debug_history(debug_log)
+    if not history:
+        return
+
+    try:
+        existing_response = history[-1].get("response")
+        existing_chunks = []
+        if isinstance(existing_response, dict):
+            existing_chunks = existing_response.get("chunks", []) or []
+        history[-1]["response"] = {
+            "raw_content": raw_content,
+            "display_content": display_content,
+            "tool_calls": tool_calls,
+            "chunks": existing_chunks if chunks is None else chunks,
+            "synthetic_content_used": synthetic_content_used,
+        }
+        _write_debug_history(debug_log, history)
+        print(f"[DEBUG] Round {len(history)} response recorded.")
+    except Exception:
+        pass
+
 
 def chat_one_round(messages: list, event_handler=None, model: str = ORGANIZER_MODEL_NAME, tools=None, tool_choice="auto", return_message=False):
     from file_organizer.shared.config import RUNTIME_DIR, config_manager
-    import json
-    import os
     from datetime import datetime
     
     # 动态获取状态
-    is_debug = config_manager.get("DEBUG_MODE", False) or os.getenv("DEBUG_MODE") == "True"
+    is_debug = config_manager.get("DEBUG_MODE", False) or _debug_enabled()
     debug_log = RUNTIME_DIR / "debug_prompt.json"
     
     if is_debug:
@@ -53,12 +160,7 @@ def chat_one_round(messages: list, event_handler=None, model: str = ORGANIZER_MO
         is_first_round = len(messages) <= 2
         
         if not is_first_round and debug_log.exists():
-            try:
-                with open(debug_log, "r", encoding="utf-8") as f:
-                    history = json.load(f)
-                    if not isinstance(history, list): history = []
-            except Exception:
-                history = []
+            history = _load_debug_history(debug_log)
         
         current_round = len(history) + 1
         new_entry = {
@@ -70,8 +172,7 @@ def chat_one_round(messages: list, event_handler=None, model: str = ORGANIZER_MO
         history.append(new_entry)
         
         try:
-            with open(debug_log, "w", encoding="utf-8") as f:
-                json.dump(history, f, indent=2, ensure_ascii=False)
+            _write_debug_history(debug_log, history)
         except Exception as e:
             print(f"[DEBUG] Failed to write debug log: {e}")
 
@@ -82,6 +183,7 @@ def chat_one_round(messages: list, event_handler=None, model: str = ORGANIZER_MO
     # 启用流式传输以获得更好的 UI 体验
     full_content = ""
     full_tool_calls_raw = []
+    chunk_records = []
     
     try:
         stream = client.chat.completions.create(
@@ -97,33 +199,41 @@ def chat_one_round(messages: list, event_handler=None, model: str = ORGANIZER_MO
 
     emit(event_handler, "ai_streaming_start")
     if hasattr(stream, "choices"):
-        message = stream.choices[0].message
+        choice = stream.choices[0]
+        message = choice.message
         full_content = getattr(message, "content", "") or ""
         if full_content:
             emit(event_handler, "ai_chunk", {"content": full_content})
         for tool_call in getattr(message, "tool_calls", None) or []:
-            full_tool_calls_raw.append({
-                "id": getattr(tool_call, "id", None),
-                "type": getattr(tool_call, "type", "function"),
-                "function": {
-                    "name": getattr(tool_call.function, "name", ""),
-                    "arguments": getattr(tool_call.function, "arguments", ""),
-                },
-            })
+            full_tool_calls_raw.append(_serialize_tool_call(tool_call))
+        chunk_records.append({
+            "delta_content": full_content or None,
+            "delta_tool_calls": full_tool_calls_raw or None,
+            "finish_reason": getattr(choice, "finish_reason", None),
+        })
     else:
         # 收集流式输出
         for chunk in stream:
             if not chunk.choices:
                 continue
-            delta = chunk.choices[0].delta
+            choice = chunk.choices[0]
+            delta = choice.delta
+            chunk_records.append({
+                "delta_content": getattr(delta, "content", None),
+                "delta_tool_calls": [
+                    _serialize_tool_call_delta(tc_delta)
+                    for tc_delta in (getattr(delta, "tool_calls", None) or [])
+                ] or None,
+                "finish_reason": getattr(choice, "finish_reason", None),
+            })
             
             # 文本部分
-            if delta.content:
+            if getattr(delta, "content", None):
                 full_content += delta.content
                 emit(event_handler, "ai_chunk", {"content": delta.content})
             
             # 工具调用部分
-            if delta.tool_calls:
+            if getattr(delta, "tool_calls", None):
                 for tc_delta in delta.tool_calls:
                     idx = tc_delta.index
                     while len(full_tool_calls_raw) <= idx:
@@ -138,23 +248,13 @@ def chat_one_round(messages: list, event_handler=None, model: str = ORGANIZER_MO
 
     emit(event_handler, "ai_streaming_end", {"full_content": full_content})
 
-    # 在请求结束后更新调试日志，补全 AI 的回复
-    if is_debug:
-        try:
-            # 重新读取以防并发写入（虽然概率低）
-            with open(debug_log, "r", encoding="utf-8") as f:
-                history = json.load(f)
-            
-            history[-1]["response"] = {
-                "content": full_content,
-                "tool_calls": full_tool_calls_raw
-            }
-            
-            with open(debug_log, "w", encoding="utf-8") as f:
-                json.dump(history, f, indent=2, ensure_ascii=False)
-            print(f"[DEBUG] Round {len(history)} response recorded.")
-        except Exception:
-            pass
+    _update_debug_log_response(
+        raw_content=full_content,
+        display_content=full_content,
+        tool_calls=full_tool_calls_raw,
+        chunks=chunk_records,
+        synthetic_content_used=False,
+    )
 
     # 构造兼容的 Message 对象供后续解析
     from types import SimpleNamespace
@@ -645,17 +745,29 @@ def run_organizer_cycle(
     for attempt in range(1, max_retries + 1):
         # 核心：发起 AI 对话获取建议
         message = chat_one_round(llm_messages, event_handler=event_handler, model=model, return_message=True)
+        raw_content = getattr(message, "content", "") or ""
         content, plan_diff, final_plan, display_request = _extract_plan_submissions(message)
+        assistant_context_message = _build_assistant_message(raw_content, getattr(message, "tool_calls", None))
+        synthetic_content_used = False
         
         # HACK: 补救逻辑。如果模型没说话（可能由于 Tool Use 机制仅输出了工具调用）
         # 但 plan_diff 中带有 summary，则借用该 summary 作为对话文本进行流式输出。
         if not content and plan_diff and plan_diff.summary:
+            synthetic_content_used = True
             content = f"我已经根据你的要求更新了计划：{plan_diff.summary}"
             emit(event_handler, "ai_chunk", {"content": content})
 
+        assistant_display_message = _build_assistant_message(content, getattr(message, "tool_calls", None))
+        _update_debug_log_response(
+            raw_content=raw_content,
+            display_content=content,
+            tool_calls=_serialize_tool_calls(getattr(message, "tool_calls", None)),
+            chunks=None,
+            synthetic_content_used=synthetic_content_used,
+        )
+
         # 这里的 content 是用于返回给上层的（用于渲染 UI 对话气泡），不要污染原始历史直到最终落盘。
-        if content:
-            llm_messages.append({"role": "assistant", "content": content})
+        llm_messages.append(assistant_context_message)
             
         display_plan = display_request.to_dict() if display_request else None
 
@@ -666,7 +778,7 @@ def run_organizer_cycle(
             if diff_errors:
                 if attempt < max_retries:
                     err_msg = "增量更新由于包含不存在的文件源而失败:\n" + "\n".join(f"- {e}" for e in diff_errors) + "\n请务必只处理真正的当前层条名称。"
-                    messages.append({"role": "user", "content": err_msg})
+                    llm_messages.append({"role": "user", "content": err_msg})
                     continue
                 else:
                     return content, None
@@ -684,6 +796,8 @@ def run_organizer_cycle(
                 "final_plan": None,
                 "repair_mode": False,
                 "user_constraints": current_constraints,
+                "assistant_message": assistant_display_message,
+                "assistant_context_message": assistant_context_message,
             }
 
         # 场景 B: AI 仅回复文字说明，未发起任何方案层面的增量修改或最终提交
@@ -696,6 +810,8 @@ def run_organizer_cycle(
                 "final_plan": None,
                 "repair_mode": False,
                 "user_constraints": current_constraints,
+                "assistant_message": assistant_display_message,
+                "assistant_context_message": assistant_context_message,
             }
 
         # 场景 C: AI 尝试提交最终可执行方案
@@ -714,12 +830,14 @@ def run_organizer_cycle(
                 "repair_mode": False,
                 "user_constraints": current_constraints,
                 "validation": validation,
+                "assistant_message": assistant_display_message,
+                "assistant_context_message": assistant_context_message,
             }
 
         # 如果最终方案校验失败（例如 AI 忽略了部分文件或生成了错误的 mkdir 路径），则反馈具体原因并递归重试。
         emit(event_handler, "command_validation_fail", {"attempt": attempt, "details": validation})
         if attempt < max_retries:
-            messages.append({"role": "user", "content": build_command_retry_message(validation, scan_lines, current_constraints)})
+            llm_messages.append({"role": "user", "content": build_command_retry_message(validation, scan_lines, current_constraints)})
             continue
 
         # 极限情况：标准重试次数耗尽，仍无法给出合法方案。此时开启“修复模式”。
@@ -740,6 +858,9 @@ def run_organizer_cycle(
             emit(event_handler, "command_validation_pass", {"attempt": attempt + 1, "details": repair_validation})
             updated_pending = _pending_from_final(repaired_plan)
             diff_summary = _build_plan_change_summary((current_pending or PendingPlan()).with_derived_directories(), updated_pending)
+            repair_raw_content = getattr(repair_message, "content", "") or ""
+            repair_display_message = _build_assistant_message(repair_content, getattr(repair_message, "tool_calls", None))
+            repair_context_message = _build_assistant_message(repair_raw_content, getattr(repair_message, "tool_calls", None))
             return repair_content, {
                 "is_valid": True,
                 "pending_plan": updated_pending,
@@ -749,8 +870,13 @@ def run_organizer_cycle(
                 "repair_mode": True,
                 "user_constraints": current_constraints,
                 "validation": repair_validation,
+                "assistant_message": repair_display_message,
+                "assistant_context_message": repair_context_message,
             }
 
+        repair_raw_content = getattr(repair_message, "content", "") or ""
+        repair_display_message = _build_assistant_message(repair_content, getattr(repair_message, "tool_calls", None))
+        repair_context_message = _build_assistant_message(repair_raw_content, getattr(repair_message, "tool_calls", None))
         return repair_content, {
             "is_valid": False,
             "pending_plan": current_pending,
@@ -760,6 +886,8 @@ def run_organizer_cycle(
             "repair_mode": True,
             "user_constraints": current_constraints,
             "validation": repair_validation,
+            "assistant_message": repair_display_message,
+            "assistant_context_message": repair_context_message,
         }
 
     return "", None
