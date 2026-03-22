@@ -1,5 +1,6 @@
 import unittest
 import json
+import os
 import shutil
 from pathlib import Path
 from types import SimpleNamespace
@@ -303,6 +304,42 @@ class StructuredOrganizerServiceTests(unittest.TestCase):
         self.assertFalse(history[-1]["response"]["synthetic_content_used"])
         self.assertEqual(history[-1]["response"]["chunks"][0]["delta_content"], "先说明")
         self.assertEqual(history[-1]["response"]["chunks"][1]["finish_reason"], "tool_calls")
+
+    def test_chat_one_round_can_disable_stream_and_record_response_mode(self):
+        response = SimpleNamespace(
+            choices=[SimpleNamespace(message=SimpleNamespace(content="先说明再操作。", tool_calls=[]), finish_reason="stop")],
+            model_dump=lambda: {"id": "resp_123", "choices": [{"finish_reason": "stop"}]},
+        )
+        create_mock = mock.Mock(return_value=response)
+        client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create_mock)))
+
+        runtime_dir = Path("test_temp_debug_runtime")
+        if runtime_dir.exists():
+            shutil.rmtree(runtime_dir)
+        runtime_dir.mkdir(parents=True, exist_ok=True)
+        debug_log = runtime_dir / "debug_prompt.json"
+        try:
+            with mock.patch.object(organizer_service, "create_openai_client", return_value=client), \
+                 mock.patch("file_organizer.shared.config.RUNTIME_DIR", runtime_dir), \
+                 mock.patch(
+                     "file_organizer.shared.config.config_manager.get",
+                     side_effect=lambda key, default=None: True if key == "DEBUG_MODE" else default,
+                 ), \
+                 mock.patch.dict(os.environ, {"ORGANIZER_CHAT_STREAM": "false"}, clear=False):
+                organizer_service.chat_one_round(
+                    [{"role": "user", "content": "请整理"}],
+                    return_message=True,
+                )
+
+            history = json.loads(debug_log.read_text(encoding="utf-8"))
+        finally:
+            if runtime_dir.exists():
+                shutil.rmtree(runtime_dir)
+
+        self.assertFalse(create_mock.call_args.kwargs["stream"])
+        self.assertEqual(history[-1]["request_meta"]["stream"], False)
+        self.assertEqual(history[-1]["response"]["response_mode"], "non_stream")
+        self.assertEqual(history[-1]["response"]["raw_response"]["id"], "resp_123")
 
 
 if __name__ == "__main__":

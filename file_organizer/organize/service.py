@@ -139,6 +139,15 @@ def _debug_enabled() -> bool:
     return config_manager.get("DEBUG_MODE", False) or os.getenv("DEBUG_MODE") == "True"
 
 
+def _stream_enabled() -> bool:
+    import os
+
+    raw = os.getenv("ORGANIZER_CHAT_STREAM")
+    if raw is None:
+        return True
+    return raw.strip().lower() not in {"0", "false", "no", "off"}
+
+
 def _load_debug_history(debug_log) -> list:
     if not debug_log.exists():
         return []
@@ -162,6 +171,8 @@ def _update_debug_log_response(
     tool_calls: list[dict],
     chunks: list[dict] | None = None,
     synthetic_content_used: bool,
+    response_mode: str | None = None,
+    raw_response=None,
 ) -> None:
     from file_organizer.shared.config import RUNTIME_DIR
 
@@ -184,6 +195,8 @@ def _update_debug_log_response(
             "tool_calls": tool_calls,
             "chunks": existing_chunks if chunks is None else chunks,
             "synthetic_content_used": synthetic_content_used,
+            "response_mode": response_mode,
+            "raw_response": raw_response,
         }
         _write_debug_history(debug_log, history)
         print(f"[DEBUG] Round {len(history)} response recorded.")
@@ -197,6 +210,7 @@ def chat_one_round(messages: list, event_handler=None, model: str = ORGANIZER_MO
     
     # 动态获取状态
     is_debug = config_manager.get("DEBUG_MODE", False) or _debug_enabled()
+    stream_enabled = _stream_enabled()
     debug_log = RUNTIME_DIR / "debug_prompt.json"
     
     if is_debug:
@@ -212,6 +226,11 @@ def chat_one_round(messages: list, event_handler=None, model: str = ORGANIZER_MO
             "round": current_round,
             "timestamp": datetime.now().strftime("%H:%M:%S"),
             "request": messages,
+            "request_meta": {
+                "stream": stream_enabled,
+                "tool_choice": tool_choice,
+                "tool_count": len(tools or organizer_tools),
+            },
             "response": "processing..."
         }
         history.append(new_entry)
@@ -229,6 +248,8 @@ def chat_one_round(messages: list, event_handler=None, model: str = ORGANIZER_MO
     full_content = ""
     full_tool_calls_raw = []
     chunk_records = []
+    response_mode = "stream" if stream_enabled else "non_stream"
+    raw_response = None
     
     try:
         stream = client.chat.completions.create(
@@ -236,7 +257,7 @@ def chat_one_round(messages: list, event_handler=None, model: str = ORGANIZER_MO
             messages=messages,
             tools=tools or organizer_tools,
             tool_choice=tool_choice,
-            stream=True
+            stream=stream_enabled
         )
 
     finally:
@@ -246,6 +267,11 @@ def chat_one_round(messages: list, event_handler=None, model: str = ORGANIZER_MO
     if hasattr(stream, "choices"):
         choice = stream.choices[0]
         message = choice.message
+        if hasattr(stream, "model_dump"):
+            try:
+                raw_response = stream.model_dump()
+            except Exception:
+                raw_response = None
         full_content = getattr(message, "content", "") or ""
         if full_content:
             emit(event_handler, "ai_chunk", {"content": full_content})
@@ -299,6 +325,8 @@ def chat_one_round(messages: list, event_handler=None, model: str = ORGANIZER_MO
         tool_calls=full_tool_calls_raw,
         chunks=chunk_records,
         synthetic_content_used=False,
+        response_mode=response_mode,
+        raw_response=raw_response,
     )
 
     # 构造兼容的 Message 对象供后续解析
