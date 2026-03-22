@@ -170,6 +170,8 @@ class OrganizerSessionServiceTests(unittest.TestCase):
 
         self.assertEqual(result.assistant_message["content"], "已更新计划")
         self.assertEqual(result.session_snapshot["plan_snapshot"]["summary"], "moved")
+        self.assertEqual(result.session_snapshot["messages"][-1]["content"], "已更新计划")
+        self.assertTrue(all(message["role"] != "tool" for message in result.session_snapshot["messages"]))
 
     def test_submit_user_intent_preserves_assistant_tool_calls_in_session_messages(self):
         created = self.service.create_session(str(self.target_dir), resume_if_exists=False)
@@ -233,6 +235,8 @@ class OrganizerSessionServiceTests(unittest.TestCase):
         self.assertEqual(stored.messages[-2]["tool_calls"][0]["id"], "call_1")
         self.assertEqual(stored.messages[-1]["role"], "tool")
         self.assertEqual(stored.messages[-1]["tool_call_id"], "call_1")
+        self.assertEqual(result.session_snapshot["messages"][-1]["content"], "已更新计划")
+        self.assertTrue(all(message["role"] != "tool" for message in result.session_snapshot["messages"]))
 
     def test_update_item_target_uses_target_dir_and_removes_unresolved_item(self):
         created = self.service.create_session(str(self.target_dir), resume_if_exists=False)

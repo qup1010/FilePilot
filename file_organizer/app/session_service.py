@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from queue import Queue
 from pathlib import Path
 
@@ -515,6 +516,60 @@ class OrganizerSessionService:
         self._record_event("scan.completed", session)
         return session.scan_lines
 
+    @staticmethod
+    def _parse_tool_payload(raw_content: str) -> dict:
+        try:
+            payload = json.loads(raw_content)
+            return payload if isinstance(payload, dict) else {}
+        except Exception:
+            return {}
+
+    def _display_content_for_assistant(self, session: OrganizerSession, index: int) -> str:
+        message = session.messages[index]
+        content = message.get("content", "") or ""
+        if content:
+            return content
+
+        tool_calls = message.get("tool_calls") or []
+        tool_names = {
+            tool_call.get("id"): ((tool_call.get("function") or {}).get("name", ""))
+            for tool_call in tool_calls
+        }
+        cursor = index + 1
+        while cursor < len(session.messages) and session.messages[cursor].get("role") == "tool":
+            tool_message = session.messages[cursor]
+            tool_name = tool_message.get("name") or tool_names.get(tool_message.get("tool_call_id"))
+            payload = self._parse_tool_payload(tool_message.get("content", ""))
+            if tool_name == "submit_plan_diff" and payload.get("summary"):
+                return f"我已经根据你的要求更新了计划：{payload['summary']}"
+            if tool_name == "submit_final_plan":
+                if payload.get("ok"):
+                    return "当前方案已就绪，您可以点击“执行”或直接对我说“开始整理”。"
+                return "我已经根据校验结果重新整理了计划，请看最新结果。"
+            if tool_name == "focus_ui_section":
+                return "我已经把界面焦点切换到对应区域，请查看最新提示。"
+            cursor += 1
+
+        later_assistant_exists = any(
+            later.get("role") == "assistant" for later in session.messages[index + 1 :]
+        )
+        if not later_assistant_exists and session.assistant_message and session.assistant_message.get("content"):
+            return session.assistant_message["content"]
+        return ""
+
+    def _ui_messages_for(self, session: OrganizerSession) -> list[dict]:
+        ui_messages = []
+        for index, message in enumerate(session.messages):
+            role = message.get("role")
+            if role == "tool":
+                continue
+
+            ui_message = dict(message)
+            if role == "assistant":
+                ui_message["content"] = self._display_content_for_assistant(session, index)
+            ui_messages.append(ui_message)
+        return ui_messages
+
     def _build_snapshot(self, session: OrganizerSession) -> dict:
         return {
             "session_id": session.session_id,
@@ -530,7 +585,7 @@ class OrganizerSessionService:
             "last_journal_id": session.last_journal_id,
             "integrity_flags": dict(session.integrity_flags),
             "available_actions": self._available_actions_for(session.stage),
-            "messages": list(session.messages),
+            "messages": self._ui_messages_for(session),
             "updated_at": session.updated_at,
             "stale_reason": session.stale_reason,
             "last_error": session.last_error,
