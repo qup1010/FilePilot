@@ -53,7 +53,7 @@ export function CompletionView({
     return (
       <div className="rounded-[2rem] border border-on-surface/6 bg-white/70 p-12 text-center shadow-sm">
         <History className="mx-auto mb-4 h-12 w-12 text-on-surface-variant/20" />
-        <p className="text-sm font-medium text-on-surface-variant">当前没有可展示的执行记录。</p>
+        <p className="text-sm font-medium text-on-surface-variant">这里暂时还没有可显示的结果。</p>
       </div>
     );
   }
@@ -115,19 +115,19 @@ export function CompletionView({
                 )}
               >
                 {isPartial ? <AlertTriangle className="h-3.5 w-3.5" /> : <ShieldCheck className="h-3.5 w-3.5" />}
-                {isPartial ? "整理完成 · 存在阻塞项" : "整理完成 · 交付就绪"}
+                {isPartial ? "整理已完成 · 有少量问题" : "整理已完成"}
               </div>
               <div>
                 <h2 className="text-3xl font-black tracking-tighter text-on-surface">
-                  {isPartial ? "操作已部分执行，请查看失败清单" : "目录架构已重塑，文件落位成功"}
+                  {isPartial ? "整理已完成，请先看看失败项" : "整理已经完成"}
                 </h2>
                 <div className="mt-6 p-5 rounded-2xl bg-on-surface/[0.02] border border-on-surface/5 relative group/summary">
                   <div className="absolute -top-3 left-4 flex items-center gap-1.5 px-2 bg-white text-[10px] font-black text-primary/40 uppercase tracking-widest">
                     <Sparkles className="w-3 h-3" />
-                    <span>整理方案总结</span>
+                    <span>这次整理说明</span>
                   </div>
                   <p className="text-[14px] leading-7 text-on-surface-variant italic">
-                    {summary || "AI 架构师已按照既定策略完成文件归位。"}
+                    {summary || "文件已经按照当前方案整理好了。"}
                   </p>
                 </div>
               </div>
@@ -135,7 +135,7 @@ export function CompletionView({
           </div>
 
           <div className="shrink-0 flex flex-col items-center lg:items-end gap-3 font-mono">
-            <div className="text-[10px] font-black text-on-surface-variant/30 uppercase tracking-[0.2em]">数据快照</div>
+            <div className="text-[10px] font-black text-on-surface-variant/30 uppercase tracking-[0.2em]">目标目录</div>
             <div className="px-6 py-4 rounded-3xl bg-surface-container-low border border-on-surface/5 shadow-inner">
                <span className="text-[13px] font-bold text-on-surface">{targetDir}</span>
             </div>
@@ -147,11 +147,11 @@ export function CompletionView({
         <div className="group rounded-[2rem] border border-emerald-500/10 bg-emerald-500/[0.01] p-6 transition-all hover:bg-emerald-500/[0.03]">
           <div className="flex items-center gap-3 text-emerald-600/60">
             <CheckCircle2 className="h-4 w-4" />
-            <span className="text-[10px] font-black uppercase tracking-[.2em]">成功落位</span>
+            <span className="text-[10px] font-black uppercase tracking-[.2em]">已完成</span>
           </div>
           <div className="mt-4 flex items-baseline gap-2">
             <span className="text-4xl font-black text-on-surface tracking-tighter">{journal.success_count || 0}</span>
-            <span className="text-xs font-bold text-on-surface-variant/40 lowercase">files moved</span>
+            <span className="text-xs font-bold text-on-surface-variant/40">项</span>
           </div>
           <div className="mt-6 h-1 w-full bg-emerald-500/5 rounded-full overflow-hidden">
              <div className="h-full bg-emerald-500/40 w-full" />
@@ -172,18 +172,18 @@ export function CompletionView({
             {journal.failure_count || 0}
           </p>
           <p className="mt-4 text-[11px] font-medium leading-relaxed text-on-surface-variant/60">
-            {isPartial ? "文件可能被占用或权限不足，点击下方红区查看详情。" : "未发现执行阻塞项。"}
+            {isPartial ? "有些文件可能被占用，或当前目录没有写入权限。" : "这次没有遇到执行问题。"}
           </p>
         </div>
 
         <div className="group rounded-[2rem] border border-primary/10 bg-primary/[0.01] p-6 transition-all hover:bg-primary/[0.03]">
           <div className="flex items-center gap-3 text-primary/60">
             <Layers className="h-4 w-4" />
-            <span className="text-[10px] font-black uppercase tracking-[.2em]">REVIEW 留存</span>
+            <span className="text-[10px] font-black uppercase tracking-[.2em]">Review</span>
           </div>
           <p className="mt-4 text-4xl font-black text-on-surface tracking-tighter">{reviewItems.length}</p>
           <p className="mt-4 text-[11px] font-medium leading-relaxed text-on-surface-variant/60">
-            这部分内容被有意放置到缓冲区，等待您后续的手动核阅。
+            这部分内容是先保留下来的，方便你之后再慢慢确认。
           </p>
         </div>
       </div>
@@ -192,7 +192,7 @@ export function CompletionView({
         <div className="flex items-end justify-between">
           <div className="space-y-1">
             <h3 className="text-sm font-bold text-on-surface">目录树前后对比</h3>
-            <p className="text-sm text-on-surface-variant">左侧为原始文件位置，右侧为这次执行后的实际目标结构。</p>
+            <p className="text-sm text-on-surface-variant">左侧是整理前的位置，右侧是整理后的实际结果。</p>
           </div>
           <div className="flex items-center gap-1.5 rounded-2xl bg-surface-container-low p-1 border border-on-surface/5">
             {[
@@ -224,16 +224,16 @@ export function CompletionView({
             <div className={cn("rounded-[1.75rem] border p-6", journal.failure_count && journal.failure_count > 0 ? "border-error/20 bg-error-container/10" : "border-error/12 bg-error-container/5")}>
               <div className="flex items-center gap-3">
                 <AlertTriangle className="h-5 w-5 text-error" />
-                <h3 className="text-sm font-bold text-on-surface">失败项说明</h3>
+                <h3 className="text-sm font-bold text-on-surface">未完成的项</h3>
               </div>
               <p className="mt-2 text-sm leading-6 text-on-surface-variant">
-                这些文件通常是因为被其他程序占用，或当前目录缺少写入权限而未能完成移动。
+                这些文件通常是因为正在被其他程序占用，或者当前目录没有写入权限。
               </p>
               <div className="mt-4 space-y-2">
                 {failedItems.slice(0, 6).map((item) => (
                   <div key={`${item.display_name}-${item.target}`} className="rounded-2xl border border-error/10 bg-white px-4 py-3 text-sm">
-                    <p className="font-medium text-on-surface">{item.display_name}</p>
-                    <p className="mt-1 text-xs text-on-surface-variant">
+                    <p className="font-medium text-on-surface truncate" title={item.display_name}>{item.display_name}</p>
+                    <p className="mt-1 text-xs text-on-surface-variant truncate" title={item.target || ""}>
                       目标位置：{item.target || "未知"}
                     </p>
                   </div>
@@ -246,16 +246,16 @@ export function CompletionView({
             <div className="rounded-[1.75rem] border border-warning/12 bg-warning-container/10 p-6">
               <div className="flex items-center gap-3">
                 <Info className="h-5 w-5 text-warning" />
-                <h3 className="text-sm font-bold text-on-surface">Review 留存说明</h3>
+                <h3 className="text-sm font-bold text-on-surface">Review 说明</h3>
               </div>
               <p className="mt-2 text-sm leading-6 text-on-surface-variant">
-                这部分内容不是执行失败，而是策略上保留在 `Review` 中，方便你稍后逐项确认。
+                这部分不是执行失败，而是按策略先放在 `Review` 中，方便你稍后逐项确认。
               </p>
               <div className="mt-4 space-y-2">
                 {reviewItems.slice(0, 6).map((item) => (
                   <div key={`${item.display_name}-${item.target}`} className="rounded-2xl border border-warning/10 bg-white px-4 py-3 text-sm">
-                    <p className="font-medium text-on-surface">{item.display_name}</p>
-                    <p className="mt-1 text-xs text-on-surface-variant">
+                    <p className="font-medium text-on-surface truncate" title={item.display_name}>{item.display_name}</p>
+                    <p className="mt-1 text-xs text-on-surface-variant truncate" title={item.target || ""}>
                       当前位置：{item.target || "Review"}
                     </p>
                   </div>
@@ -274,7 +274,7 @@ export function CompletionView({
           className="order-1 flex items-center justify-center gap-3 rounded-[1.75rem] bg-primary px-8 py-5 text-sm font-black text-white shadow-[0_12px_24px_rgba(var(--primary-rgb),0.2)] transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-40"
         >
           <Folder className="h-4 w-4" />
-          打开整理后的目录
+          打开目录
         </button>
         {!readOnly ? (
           <>
@@ -285,13 +285,13 @@ export function CompletionView({
               className="order-2 flex items-center justify-center gap-3 rounded-[1.75rem] border border-on-surface/10 bg-white px-6 py-5 text-sm font-bold text-on-surface-variant transition-all hover:bg-surface-container-low hover:text-on-surface disabled:opacity-40"
             >
               <CheckCircle2 className="h-4 w-4 opacity-40" />
-              清理残留空目录
+              清理空目录
             </button>
             <div className="flex-1 hidden md:block" />
             <button
               type="button"
               onClick={() => {
-                if (window.confirm("回退将尝试把本次移动过的文件恢复到原始位置，确认继续？")) {
+                if (window.confirm("回退会尝试把这次移动过的文件放回原来的位置，确定继续吗？")) {
                   onRollback();
                 }
               }}

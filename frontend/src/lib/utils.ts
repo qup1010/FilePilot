@@ -18,13 +18,13 @@ export function getFriendlyStatus(status: string | undefined): string {
     "completed": "已完成",
     "success": "执行成功",
     "rolled_back": "已回退",
-    "scanning": "正在深度扫描",
-    "planning": "分析并生成方案",
-    "ready_for_precheck": "等待确认执行",
-    "executing": "正在执行重组",
-    "failed": "扫描或执行中断",
-    "partially_completed": "部分完成 (需介入)",
-    "drafting": "草案构思中"
+    "scanning": "正在扫描",
+    "planning": "正在整理方案",
+    "ready_for_precheck": "可开始预检",
+    "executing": "正在整理",
+    "failed": "处理中断",
+    "partially_completed": "部分完成",
+    "drafting": "正在准备方案"
   };
 
   return mapping[status.toLowerCase()] || status;
@@ -55,17 +55,17 @@ export function getFriendlyStage(stage: string | undefined): string {
   
   const mapping: Record<string, string> = {
     "idle": "准备中",
-    "draft": "草案构思",
-    "scanning": "深度扫描中",
-    "planning": "方案调整中",
-    "ready_for_precheck": "等待确认预检",
+    "draft": "正在准备方案",
+    "scanning": "正在扫描",
+    "planning": "正在调整方案",
+    "ready_for_precheck": "可开始预检",
     "ready_to_execute": "等待执行",
     "executing": "正在执行",
     "completed": "整理已完成",
     "rolling_back": "正在回退",
     "abandoned": "已放弃",
-    "stale": "会话已失效",
-    "interrupted": "发生中断"
+    "stale": "方案已过期",
+    "interrupted": "已中断"
   };
 
   return mapping[stage.toLowerCase()] || stage;

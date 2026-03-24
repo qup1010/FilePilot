@@ -34,7 +34,7 @@ def get_scan_content() -> str:
 
 def _build_initial_request_text(user_constraints: list[str] | None = None) -> str:
     lines = [
-        "请基于上述扫描结果和整理规则，为我生成初始的整理建议。请先用一句话说明你的整理思路，再调用 submit_plan_diff 提交你的初步设想。"
+        "请基于上述的目录扫描结果和整理规则，为我生成整理计划。简要聊聊你为何这样计划，以及你对此目录的理解和分析。"
     ]
     if user_constraints:
         lines.append("本次已确认的补充偏好：")
@@ -1168,7 +1168,7 @@ organizer_tools = [
         "type": "function",
         "function": {
             "name": PLAN_DIFF_TOOL_NAME,
-            "description": "提交待定整理计划的变更。只要用户对某个 unresolved 项表达了确认或指定了位置，必须通过 unresolved_removals 将其移除，即使 target 路径未变。",
+            "description": "提交待定整理计划的变更。所有待确认项必须使用unresolved_adds提交上去，并且归入暂时Review目录，只要用户对某个 unresolved 项表达了确认或指定了位置，必须通过 unresolved_removals 将其移除，即使 target 路径未变。",
             "parameters": {
                 "type": "object",
                 "properties": {

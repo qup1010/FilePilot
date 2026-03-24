@@ -1,159 +1,220 @@
-import { motion, AnimatePresence } from "framer-motion";
-import { 
-  Loader2, 
-  Search, 
-  CheckCircle2, 
-  AlertCircle, 
-  HelpCircle,
-  Clock
+"use client";
+
+import { motion } from "framer-motion";
+import {
+  AlertCircle,
+  CheckCircle2,
+  Clock3,
+  FileSearch,
+  Loader2,
+  ScanSearch,
+  ShieldCheck,
 } from "lucide-react";
+
 import { cn } from "@/lib/utils";
 import { ScannerProgress } from "@/types/session";
-import { Button } from "@/components/ui/button";
 
 interface ScanningOverlayProps {
   scanner: ScannerProgress;
   progressPercent: number;
 }
 
-export function ScanningOverlay({ scanner, progressPercent }: ScanningOverlayProps) {
-  const status = scanner.status === 'failed' ? 'error' : 
-                 scanner.status === 'completed' ? 'success' : 
-                 scanner.status === 'idle' ? 'idle' : 'scanning';
+function getStatusMeta(scanner: ScannerProgress, progressPercent: number) {
+  const status = scanner.status === "failed" ? "error" : scanner.status === "completed" ? "success" : "scanning";
 
-  if (status === 'idle') return null;
+  if (status === "error") {
+    return {
+      status,
+      title: "扫描已中断",
+      description: scanner.message || "扫描过程中遇到异常，请返回上一步重试。",
+      tone: "error" as const,
+    };
+  }
 
-  // 根据扫描深度映射语义化状态
-  const getSemanticStatus = () => {
-    if (status === 'success') return "扫描完成，正在构建文件关系图谱";
-    if (status === 'error') return scanner.message || "分析请求被核心引擎中断";
-    
-    if (progressPercent < 30) return "AI 正在快速索引文件目录元数据...";
-    if (progressPercent < 70) return "引擎正在深度提取文件特征并构建理解模型...";
-    return "正在根据上下文语境生成目录分类建议...";
+  if (status === "success") {
+    return {
+      status,
+      title: "扫描完成，正在整理结果",
+      description: "元数据提取已经完成，系统正在准备初始整理草案。",
+      tone: "success" as const,
+    };
+  }
+
+  if (progressPercent < 35) {
+    return {
+      status,
+      title: "正在读取目录结构",
+      description: "系统会先识别文件名、层级和基础元信息，再逐步补充内容摘要。",
+      tone: "progress" as const,
+    };
+  }
+
+  if (progressPercent < 75) {
+    return {
+      status,
+      title: "正在分析文件用途",
+      description: "系统会结合文件名、摘要和上下文判断每个文件的大致用途。",
+      tone: "progress" as const,
+    };
+  }
+
+  return {
+    status,
+    title: "正在汇总整理线索",
+    description: "扫描接近完成，系统正在把最近分析结果整理成可执行的初始方案。",
+    tone: "progress" as const,
   };
+}
 
-  const recent_analysis_items = scanner.recent_analysis_items || [];
+export function ScanningOverlay({ scanner, progressPercent }: ScanningOverlayProps) {
+  const processedCount = scanner.processed_count || 0;
+  const totalCount = scanner.total_count || 0;
+  const recentItems = [...(scanner.recent_analysis_items || [])].slice(-4).reverse();
+  const currentItem = scanner.current_item || recentItems[0]?.display_name || "正在准备扫描";
+  const meta = getStatusMeta(scanner, progressPercent);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-8">
-      {/* Dynamic Backdrop */}
-      <motion.div 
-        initial={{ opacity: 0 }} 
-        animate={{ opacity: 1 }} 
-        exit={{ opacity: 0 }}
-        className={cn(
-          "absolute inset-0 backdrop-blur-3xl transition-colors duration-1000",
-          status === 'error' ? "bg-error/10" : "bg-white/80"
-        )}
-      />
-
-      <motion.div 
-        initial={{ opacity: 0, scale: 0.9, y: 30 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.9, y: 30 }}
-        className="relative w-full max-w-2xl bg-white rounded-[40px] shadow-2xl border border-on-surface/5 overflow-hidden"
+    <div className="mx-auto flex h-full w-full max-w-5xl flex-col justify-center">
+      <motion.div
+        initial={{ opacity: 0, y: 18 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="overflow-hidden rounded-[32px] border border-on-surface/6 bg-surface-container-lowest shadow-[0_30px_90px_rgba(24,32,28,0.08)]"
       >
-        {/* Progress Bar */}
-        <div className="absolute top-0 left-0 right-0 h-1.5 bg-primary/5">
-             <motion.div 
-               className="h-full bg-primary"
-               initial={{ width: 0 }}
-               animate={{ width: `${progressPercent}%` }}
-               transition={{ duration: 0.5 }}
-             />
+        <div className="border-b border-on-surface/6 bg-linear-to-br from-surface to-surface-container-low px-10 py-9">
+          <div className="flex items-start justify-between gap-6">
+            <div className="flex items-start gap-5">
+              <div
+                className={cn(
+                  "flex h-16 w-16 shrink-0 items-center justify-center rounded-3xl border",
+                  meta.tone === "error"
+                    ? "border-error/15 bg-error/8 text-error"
+                    : meta.tone === "success"
+                      ? "border-emerald-500/15 bg-emerald-500/8 text-emerald-600"
+                      : "border-primary/12 bg-primary/8 text-primary"
+                )}
+              >
+                {meta.tone === "error" ? (
+                  <AlertCircle className="h-8 w-8" />
+                ) : meta.tone === "success" ? (
+                  <CheckCircle2 className="h-8 w-8" />
+                ) : (
+                  <ScanSearch className="h-8 w-8" />
+                )}
+              </div>
+
+              <div className="space-y-3">
+                <div className="space-y-2">
+                  <p className="text-[11px] font-black uppercase tracking-[0.24em] text-on-surface-variant/45">
+                    扫描工作台
+                  </p>
+                  <h2 className="text-3xl font-black tracking-tight text-on-surface">{meta.title}</h2>
+                  <p className="max-w-2xl text-sm leading-7 text-on-surface-variant">{meta.description}</p>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-3">
+                  <div className="rounded-full border border-on-surface/8 bg-white px-4 py-2 text-xs font-bold text-on-surface">
+                    已扫描 {processedCount} / {totalCount || "?"} 项
+                  </div>
+                  <div className="rounded-full border border-on-surface/8 bg-white px-4 py-2 text-xs font-bold text-on-surface-variant">
+                    当前：{currentItem}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="hidden min-w-[180px] rounded-3xl border border-on-surface/6 bg-white/90 px-5 py-4 lg:block">
+              <div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.2em] text-on-surface-variant/45">
+                <Clock3 className="h-3.5 w-3.5" />
+                实时进度
+              </div>
+              <div className="mt-4 flex items-end gap-2">
+                <span className="text-4xl font-black leading-none text-on-surface tabular-nums">
+                  {Math.max(0, Math.min(100, Math.round(progressPercent)))}
+                </span>
+                <span className="pb-1 text-sm font-bold text-on-surface-variant">%</span>
+              </div>
+              <div className="mt-4 h-2 overflow-hidden rounded-full bg-surface-container-high">
+                <motion.div
+                  className="h-full rounded-full bg-primary"
+                  initial={{ width: 0 }}
+                  animate={{ width: `${Math.max(6, progressPercent)}%` }}
+                  transition={{ duration: 0.35 }}
+                />
+              </div>
+            </div>
+          </div>
         </div>
 
-        <div className="p-12 space-y-10">
-          <div className="flex items-start justify-between">
-            <div className="space-y-3">
-              <div className="flex items-center gap-4">
-                <div className={cn(
-                  "p-3 rounded-2xl transition-colors duration-500",
-                  status === 'error' ? "bg-error/10 text-error" : status === 'success' ? "bg-emerald-500/10 text-emerald-600" : "bg-primary/10 text-primary"
-                )}>
-                  {status === 'error' ? <AlertCircle className="w-6 h-6" /> : status === 'success' ? <CheckCircle2 className="w-6 h-6" /> : <Search className="w-6 h-6 animate-pulse" />}
-                </div>
-                <h2 className="text-2xl font-black font-headline text-on-surface tracking-tight leading-none uppercase tracking-widest">
-                  {status === 'error' ? "扫描遇到阻碍" : "深度语义分析"}
-                </h2>
-              </div>
-              <p className="text-[13px] text-on-surface-variant font-bold uppercase tracking-[0.2em] opacity-40">
-                {getSemanticStatus()}
-              </p>
+        <div className="grid gap-0 lg:grid-cols-[1.15fr_0.85fr]">
+          <div className="border-r border-on-surface/6 px-10 py-8">
+            <div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.22em] text-on-surface-variant/45">
+              <FileSearch className="h-4 w-4" />
+              最近分析结果
             </div>
-          </div>
 
-          {/* Analysis Stream */}
-          <div className="bg-surface-container-low/50 rounded-[32px] border border-on-surface/5 p-8 h-64 overflow-hidden relative">
-            <div className="absolute inset-x-0 top-0 h-12 bg-gradient-to-b from-surface-container-low to-transparent z-10" />
-            <div className="absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-surface-container-low to-transparent z-10" />
-            
-            <div className="space-y-4">
-              <AnimatePresence mode="popLayout">
-                {recent_analysis_items.map((item, idx) => (
-                  <motion.div 
-                    key={item.path + idx}
-                    initial={{ opacity: 0, x: -20, filter: "blur(10px)" }}
-                    animate={{ opacity: 1, x: 0, filter: "blur(0px)" }}
-                    exit={{ opacity: 0, x: 20 }}
-                    className="flex flex-col gap-1.5"
+            {recentItems.length > 0 ? (
+              <div className="mt-5 space-y-3">
+                {recentItems.map((item, index) => (
+                  <motion.div
+                    key={`${item.item_id}-${index}`}
+                    initial={{ opacity: 0, y: 12 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: index * 0.05 }}
+                    className="rounded-2xl border border-on-surface/6 bg-surface px-5 py-4"
                   >
-                    <div className="flex items-center gap-3">
-                      <div className="w-1.5 h-1.5 rounded-full bg-primary/20" />
-                      <span className="text-[12px] font-mono text-on-surface-variant truncate opacity-60 italic">{item.path}</span>
+                    <div className="flex items-center justify-between gap-4">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-bold text-on-surface">{item.display_name}</p>
+                        <p className="mt-1 truncate text-xs text-on-surface-variant">{item.source_relpath}</p>
+                      </div>
+                      {item.suggested_purpose ? (
+                        <span className="shrink-0 rounded-full bg-primary/8 px-3 py-1 text-[11px] font-bold text-primary">
+                          {item.suggested_purpose}
+                        </span>
+                      ) : null}
                     </div>
-                    {item.summary && (
-                       <p className="pl-4 text-[13px] font-bold text-on-surface leading-relaxed border-l-2 border-primary/10 py-1">
-                         {item.summary}
-                       </p>
-                    )}
+                    {item.summary ? (
+                      <p className="mt-3 text-sm leading-6 text-on-surface-variant">{item.summary}</p>
+                    ) : null}
                   </motion.div>
-                )).reverse().slice(0, 4)}
-              </AnimatePresence>
-              
-              {recent_analysis_items.length === 0 && status === 'scanning' && (
-                <div className="h-full flex flex-col items-center justify-center gap-4 py-8 opacity-20">
-                  <Loader2 className="w-8 h-8 animate-spin" />
-                  <p className="text-[11px] font-black uppercase tracking-widest italic leading-none">Awaiting AI Pulse...</p>
-                </div>
-              )}
-
-              {/* Error Actions (Wait for User to decide if they need retry buttons here or in parent) */}
-              {status === 'error' && (
-                <motion.div 
-                  initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-                  className="space-y-6 pt-4"
-                >
-                  <div className="flex flex-col gap-3">
-                    <p className="text-[11px] font-black text-error uppercase tracking-widest pl-1">下一步建议：</p>
-                    <div className="grid grid-cols-1 gap-2">
-                       {[
-                         "检查网络连接或 API 代理设置",
-                         "确认目标目录是否有足够的读取权限",
-                         "尝试减少扫描目录的文件深度"
-                       ].map((tip, i) => (
-                         <div key={i} className="flex items-center gap-3 bg-error/5 p-3 rounded-xl border border-error/10">
-                           <HelpCircle className="w-3.5 h-3.5 text-error opacity-40 shrink-0" />
-                           <span className="text-[13px] font-bold text-error/80">{tip}</span>
-                         </div>
-                       ))}
-                    </div>
-                  </div>
-                </motion.div>
-              )}
-            </div>
+                ))}
+              </div>
+            ) : (
+              <div className="mt-5 flex min-h-[240px] flex-col items-center justify-center rounded-3xl border border-dashed border-on-surface/8 bg-surface text-center">
+                <Loader2 className="h-8 w-8 animate-spin text-primary/40" />
+                <p className="mt-4 text-sm font-bold text-on-surface">正在等待首批扫描结果</p>
+                <p className="mt-2 max-w-sm text-sm leading-6 text-on-surface-variant">
+                  扫描开始后，这里会实时显示最近几个文件的用途判断和内容摘要。
+                </p>
+              </div>
+            )}
           </div>
 
-          <div className="flex items-center justify-between border-t border-on-surface/5 pt-8">
-             <div className="flex items-center gap-3 text-on-surface-variant/30">
-                <Clock className="w-4 h-4" />
-                <span className="text-[11px] font-black uppercase tracking-[0.2em] italic">Precision Analysis Layer</span>
-             </div>
-             <div className="flex items-center gap-2">
-                <span className="text-[11px] font-black text-primary uppercase tracking-widest opacity-60">Insight Engine v2</span>
-                <div className="w-2 h-2 rounded-full bg-primary animate-ping" />
-             </div>
+          <div className="px-10 py-8">
+            <div className="rounded-3xl border border-on-surface/6 bg-surface px-6 py-6">
+              <div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.22em] text-on-surface-variant/45">
+                <ShieldCheck className="h-4 w-4" />
+                当前正在做什么
+              </div>
+              <div className="mt-5 space-y-4">
+                <div className="rounded-2xl bg-surface-container-low px-4 py-4">
+                  <p className="text-xs font-bold uppercase tracking-[0.18em] text-on-surface-variant/45">当前文件</p>
+                  <p className="mt-2 text-sm font-bold text-on-surface break-all">{currentItem}</p>
+                </div>
+                <div className="rounded-2xl bg-surface-container-low px-4 py-4">
+                  <p className="text-xs font-bold uppercase tracking-[0.18em] text-on-surface-variant/45">扫描说明</p>
+                  <p className="mt-2 text-sm leading-7 text-on-surface-variant">
+                    当前阶段只读取目录结构、文件名和内容摘要，用来生成初始整理建议，不会直接移动或删除任何文件。
+                  </p>
+                </div>
+                <div className="rounded-2xl bg-surface-container-low px-4 py-4">
+                  <p className="text-xs font-bold uppercase tracking-[0.18em] text-on-surface-variant/45">如果等待较久</p>
+                  <p className="mt-2 text-sm leading-7 text-on-surface-variant">
+                    如果长时间没有新的扫描结果，通常表示目录较大或读取受限。保留当前窗口即可；若最终失败，系统会自动进入可重试状态。
+                  </p>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </motion.div>

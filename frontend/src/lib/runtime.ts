@@ -3,6 +3,9 @@ import type { RuntimeConfig } from "@/types/session";
 declare global {
   interface Window {
     __FILE_ORGANIZER_RUNTIME__?: RuntimeConfig;
+    __TAURI_INTERNALS__?: {
+      invoke<T>(command: string, args?: Record<string, unknown>): Promise<T>;
+    };
   }
 }
 
@@ -26,4 +29,15 @@ export function getApiBaseUrl(): string {
 
 export function getApiToken(): string {
   return readRuntimeConfig().api_token?.trim() || "";
+}
+
+export function isTauriDesktop(): boolean {
+  return typeof window !== "undefined" && !!window.__TAURI_INTERNALS__?.invoke;
+}
+
+export async function pickDirectoryWithTauri(): Promise<string | null> {
+  if (!isTauriDesktop()) {
+    return null;
+  }
+  return window.__TAURI_INTERNALS__!.invoke<string | null>("pick_directory");
 }

@@ -9,6 +9,7 @@ import { getFriendlyStage } from "@/lib/utils";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ScanningOverlay } from "./workspace/scanning-overlay";
+import { MinimalScanningView } from "./workspace/minimal-scanning-view";
 import { PrecheckView } from "./workspace/precheck-view";
 import { CompletionView } from "./workspace/completion-view";
 import { ConversationPanel, type ConversationNotice } from "./workspace/conversation-panel";
@@ -156,32 +157,22 @@ export default function WorkspaceClient() {
     if (isReadOnly && stage !== "completed") {
       return {
         tone: "warning",
-        title: "这是旧会话的只读视图",
-        description: "你当前只能查看旧草案和历史消息，不能继续提交修改、预检或执行。如需继续整理，请返回启动页选择恢复上次整理或重新开始。",
+        title: "这是只读模式",
+        description: "你现在可以查看之前的方案和记录，但不会继续修改、预检或执行。如需继续整理，请回到首页重新选择。",
       };
     }
 
     if (stage === "ready_for_precheck" || (stage === "planning" && plan.readiness.can_precheck)) {
-      return {
-        tone: "info",
-        title: "当前整理草案已满足预检条件",
-        description: "当前已经没有待确认项，结构校验也已通过。你可以开始预检真实文件系统冲突；这一步不会立即执行文件移动。",
-        primaryAction: isReadOnly ? undefined : {
-          label: "开始预检",
-          onClick: () => {
-            void runPrecheck();
-          },
-        },
-      };
+      return null;
     }
 
     if (stage === "ready_to_execute") {
       return {
         tone: "info",
-        title: "真实文件系统预检已完成",
-        description: "当前草案已经通过真实文件系统检查。请在右侧核对目录树前后变化，再决定是否执行。",
+        title: "预检已完成",
+        description: "系统已经检查过真实文件系统。你可以先看看右侧的目录变化，再决定是否执行。",
         primaryAction: isReadOnly ? undefined : {
-          label: "返回修改方案",
+          label: "返回继续修改",
           onClick: () => {
             void returnToPlanning();
           },
@@ -192,14 +183,14 @@ export default function WorkspaceClient() {
     if (stage === "stale") {
       return {
         tone: "warning",
-        title: "会话已失效",
-        description: "目录内容发生了变化，请重新刷新当前方案后再继续整理。",
+        title: "当前方案已过期",
+        description: "目录内容已经变化，建议先重新扫描，再继续整理。",
         primaryAction: {
-          label: "重新扫描并刷新",
+          label: "重新扫描",
           onClick: () => void refreshPlan(),
         },
         secondaryAction: {
-          label: "放弃会话",
+          label: "结束这次整理",
           onClick: handleExitWorkbench,
         },
       };
@@ -208,14 +199,14 @@ export default function WorkspaceClient() {
     if (stage === "interrupted") {
       return {
         tone: "danger",
-        title: "上一次运行被中断",
-        description: snapshot?.last_error || "请重新刷新方案，确认当前目录状态后再继续。",
+        title: "处理被中断了",
+        description: snapshot?.last_error || "可以重新扫描一次，确认目录状态后再继续。",
         primaryAction: {
-          label: "重新刷新方案",
+          label: "重新扫描",
           onClick: () => void refreshPlan(),
         },
         secondaryAction: {
-          label: "放弃会话",
+          label: "结束这次整理",
           onClick: handleExitWorkbench,
         },
       };
@@ -224,13 +215,13 @@ export default function WorkspaceClient() {
     if (stage === "completed") {
       return {
         tone: "info",
-        title: isReadOnly ? "历史整理结果（只读）" : "整理已完成",
-        description: isReadOnly ? "当前仅查看历史结果，不会触发新的执行或回退动作。" : "左侧保留本次会话摘要，右侧展示执行结果与回退操作。",
+        title: isReadOnly ? "这是之前的整理结果" : "整理完成",
+        description: isReadOnly ? "这里只用于查看结果，不会触发新的操作。" : "右侧会显示这次整理的结果，也可以在这里继续处理后续步骤。",
       };
     }
 
     return null;
-  }, [isReadOnly, plan.readiness.can_precheck, refreshPlan, runPrecheck, returnToPlanning, snapshot?.last_error, stage]);
+  }, [isReadOnly, plan.readiness.can_precheck, refreshPlan, returnToPlanning, snapshot?.last_error, stage]);
 
   React.useEffect(() => {
     if (stage === "completed" && !journal && !journalLoading && !isBusy) {
@@ -240,7 +231,7 @@ export default function WorkspaceClient() {
 
   return (
     <div className="flex-1 flex min-h-0 overflow-hidden relative bg-surface">
-      <ErrorBoundary fallbackTitle="工作台引擎崩溃" className="flex-1">
+      <ErrorBoundary fallbackTitle="页面加载出错了" className="flex-1">
         {showConversationPane ? (
         <section style={{ width: `${leftWidth}%` }} className="relative flex min-h-0 h-full min-w-[400px] flex-col">
           <div className="shrink-0 px-8 py-5 min-h-[104px] flex items-start justify-between border-b border-on-surface/5 bg-surface/88 backdrop-blur-sm z-10 gap-4">
@@ -300,7 +291,7 @@ export default function WorkspaceClient() {
               onClick={handleExitWorkbench}
               className="text-xs font-medium text-on-surface-variant hover:text-error px-3 py-2 rounded-full transition-colors hover:bg-error-container/10"
             >
-              退出工作台
+              结束这次整理
             </button>
           </div>
 
@@ -343,9 +334,7 @@ export default function WorkspaceClient() {
         >
           <div className="flex-1">
             {stage === "scanning" ? (
-              <div className="p-10">
-                <ScanningOverlay scanner={scanner} progressPercent={progressPercent} />
-              </div>
+              <MinimalScanningView scanner={scanner} progressPercent={progressPercent} />
             ) : stage === "completed" ? (
               <div className="p-10 max-w-4xl mx-auto">
                 <CompletionView
@@ -391,8 +380,8 @@ export default function WorkspaceClient() {
                 {stage === "idle" || stage === "draft" ? (
                   <EmptyState
                     icon={Layers}
-                    title="方案预览准备中"
-                    description="在此预览 AI 架构师为你构建的目录映射。请先点击左侧启动深度扫描。"
+                    title="整理预览准备中"
+                    description="先开始扫描，系统会在这里显示整理前后的目录变化。"
                     className="h-[70vh]"
                   />
                 ) : stage === "stale" || stage === "interrupted" ? (
@@ -404,12 +393,12 @@ export default function WorkspaceClient() {
                         </div>
                         <div className="space-y-3">
                           <h3 className="text-lg font-bold text-on-surface">
-                            {stage === "interrupted" ? "会话已中断" : "会话已失效"}
+                            {stage === "interrupted" ? "处理被中断了" : "当前方案已过期"}
                           </h3>
                           <p className="text-sm leading-6 text-on-surface-variant">
                             {stage === "interrupted"
                               ? (snapshot?.last_error || "请重新刷新方案，确认目录状态后再继续。")
-                              : "目录内容已经变化，原先方案可能不再安全，请先重新刷新。"}
+                              : "目录内容已经变化，建议先重新扫描后再继续。"}
                           </p>
                           <div className="flex flex-wrap gap-3">
                             <button
@@ -417,14 +406,14 @@ export default function WorkspaceClient() {
                               onClick={() => void refreshPlan()}
                               className="rounded-xl bg-primary px-4 py-2.5 text-sm font-bold text-white shadow-sm transition-opacity hover:opacity-90"
                             >
-                              重新刷新方案
+                              重新扫描
                             </button>
                             <button
                               type="button"
                               onClick={handleExitWorkbench}
                               className="rounded-xl border border-on-surface/10 px-4 py-2.5 text-sm font-bold text-on-surface-variant transition-colors hover:bg-surface-container-low hover:text-on-surface"
                             >
-                              放弃当前会话
+                              结束这次整理
                             </button>
                           </div>
                         </div>

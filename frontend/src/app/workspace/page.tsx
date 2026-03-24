@@ -6,7 +6,7 @@ export default function WorkspacePage() {
     <Suspense fallback={
       <div className="flex-1 flex items-center justify-center bg-surface">
         <div className="text-center space-y-4">
-          <p className="text-on-surface-variant font-medium">加载工作台中...</p>
+          <p className="text-on-surface-variant font-medium">正在打开整理页面...</p>
         </div>
       </div>
     }>

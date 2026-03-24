@@ -482,6 +482,64 @@ class OrganizerSessionServiceTests(unittest.TestCase):
         self.assertIn("scan.ai_typing", event_types)
         self.assertNotIn("plan.ai_typing", [event["event_type"] for event in service.read_events(session.session_id) if event.get("content") == "扫描阶段摘要"])
 
+    def test_start_scan_builds_initial_messages_with_strategy_selection_dict(self):
+        service = OrganizerSessionService(self.store, scanner=ImmediateScanner())
+        created = service.create_session(
+            str(self.target_dir),
+            resume_if_exists=False,
+            strategy={
+                "template_id": "project_workspace",
+                "naming_style": "en",
+                "caution_level": "balanced",
+                "note": "按项目语义整理",
+            },
+        )
+        session = created.session
+        assert session is not None
+        real_build_initial_messages = __import__(
+            "file_organizer.organize.service", fromlist=["build_initial_messages"]
+        ).build_initial_messages
+
+        with mock.patch(
+            "file_organizer.app.session_service.analysis_service.run_analysis_cycle",
+            return_value="a.txt | 文档 | A",
+        ), mock.patch(
+            "file_organizer.app.session_service.organize_service.build_initial_messages",
+            side_effect=real_build_initial_messages,
+        ) as build_messages_mock, mock.patch(
+            "file_organizer.app.session_service.organize_service.run_organizer_cycle",
+            return_value=("已规划", {"pending_plan": PendingPlan(summary="planned"), "is_valid": False, "diff_summary": ["planned"]}),
+        ):
+            service.start_scan(session.session_id)
+
+        _, kwargs = build_messages_mock.call_args
+        self.assertIsInstance(kwargs["strategy"], dict)
+        self.assertEqual(kwargs["strategy"]["template_id"], "project_workspace")
+        self.assertEqual(kwargs["strategy"]["naming_style"], "en")
+
+    def test_fail_async_scan_event_includes_interrupted_snapshot(self):
+        service = OrganizerSessionService(self.store, scanner=ImmediateScanner())
+        created = service.create_session(str(self.target_dir), resume_if_exists=False)
+        session = created.session
+        assert session is not None
+
+        def broken_analysis(_target_dir, event_handler=None):
+            raise RuntimeError("scanner boom")
+
+        with mock.patch(
+            "file_organizer.app.session_service.analysis_service.run_analysis_cycle",
+            side_effect=broken_analysis,
+        ):
+            service.start_scan(session.session_id)
+
+        error_events = [event for event in service.read_events(session.session_id) if event["event_type"] == "session.error"]
+        self.assertTrue(error_events)
+        latest = error_events[-1]
+        self.assertEqual(latest["stage"], "interrupted")
+        self.assertEqual(latest["session_snapshot"]["stage"], "interrupted")
+        self.assertEqual(latest["session_snapshot"]["scanner_progress"]["status"], "failed")
+        self.assertEqual(latest["session_snapshot"]["last_error"], "scanner boom")
+
     def test_get_snapshot_recovers_orphaned_scanning_session_to_interrupted(self):
         created = self.service.create_session(str(self.target_dir), resume_if_exists=False)
         session = created.session
@@ -621,6 +679,73 @@ class OrganizerSessionServiceTests(unittest.TestCase):
         self.assertEqual(result.session_snapshot["strategy"]["template_id"], "study_materials")
         self.assertEqual(result.session_snapshot["strategy"]["caution_level"], "conservative")
         self.assertEqual(result.session_snapshot["strategy"]["note"], "模糊项都进待确认")
+
+    def test_get_snapshot_backfills_legacy_plan_groups_from_pending_moves(self):
+        created = self.service.create_session(str(self.target_dir), resume_if_exists=False)
+        session = created.session
+        assert session is not None
+        session.stage = "ready_for_precheck"
+        session.summary = "已分类 2 项"
+        session.pending_plan = {
+            "directories": ["学习资料", "项目资料"],
+            "moves": [
+                {"source": "a.txt", "target": "学习资料/a.txt"},
+                {"source": "b.zip", "target": "项目资料/b.zip"},
+            ],
+            "unresolved_items": [],
+            "summary": "已分类 2 项",
+        }
+        session.plan_snapshot = {
+            "summary": "已分类 2 项",
+            "stats": {"move_count": 2, "unresolved_count": 0, "directory_count": 2},
+            "groups": [],
+            "items": [
+                {"item_id": "a.txt", "display_name": "a.txt", "source_relpath": "a.txt", "target_relpath": "学习资料/a.txt", "is_unresolved": False, "reason": ""},
+                {"item_id": "b.zip", "display_name": "b.zip", "source_relpath": "b.zip", "target_relpath": "项目资料/b.zip", "is_unresolved": False, "reason": ""},
+            ],
+            "unresolved_items": [],
+            "review_items": [],
+            "invalidated_items": [],
+            "diff_summary": [],
+            "readiness": {"can_precheck": True},
+        }
+        self.store.save(session)
+
+        snapshot = self.service.get_snapshot(session.session_id)
+
+        self.assertEqual(
+            [group["directory"] for group in snapshot["plan_snapshot"]["groups"]],
+            ["学习资料", "项目资料"],
+        )
+        self.assertEqual(
+            [item["status"] for item in snapshot["plan_snapshot"]["items"]],
+            ["planned", "planned"],
+        )
+
+    def test_plan_snapshot_items_include_scan_purpose_and_summary(self):
+        created = self.service.create_session(str(self.target_dir), resume_if_exists=False)
+        session = created.session
+        assert session is not None
+        session.scan_lines = "md | 工具报告 | 含一次 Organizer 扫描报告\nnotes.txt | 学习笔记 | 课程随手记录"
+        session.pending_plan = {
+            "directories": ["历史归档", "学习资料"],
+            "moves": [
+                {"source": "md", "target": "历史归档/md"},
+                {"source": "notes.txt", "target": "学习资料/notes.txt"},
+            ],
+            "unresolved_items": [],
+            "summary": "已分类 2 项",
+        }
+        self.store.save(session)
+
+        snapshot = self.service.get_snapshot(session.session_id)
+        md_item = next(item for item in snapshot["plan_snapshot"]["items"] if item["item_id"] == "md")
+        notes_item = next(item for item in snapshot["plan_snapshot"]["items"] if item["item_id"] == "notes.txt")
+
+        self.assertEqual(md_item["suggested_purpose"], "工具报告")
+        self.assertEqual(md_item["content_summary"], "含一次 Organizer 扫描报告")
+        self.assertEqual(notes_item["suggested_purpose"], "学习笔记")
+        self.assertEqual(notes_item["content_summary"], "课程随手记录")
 
     def test_refresh_session_rejects_locked_stage(self):
         created = self.service.create_session(str(self.target_dir), resume_if_exists=False)

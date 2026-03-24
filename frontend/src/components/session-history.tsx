@@ -45,29 +45,29 @@ export function SessionHistory() {
             <div className="w-6 h-6 rounded-lg bg-primary/10 flex items-center justify-center">
               <HistoryIcon className="w-3.5 h-3.5 text-primary" />
             </div>
-            最近的整理活动
+            最近的整理记录
           </h3>
           <p className="text-[11px] text-on-surface-variant font-bold uppercase tracking-widest opacity-40">
-            快速跳转到过往的整理方案与执行记录
+            方便回看之前的方案和结果
           </p>
         </div>
         <button 
           onClick={() => router.push('/history')}
           className="group flex items-center gap-2 px-4 py-2 rounded-xl bg-surface-container-low border border-on-surface/5 text-[11px] font-black uppercase tracking-wider text-primary hover:bg-white hover:shadow-sm transition-all"
         >
-          查看全部历史
+          查看全部记录
           <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
         </button>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-        {history.map((item, idx) => {
+        {history.slice(0, 6).map((item, idx) => {
           const isRolledBack = item.status === 'rolled_back';
           const isCompleted = item.status === 'success' || item.status === 'completed';
           const isSession = item.is_session || !['success', 'completed', 'rolled_back', 'partial_failure'].includes(item.status);
           const dirName = item.target_dir.replace(/[\\/]$/, "").split(/[\\/]/).pop() || "未命名记录";
           
-          const actionLabel = isSession ? "可以继续" : getFriendlyStatus(item.status);
+          const actionLabel = isSession ? "继续查看" : getFriendlyStatus(item.status);
           const statusLabel = isSession ? getFriendlyStage(item.status) : (item.status?.toUpperCase() || "UNKNOWN");
           const hasFailures = (item.failure_count || 0) > 0;
 
@@ -134,10 +134,10 @@ export function SessionHistory() {
                 <div className="flex items-center justify-between px-1">
                   <div className="flex items-center gap-1 text-[11px] font-black text-on-surface-variant/40 uppercase tracking-[0.1em]">
                     <Layers className="w-3 h-3" />
-                    涉及 {item.item_count || 0} 个文件
+                    涉及 {item.item_count || 0} 项
                     {hasFailures && (
                       <span className="ml-2 text-error font-black">
-                        / {item.failure_count} 个失败
+                        / {item.failure_count} 项失败
                       </span>
                     )}
                   </div>

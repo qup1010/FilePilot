@@ -273,8 +273,15 @@ export function useSession(sessionId: string | null) {
       const response = await api.resolveUnresolvedChoices(sessionId, payload);
       setSnapshot(response.session_snapshot);
       setAssistantDraft("");
+
+      // 自动发送确认消息给 AI
+      const summary = payload.resolutions.map(r => {
+        return `· 【${r.item_id}】归类至：${r.selected_folder}${r.note ? ` (${r.note})` : ""}`;
+      }).join("\n");
+      
+      await sendMessage(`我已经完成了以下项的归类：\n${summary}\n请根据这些选择更新整理方案。`);
     } catch (err) {
-      setChatError(err instanceof Error ? err.message : "提交待确认项失败");
+      setChatError(err instanceof Error ? err.message : "没有提交成功，请再试一次。");
     } finally {
       setLoading(false);
     }
@@ -290,7 +297,7 @@ export function useSession(sessionId: string | null) {
       const response = await api.scanSession(sessionId);
       setSnapshot(response.session_snapshot);
     } catch (err) {
-      setChatError(err instanceof Error ? err.message : "启动扫描失败");
+      setChatError(err instanceof Error ? err.message : "没有开始扫描，请再试一次。");
     } finally {
       setLoading(false);
     }
@@ -306,7 +313,7 @@ export function useSession(sessionId: string | null) {
       const response = await api.refreshSession(sessionId);
       setSnapshot(response.session_snapshot);
     } catch (err) {
-      setChatError(err instanceof Error ? err.message : "刷新扫描失败");
+      setChatError(err instanceof Error ? err.message : "没有刷新成功，请再试一次。");
     } finally {
       setLoading(false);
     }
@@ -322,7 +329,7 @@ export function useSession(sessionId: string | null) {
       const response = await api.runPrecheck(sessionId);
       setSnapshot(response.session_snapshot);
     } catch (err) {
-      setChatError(err instanceof Error ? err.message : "预检失败");
+      setChatError(err instanceof Error ? err.message : "预检没有成功，请再试一次。");
     } finally {
       setLoading(false);
     }
@@ -338,7 +345,7 @@ export function useSession(sessionId: string | null) {
       const response = await api.returnToPlanning(sessionId);
       setSnapshot(response.session_snapshot);
     } catch (err) {
-      setChatError(err instanceof Error ? err.message : "返回草案失败");
+      setChatError(err instanceof Error ? err.message : "没有返回成功，请再试一次。");
     } finally {
       setLoading(false);
     }
@@ -356,7 +363,7 @@ export function useSession(sessionId: string | null) {
       const response = await api.execute(sessionId, true);
       setSnapshot(response.session_snapshot);
     } catch (err) {
-      setChatError(err instanceof Error ? err.message : "执行失败");
+      setChatError(err instanceof Error ? err.message : "执行没有成功，请再试一次。");
     } finally {
       setLoading(false);
     }
@@ -374,7 +381,7 @@ export function useSession(sessionId: string | null) {
       const response = await api.rollback(sessionId, true);
       setSnapshot(response.session_snapshot);
     } catch (err) {
-      setChatError(err instanceof Error ? err.message : "回退失败");
+      setChatError(err instanceof Error ? err.message : "回退没有成功，请再试一次。");
     } finally {
       setLoading(false);
     }
@@ -390,7 +397,7 @@ export function useSession(sessionId: string | null) {
       const response = await api.cleanupEmptyDirs(sessionId);
       setSnapshot(response.session_snapshot);
     } catch (err) {
-      setChatError(err instanceof Error ? err.message : "清理空目录失败");
+      setChatError(err instanceof Error ? err.message : "没有清理成功，请再试一次。");
     } finally {
       setLoading(false);
     }
@@ -406,7 +413,7 @@ export function useSession(sessionId: string | null) {
       resetConversationTransientState();
       return true;
     } catch (err) {
-      setChatError(err instanceof Error ? err.message : "放弃会话失败");
+      setChatError(err instanceof Error ? err.message : "没有结束成功，请再试一次。");
       return false;
     } finally {
       setLoading(false);
@@ -417,7 +424,7 @@ export function useSession(sessionId: string | null) {
     try {
       await api.openDir(path);
     } catch {
-      setChatError("无法打开文件夹: 路径不存在或系统错误");
+      setChatError("现在还不能打开这个文件夹。");
     }
   }
 

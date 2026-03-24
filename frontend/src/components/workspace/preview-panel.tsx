@@ -166,6 +166,53 @@ function buildSourceTree(items: PlanItem[]): TreeNode {
   return root;
 }
 
+function buildTargetTree(items: PlanItem[]): TreeNode {
+  const root: TreeNode = { name: "Root", path: "", items: [], children: {} };
+
+  items.forEach((item) => {
+    const rawTarget = item.target_relpath || item.source_relpath || "";
+    const normalizedPath = rawTarget.replace(/\\/g, "/").replace(/\/$/, "");
+    const parts = normalizedPath.split("/").filter(Boolean);
+    if (parts.length === 0) {
+      return;
+    }
+
+    let current = root;
+    for (let i = 0; i < parts.length - 1; i++) {
+      const part = parts[i];
+      const path = parts.slice(0, i + 1).join("/");
+      if (!current.children[part]) {
+        current.children[part] = {
+          name: part,
+          path,
+          items: [],
+          children: {},
+        };
+      }
+      current = current.children[part];
+    }
+
+    current.items.push({
+      ...item,
+      display_name: parts[parts.length - 1] || item.display_name,
+    });
+  });
+
+  const propagateStatus = (node: TreeNode) => {
+    node.hasUnresolved = node.items.some((it) => it.status === "unresolved");
+    node.hasReview = node.items.some((it) => it.status === "review");
+
+    Object.values(node.children).forEach((child) => {
+      propagateStatus(child);
+      if (child.hasUnresolved) node.hasUnresolved = true;
+      if (child.hasReview) node.hasReview = true;
+    });
+  };
+
+  propagateStatus(root);
+  return root;
+}
+
 interface TreeFolderProps {
   node: TreeNode;
   level: number;
@@ -364,14 +411,20 @@ function FileItem({
   const isEditing = editingId === item.item_id;
   const isUnresolved = item.status === "unresolved";
   const isReview = item.status === "review";
+  const hoverDetails = [
+    item.suggested_purpose ? `用途：${item.suggested_purpose}` : "",
+    item.content_summary ? `内容：${item.content_summary}` : "",
+  ].filter(Boolean);
+  const tooltipText = hoverDetails.join("\n");
 
   return (
     <div 
       className={cn(
-        "group/item flex flex-col pr-1 py-1 my-0.5 rounded-md transition-all",
+        "group/item relative flex flex-col pr-1 py-1 my-0.5 rounded-md transition-all",
         isUnresolved ? "bg-warning/5 hover:bg-warning/10" : isReview ? "bg-primary/5 hover:bg-primary/10" : "hover:bg-on-surface/2"
       )}
       style={{ paddingLeft: `${level * 12 + 20}px` }}
+      title={tooltipText || undefined}
     >
       <div className="flex items-center gap-2 text-[11px] text-on-surface-variant/70 hover:text-on-surface transition-colors">
         <Icon className={cn("w-3 h-3 shrink-0", !isFile && "text-on-surface/40")} />
@@ -411,6 +464,13 @@ function FileItem({
           </div>
         )}
       </div>
+      {hoverDetails.length > 0 && (
+        <div className="pointer-events-none absolute left-6 right-3 top-full z-20 mt-1 hidden rounded-xl border border-on-surface/10 bg-surface-container px-3 py-2 text-[11px] leading-5 text-on-surface shadow-lg group-hover/item:block">
+          {hoverDetails.map((line) => (
+            <div key={line}>{line}</div>
+          ))}
+        </div>
+      )}
       {isEditing && (
         <div className="flex gap-2 py-1 mt-1 ml-4 border-l border-primary/20 pl-2" onClick={(e) => e.stopPropagation()}>
           <input
@@ -457,10 +517,14 @@ export function PreviewPanel({
     setEditValue("");
   };
 
-  const afterTree = buildFileTree(plan.groups);
+  const afterTree = plan.groups.length > 0 ? buildFileTree(plan.groups) : buildTargetTree(plan.items);
   const beforeTree = buildSourceTree(plan.items);
   const currentTree = viewMode === "after" ? afterTree : beforeTree;
   const isViewOnly = viewMode === "before" || readOnly;
+  const hasTreeContent =
+    viewMode === "after"
+      ? plan.groups.length > 0 || plan.items.some((item) => Boolean(item.target_relpath))
+      : plan.items.length > 0;
 
   return (
     <div className="flex flex-col h-full bg-surface overflow-hidden">
@@ -468,10 +532,10 @@ export function PreviewPanel({
         <div className="space-y-6">
           <div className="flex items-center justify-between">
             <h2 className="text-sm font-black text-on-surface uppercase tracking-widest flex items-center gap-2">
-              <Activity className="w-4 h-4 text-primary" /> 方案决策工作台
+              <Activity className="w-4 h-4 text-primary" /> 当前方案
             </h2>
             <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-surface-container-high text-[9px] font-bold text-on-surface-variant uppercase tracking-widest">
-              {stage === "completed" ? "执行完毕" : "草案模式"}
+              {stage === "completed" ? "已完成" : "整理中"}
             </div>
           </div>
 
@@ -551,7 +615,7 @@ export function PreviewPanel({
             <div className="flex flex-col gap-3">
               <div className="flex items-center justify-between">
                 <h3 className="text-[9px] font-black text-on-surface-variant/30 flex items-center gap-1 uppercase tracking-[0.15em]">
-                  <Layers className="w-3 h-3" /> 目录层级
+                  <Layers className="w-3 h-3" /> 目录结构
                 </h3>
               </div>
 
@@ -583,10 +647,10 @@ export function PreviewPanel({
             </div>
 
             <div className="bg-surface-container-lowest/40 rounded-md p-2 border border-on-surface/5 min-h-[150px]">
-              {plan.groups.length === 0 ? (
+              {!hasTreeContent ? (
                 <div className="flex flex-col items-center justify-center h-40 text-[10px] font-bold text-on-surface-variant/10 italic gap-2">
                   <Archive className="w-6 h-6 opacity-5" />
-                  等待扫描分析...
+                  还没有可显示的内容
                 </div>
               ) : (
                 <FolderNode
@@ -625,7 +689,7 @@ export function PreviewPanel({
             ) : plan.readiness.can_precheck || plan.items.length > 0 ? (
               <div className="flex items-center gap-2 text-[11px] font-bold text-primary leading-relaxed">
                 <Check className="w-3.5 h-3.5 shrink-0" />
-                <span>整理方案已就绪，预检将严格模拟执行结果</span>
+                <span>方案已经准备好了，如果你满意，可以直接开始预检。</span>
               </div>
             ) : null}
           </div>
@@ -645,11 +709,11 @@ export function PreviewPanel({
             ) : (
               <Activity className="w-4 h-4 ml-1 opacity-60" />
             )}
-            {isBusy ? "正在同步方案中" : "开始方案预检"}
+            {isBusy ? "正在更新中" : "开始预检"}
           </button>
           
           <p className="mt-4 text-[9px] text-center font-bold text-on-surface-variant/30 uppercase tracking-[0.2em]">
-            预检将严格模拟文件冲突与目录写入权限
+            预检只检查真实文件冲突与目录写入权限，不会立刻执行移动
           </p>
         </div>
       )}

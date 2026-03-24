@@ -9,7 +9,7 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 
-import { getApiBaseUrl } from "@/lib/runtime";
+import { getApiBaseUrl, getApiToken } from "@/lib/runtime";
 import { createApiClient } from "@/lib/api";
 import type { JournalSummary, HistoryItem } from "@/types/session";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -24,7 +24,7 @@ export default function HistoryPage() {
   const [journalLoading, setJournalLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   const [rollbackSuccess, setRollbackSuccess] = useState(false);
-  const api = createApiClient(getApiBaseUrl());
+  const api = createApiClient(getApiBaseUrl(), getApiToken());
 
   // Load history list
   async function loadHistory() {
@@ -115,15 +115,15 @@ export default function HistoryPage() {
       {/* --- Left Pane: Execution Logs --- */}
       <section className="w-1/3 min-w-[380px] bg-surface-container-low flex flex-col overflow-hidden border-r border-on-surface/5">
         <div className="p-10 pb-6 space-y-2">
-          <h1 className="text-xl font-bold text-on-surface font-headline tracking-tight uppercase tracking-widest leading-none">执行历史</h1>
-          <p className="text-[11px] text-on-surface-variant font-bold uppercase tracking-widest opacity-40">配置您的 AI 整理引擎与服务偏好</p>
+          <h1 className="text-xl font-bold text-on-surface font-headline tracking-tight uppercase tracking-widest leading-none">整理记录</h1>
+          <p className="text-[11px] text-on-surface-variant font-bold uppercase tracking-widest opacity-40">这里会保存你之前的整理结果和回退记录</p>
         </div>
 
         <div className="flex-1 overflow-y-auto px-8 space-y-4 pb-12 scrollbar-thin">
           {loading ? (
             <div className="py-20 flex flex-col items-center justify-center opacity-20">
               <Activity className="w-8 h-8 animate-spin mb-4" />
-              <p className="text-[11px] font-black uppercase tracking-widest">正在加载执行记录...</p>
+              <p className="text-[11px] font-black uppercase tracking-widest">正在加载记录...</p>
             </div>
           ) : history.length > 0 ? (
             history.map((entry, idx) => (
@@ -143,7 +143,7 @@ export default function HistoryPage() {
                     "text-[11px] font-black tracking-widest uppercase px-2 py-0.5 rounded",
                     entry.status === 'rolled_back' ? "bg-surface-container-highest text-on-surface-variant/40" : "bg-emerald-500/10 text-emerald-600"
                   )}>
-                    {entry.status === 'rolled_back' ? '已回退' : '已执行'}
+                    {entry.status === 'rolled_back' ? '已回退' : '已完成'}
                   </span>
                   <span className="text-[11px] font-mono text-on-surface-variant/40">
                     {new Date(entry.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -155,9 +155,9 @@ export default function HistoryPage() {
                 </h3>
 
                 <div className="space-y-2 opacity-60">
-                  <div className="flex items-center text-[11px] text-on-surface-variant font-mono">
+                  <div className="flex items-center text-[11px] text-on-surface-variant font-mono min-w-0">
                     <FolderOpen className="w-3.5 h-3.5 mr-2 shrink-0" />
-                    <span className="truncate">{formatPath(entry.target_dir)}</span>
+                    <span className="truncate" title={entry.target_dir}>{formatPath(entry.target_dir)}</span>
                   </div>
                 </div>
               </motion.div>
@@ -165,8 +165,8 @@ export default function HistoryPage() {
           ) : (
             <EmptyState 
               icon={HistoryIcon}
-              title="无执行记录"
-              description="当您在工作台中完成一次目录重构后，轨迹将在此处持久化。"
+              title="还没有整理记录"
+              description="完成一次整理后，结果会自动保存在这里。"
               className="py-20 opacity-40"
             />
           )}
@@ -185,7 +185,7 @@ export default function HistoryPage() {
               {/* Header */}
               <div className="px-10 py-8 flex items-center justify-between border-b border-on-surface/5 bg-white/60 backdrop-blur-2xl z-10 h-24">
                 <div className="space-y-1">
-                  <h2 className="text-xl font-black text-on-surface font-headline tracking-tight uppercase leading-none">执行报告预览</h2>
+                  <h2 className="text-xl font-black text-on-surface font-headline tracking-tight uppercase leading-none">整理结果</h2>
                   <p className="text-[11px] text-on-surface-variant font-mono opacity-40">
                     UID: {selectedSessionId}
                   </p>
@@ -195,13 +195,13 @@ export default function HistoryPage() {
                   {journal.status === 'completed' && (
                     <div className="flex items-center gap-2 px-4 py-2 bg-warning-container/20 rounded-full text-warning border border-warning/10 transition-all">
                        <AlertTriangle className="w-4 h-4" />
-                       <span className="text-[11px] font-black uppercase tracking-widest">可物理回退</span>
+                       <span className="text-[11px] font-black uppercase tracking-widest">可以回退</span>
                     </div>
                   )}
                   {journal.status === 'rolled_back' && (
                     <div className="flex items-center gap-2 px-4 py-2 bg-surface-container-highest text-on-surface-variant/40 rounded-full border border-on-surface/5">
                        <CheckCircle2 className="w-4 h-4" />
-                       <span className="text-[11px] font-black uppercase tracking-widest">已完成回退</span>
+                       <span className="text-[11px] font-black uppercase tracking-widest">回退完成</span>
                     </div>
                   )}
                 </div>
@@ -216,9 +216,9 @@ export default function HistoryPage() {
                       <Undo2 className="w-8 h-8" />
                     </div>
                     <div className="space-y-1">
-                      <h4 className="text-[15px] font-black text-on-surface uppercase tracking-tight">回退引擎响应成功</h4>
+                      <h4 className="text-[15px] font-black text-on-surface uppercase tracking-tight">回退完成</h4>
                       <p className="text-[13px] font-bold text-on-surface-variant/60 leading-relaxed uppercase tracking-widest">
-                        系统已将所有移动记录按原路径还原。受影响的 {journal.item_count} 个节点已回到初始位置。
+                        这次移动过的内容已经按原路径放回。受影响的 {journal.item_count} 项已恢复到原来的位置。
                       </p>
                     </div>
                   </motion.div>
@@ -228,14 +228,14 @@ export default function HistoryPage() {
                    <div className="bg-white p-8 rounded-[32px] border border-on-surface/5 shadow-sm">
                       <div className="flex items-center gap-2 mb-4 opacity-40">
                         <Archive className="w-4 h-4" />
-                        <span className="text-[11px] font-black uppercase tracking-[0.3em]">迁移总数</span>
+                        <span className="text-[11px] font-black uppercase tracking-[0.3em]">处理条目</span>
                       </div>
                       <p className="text-4xl font-black text-on-surface tabular-nums tracking-tighter">{journal.item_count}</p>
                    </div>
                    <div className="bg-white p-8 rounded-[32px] border border-on-surface/5 shadow-sm">
                       <div className="flex items-center gap-2 mb-4 opacity-40">
                         <Clock className="w-4 h-4" />
-                        <span className="text-[11px] font-black uppercase tracking-[0.3em]">引擎执行时耗</span>
+                        <span className="text-[11px] font-black uppercase tracking-[0.3em]">处理耗时</span>
                       </div>
                       <p className="text-4xl font-black text-on-surface tabular-nums tracking-tighter">0.8s</p>
                    </div>
@@ -243,37 +243,39 @@ export default function HistoryPage() {
 
                 <div className="space-y-6">
                   <div className="flex items-center justify-between px-2">
-                    <h3 className="text-[11px] font-black text-on-surface-variant/40 uppercase tracking-[0.3em]">物理路径恢复索引表</h3>
+                    <h3 className="text-[11px] font-black text-on-surface-variant/40 uppercase tracking-[0.3em]">路径变化记录</h3>
                   </div>
 
                   <div className="bg-white border border-on-surface/5 rounded-[40px] overflow-hidden shadow-xl shadow-on-surface/5">
                     <table className="w-full text-left font-sans border-collapse">
                       <thead className="bg-surface-container-low/50 text-[11px] font-black text-on-surface-variant border-b border-on-surface/5 uppercase tracking-[0.2em]">
                         <tr>
-                          <th className="px-8 py-5">资源标识符</th>
-                          <th className="px-8 py-5">物理路径演变轨迹 (Current → Source)</th>
+                          <th className="px-8 py-5 w-[200px] lg:w-[280px]">文件</th>
+                          <th className="px-8 py-5">路径变化（当前 → 原位置）</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-on-surface/5">
                         {moveRows.length ? (
                           moveRows.map((it, i) => (
                             <tr key={i} className="hover:bg-surface-container-low/40 transition-colors group">
-                              <td className="px-8 py-6">
+                              <td className="px-8 py-6 max-w-0">
                                 <div className="flex flex-col">
-                                  <span className="text-[14px] font-black text-on-surface tracking-tight uppercase">{it.display_name}</span>
+                                  <span className="text-[14px] font-black text-on-surface tracking-tight uppercase truncate" title={it.display_name}>
+                                    {it.display_name}
+                                  </span>
                                 </div>
                               </td>
                               <td className="px-8 py-6">
-                                <div className="flex items-center gap-4 text-[12px] font-bold text-on-surface-variant/60 font-mono">
+                                <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-6 text-[12px] font-bold text-on-surface-variant/60 font-mono">
                                    <span
-                                     className="min-w-0 truncate text-on-surface-variant leading-6 opacity-60"
+                                     className="truncate text-on-surface-variant leading-6 opacity-60 text-right"
                                      title={it.target || ""}
                                    >
                                      {formatMovePath(it.target, journal.target_dir)}
                                    </span>
-                                   <ArrowRight className="w-3.5 h-3.5 shrink-0 opacity-20" />
+                                   <ArrowRight className="w-3.5 h-3.5 shrink-0 opacity-20 mx-auto" />
                                    <span
-                                     className="min-w-0 truncate text-primary font-black leading-6"
+                                     className="truncate text-primary font-black leading-6"
                                      title={it.source || ""}
                                    >
                                      {formatMovePath(it.source, journal.target_dir)}
@@ -285,7 +287,7 @@ export default function HistoryPage() {
                         ) : (
                           <tr>
                             <td colSpan={2} className="px-8 py-16 text-center text-[13px] font-bold text-on-surface-variant/30 uppercase tracking-widest italic">
-                              NO TRACE DATA AVAILABLE
+                              暂时没有可显示的记录
                             </td>
                           </tr>
                         )}
@@ -305,8 +307,8 @@ export default function HistoryPage() {
                        <AlertTriangle className="w-6 h-6" />
                     </div>
                     <div className="space-y-1">
-                       <p className="text-[13px] font-black uppercase tracking-widest text-on-surface">危险操作区域：架构回退</p>
-                       <p className="text-[11px] font-bold text-on-surface-variant/40 uppercase tracking-widest italic">回退将完全撤回此部署，无法被二次恢复。</p>
+                       <p className="text-[13px] font-black uppercase tracking-widest text-on-surface">回退这次整理</p>
+                       <p className="text-[11px] font-bold text-on-surface-variant/40 uppercase tracking-widest italic">回退会尽量把这次移动过的文件放回原来的位置。</p>
                     </div>
                   </div>
                   <Button 
@@ -316,7 +318,7 @@ export default function HistoryPage() {
                     loading={actionLoading}
                     className="px-10 py-5 h-auto text-sm"
                   >
-                    物理回退此架构
+                    回退这次整理
                   </Button>
                 </div>
               )}
@@ -326,7 +328,7 @@ export default function HistoryPage() {
                <div className="w-24 h-24 rounded-[40px] bg-white border border-on-surface/5 flex items-center justify-center text-on-surface-variant/10 shadow-sm">
                  <HistoryIcon className="w-10 h-10 stroke-[1.5px]" />
                </div>
-               <p className="text-[13px] font-black text-on-surface-variant/20 uppercase tracking-[0.4em]">请选择一条执行记录查看详情</p>
+               <p className="text-[13px] font-black text-on-surface-variant/20 uppercase tracking-[0.4em]">请选择一条记录查看详情</p>
             </div>
           )}
         </AnimatePresence>

@@ -9,6 +9,13 @@ use std::time::Duration;
 
 use tauri::{App, Manager, RunEvent};
 
+#[tauri::command]
+fn pick_directory() -> Option<String> {
+    rfd::FileDialog::new()
+        .pick_folder()
+        .map(|path| path.to_string_lossy().into_owned())
+}
+
 struct DesktopState {
     project_root: PathBuf,
     backend_child: Mutex<Option<Child>>,
@@ -119,6 +126,7 @@ pub fn run() {
 
     tauri::Builder::default()
         .manage(DesktopState::new(project_root))
+        .invoke_handler(tauri::generate_handler![pick_directory])
         .setup(|app| {
             bootstrap_backend(app).map_err(Into::into)
         })

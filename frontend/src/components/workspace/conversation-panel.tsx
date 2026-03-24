@@ -130,7 +130,7 @@ function MarkdownProse({ content }: { content: string }) {
     <ReactMarkdown
       remarkPlugins={[remarkGfm]}
       components={{
-        p: ({ node, ...props }) => <p className="mb-3 last:mb-0 leading-8 text-[14px]" {...props} />,
+        p: ({ node, ...props }) => <div className="mb-3 last:mb-0 leading-8 text-[14px]" {...props} />,
         strong: ({ node, ...props }) => <strong className="font-black text-on-surface" {...props} />,
         em: ({ node, ...props }) => <em className="italic text-on-surface/80" {...props} />,
         ul: ({ node, ...props }) => <ul className="mb-4 ml-4 list-disc space-y-2 text-[14px]" {...props} />,
@@ -212,9 +212,9 @@ function UnresolvedChoicesBubble({
     <div className="mt-3 rounded-2xl border border-warning/20 bg-warning-container/10 p-4">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h4 className="text-sm font-bold text-on-surface">待确认项选择</h4>
+          <h4 className="text-sm font-bold text-on-surface">请帮我确认这几项</h4>
           <p className="mt-1 text-sm leading-6 text-on-surface-variant">
-            {block.summary || "请为以下文件选择更合适的目录，或补充你的分类想法。"}
+            {block.summary || "你可以直接选一个目录，或者补充一点想法。"}
           </p>
         </div>
         {!isSubmitted ? (
@@ -223,7 +223,7 @@ function UnresolvedChoicesBubble({
             onClick={onSetAllReview}
             className="rounded-full border border-on-surface/10 px-3 py-1.5 text-xs font-bold text-on-surface-variant transition-colors hover:bg-white hover:text-on-surface"
           >
-            全部归入 Review
+            全部放入 Review
           </button>
         ) : null}
       </div>
@@ -519,14 +519,14 @@ export function ConversationPanel({
             </div>
             <div className="space-y-4 font-sans">
               <p className="text-sm leading-relaxed text-on-surface-variant italic">
-                我是你的文件架构助手。我会先扫描目录、理解文件语义，再和你一起把方案收敛到可执行状态。
+                我会先帮你扫描目录，再一起把整理方案慢慢收拢清楚。
               </p>
               <button
                 onClick={onStartScan}
                 disabled={isBusy}
                 className="inline-flex items-center gap-2 bg-linear-to-b from-primary to-primary-dim text-white px-6 py-2.5 rounded-md text-xs font-bold transition-transform active:scale-[0.98] shadow-sm disabled:opacity-50"
               >
-                <Sparkles className="w-3.5 h-3.5" /> 开始架构深度扫描
+                <Sparkles className="w-3.5 h-3.5" /> 开始扫描
               </button>
             </div>
           </motion.div>
@@ -688,7 +688,7 @@ export function ConversationPanel({
               <div className="p-4 flex-1 bg-white/88 border border-on-surface/5 rounded-2xl text-[14px] leading-7 text-on-surface shadow-sm">
                 <div className="mb-3 flex gap-1 items-center opacity-30">
                   <span className="w-1 h-1 bg-primary rounded-full animate-pulse" />
-                  <span className="text-[10px] font-black uppercase tracking-widest ml-1">AI 正在构思方案</span>
+                    <span className="text-[10px] font-black uppercase tracking-widest ml-1">正在整理回复</span>
                 </div>
                 <div className="relative">
                   <MarkdownProse content={assistantDraft} />
@@ -743,7 +743,7 @@ export function ConversationPanel({
                 className="mb-4 px-4 py-2.5 bg-warning-container/10 rounded-2xl text-xs font-medium text-warning flex items-center gap-2 border border-warning/10"
               >
                 <AlertTriangle className="w-3.5 h-3.5" />
-                还有 {unresolvedCount} 项待确认冲突
+                还有 {unresolvedCount} 项待确认
               </motion.div>
             ) : (unresolvedCount === 0 && stage === "planning" && composerMode === "editable") ? (
               <motion.div
@@ -754,8 +754,8 @@ export function ConversationPanel({
               >
                 <span className="w-1 h-1 rounded-full bg-primary/20 shrink-0" />
                 <p>
-                  整理草案已就绪。若满意方案，请点击右侧面板底部的
-                  <span className="text-primary/60 font-bold mx-1 italic uppercase tracking-widest">“开始方案预检”</span>
+                  方案已经准备好了。如果你觉得没问题，可以点右侧底部的
+                  <span className="text-primary/60 font-bold mx-1 italic uppercase tracking-widest">“开始预检”</span>
                 </p>
               </motion.div>
             ) : null}
@@ -767,7 +767,7 @@ export function ConversationPanel({
                 ref={inputRef}
                 rows={1}
                 className="w-full bg-transparent border-none py-3 px-4 text-[14px] text-on-surface placeholder:text-on-surface-variant/30 outline-none resize-none scrollbar-none min-h-[44px]"
-                placeholder={isBusy ? "系统正在处理..." : "描述你的整理意图，或修改现有方案..."}
+                placeholder={isBusy ? "正在处理..." : "说说你的整理想法，或告诉我哪里想调整..."}
                 value={messageInput}
                 disabled={isBusy}
                 onChange={(event) => setMessageInput(event.target.value)}
@@ -788,7 +788,7 @@ export function ConversationPanel({
             </div>
           ) : (
             <div className="rounded-2xl border border-on-surface/5 bg-white/78 px-5 py-4 text-sm text-on-surface-variant">
-              正在扫描目录并分析文件语义，当前阶段暂不接收新的聊天输入。
+              正在扫描目录，暂时还不能继续输入。
             </div>
           )}
 

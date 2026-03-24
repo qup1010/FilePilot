@@ -32,5 +32,9 @@ class AsyncScanner:
         thread = self._threads.get(session_id)
         return {"running": bool(thread and thread.is_alive())}
 
+    def is_running(self, session_id: str) -> bool:
+        thread = self._threads.get(session_id)
+        return bool(thread and thread.is_alive())
+
     def cancel(self, session_id: str) -> None:  # pragma: no cover - cooperative cancel not yet implemented
         raise NotImplementedError("scan_cancel_not_supported")

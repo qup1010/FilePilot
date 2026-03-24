@@ -23,7 +23,7 @@ import { Button } from "@/components/ui/button";
 
 import { createApiClient } from "@/lib/api";
 import { startFreshSession } from "@/lib/session-launcher-actions";
-import { getApiBaseUrl } from "@/lib/runtime";
+import { getApiBaseUrl, getApiToken, isTauriDesktop, pickDirectoryWithTauri } from "@/lib/runtime";
 import {
   CAUTION_LEVEL_OPTIONS,
   DEFAULT_STRATEGY_SELECTION,
@@ -36,18 +36,18 @@ import { SessionSnapshot, SessionStrategySelection, SessionStrategySummary } fro
 
 
 const STAGE_LABELS: Record<string, string> = {
-  idle: "空闲挂起",
-  draft: "草案生成中",
-  scanning: "正在分析目录",
-  planning: "架构方案构思中",
-  ready_for_precheck: "草案满足预检条件",
-  ready_to_execute: "等待执行确认",
+  idle: "准备中",
+  draft: "正在准备方案",
+  scanning: "正在扫描",
+  planning: "正在整理方案",
+  ready_for_precheck: "可开始预检",
+  ready_to_execute: "等待执行",
   executing: "正在执行整理",
-  completed: "整理任务已完成",
-  rolling_back: "正在回退架构",
+  completed: "整理已完成",
+  rolling_back: "正在回退",
   abandoned: "已放弃",
-  stale: "会话已失效 (目录内容变化)",
-  interrupted: "任务已中断",
+  stale: "方案已过期",
+  interrupted: "已中断",
 };
 
 const DEFAULT_STRATEGY_SUMMARY: SessionStrategySummary = {
@@ -127,7 +127,7 @@ function StrategyDialog({
                 <div className="flex items-center gap-3">
                   <div className="inline-flex items-center gap-2 rounded-full border border-primary/10 bg-primary/8 px-3 py-1 text-[11px] font-black uppercase tracking-widest text-primary">
                     <Layers3 className="h-3.5 w-3.5" />
-                    整理策略配置
+                    整理设置
                   </div>
                   <div className="flex items-center gap-1.5">
                     <div className={cn("h-1 w-8 rounded-full transition-all duration-500", step === 1 ? "bg-primary w-12" : "bg-primary/10")} />
@@ -136,12 +136,12 @@ function StrategyDialog({
                 </div>
                 <div className="space-y-1">
                   <h2 className="text-2xl font-black font-headline tracking-tight text-on-surface uppercase tracking-widest leading-tight">
-                    {step === 1 ? "第一步：核准推理模板" : "第二步：精细化规则调整"}
+                    {step === 1 ? "第一步：选择整理模板" : "第二步：补充一些偏好"}
                   </h2>
                   <p className="max-w-2xl text-[13px] font-bold text-on-surface-variant/60 uppercase tracking-widest">
                     {step === 1 
-                      ? "引擎将根据模板定义的语义模型对目标目录进行重构分析" 
-                      : "您可以基于特定的业务需求微调 AI 的决策偏好"}
+                      ? "先选一个更接近当前目录的整理方式" 
+                      : "如果你有明确习惯，也可以在这里补充给系统"}
                   </p>
                 </div>
               </div>
@@ -174,7 +174,7 @@ function StrategyDialog({
                     className="grid gap-8 lg:grid-cols-[320px_minmax(0,1fr)]"
                   >
                     <div className="space-y-4">
-                      <div className="text-[11px] font-black text-on-surface-variant/40 uppercase tracking-[0.2em] px-1">集成推理模板</div>
+                      <div className="text-[11px] font-black text-on-surface-variant/40 uppercase tracking-[0.2em] px-1">可选模板</div>
                       <div className="space-y-3">
                         {STRATEGY_TEMPLATES.map((template) => {
                           const active = strategy.template_id === template.id;
@@ -222,14 +222,14 @@ function StrategyDialog({
                             <div className="space-y-4">
                               <div className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-4 py-1.5 text-[11px] font-black uppercase tracking-[0.2em] text-primary">
                                 <Sparkles className="h-4 w-4" />
-                                语义重构预览
+                                整理预览
                               </div>
                               <h3 className="text-4xl font-black font-headline tracking-tighter text-on-surface uppercase">{currentTemplate.label}</h3>
                               <p className="max-w-xl text-[15px] font-bold leading-8 text-on-surface-variant/60">{currentTemplate.description}</p>
                             </div>
                             
                             <div className="space-y-4">
-                              <div className="text-[11px] font-black text-on-surface-variant/40 uppercase tracking-[0.3em]">核心算法应用场景</div>
+                              <div className="text-[11px] font-black text-on-surface-variant/40 uppercase tracking-[0.3em]">适用场景</div>
                               <div className="text-[15px] font-bold leading-8 text-on-surface bg-surface-container-low/60 rounded-[28px] p-6 border border-on-surface/5 shadow-inner italic">
                                 "{currentTemplate.applicableScenarios}"
                               </div>
@@ -237,10 +237,10 @@ function StrategyDialog({
 
                             <div className="flex flex-wrap gap-4">
                               <div className="rounded-full border border-on-surface/8 bg-white px-5 py-2.5 text-[11px] font-black uppercase tracking-widest text-on-surface-variant/60 flex items-center gap-3 shadow-sm">
-                                <span className="opacity-30">命名语义:</span> {namingLabel}
+                                <span className="opacity-30">命名风格:</span> {namingLabel}
                               </div>
                               <div className="rounded-full border border-on-surface/8 bg-white px-5 py-2.5 text-[11px] font-black uppercase tracking-widest text-on-surface-variant/60 flex items-center gap-3 shadow-sm">
-                                <span className="opacity-30">逻辑严谨度:</span> {cautionLabel}
+                                <span className="opacity-30">整理方式:</span> {cautionLabel}
                               </div>
                             </div>
                           </div>
@@ -249,7 +249,7 @@ function StrategyDialog({
                             <div className="absolute top-0 right-0 p-4 opacity-10 rotate-12 group-hover:rotate-0 transition-transform duration-1000">
                                <FolderOpen className="w-12 h-12" />
                             </div>
-                            <div className="text-[11px] font-black text-on-surface-variant/40 uppercase tracking-[0.3em] mb-4">推测目录拓扑结构</div>
+                            <div className="text-[11px] font-black text-on-surface-variant/40 uppercase tracking-[0.3em] mb-4">可能用到的目录</div>
                             <div className="space-y-3">
                               {previewDirectories.map((directory, index) => (
                                 <motion.div
@@ -273,7 +273,7 @@ function StrategyDialog({
                           <AlertTriangle className="h-5 w-5" />
                         </div>
                         <p className="text-[13px] font-bold text-primary/80 leading-relaxed uppercase tracking-widest">
-                          NOTE: 此时尚未开始对文件进行物理移动。点击“下一步”核对最终决策权重。
+                          现在还不会移动文件。你可以先看一下，再决定是否继续。
                         </p>
                       </div>
                     </div>
@@ -343,14 +343,14 @@ function StrategyDialog({
                     <div className="space-y-6">
                       <div className="rounded-[32px] border border-on-surface/10 bg-white p-8 h-full flex flex-col shadow-xl shadow-on-surface/5">
                         <div className="mb-6 flex items-center justify-between px-2">
-                          <span className="text-[11px] font-black text-on-surface-variant/40 uppercase tracking-[0.3em]">补充推理约束 / 偏好</span>
-                          <span className="text-[11px] font-black text-primary/40 uppercase tracking-widest">PROMPT CONTEXT</span>
+                          <span className="text-[11px] font-black text-on-surface-variant/40 uppercase tracking-[0.3em]">补充说明</span>
+                          <span className="text-[11px] font-black text-primary/40 uppercase tracking-widest">OPTIONAL</span>
                         </div>
                         <textarea
                           value={strategy.note}
                           disabled={loading}
                           onChange={(event) => onChangeNote(event.target.value.slice(0, 200))}
-                          placeholder="例如：项目相关文件尽量集中；拿不准的都先放待确认区。"
+                          placeholder="例如：项目文件尽量放在一起；拿不准的先放 Review。"
                           className="flex-1 w-full rounded-[28px] border-2 border-on-surface/5 bg-surface-container-low/20 px-6 py-6 text-[15px] font-bold leading-relaxed text-on-surface outline-none transition-all placeholder:text-on-surface-variant/20 focus:border-primary/40 focus:ring-8 focus:ring-primary/5 disabled:opacity-50 resize-none shadow-inner"
                         />
                         <div className="mt-8 flex items-center gap-4 rounded-[24px] bg-primary/5 p-6 border border-primary/10">
@@ -358,7 +358,7 @@ function StrategyDialog({
                              <Sparkles className="h-5 w-5" />
                           </div>
                           <p className="text-[12px] font-bold text-primary/80 leading-relaxed uppercase tracking-[0.1em]">
-                            AI 提示词注入: 引擎将把此项作为 top-level 系统规则强制执行。
+                            这些说明会作为整理偏好一起参考。
                           </p>
                         </div>
                       </div>
@@ -409,7 +409,7 @@ function StrategyDialog({
                         className="px-8 py-3.5"
                       >
                         <ArrowLeft className="mr-2 h-4 w-4" />
-                        返回模版
+                        返回上一步
                       </Button>
                       <Button
                         variant="primary"
@@ -418,7 +418,7 @@ function StrategyDialog({
                         loading={loading}
                         className="px-10 py-3.5"
                       >
-                        {loading ? "处理中" : "确认策略并开始扫描"}
+                        {loading ? "处理中" : "确认并开始扫描"}
                       </Button>
                     </>
                   )}
@@ -450,13 +450,21 @@ export function SessionLauncher() {
     setLoading(true);
     setError(null);
     try {
-      const api = createApiClient(apiBaseUrl);
-      const res = await api.selectDir();
-      if (res.path) {
-        setTargetDir(res.path);
+      if (isTauriDesktop()) {
+        const selectedPath = await pickDirectoryWithTauri();
+        if (selectedPath) {
+          setTargetDir(selectedPath);
+        }
+        return;
+      }
+
+      const api = createApiClient(apiBaseUrl, getApiToken());
+      const response = await api.selectDir();
+      if (response.path) {
+        setTargetDir(response.path);
       }
     } catch (_err) {
-      setError("无法调用文件夹选择器，请检查后端运行状态。");
+      setError(isTauriDesktop() ? "没有打开目录选择窗口，请再试一次。" : "现在还不能打开目录选择器，请检查本地服务是否正常运行。");
     } finally {
       setLoading(false);
     }
@@ -486,7 +494,7 @@ export function SessionLauncher() {
     setLoading(true);
     setError(null);
     try {
-      const api = createApiClient(apiBaseUrl);
+      const api = createApiClient(apiBaseUrl, getApiToken());
       const response = await api.createSession(targetDir, true, strategy);
       if (response.mode === "resume_available" && response.restorable_session?.session_id) {
         setResumePrompt({
@@ -496,14 +504,14 @@ export function SessionLauncher() {
         return;
       }
       if (!response.session_id) {
-        throw new Error("初始化失败：后端未返回有效的访问 ID");
+        throw new Error("没有成功创建整理会话，请再试一次。");
       }
       router.push(`/workspace?session_id=${response.session_id}&dir=${encodeURIComponent(targetDir)}`);
     } catch (err: any) {
       if (err.message && err.message.toLowerCase().includes("failed to fetch")) {
-        setError(`系统离线：无法连接到本地服务引擎。请检查后端是否正在运行（${apiBaseUrl}）。`);
+        setError(`现在连不上本地服务，请确认它是否已经启动（${apiBaseUrl}）。`);
       } else {
-        setError(err instanceof Error ? err.message : "创建会话失败");
+        setError(err instanceof Error ? err.message : "创建整理会话失败，请再试一次。");
       }
     } finally {
       if (!resumePrompt) {
@@ -517,7 +525,7 @@ export function SessionLauncher() {
     setLoading(true);
     setError(null);
     try {
-      const api = createApiClient(apiBaseUrl);
+      const api = createApiClient(apiBaseUrl, getApiToken());
       const response = await startFreshSession(
         api,
         resumePrompt.sessionId,
@@ -527,14 +535,14 @@ export function SessionLauncher() {
       );
       setResumePrompt(null);
       if (!response.session_id) {
-        throw new Error("重新开始失败：后端未返回有效的访问 ID");
+        throw new Error("没有成功重新开始，请再试一次。");
       }
       router.push(`/workspace?session_id=${response.session_id}&dir=${encodeURIComponent(targetDir)}`);
     } catch (err: any) {
       if (err.message && err.message.toLowerCase().includes("failed to fetch")) {
-        setError(`系统离线：无法连接到本地服务引擎。请检查后端是否正在运行（${apiBaseUrl}）。`);
+        setError(`现在连不上本地服务，请确认它是否已经启动（${apiBaseUrl}）。`);
       } else {
-        setError(err instanceof Error ? err.message : "重新开始失败");
+        setError(err instanceof Error ? err.message : "重新开始失败，请再试一次。");
       }
     } finally {
       setLoading(false);
@@ -561,26 +569,26 @@ export function SessionLauncher() {
       <div className="relative mx-auto flex w-full max-w-4xl justify-center">
         <div className="w-full max-w-3xl space-y-6 text-center">
           <div className="inline-flex items-center gap-2 rounded-full border border-outline-variant/15 bg-white/60 px-3 py-1 text-xs font-medium text-on-surface-variant/75">
-            文件整理工作台
+            文件整理
           </div>
           <div className="space-y-4">
             <h2 className="mx-auto max-w-3xl text-4xl font-black font-headline tracking-tight text-on-surface md:text-[4.25rem] md:leading-[1.02]">
               为目录建立更清楚的结构
             </h2>
             <p className="mx-auto max-w-2xl text-[16px] leading-8 text-on-surface-variant">
-              先选择一个本地目录，再按你的整理策略开始扫描。整个流程更安静、更可控，也更适合反复修正方案。
+              先选一个本地目录，再按你的习惯开始整理。整个过程会尽量清楚、稳妥，也方便你随时调整。
             </p>
           </div>
 
           <div className="rounded-[34px] border border-on-surface/10 bg-white/80 p-10 shadow-[0_32px_80px_rgba(36,48,42,0.08)] backdrop-blur-xl text-left">
             <div className="mb-6 flex items-center justify-between">
-              <div className="text-[11px] font-black text-on-surface-variant/40 uppercase tracking-[0.3em]">AI 整理流水线</div>
+              <div className="text-[11px] font-black text-on-surface-variant/40 uppercase tracking-[0.3em]">整理步骤</div>
               <div className="flex items-center gap-6 text-[11px] font-black text-on-surface-variant/30 uppercase tracking-[0.2em]">
-                <span className="flex items-center gap-2 group transition-colors hover:text-primary"><Search className="h-3.5 w-3.5" /> 1.深度扫描</span>
+                <span className="flex items-center gap-2 group transition-colors hover:text-primary"><Search className="h-3.5 w-3.5" /> 1. 扫描</span>
                 <div className="w-4 h-px bg-on-surface/10" />
-                <span className="flex items-center gap-2 group transition-colors hover:text-primary"><FileSearch className="h-3.5 w-3.5" /> 2.逻辑重构</span>
+                <span className="flex items-center gap-2 group transition-colors hover:text-primary"><FileSearch className="h-3.5 w-3.5" /> 2. 调整方案</span>
                 <div className="w-4 h-px bg-on-surface/10" />
-                <span className="flex items-center gap-2 group transition-colors hover:text-primary"><CheckCircle2 className="h-3.5 w-3.5" /> 3.物理执行</span>
+                <span className="flex items-center gap-2 group transition-colors hover:text-primary"><CheckCircle2 className="h-3.5 w-3.5" /> 3. 确认执行</span>
               </div>
             </div>
             <div className="relative group">
@@ -615,28 +623,10 @@ export function SessionLauncher() {
               </Button>
             </div>
             
-            <div className="mt-8 flex flex-wrap items-center gap-x-10 gap-y-4 px-2">
+            <div className="mt-8 flex items-center px-2">
               <div className="flex items-center gap-3 text-[11px] font-black text-emerald-600 uppercase tracking-widest bg-emerald-500/5 px-4 py-2 rounded-full border border-emerald-500/10">
                 <ShieldCheck className="h-3.5 w-3.5" />
-                <span>安全预警：物理操作前需手动确认</span>
-              </div>
-              <div className="flex items-center gap-4 text-[11px] font-black text-on-surface-variant/40 uppercase tracking-widest">
-                <span className="opacity-40 italic">推荐场景:</span>
-                <div className="flex gap-4">
-                  {[
-                    { label: "下载目录", path: "D:\\Downloads" },
-                    { label: "桌面临时区", path: "C:\\Users\\Desktop" },
-                    { label: "项目工作区", path: "D:\\Projects" }
-                  ].map((scene) => (
-                    <button 
-                      key={scene.label}
-                      onClick={() => setTargetDir(scene.path)} 
-                      className="hover:text-primary hover:opacity-100 opacity-60 transition-all border-b border-on-surface/10 hover:border-primary"
-                    >
-                      {scene.label}
-                    </button>
-                  ))}
-                </div>
+                <span>操作安全且可随时回退</span>
               </div>
             </div>
           </div>
@@ -687,24 +677,24 @@ export function SessionLauncher() {
                 </div>
                 <div className="space-y-1">
                   <h2 className="text-xl font-black font-headline text-on-surface uppercase tracking-tight">
-                    {isCompletedResume ? "发现已完成的整理历史" : "检测到未完成的整理进度"}
+                    {isCompletedResume ? "发现之前的整理记录" : "发现上一次还没整理完"}
                   </h2>
                   <p className="text-[13px] font-bold text-on-surface-variant/60 uppercase tracking-widest">
                     {isCompletedResume
-                      ? "您可以只读查看旧结果，或者应用当前策略启动新一轮重构"
-                      : "建议继续上次会话以保持整理逻辑的一致性"}
+                      ? "你可以先看看之前的结果，也可以按现在的设置重新开始"
+                      : "你可以继续上一次，或者重新开始这次整理"}
                   </p>
                 </div>
               </div>
 
               <p className="mb-5 text-sm leading-relaxed text-on-surface-variant">
-                引擎检测到该目录（<strong>{targetDir.split(/[\\/]/).pop()}</strong>）
-                {isCompletedResume ? "之前已有一条整理记录" : "之前有未完成的整理进度"}（所在阶段：
+                检测到这个目录（<strong>{targetDir.split(/[\\/]/).pop()}</strong>）
+                {isCompletedResume ? "之前已经整理过一次" : "之前还有一条未完成的记录"}（当前阶段：
                 <em>{STAGE_LABELS[resumePrompt.snapshot.stage] || resumePrompt.snapshot.stage}</em>）。
               </p>
 
               <div className="mb-8 space-y-4 rounded-[28px] border border-on-surface/5 bg-surface-container-low/40 p-6 shadow-inner">
-                <p className="text-[11px] font-black text-on-surface-variant/40 uppercase tracking-[0.2em]">正在沿用的逻辑架构</p>
+                <p className="text-[11px] font-black text-on-surface-variant/40 uppercase tracking-[0.2em]">上一次使用的设置</p>
                 <StrategySummaryChips strategy={resumeStrategy} />
               </div>
 
@@ -714,12 +704,12 @@ export function SessionLauncher() {
                   onClick={handleConfirmResume}
                   className="w-full py-4 text-sm"
                 >
-                  {isCompletedResume ? "立即进入历史视图" : "恢复当前整理进度"}
+                  {isCompletedResume ? "查看之前的结果" : "继续上一次整理"}
                 </Button>
                 <div className="rounded-2xl border border-on-surface/5 bg-on-surface/5 px-5 py-4 text-[12px] font-bold leading-relaxed text-on-surface-variant/60 uppercase tracking-widest">
                   {isCompletedResume
-                    ? "RESTART: 将会基于您当前的最新策略配置，重新对目录进行全量深度扫描。"
-                    : "RESTART: 将放弃当前的未完成状态，并强制应用新策略重新初始化任务。"}
+                    ? "重新开始会按你现在的设置重新扫描这个目录。"
+                    : "重新开始会放弃上一次未完成的状态，并按现在的设置重新扫描。"}
                 </div>
                 <div className="grid grid-cols-3 gap-3">
                   <Button

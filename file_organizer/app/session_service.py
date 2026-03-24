@@ -342,11 +342,27 @@ class OrganizerSessionService:
         if not item_map:
             raise ValueError("UNRESOLVED_REQUEST_INVALID")
 
+        pending = self._pending_plan_from_session(session)
+        move_map = {move.source: move for move in pending.moves}
+
         submitted_map: dict[str, dict] = {}
         for resolution in resolutions or []:
             item_id = str(resolution.get("item_id") or "").strip()
             if not item_id or item_id not in item_map:
                 raise RuntimeError("UNRESOLVED_ITEM_CONFLICT")
+            
+            # 补救逻辑：如果 AI 在 resolution 中使用了占位 ID（如 unresolved_1），
+            # 但 move_map 中没有这个 ID，则尝试通过 display_name 找回真实的 item_id
+            real_item_id = item_id
+            if item_id not in move_map:
+                display_name = item_map[item_id].get("display_name")
+                if display_name:
+                    # 在 moves 中寻找 display_name 匹配或者是 item_id 包含 display_name 的项
+                    for move in pending.moves:
+                        if move.source == display_name or Path(move.source).name == display_name:
+                            real_item_id = move.source
+                            break
+            
             selected_folder = str(resolution.get("selected_folder") or "").strip()
             note = str(resolution.get("note") or "").strip()
             allowed_folders = set(item_map[item_id].get("suggested_folders") or [])
@@ -354,20 +370,27 @@ class OrganizerSessionService:
                 raise ValueError("UNRESOLVED_RESOLUTION_INVALID_FOLDER")
             if not selected_folder and not note:
                 raise ValueError("UNRESOLVED_RESOLUTION_EMPTY")
-            submitted_map[item_id] = {
-                "item_id": item_id,
-                "display_name": item_map[item_id].get("display_name", item_id),
+            
+            submitted_map[real_item_id] = {
+                "item_id": real_item_id,
+                "display_name": item_map[item_id].get("display_name", real_item_id),
                 "selected_folder": selected_folder,
                 "note": note,
             }
 
-        if set(submitted_map) != set(item_map):
+        if len(submitted_map) != len(item_map):
             raise ValueError("UNRESOLVED_RESOLUTION_INCOMPLETE")
 
-        pending = self._pending_plan_from_session(session)
-        move_map = {move.source: move for move in pending.moves}
-        for item_id in submitted_map:
-            if item_id not in move_map or item_id not in pending.unresolved_items:
+        for mid in submitted_map:
+            # 强化匹配：对于 unresolved_items 列表，由于 AI 可能塞入“文件名+描述”，
+            # 我们只需要确认 unresolved_items 中有任一项包含该 item_id 即可
+            is_unresolved = False
+            for u_item in pending.unresolved_items:
+                if mid in u_item:
+                    is_unresolved = True
+                    break
+            
+            if mid not in move_map or not is_unresolved:
                 raise RuntimeError("UNRESOLVED_ITEM_CONFLICT")
 
         has_note = False
@@ -681,13 +704,19 @@ class OrganizerSessionService:
         return history
 
     def get_journal_summary(self, session_id: str) -> dict:
-        session = self._load_or_raise(session_id)
-        journal_id = session.last_journal_id or self._latest_execution_id(Path(session.target_dir))
+        journal_id = None
+        try:
+            session = self._load_or_raise(session_id)
+            journal_id = session.last_journal_id or self._latest_execution_id(Path(session.target_dir))
+        except (KeyError, FileNotFoundError):
+            # Fallback: assume the ID itself is a journal/execution ID
+            journal_id = session_id
+            
         if not journal_id:
             raise FileNotFoundError("latest_execution")
         journal = execution_service.load_execution_journal(journal_id)
         if journal is None:
-            raise FileNotFoundError("latest_execution")
+            raise FileNotFoundError(f"execution_journal_not_found: {journal_id}")
         restore_items = []
         if journal.rollback_attempts:
             latest_attempt = journal.rollback_attempts[-1]
@@ -773,7 +802,7 @@ class OrganizerSessionService:
         if not session.messages:
             session.messages = organize_service.build_initial_messages(
                 session.scan_lines,
-                strategy=self._strategy_summary(session),
+                strategy=self._strategy_selection(session),
                 user_constraints=list(session.user_constraints),
             )
             self._ensure_message_ids(session.messages)
@@ -865,6 +894,8 @@ class OrganizerSessionService:
         session = self.store.load(session_id)
         if session is None:
             raise KeyError(f"Session {session_id} not found")
+        if self._ensure_plan_snapshot_consistency(session):
+            self.store.save(session)
         return session
 
     def _ensure_not_locked(self, session: OrganizerSession):
@@ -876,6 +907,12 @@ class OrganizerSessionService:
             raise RuntimeError("SESSION_STAGE_CONFLICT")
 
     def _build_snapshot(self, session: OrganizerSession) -> dict:
+        for message in session.messages:
+            if not message.get("id"):
+                self._ensure_message_id(message)
+        if session.assistant_message and not session.assistant_message.get("id"):
+            self._ensure_message_id(session.assistant_message)
+        self._ensure_plan_snapshot_consistency(session)
         return {
             "session_id": session.session_id,
             "target_dir": str(session.target_dir),
@@ -891,19 +928,51 @@ class OrganizerSessionService:
             "user_constraints": list(session.user_constraints),
             "integrity_flags": session.integrity_flags,
             "stale_reason": session.stale_reason,
+            "last_journal_id": session.last_journal_id,
+            "last_error": session.last_error,
             "created_at": session.created_at,
             "updated_at": session.updated_at,
             "strategy": {
                 "template_id": session.strategy_template_id,
                 "template_label": session.strategy_template_label,
                 "naming_style": session.naming_style,
+                "naming_style_label": {"zh": "中文目录", "en": "英文目录", "minimal": "极简目录"}.get(session.naming_style, session.naming_style),
                 "caution_level": session.caution_level,
+                "caution_level_label": {"conservative": "保守", "balanced": "平衡"}.get(session.caution_level, session.caution_level),
                 "note": session.strategy_note,
             }
         }
 
     def _pending_plan_from_session(self, session: OrganizerSession) -> PendingPlan:
         return self._pending_plan_from_dict(session.pending_plan, session)
+
+    def _ensure_plan_snapshot_consistency(self, session: OrganizerSession) -> bool:
+        existing = session.plan_snapshot or {}
+        pending = self._pending_plan_from_session(session)
+        pending.summary = pending.summary or session.summary or existing.get("summary", "")
+
+        if not pending.moves and not existing:
+            return False
+
+        rebuilt = self._plan_snapshot(
+            pending,
+            {
+                "invalidated_items": list(existing.get("invalidated_items", [])),
+                "diff_summary": list(existing.get("diff_summary", [])),
+            },
+            scan_lines=session.scan_lines,
+        )
+
+        if existing.get("change_highlights"):
+            rebuilt["change_highlights"] = list(existing.get("change_highlights", []))
+
+        if existing == rebuilt:
+            return False
+
+        session.plan_snapshot = rebuilt
+        if pending.summary:
+            session.summary = pending.summary
+        return True
 
     def _pending_plan_from_dict(self, data: dict | None, session: OrganizerSession) -> PendingPlan:
         if not data:
@@ -933,29 +1002,68 @@ class OrganizerSessionService:
         )
 
     def _plan_snapshot(self, plan: PendingPlan, cycle_result: dict, scan_lines: str = "") -> dict:
+        scan_entry_map = {
+            entry["item_id"]: entry
+            for entry in self._scan_entries(scan_lines)
+            if isinstance(entry, dict) and entry.get("item_id")
+        }
         items = []
+        review_items = []
+        grouped_items: dict[str, list[dict]] = {}
         for move in plan.moves:
+            scan_meta = scan_entry_map.get(move.source, {})
+            status = "planned"
+            if move.source in plan.unresolved_items:
+                status = "unresolved"
+            elif move.target.startswith("Review/") or move.target == "Review":
+                status = "review"
+
             item = {
                 "item_id": move.source,
                 "display_name": Path(move.source).name,
                 "source_relpath": move.source,
                 "target_relpath": move.target,
+                "suggested_purpose": scan_meta.get("suggested_purpose", ""),
+                "content_summary": scan_meta.get("summary", ""),
                 "is_unresolved": move.source in plan.unresolved_items,
-                "reason": move.reason,
+                "reason": getattr(move, "reason", ""),
+                "status": status,
             }
             items.append(item)
+            if status == "review":
+                review_items.append(item)
+            directory = move.target.rsplit("/", 1)[0] if "/" in move.target else ""
+            grouped_items.setdefault(directory, []).append(item)
         
         move_count = len([m for m in plan.moves if m.source not in plan.unresolved_items])
         unresolved_count = len(plan.unresolved_items)
+        can_precheck = bool(plan.moves) and unresolved_count == 0
+        groups = [
+            {
+                "directory": directory,
+                "count": len(group_items),
+                "items": group_items,
+            }
+            for directory, group_items in sorted(grouped_items.items(), key=lambda pair: pair[0])
+            if directory
+        ]
         
         return {
+            "summary": plan.summary,
             "stats": {
                 "move_count": move_count,
                 "unresolved_count": unresolved_count,
                 "directory_count": len(plan.directories),
             },
+            "groups": groups,
             "items": items,
+            "unresolved_items": list(plan.unresolved_items),
+            "review_items": review_items,
+            "invalidated_items": list(cycle_result.get("invalidated_items", [])),
             "diff_summary": cycle_result.get("diff_summary", []),
+            "readiness": {
+                "can_precheck": can_precheck,
+            },
         }
 
     def _directories_from_moves(self, moves: list[PlanMove]) -> list[str]:
@@ -976,6 +1084,9 @@ class OrganizerSessionService:
             "timestamp": datetime.datetime.now().isoformat(),
             **kwargs
         }
+        if session is not None:
+            event["stage"] = session.stage
+            event["session_snapshot"] = self._build_snapshot(session)
         self._event_log.setdefault(s_id, []).append(event)
         
         # Notify subscribers
@@ -1006,15 +1117,26 @@ class OrganizerSessionService:
         for line in (scan_lines or "").splitlines():
             if not line.strip():
                 continue
-            # Simple heuristic to extract item_id and display_name from scan lines
-            # Typically: "FILE: rel/path (size)" or "DIR: rel/path"
-            parts = line.split(":", 1)
-            if len(parts) < 2:
+            entry_path = ""
+            suggested_purpose = ""
+            summary = ""
+            if "|" in line:
+                parts = [part.strip() for part in line.split("|")]
+                entry_path = parts[0] if parts else ""
+                suggested_purpose = parts[1] if len(parts) > 1 else ""
+                summary = parts[2] if len(parts) > 2 else ""
+            else:
+                parts = line.split(":", 1)
+                if len(parts) >= 2:
+                    entry_path = parts[1].split("(")[0].strip()
+            if not entry_path:
                 continue
-            entry_path = parts[1].split("(")[0].strip()
             entries.append({
                 "item_id": entry_path,
                 "display_name": Path(entry_path).name,
+                "source_relpath": entry_path,
+                "suggested_purpose": suggested_purpose,
+                "summary": summary,
             })
         return entries
 
@@ -1025,13 +1147,16 @@ class OrganizerSessionService:
     def _strategy_summary(self, session: OrganizerSession) -> str:
         return f"{session.strategy_template_label} ({session.naming_style}, {session.caution_level})"
 
-    def _strategy_prompt_fragment(self, session: OrganizerSession) -> str:
-        return build_strategy_prompt_fragment({
+    def _strategy_selection(self, session: OrganizerSession) -> dict:
+        return {
             "template_id": session.strategy_template_id,
             "naming_style": session.naming_style,
             "caution_level": session.caution_level,
             "note": session.strategy_note,
-        })
+        }
+
+    def _strategy_prompt_fragment(self, session: OrganizerSession) -> str:
+        return build_strategy_prompt_fragment(self._strategy_selection(session))
 
     def _recover_orphaned_locked_session(self, session: OrganizerSession):
         """If a session is in a locked stage but no scanner/executor is active, move it to interrupted."""

@@ -77,7 +77,7 @@ export default function SettingsPage() {
     setError(null);
     try {
       await api.updateConfig(config);
-      setSuccess("当前方案设置已保存到核心引擎。");
+      setSuccess("设置已保存。");
       setOriginalConfig(config);
       setTimeout(() => setSuccess(null), 3000);
     } catch (err: any) {
@@ -93,7 +93,7 @@ export default function SettingsPage() {
       setDialog({
         type: 'confirm',
         title: '放弃更改？',
-        message: '当前方案有未保存的修改，切换方案将丢失这些更改。',
+        message: '当前还有未保存的修改，切换后这些更改会丢失。',
         onConfirm: () => performSwitch(id)
       });
       return;
@@ -119,7 +119,7 @@ export default function SettingsPage() {
     setDialog({
       type: 'prompt',
       title: '新建配置方案',
-      message: '请为这个新方案起一个好记的名字。',
+      message: '给这个方案起一个方便辨认的名字吧。',
       value: '我的新方案',
       onConfirm: async (name) => {
         if (!name) return;
@@ -141,7 +141,7 @@ export default function SettingsPage() {
       setDialog({
         type: 'confirm',
         title: '无法删除',
-        message: '默认方案是系统运行的基础，受保护不可删除。',
+        message: '默认方案不能删除。',
         onConfirm: () => setDialog(null)
       });
       return;
@@ -149,7 +149,7 @@ export default function SettingsPage() {
     setDialog({
       type: 'confirm',
       title: '确认删除方案？',
-      message: `你确定要永久删除方案 "${name}" 吗？此操作无法撤销。`,
+      message: `确定要删除方案“${name}”吗？删除后不能恢复。`,
       onConfirm: async () => {
         setDialog(null);
         setLoading(true);
@@ -175,7 +175,7 @@ export default function SettingsPage() {
         message: data.message
       });
     } catch (err: any) {
-      setTestResult({ type, status: 'error', message: err?.message || "连接后端服务失败" });
+      setTestResult({ type, status: 'error', message: err?.message || "没有连上本地服务" });
     } finally {
       setTesting(false);
       setTestVision(false);
@@ -187,7 +187,7 @@ export default function SettingsPage() {
       <div className="flex-1 flex items-center justify-center bg-surface">
         <div className="flex flex-col items-center gap-6">
           <RefreshCw className="w-10 h-10 animate-spin text-primary/40" />
-          <p className="text-[11px] font-black uppercase tracking-[0.4em] text-on-surface-variant/40 animate-pulse">Synchronizing Core Engine...</p>
+          <p className="text-[11px] font-black uppercase tracking-[0.4em] text-on-surface-variant/40 animate-pulse">正在读取设置...</p>
         </div>
       </div>
     );
@@ -195,58 +195,15 @@ export default function SettingsPage() {
 
   return (
     <div className="flex-1 flex flex-col bg-surface overflow-hidden">
-      {/* Header */}
-      <header className="h-24 border-b border-on-surface/5 px-10 flex items-center justify-between shrink-0 bg-white/60 backdrop-blur-2xl z-20">
-        <div className="flex items-center gap-8">
-          <Link
-            href="/"
-            className="w-12 h-12 rounded-2xl bg-surface-container-low flex items-center justify-center text-on-surface-variant hover:text-primary hover:bg-white border border-on-surface/5 transition-all shadow-sm active:scale-95 group"
-          >
-            <ArrowLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
-          </Link>
-          <div className="space-y-1">
-             <div className="flex items-center gap-3">
-                <h1 className="text-2xl font-black font-headline text-on-surface tracking-tight leading-none">系统设置</h1>
-                {isDirty && (
-                  <span className="px-2 py-0.5 rounded bg-warning-container/20 text-warning text-[11px] font-black uppercase tracking-widest border border-warning/10 animate-pulse">
-                    未保存更改
-                  </span>
-                )}
-             </div>
-             <p className="text-[11px] text-on-surface-variant font-bold uppercase tracking-[0.15em] opacity-40">配置您的 AI 整理引擎与服务偏好</p>
-          </div>
-        </div>
 
-        <div className="flex items-center gap-6">
-          <AnimatePresence>
-            {success && (
-              <motion.div 
-                initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0 }}
-                className="flex items-center gap-2 text-emerald-600 text-[11px] font-black uppercase tracking-wider bg-emerald-500/5 px-4 py-2 rounded-full border border-emerald-500/10"
-              >
-                <CheckCircle2 className="w-4 h-4" />
-                {success}
-              </motion.div>
-            )}
-          </AnimatePresence>
-          <Button
-            onClick={handleSave}
-            disabled={saving || !isDirty}
-            loading={saving}
-            variant={isDirty ? "primary" : "secondary"}
-            className="px-8 py-3.5"
-          >
-            {saving ? "正在同步..." : "保存当前配置"}
-          </Button>
-        </div>
-      </header>
+
 
       <div className="flex flex-1 overflow-hidden relative">
         {/* Left Sidebar: Profiles */}
         <aside className="w-80 border-r border-on-surface/5 bg-surface-container-low/20 overflow-y-auto p-8 space-y-10 shrink-0">
             <div className="flex items-center justify-between px-2">
               <div className="space-y-1">
-                <h2 className="text-[11px] font-black uppercase tracking-[0.3em] text-on-surface-variant/50 leading-none">方案预设</h2>
+                <h2 className="text-[11px] font-black uppercase tracking-[0.3em] text-on-surface-variant/50 leading-none">方案列表</h2>
                 <p className="text-[11px] text-on-surface-variant/30 font-bold uppercase italic">Global Profiles</p>
               </div>
               <Button
@@ -254,7 +211,7 @@ export default function SettingsPage() {
                 size="sm"
                 onClick={handleAddProfile}
                 className="w-10 h-10 p-0 rounded-xl"
-                title="新建配置方案"
+                title="新建方案"
               >
                 <Plus className="w-4 h-4" />
               </Button>
@@ -295,10 +252,10 @@ export default function SettingsPage() {
            <div className="p-6 bg-primary/5 rounded-3xl border border-primary/10 space-y-3">
               <div className="flex items-center gap-2 text-primary">
                 <Info className="w-4 h-4 shrink-0" />
-                <span className="text-[11px] font-black uppercase tracking-wider">关于多方案</span>
+                <span className="text-[11px] font-black uppercase tracking-wider">关于方案</span>
               </div>
               <p className="text-[11px] leading-relaxed text-on-surface-variant/70 font-medium">
-                您可以为不同的任务（如：办公文档、海量下载、项目归档）创建独立的 AI 推理方案，从而在精度与成本间取得平衡。
+                你可以为不同任务准备不同设置，比如办公文档、下载目录或项目资料，这样切换起来会更方便。
               </p>
            </div>
         </aside>
@@ -309,14 +266,51 @@ export default function SettingsPage() {
 
           {/* Unified LLM Section */}
           <section className="space-y-12">
-             <div className="flex items-start justify-between border-b border-on-surface/5 pb-6">
+             <div className="flex items-center justify-between border-b border-on-surface/5 pb-10">
+                <div className="space-y-4">
+                   <div className="flex items-center gap-4">
+                      <h1 className="text-3xl font-black text-on-surface tracking-tight uppercase italic">设置与偏好</h1>
+                      {isDirty && (
+                        <span className="px-3 py-1 rounded-full bg-warning-container/20 text-warning text-[10px] font-black uppercase tracking-widest border border-warning/10 animate-pulse">
+                          未保存修改
+                        </span>
+                      )}
+                   </div>
+                   <p className="text-sm font-bold text-on-surface-variant/40 uppercase tracking-widest">调整 API 令牌、模型以及整理时的 AI 策略</p>
+                </div>
+                
+                <div className="flex items-center gap-6">
+                  <AnimatePresence>
+                    {success && (
+                      <motion.div 
+                        initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0 }}
+                        className="flex items-center gap-2 text-emerald-600 text-[11px] font-black uppercase tracking-wider bg-emerald-500/5 px-4 py-2 rounded-full border border-emerald-500/10"
+                      >
+                        <CheckCircle2 className="w-4 h-4" />
+                        {success}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                  <Button
+                    onClick={handleSave}
+                    disabled={saving || !isDirty}
+                    loading={saving}
+                    variant={isDirty ? "primary" : "secondary"}
+                    className="px-10 py-4 text-sm"
+                  >
+                    {saving ? "同步中..." : "保存更改"}
+                  </Button>
+                </div>
+             </div>
+
+             <div className="flex items-start justify-between">
                 <div className="flex items-center gap-5">
                   <div className="w-14 h-14 rounded-2xl bg-primary shadow-xl shadow-primary/20 flex items-center justify-center text-white border border-primary/20">
                     <Cpu className="w-7 h-7" />
                   </div>
                   <div className="space-y-1">
-                    <h2 className="text-lg font-black font-headline text-on-surface tracking-tight uppercase tracking-widest leading-none">集成智能推理 (Base LLM)</h2>
-                    <p className="text-[11px] text-on-surface-variant font-bold uppercase tracking-widest opacity-40">定义系统最核心的语义理解能力与对话逻辑</p>
+                    <h2 className="text-lg font-black font-headline text-on-surface tracking-tight uppercase tracking-widest leading-none">文本模型设置</h2>
+                    <p className="text-[11px] text-on-surface-variant font-bold uppercase tracking-widest opacity-40">这里决定系统如何理解目录内容并生成整理建议</p>
                   </div>
                 </div>
                 <Button
@@ -344,23 +338,23 @@ export default function SettingsPage() {
             <div className="space-y-10 max-w-5xl">
               <div className="flex flex-col gap-4">
                 <label className="text-[11px] font-black text-on-surface-variant uppercase tracking-[0.2em] px-1 flex items-center gap-2 opacity-50">
-                  <Edit3 className="w-3.5 h-3.5" /> 方案显示名称
+                  <Edit3 className="w-3.5 h-3.5" /> 方案名称
                 </label>
                 <div className="space-y-2">
                   <input
                     value={config.name}
                     onChange={(e) => handleChange('name', e.target.value)}
                     className="bg-white border border-on-surface/8 p-5 rounded-2xl text-[15px] font-black text-on-surface focus:border-primary focus:ring-4 focus:ring-primary/5 outline-none transition-all shadow-sm w-full"
-                    placeholder="例如: GPT-4o 默认生产方案"
+                    placeholder="例如：下载目录默认方案"
                   />
-                  <p className="px-2 text-[11px] text-on-surface-variant/40 font-medium italic">* 此名称将显示在侧边栏和所有的会话面板中。</p>
+                  <p className="px-2 text-[11px] text-on-surface-variant/40 font-medium italic">这个名字会显示在侧边栏和会话页面里。</p>
                 </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-10 pt-4">
                 <div className="space-y-10">
                   <div className="flex flex-col gap-4">
-                    <label className="text-[11px] font-black text-on-surface-variant uppercase tracking-[0.2em] px-1 opacity-50">接口代理地址 / Base URL</label>
+                    <label className="text-[11px] font-black text-on-surface-variant uppercase tracking-[0.2em] px-1 opacity-50">接口地址 / Base URL</label>
                     <div className="flex items-center gap-2 bg-white border border-on-surface/8 p-1.5 rounded-2xl focus-within:border-primary focus-within:ring-4 focus-within:ring-primary/5 transition-all group">
                       <div className="px-3 opacity-20 group-focus-within:opacity-100 transition-opacity">
                         <Globe className="w-4 h-4" />
@@ -375,7 +369,7 @@ export default function SettingsPage() {
                   </div>
 
                   <div className="flex flex-col gap-4">
-                    <label className="text-[11px] font-black text-on-surface-variant uppercase tracking-[0.2em] px-1 opacity-50">API 访问密钥 / Key</label>
+                    <label className="text-[11px] font-black text-on-surface-variant uppercase tracking-[0.2em] px-1 opacity-50">API 密钥 / Key</label>
                     <div className="relative flex items-center bg-white border border-on-surface/8 p-1.5 rounded-2xl focus-within:border-primary focus-within:ring-4 focus-within:ring-primary/5 transition-all group shadow-sm">
                       <div className="px-3 opacity-20 group-focus-within:opacity-100 transition-opacity">
                         <ShieldCheck className="w-4 h-4" />
@@ -399,7 +393,7 @@ export default function SettingsPage() {
 
                 <div className="space-y-10">
                   <div className="flex flex-col gap-4 h-full">
-                    <label className="text-[11px] font-black text-on-surface-variant uppercase tracking-[0.2em] px-1 opacity-50">推理模型 ID / Model</label>
+                    <label className="text-[11px] font-black text-on-surface-variant uppercase tracking-[0.2em] px-1 opacity-50">模型 ID / Model</label>
                     <div className="space-y-4 h-full flex flex-col justify-between">
                       <div className="flex items-center gap-2 bg-white border border-on-surface/8 p-1.5 rounded-2xl focus-within:border-primary focus-within:ring-4 focus-within:ring-primary/5 transition-all group shadow-sm">
                         <div className="px-3 opacity-20 group-focus-within:opacity-100 transition-opacity">
@@ -414,9 +408,9 @@ export default function SettingsPage() {
                       </div>
                       <div className="flex-1 p-6 bg-surface-container-low/40 rounded-3xl border border-dashed border-on-surface/5 flex flex-col justify-center gap-2">
                         <p className="text-[11px] font-bold text-on-surface-variant leading-relaxed">
-                          建议使用具备良好长文本遵循能力（Reasoning/Following）的模型，以获得更精准的目录结构建议。
+                          建议使用更擅长长文本理解和指令跟随的模型，这样整理建议通常会更稳定。
                         </p>
-                        <p className="text-[11px] text-primary/60 font-black uppercase tracking-[0.2em] italic">Structural Logic Engine</p>
+                        <p className="text-[11px] text-primary/60 font-black uppercase tracking-[0.2em] italic">Text Model</p>
                       </div>
                     </div>
                   </div>
@@ -439,9 +433,9 @@ export default function SettingsPage() {
                   </div>
                   <div className="space-y-1">
                     <h2 className={cn("text-lg font-black font-headline tracking-tight uppercase tracking-widest leading-none transition-colors", config.IMAGE_ANALYSIS_ENABLED ? "text-on-surface" : "text-on-surface-variant/30")}>
-                      多模态视觉扩展 (Vision System)
+                      图片理解设置
                     </h2>
-                    <p className="text-[11px] text-on-surface-variant font-bold uppercase tracking-widest opacity-40">允许 AI 直接“阅读”图片、绘图与扫描件内容以优化分类</p>
+                    <p className="text-[11px] text-on-surface-variant font-bold uppercase tracking-widest opacity-40">开启后，系统可以读取图片和扫描件里的内容，帮助判断归类</p>
                   </div>
                 </div>
 
@@ -455,11 +449,11 @@ export default function SettingsPage() {
                         size="sm"
                         className="px-6 py-2.5"
                       >
-                        验证视觉链路
+                        测试图片能力
                       </Button>
                    )}
                    <div className="flex items-center gap-3">
-                      <span className="text-[11px] font-black text-on-surface-variant/40 uppercase tracking-widest">服务开关</span>
+                      <span className="text-[11px] font-black text-on-surface-variant/40 uppercase tracking-widest">开关</span>
                       <button 
                         onClick={() => handleChange('IMAGE_ANALYSIS_ENABLED', !config.IMAGE_ANALYSIS_ENABLED)}
                         className={cn(
@@ -488,7 +482,7 @@ export default function SettingsPage() {
                !config.IMAGE_ANALYSIS_ENABLED && "opacity-15 pointer-events-none grayscale blur-[2px]"
              )}>
                 <div className="flex flex-col gap-4">
-                  <label className="text-[11px] font-black text-on-surface-variant uppercase tracking-[0.2em] px-1 opacity-50">独立视觉 API 地址</label>
+                  <label className="text-[11px] font-black text-on-surface-variant uppercase tracking-[0.2em] px-1 opacity-50">图片接口地址</label>
                   <div className="flex items-center gap-2 bg-white border border-on-surface/8 p-1.5 rounded-2xl focus-within:border-primary transition-all shadow-sm">
                     <div className="px-3 opacity-20">
                       <Globe className="w-4 h-4" />
@@ -497,13 +491,13 @@ export default function SettingsPage() {
                       value={config.IMAGE_ANALYSIS_BASE_URL}
                       onChange={(e) => handleChange('IMAGE_ANALYSIS_BASE_URL', e.target.value)}
                       className="flex-1 bg-transparent py-3.5 text-sm font-mono font-bold text-on-surface outline-none"
-                      placeholder="留空即继承主推理接口地址"
+                      placeholder="留空时会沿用上面的接口地址"
                     />
                   </div>
                 </div>
 
                 <div className="flex flex-col gap-4">
-                  <label className="text-[11px] font-black text-on-surface-variant uppercase tracking-[0.2em] px-1 opacity-50">独立视觉 API 密钥</label>
+                  <label className="text-[11px] font-black text-on-surface-variant uppercase tracking-[0.2em] px-1 opacity-50">图片接口密钥</label>
                   <div className="relative flex items-center bg-white border border-on-surface/8 p-1.5 rounded-2xl focus-within:border-primary transition-all shadow-sm">
                     <div className="px-3 opacity-20">
                       <ShieldCheck className="w-4 h-4" />
@@ -513,7 +507,7 @@ export default function SettingsPage() {
                       value={config.IMAGE_ANALYSIS_API_KEY}
                       onChange={(e) => handleChange('IMAGE_ANALYSIS_API_KEY', e.target.value)}
                       className="flex-1 bg-transparent py-3.5 text-sm font-mono font-bold text-on-surface outline-none pr-12"
-                      placeholder="留空即继承主推理密钥"
+                      placeholder="留空时会沿用上面的密钥"
                     />
                     <button 
                       onClick={() => setShowVisionKey(!showVisionKey)}
@@ -525,7 +519,7 @@ export default function SettingsPage() {
                 </div>
 
                 <div className="flex flex-col gap-4 md:col-span-2">
-                  <label className="text-[11px] font-black text-on-surface-variant uppercase tracking-[0.2em] px-1 opacity-50">视觉专用模型 ID</label>
+                  <label className="text-[11px] font-black text-on-surface-variant uppercase tracking-[0.2em] px-1 opacity-50">图片模型 ID</label>
                   <div className="flex items-center gap-2 bg-white border border-on-surface/8 p-1.5 rounded-2xl focus-within:border-primary transition-all shadow-sm">
                     <div className="px-3 opacity-20">
                       <Terminal className="w-4 h-4" />
@@ -537,7 +531,7 @@ export default function SettingsPage() {
                       placeholder="例如: gpt-4o 或 gpt-4-vision-preview"
                     />
                   </div>
-                  <p className="px-2 text-[11px] text-on-surface-variant/40 font-medium">* 开启后，扫描速度将受限于多模态接口的响应延迟。</p>
+                  <p className="px-2 text-[11px] text-on-surface-variant/40 font-medium">开启后，扫描速度可能会慢一些。</p>
                 </div>
              </div>
           </section>
@@ -549,17 +543,17 @@ export default function SettingsPage() {
                   <ShieldCheck className="w-7 h-7" />
                 </div>
                 <div className="space-y-1">
-                   <h2 className="text-lg font-black font-headline tracking-tight uppercase tracking-widest leading-none">系统调度与开发者协议</h2>
-                   <p className="text-[11px] font-bold uppercase tracking-widest">底层实验性特性控制</p>
+                   <h2 className="text-lg font-black font-headline tracking-tight uppercase tracking-widest leading-none">其他设置</h2>
+                   <p className="text-[11px] font-bold uppercase tracking-widest">一些调试和开发相关的选项</p>
                 </div>
              </div>
 
              <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
                 <div className="bg-white p-8 rounded-3xl border border-on-surface/8 shadow-sm flex items-center justify-between group hover:border-primary/20 transition-all">
                   <div className="space-y-2 px-1">
-                    <h3 className="text-[14px] font-black text-on-surface tracking-tight uppercase">全量日志调试 (Full Debug)</h3>
+                    <h3 className="text-[14px] font-black text-on-surface tracking-tight uppercase">详细日志</h3>
                     <p className="text-[11px] text-on-surface-variant/50 font-bold leading-relaxed max-w-xs">
-                      在 `logs/` 目录下保存每一次 AI 对话的原始流量。用于排查分类质量和解析故障。
+                      会在 `logs/` 目录下保存更完整的记录，方便排查问题。
                     </p>
                   </div>
                   <button 
@@ -576,8 +570,8 @@ export default function SettingsPage() {
                  <div className="p-8 rounded-3xl border border-dashed border-on-surface/10 flex items-center gap-5 opacity-40">
                   <Terminal className="w-8 h-8 text-on-surface-variant/20" />
                   <div className="space-y-1">
-                    <p className="text-[11px] font-black text-on-surface-variant uppercase tracking-widest">其他高级配置</p>
-                    <p className="text-[11px] font-medium text-on-surface-variant">更多底层线程与缓存控制请参考项目 `config.yaml` 文件。</p>
+                    <p className="text-[11px] font-black text-on-surface-variant uppercase tracking-widest">更多设置</p>
+                    <p className="text-[11px] font-medium text-on-surface-variant">如果还需要更底层的调整，可以再查看项目里的 `config.yaml`。</p>
                   </div>
                 </div>
              </div>
@@ -589,8 +583,8 @@ export default function SettingsPage() {
                  <SettingsIcon className="w-12 h-12" />
               </div>
               <div className="mt-12 text-center space-y-2">
-                 <p className="text-[11px] text-on-surface-variant/20 font-black uppercase tracking-[0.5em]">Antigravity Engine - File OS Layer</p>
-                 <p className="text-[11px] text-on-surface-variant/10 font-bold uppercase tracking-widest">Built for Precision Reconstruction</p>
+                 <p className="text-[11px] text-on-surface-variant/20 font-black uppercase tracking-[0.5em]">Local Settings</p>
+                 <p className="text-[11px] text-on-surface-variant/10 font-bold uppercase tracking-widest">调整好之后，整理时会直接生效</p>
               </div>
           </footer>
         </main>
@@ -642,7 +636,7 @@ export default function SettingsPage() {
                      onClick={() => dialog.onConfirm(dialog.value)}
                      className="flex-1 py-4"
                    >
-                     {dialog.type === 'confirm' ? '确定执行' : '立即创建'}
+                     {dialog.type === 'confirm' ? '确定' : '创建'}
                    </Button>
                  </div>
               </div>

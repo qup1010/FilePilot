@@ -33,16 +33,16 @@ export class ErrorBoundary extends Component<Props, State> {
         <div className={`p-10 flex flex-col items-center justify-center text-center space-y-4 bg-error-container/5 border border-error/10 rounded-md ${this.props.className}`}>
           <AlertTriangle className="w-8 h-8 text-error opacity-40" />
           <div className="space-y-1">
-            <h3 className="text-sm font-bold text-on-surface uppercase tracking-widest">{this.props.fallbackTitle || "渲染引擎异常"}</h3>
+            <h3 className="text-sm font-bold text-on-surface uppercase tracking-widest">{this.props.fallbackTitle || "这里出了点问题"}</h3>
             <p className="text-xs text-on-surface-variant max-w-[300px] leading-relaxed">
-              数据模型出现不一致，导致该面板无法正常渲染。您可以尝试刷新会话快照或联系开发团队。
+              这一块暂时没有正常显示出来。你可以先试试重新加载。
             </p>
           </div>
           <button 
             onClick={() => this.setState({ hasError: false })}
             className="text-[10px] font-black uppercase tracking-widest text-primary hover:underline"
           >
-            重试渲染 (Retry)
+            重新加载
           </button>
         </div>
       );
