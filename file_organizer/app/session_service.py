@@ -308,6 +308,10 @@ class OrganizerSessionService:
         session.summary = updated_pending.summary
         session.user_constraints = list(updated_pending.user_constraints or session.user_constraints)
         session.stage = self._planning_stage_for(updated_pending, session.scan_lines)
+        
+        # 记录基准方案，用于后续手动操作的 Diff 计算
+        session.last_ai_pending_plan = self._pending_plan_to_dict(updated_pending)
+        
         self.store.save(session)
         self._record_event("plan.updated", session)
         return SessionMutationResult(
@@ -501,6 +505,41 @@ class OrganizerSessionService:
         session.summary = pending.summary
         session.precheck_summary = None
         session.stage = self._planning_stage_for(pending, session.scan_lines)
+
+        # 查找或创建一个用于同步手动操作的消息
+        # 我们希望 AI 看到的是从它上次给出建议到目前为止，用户所做的“全量差异汇总”
+        sync_tag = "[用户手动调整记录]"
+        baseline = session.last_ai_pending_plan
+        if not baseline:
+             # 如果没有基准（理论上不应发生），则使用当前方案作为基准（此时 Diff 为空）
+             baseline = self._pending_plan_to_dict(pending)
+             session.last_ai_pending_plan = baseline
+
+        # 计算从 AI 基准到当前手动修改后的全量 Diff
+        diff_lines = organize_service._build_plan_change_summary(
+            self._pending_plan_from_dict(baseline, session),
+            pending
+        )
+        
+        diff_content = f"{sync_tag}\n用户在预览区域对方案进行了如下手动调整：\n" + "\n".join(f"- {line}" for line in diff_lines)
+        
+        # 尝试寻找并覆盖现有的同步消息，避免对话历史堆积
+        existing_sync_index = -1
+        for i in range(len(session.messages) - 1, -1, -1):
+            msg = session.messages[i]
+            if msg.get("role") == "user" and sync_tag in (msg.get("content") or ""):
+                existing_sync_index = i
+                break
+        
+        if existing_sync_index >= 0:
+            session.messages[existing_sync_index]["content"] = diff_content
+        else:
+            sync_message = self._ensure_message_id({
+                "role": "user",
+                "content": diff_content,
+            })
+            session.messages.append(sync_message)
+
         self.store.save(session)
         self._record_event("plan.updated", session)
         return SessionMutationResult(session_snapshot=self._build_snapshot(session))
@@ -584,26 +623,61 @@ class OrganizerSessionService:
     def list_history(self) -> list[dict]:
         from file_organizer.shared import config
         import json
-        executions_dir = config.EXECUTION_LOG_DIR
-        if not executions_dir.exists():
-            return []
         
-        history = []
-        for path in executions_dir.glob("*.json"):
+        history_map: dict[str, dict] = {}
+        
+        # 1. 加载已执行的历史记录 (Executions)
+        executions_dir = config.EXECUTION_LOG_DIR
+        if executions_dir.exists():
+            for path in executions_dir.glob("*.json"):
+                try:
+                    data = json.loads(path.read_text(encoding="utf-8"))
+                    exec_id = data["execution_id"]
+                    history_map[exec_id] = {
+                        "execution_id": exec_id,
+                        "target_dir": data["target_dir"],
+                        "status": data["status"],
+                        "created_at": data["created_at"],
+                        "item_count": len(data.get("items", [])),
+                        "failure_count": sum(1 for it in data.get("items", []) if it.get("status") == "failed"),
+                        "is_session": False
+                    }
+                except (json.JSONDecodeError, KeyError):
+                    continue
+
+        # 2. 加载活跃会话 (Active Sessions)
+        # 即使没有执行，也可以从 session store 中找那些还没完成/放弃的
+        for path in self.store.root_dir.glob("*.json"):
+            if path.name in {"latest_by_directory.json"}:
+                continue
+            if not path.is_file() or path.suffix != ".json":
+                continue
             try:
                 data = json.loads(path.read_text(encoding="utf-8"))
-                history.append({
-                    "execution_id": data["execution_id"],
+                s_id = data.get("session_id")
+                if not s_id:
+                    continue
+                stage = data.get("stage")
+                if stage in {"abandoned", "completed"}:
+                     continue
+                
+                # 如果同一个 ID 已经在执行记录里了，以执行记录为准（或合并）
+                # 这里我们优先显示 Session，因为它是“可继续”的
+                history_map[s_id] = {
+                    "execution_id": s_id,
                     "target_dir": data["target_dir"],
-                    "status": data["status"],
-                    "created_at": data["created_at"],
-                    "item_count": len(data.get("items", [])),
-                })
+                    "status": stage,
+                    "created_at": data.get("updated_at") or data.get("created_at"),
+                    "item_count": data.get("plan_snapshot", {}).get("stats", {}).get("move_count", 0),
+                    "failure_count": 0,
+                    "is_session": True
+                }
             except (json.JSONDecodeError, KeyError):
                 continue
-        
-        # Sort by creation time descending
-        history.sort(key=lambda x: x["created_at"], reverse=True)
+                
+        history = list(history_map.values())
+        # Sort by creation/update time descending
+        history.sort(key=lambda x: str(x.get("created_at") or ""), reverse=True)
         return history
 
     def get_journal_summary(self, session_id: str) -> dict:
@@ -738,6 +812,8 @@ class OrganizerSessionService:
                         session.plan_snapshot = self._plan_snapshot(updated_pending, cycle_result, scan_lines=session.scan_lines)
                         session.summary = updated_pending.summary
                         session.stage = self._planning_stage_for(updated_pending, session.scan_lines)
+                        # 记录基准方案
+                        session.last_ai_pending_plan = self._pending_plan_to_dict(updated_pending)
                 
                 self.store.save(session)
                 self._record_event("plan.updated", session)
@@ -783,338 +859,185 @@ class OrganizerSessionService:
         }
         self.store.save(session)
         self._record_event("scan.completed", session)
-        return session.scan_lines
-
-    @staticmethod
-    def _parse_tool_payload(raw_content: str) -> dict:
-        try:
-            payload = json.loads(raw_content)
-            return payload if isinstance(payload, dict) else {}
-        except Exception:
-            return {}
-
-    def _display_content_for_assistant(self, session: OrganizerSession, index: int) -> str:
-        message = session.messages[index]
-        content = message.get("content", "") or ""
-        if self._message_blocks(message):
-            return content
-        if content:
-            return content
-
-        tool_calls = message.get("tool_calls") or []
-        tool_names = {
-            tool_call.get("id"): ((tool_call.get("function") or {}).get("name", ""))
-            for tool_call in tool_calls
-        }
-        cursor = index + 1
-        while cursor < len(session.messages) and session.messages[cursor].get("role") == "tool":
-            tool_message = session.messages[cursor]
-            tool_name = tool_message.get("name") or tool_names.get(tool_message.get("tool_call_id"))
-            payload = self._parse_tool_payload(tool_message.get("content", ""))
-            if tool_name == "submit_plan_diff" and payload.get("summary"):
-                return f"我已经根据你的要求更新了计划：{payload['summary']}"
-            if tool_name == "submit_final_plan":
-                if payload.get("ok"):
-                    return "当前方案已就绪，您可以点击“执行”或直接对我说“开始整理”。"
-                return "我已经根据校验结果重新整理了计划，请看最新结果。"
-            if tool_name == "focus_ui_section":
-                return "我已经把界面焦点切换到对应区域，请查看最新提示。"
-            if tool_name == "request_unresolved_choices":
-                return ""
-            cursor += 1
-
-        later_assistant_exists = any(
-            later.get("role") == "assistant" for later in session.messages[index + 1 :]
-        )
-        if not later_assistant_exists and session.assistant_message and session.assistant_message.get("content"):
-            return session.assistant_message["content"]
-        return ""
-
-    def _ui_messages_for(self, session: OrganizerSession) -> list[dict]:
-        ui_messages = []
-        for index, message in enumerate(session.messages):
-            role = message.get("role")
-            if role not in {"assistant", "user"}:
-                continue
-
-            ui_message = dict(message)
-            self._ensure_message_id(ui_message)
-            if role == "assistant":
-                ui_message["content"] = self._display_content_for_assistant(session, index)
-            ui_messages.append(ui_message)
-        return ui_messages
-
-    def _build_snapshot(self, session: OrganizerSession) -> dict:
-        self._ensure_message_ids(session.messages)
-        if session.assistant_message:
-            self._ensure_message_id(session.assistant_message)
-        return {
-            "session_id": session.session_id,
-            "target_dir": session.target_dir,
-            "stage": session.stage,
-            "summary": session.summary,
-            "strategy": self._strategy_summary(session),
-            "assistant_message": session.assistant_message,
-            "scanner_progress": dict(session.scanner_progress),
-            "plan_snapshot": dict(session.plan_snapshot),
-            "precheck_summary": session.precheck_summary,
-            "execution_report": session.execution_report,
-            "rollback_report": session.rollback_report,
-            "last_journal_id": session.last_journal_id,
-            "integrity_flags": dict(session.integrity_flags),
-            "available_actions": self._available_actions_for(session.stage),
-            "messages": self._ui_messages_for(session),
-            "updated_at": session.updated_at,
-            "stale_reason": session.stale_reason,
-            "last_error": session.last_error,
-        }
-
-    def _available_actions_for(self, stage: str) -> list[str]:
-        if stage == "draft":
-            return ["scan", "abandon"]
-        if stage in self._LOCKED_STAGES:
-            return ["view_journal"] if stage != "scanning" else []
-        if stage in {"stale", "interrupted"}:
-            return ["refresh", "view_journal", "abandon"]
-        if stage == "ready_to_execute":
-            return ["execute", "abandon", "view_journal"]
-        if stage == "completed":
-            return ["rollback", "view_journal", "cleanup_empty_dirs"]
-        return ["submit_intent", "precheck", "abandon"]
-
-    def _record_event(self, event_type: str, session: OrganizerSession | None = None, session_id: str | None = None, **extra) -> None:
-        sid = session_id or (session.session_id if session else None)
-        stage = extra.get("stage") or (session.stage if session else "unknown")
-        
-        payload = {
-            "event_type": event_type,
-            "session_id": sid,
-            "stage": stage,
-        }
-        
-        # Only build heavy snapshot if it's a state-change event
-        if session and event_type not in {"scan.action", "scan.ai_typing", "plan.action", "plan.ai_typing"}:
-            payload["session_snapshot"] = self._build_snapshot(session)
-            
-        payload.update(extra)
-        
-        if sid:
-            events = self._event_log.setdefault(sid, [])
-            events.append(payload)
-            if len(events) > 50:
-                del events[:-50]
-            for subscriber in self._subscribers.get(sid, []):
-                subscriber.put(payload)
-
-    def _recover_orphaned_locked_session(self, session: OrganizerSession) -> bool:
-        if session.stage not in self._LOCKED_STAGES:
-            return False
-
-        if session.stage == "scanning":
-            progress = self.async_scanner.get_progress(session.session_id)
-            if progress.get("running"):
-                return False
-
-        session.integrity_flags["interrupted_during"] = session.stage
-        session.last_error = session.last_error or f"{session.stage}_interrupted"
-        session.stage = "interrupted"
-        self.store.save(session)
-        self._record_event("session.interrupted", session)
-        return True
+        return result
 
     def _load_or_raise(self, session_id: str) -> OrganizerSession:
         session = self.store.load(session_id)
-        if session is not None:
-            changed = self._ensure_message_ids(session.messages)
-            if session.assistant_message:
-                if not session.assistant_message.get("id"):
-                    self._ensure_message_id(session.assistant_message)
-                    changed = True
-            if changed:
-                self.store.save(session)
-            return session
-            
-        # Try to restore from execution journal if session file is missing
-        journal = execution_service.load_execution_journal(session_id)
-        if journal:
-            session = OrganizerSession(
-                session_id=journal.execution_id,
-                target_dir=journal.target_dir,
-                stage="completed",
-                last_journal_id=journal.execution_id,
-            )
-            # Add a flag to indicate this is a virtual session from history
-            session.integrity_flags["is_history_virtual"] = True
-            return session
-            
-        raise FileNotFoundError(session_id)
+        if session is None:
+            raise KeyError(f"Session {session_id} not found")
+        return session
 
-    def _ensure_not_locked(self, session: OrganizerSession) -> None:
+    def _ensure_not_locked(self, session: OrganizerSession):
         if session.stage in self._LOCKED_STAGES:
+            raise RuntimeError("SESSION_LOCKED")
+
+    def _ensure_mutable_stage(self, session: OrganizerSession):
+        if session.stage in self._TERMINAL_STAGES or session.stage in self._LOCKED_STAGES:
             raise RuntimeError("SESSION_STAGE_CONFLICT")
 
-    def _ensure_mutable_stage(self, session: OrganizerSession) -> None:
-        self._ensure_not_locked(session)
-        if session.stage == "completed":
-            raise RuntimeError("SESSION_STAGE_CONFLICT")
-
-    def _final_plan_from_session(self, session: OrganizerSession) -> FinalPlan:
-        pending = session.pending_plan or {}
-        return FinalPlan(
-            directories=list(pending.get("directories", [])),
-            moves=[
-                PlanMove(source=move["source"], target=move["target"], raw=move.get("raw", ""))
-                for move in pending.get("moves", [])
-            ],
-            unresolved_items=list(pending.get("unresolved_items", [])),
-            summary=pending.get("summary", ""),
-        )
-
-    @staticmethod
-    def _pending_to_final_plan(pending: PendingPlan, *, clear_unresolved: bool = False) -> FinalPlan:
-        return FinalPlan(
-            directories=list(pending.directories),
-            moves=[PlanMove(source=move.source, target=move.target, raw=move.raw) for move in pending.moves],
-            unresolved_items=[] if clear_unresolved else list(pending.unresolved_items),
-            summary=pending.summary,
-        )
-
-    def _can_precheck_pending_plan(self, pending: PendingPlan, scan_lines: str | None) -> bool:
-        if not scan_lines or not pending.moves or pending.unresolved_items:
-            return False
-        validation = organize_service.validate_final_plan(
-            scan_lines,
-            self._pending_to_final_plan(pending, clear_unresolved=True),
-        )
-        return bool(validation.get("is_valid"))
-
-    def _planning_stage_for(self, pending: PendingPlan, scan_lines: str | None) -> str:
-        return "ready_for_precheck" if self._can_precheck_pending_plan(pending, scan_lines) else "planning"
-
-    def _pending_plan_from_session(self, session: OrganizerSession) -> PendingPlan:
-        pending = session.pending_plan or {}
-        return PendingPlan(
-            directories=list(pending.get("directories", [])),
-            moves=[
-                PlanMove(source=move["source"], target=move["target"], raw=move.get("raw", ""))
-                for move in pending.get("moves", [])
-            ],
-            user_constraints=list(pending.get("user_constraints", session.user_constraints)),
-            unresolved_items=list(pending.get("unresolved_items", [])),
-            summary=pending.get("summary", ""),
-        )
-
-    def _pending_plan_to_dict(self, pending: PendingPlan) -> dict:
+    def _build_snapshot(self, session: OrganizerSession) -> dict:
         return {
-            "directories": list(pending.directories),
-            "moves": [
-                {"source": move.source, "target": move.target, "raw": move.raw}
-                for move in pending.moves
-            ],
-            "user_constraints": list(pending.user_constraints),
-            "unresolved_items": list(pending.unresolved_items),
-            "summary": pending.summary,
+            "session_id": session.session_id,
+            "target_dir": str(session.target_dir),
+            "stage": session.stage,
+            "summary": session.summary,
+            "scanner_progress": session.scanner_progress,
+            "plan_snapshot": session.plan_snapshot,
+            "precheck_summary": session.precheck_summary,
+            "execution_report": session.execution_report,
+            "rollback_report": session.rollback_report,
+            "assistant_message": session.assistant_message,
+            "messages": session.messages,
+            "user_constraints": list(session.user_constraints),
+            "integrity_flags": session.integrity_flags,
+            "stale_reason": session.stale_reason,
+            "created_at": session.created_at,
+            "updated_at": session.updated_at,
+            "strategy": {
+                "template_id": session.strategy_template_id,
+                "template_label": session.strategy_template_label,
+                "naming_style": session.naming_style,
+                "caution_level": session.caution_level,
+                "note": session.strategy_note,
+            }
         }
 
-    def _plan_snapshot(self, pending: PendingPlan, cycle_result: dict, scan_lines: str | None = None) -> dict:
-        analysis_map = {}
-        if scan_lines:
-            for entry in self._scan_entries(scan_lines):
-                analysis_map[entry["item_id"]] = entry
+    def _pending_plan_from_session(self, session: OrganizerSession) -> PendingPlan:
+        return self._pending_plan_from_dict(session.pending_plan, session)
 
+    def _pending_plan_from_dict(self, data: dict | None, session: OrganizerSession) -> PendingPlan:
+        if not data:
+            return PendingPlan(directories=[], moves=[], user_constraints=list(session.user_constraints))
+        return PendingPlan(
+            directories=data.get("directories", []),
+            moves=[PlanMove(**m) for m in data.get("moves", [])],
+            user_constraints=data.get("user_constraints", list(session.user_constraints)),
+            unresolved_items=data.get("unresolved_items", []),
+            summary=data.get("summary", ""),
+        )
+
+    def _pending_plan_to_dict(self, plan: PendingPlan) -> dict:
+        return {
+            "directories": plan.directories,
+            "moves": [m.__dict__ for m in plan.moves],
+            "user_constraints": plan.user_constraints,
+            "unresolved_items": plan.unresolved_items,
+            "summary": plan.summary,
+        }
+
+    def _final_plan_from_session(self, session: OrganizerSession) -> FinalPlan:
+        pending = self._pending_plan_from_session(session)
+        return FinalPlan(
+            directories=pending.directories,
+            moves=pending.moves,
+        )
+
+    def _plan_snapshot(self, plan: PendingPlan, cycle_result: dict, scan_lines: str = "") -> dict:
         items = []
-        grouped: dict[str, list[dict]] = {}
-        for move in pending.moves:
-            directory = move.target.rsplit("/", 1)[0] if "/" in move.target else "."
-            status = "review" if move.target.startswith("Review/") else "planned"
-            if move.source in pending.unresolved_items:
-                status = "unresolved"
-            
-            # 回填扫描阶段产出的业务语义
-            analysis = analysis_map.get(move.source, {})
+        for move in plan.moves:
             item = {
                 "item_id": move.source,
                 "display_name": Path(move.source).name,
                 "source_relpath": move.source,
                 "target_relpath": move.target,
-                "suggested_purpose": analysis.get("suggested_purpose", ""),
-                "content_summary": analysis.get("summary", ""),
-                "status": status,
+                "is_unresolved": move.source in plan.unresolved_items,
+                "reason": move.reason,
             }
             items.append(item)
-            grouped.setdefault(directory, []).append(item)
-        groups = [
-            {"directory": directory, "count": len(group_items), "items": group_items}
-            for directory, group_items in sorted(grouped.items())
-        ]
+        
+        move_count = len([m for m in plan.moves if m.source not in plan.unresolved_items])
+        unresolved_count = len(plan.unresolved_items)
+        
         return {
-            "summary": pending.summary,
-            "items": items,
-            "groups": groups,
-            "display_plan": cycle_result.get("display_plan"), # 包含 focus 和 reason
-            "unresolved_items": list(pending.unresolved_items),
-            "review_items": [item for item in items if item["status"] == "review"],
-            "invalidated_items": [],
-            "change_highlights": list(cycle_result.get("diff_summary", [])),
             "stats": {
-                "directory_count": len(groups),
-                "move_count": len(pending.moves),
-                "unresolved_count": len(pending.unresolved_items),
+                "move_count": move_count,
+                "unresolved_count": unresolved_count,
+                "directory_count": len(plan.directories),
             },
-            "readiness": {"can_precheck": self._can_precheck_pending_plan(pending, scan_lines)},
+            "items": items,
+            "diff_summary": cycle_result.get("diff_summary", []),
         }
+
+    def _directories_from_moves(self, moves: list[PlanMove]) -> list[str]:
+        dirs = set()
+        for move in moves:
+            if "/" in move.target:
+                dirs.add(move.target.rsplit("/", 1)[0])
+        return sorted(list(dirs))
+
+    def _record_event(self, event_type: str, session: OrganizerSession | None = None, session_id: str | None = None, **kwargs):
+        s_id = session_id or (session.session_id if session else None)
+        if not s_id:
+            return
+        import datetime
+        event = {
+            "event_type": event_type,
+            "session_id": s_id,
+            "timestamp": datetime.datetime.now().isoformat(),
+            **kwargs
+        }
+        self._event_log.setdefault(s_id, []).append(event)
+        
+        # Notify subscribers
+        for queue in self._subscribers.get(s_id, []):
+            queue.put(event)
+
+    def _planning_stage_for(self, plan: PendingPlan, scan_lines: str) -> str:
+        if plan.unresolved_items:
+            return "planning"
+        if plan.moves:
+            return "ready_for_precheck"
+        return "planning"
+
+    def _directory_changed(self, session: OrganizerSession) -> bool:
+        # Simple implementation: compare current visible count with stored count
+        current_count = self._count_visible_entries(Path(session.target_dir))
+        stored_count = (session.scanner_progress or {}).get("processed_count", 0)
+        return abs(current_count - stored_count) > 0 # Threshold for "significant change"
+
+    def _count_visible_entries(self, path: Path) -> int:
+        try:
+            return len([p for p in path.iterdir() if not p.name.startswith(".")])
+        except Exception:
+            return 0
+
+    def _scan_entries(self, scan_lines: str) -> list[dict]:
+        entries = []
+        for line in (scan_lines or "").splitlines():
+            if not line.strip():
+                continue
+            # Simple heuristic to extract item_id and display_name from scan lines
+            # Typically: "FILE: rel/path (size)" or "DIR: rel/path"
+            parts = line.split(":", 1)
+            if len(parts) < 2:
+                continue
+            entry_path = parts[1].split("(")[0].strip()
+            entries.append({
+                "item_id": entry_path,
+                "display_name": Path(entry_path).name,
+            })
+        return entries
 
     def _latest_execution_id(self, target_dir: Path) -> str | None:
         journal = rollback_service.load_latest_execution_for_directory(target_dir)
         return journal.execution_id if journal else None
 
-    def _directory_changed(self, session: OrganizerSession) -> bool:
-        if not session.scan_lines:
-            return False
-
-        path = Path(session.target_dir)
-        if not path.exists():
-            return True
-
-        current_entries = sorted(entry.name for entry in path.iterdir() if not entry.name.startswith("."))
-        previous_entries = sorted(entry["item_id"] for entry in self._scan_entries(session.scan_lines))
-        return current_entries != previous_entries
-
-    def _scan_entries(self, scan_lines: str) -> list[dict]:
-        entries: list[dict] = []
-        for raw_line in (scan_lines or "").splitlines():
-            parts = [part.strip() for part in raw_line.split("|")]
-            if len(parts) < 3 or not parts[0]:
-                continue
-            entries.append(
-                {
-                    "item_id": parts[0],
-                    "display_name": Path(parts[0]).name,
-                    "source_relpath": parts[0],
-                    "suggested_purpose": parts[1],
-                    "summary": parts[2],
-                }
-            )
-        return entries
-
-    def _directories_from_moves(self, moves: list[PlanMove]) -> list[str]:
-        directories = {move.target.rsplit("/", 1)[0] for move in moves if "/" in move.target}
-        return sorted(directory for directory in directories if directory and directory != ".")
-
-    def _count_visible_entries(self, target_dir: Path) -> int:
-        if not target_dir.exists():
-            return 0
-        return sum(1 for entry in target_dir.iterdir() if not entry.name.startswith("."))
-
-    def _strategy_summary(self, session: OrganizerSession) -> dict:
-        return normalize_strategy_selection(
-            {
-                "template_id": session.strategy_template_id,
-                "naming_style": session.naming_style,
-                "caution_level": session.caution_level,
-                "note": session.strategy_note,
-            }
-        )
+    def _strategy_summary(self, session: OrganizerSession) -> str:
+        return f"{session.strategy_template_label} ({session.naming_style}, {session.caution_level})"
 
     def _strategy_prompt_fragment(self, session: OrganizerSession) -> str:
-        return build_strategy_prompt_fragment(self._strategy_summary(session))
+        return build_strategy_prompt_fragment({
+            "template_id": session.strategy_template_id,
+            "naming_style": session.naming_style,
+            "caution_level": session.caution_level,
+            "note": session.strategy_note,
+        })
+
+    def _recover_orphaned_locked_session(self, session: OrganizerSession):
+        """If a session is in a locked stage but no scanner/executor is active, move it to interrupted."""
+        if session.stage == "scanning" and not self.async_scanner.is_running(session.session_id):
+            session.stage = "interrupted"
+            session.integrity_flags["interrupted_during"] = "scanning"
+            session.last_error = "scanning_interrupted"
+            self.store.save(session)
+            self._record_event("session.interrupted", session)

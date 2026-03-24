@@ -16,8 +16,17 @@ import {
   CreditCard,
   Edit2,
   ArrowRight,
+  FileCode,
+  FileVideo,
+  FileAudio,
+  FileArchive,
+  FileJson,
+  FileBox,
+  FolderPlus,
+  Sparkles,
+  Check,
 } from "lucide-react";
-import { PlanSnapshot, SessionStage, PlanItem } from "@/types/session";
+import { PlanSnapshot, SessionStage, PlanItem, PlanGroup } from "@/types/session";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 
@@ -27,21 +36,17 @@ function cn(...inputs: ClassValue[]) {
 
 const getFileIcon = (filename: string) => {
   const ext = filename.split(".").pop()?.toLowerCase() || "";
-  if (["jpg", "jpeg", "png", "gif", "svg", "webp"].includes(ext)) return FileImage;
-  if (["pdf", "doc", "docx", "txt", "md"].includes(ext)) return FileText;
-  if (["zip", "rar", "7z", "tar", "gz"].includes(ext)) return Download;
-  if (["xls", "xlsx", "csv"].includes(ext)) return CreditCard;
+  if (["jpg", "jpeg", "png", "gif", "svg", "webp", "bmp", "ico"].includes(ext)) return FileImage;
+  if (["mp4", "mkv", "mov", "avi", "wmv", "flv"].includes(ext)) return FileVideo;
+  if (["mp3", "wav", "flac", "ogg", "m4a"].includes(ext)) return FileAudio;
+  if (["zip", "rar", "7z", "tar", "gz", "iso"].includes(ext)) return FileArchive;
+  if (["js", "ts", "tsx", "jsx", "python", "py", "rs", "go", "cpp", "c", "java", "php"].includes(ext)) return FileCode;
+  if (["json", "yaml", "yml", "xml", "toml"].includes(ext)) return FileJson;
+  if (["xls", "xlsx", "csv", "numbers"].includes(ext)) return CreditCard;
+  if (["exe", "app", "dmg", "pkg", "msi"].includes(ext)) return FileBox;
+  if (["pdf", "doc", "docx", "txt", "md", "ppt", "pptx"].includes(ext)) return FileText;
   return FileText;
 };
-
-interface PreviewPanelProps {
-  plan: PlanSnapshot;
-  stage: SessionStage;
-  isBusy: boolean;
-  readOnly?: boolean;
-  onRunPrecheck: () => void;
-  onUpdateItem: (itemId: string, payload: { target_dir?: string; move_to_review?: boolean }) => void;
-}
 
 function findPlanItemForConflict(plan: PlanSnapshot, rawConflict: string): PlanItem | undefined {
   const normalized = rawConflict.trim().toLowerCase();
@@ -62,6 +67,369 @@ function findPlanItemForConflict(plan: PlanSnapshot, rawConflict: string): PlanI
   });
 }
 
+interface TreeNode {
+  name: string;
+  path: string;
+  items: PlanItem[];
+  children: Record<string, TreeNode>;
+  item_id?: string; // 如果该目录本身也是一个 item
+  hasUnresolved?: boolean;
+  hasReview?: boolean;
+}
+
+function buildFileTree(groups: PlanGroup[]): TreeNode {
+  const root: TreeNode = { name: "Root", path: "", items: [], children: {} };
+
+  groups.forEach((group) => {
+    const parts = group.directory.replace(/\\/g, "/").split("/").filter(Boolean);
+    let current = root;
+
+    parts.forEach((part, index) => {
+      const path = parts.slice(0, index + 1).join("/");
+      if (!current.children[part]) {
+        current.children[part] = {
+          name: part,
+          path: path,
+          items: [],
+          children: {},
+        };
+      }
+      current = current.children[part];
+    });
+
+    current.items = [...group.items];
+  });
+
+  // 递归计算状态
+  const propagateStatus = (node: TreeNode) => {
+    // 自身 items 状态
+    node.hasUnresolved = node.items.some(it => it.status === "unresolved");
+    node.hasReview = node.items.some(it => it.status === "review");
+
+    // 子目录状态冒泡
+    Object.values(node.children).forEach(child => {
+      propagateStatus(child);
+      if (child.hasUnresolved) node.hasUnresolved = true;
+      if (child.hasReview) node.hasReview = true;
+    });
+  };
+
+  propagateStatus(root);
+  return root;
+}
+
+function buildSourceTree(items: PlanItem[]): TreeNode {
+  const root: TreeNode = { name: "Root", path: "", items: [], children: {} };
+
+  items.forEach((item) => {
+    // 统一移除尾部斜杠并规范化
+    const normalizedPath = item.source_relpath.replace(/\\/g, "/").replace(/\/$/, "");
+    const parts = normalizedPath.split("/").filter(Boolean);
+    
+    let current = root;
+
+    // 前面所有部分都是目录
+    for (let i = 0; i < parts.length - 1; i++) {
+      const part = parts[i];
+      const path = parts.slice(0, i + 1).join("/");
+      if (!current.children[part]) {
+        current.children[part] = {
+          name: part,
+          path: path,
+          items: [],
+          children: {},
+        };
+      }
+      current = current.children[part];
+    }
+
+    // 最后一部分可能是文件，也可能是后端标识的目录条目
+    const lastPart = parts[parts.length - 1];
+    if (lastPart) {
+      current.items.push(item);
+    }
+  });
+
+  // 递归计算状态
+  const propagateStatus = (node: TreeNode) => {
+    node.hasUnresolved = node.items.some(it => it.status === "unresolved");
+    node.hasReview = node.items.some(it => it.status === "review");
+
+    Object.values(node.children).forEach(child => {
+      propagateStatus(child);
+      if (child.hasUnresolved) node.hasUnresolved = true;
+      if (child.hasReview) node.hasReview = true;
+    });
+  };
+
+  propagateStatus(root);
+  return root;
+}
+
+interface TreeFolderProps {
+  node: TreeNode;
+  level: number;
+  readOnly: boolean;
+  editingId: string | null;
+  editValue: string;
+  expandedGroups: Record<string, boolean>;
+  onToggle: (path: string) => void;
+  onEdit: (itemId: string, currentPath: string) => void;
+  onMoveToReview: (itemId: string) => void;
+  onUpdateItem: (itemId: string, payload: { target_dir?: string; move_to_review?: boolean }) => void;
+  setEditingId: (id: string | null) => void;
+  setEditValue: (val: string) => void;
+  handleEditSubmit: (itemId: string) => void;
+}
+
+function FolderNode({
+  node,
+  level,
+  readOnly,
+  editingId,
+  editValue,
+  expandedGroups,
+  onToggle,
+  onEdit,
+  onMoveToReview,
+  onUpdateItem,
+  setEditingId,
+  setEditValue,
+  handleEditSubmit,
+}: TreeFolderProps) {
+  const isExpanded = expandedGroups[node.path] ?? true;
+  const hasContent = node.items.length > 0 || Object.keys(node.children).length > 0;
+
+  if (node.path === "" && level === 0) {
+    return (
+      <div className="space-y-0.5">
+        {Object.values(node.children).map((child) => (
+          <FolderNode
+            key={child.path}
+            node={child}
+            level={level + 1}
+            readOnly={readOnly}
+            editingId={editingId}
+            editValue={editValue}
+            expandedGroups={expandedGroups}
+            onToggle={onToggle}
+            onEdit={onEdit}
+            onMoveToReview={onMoveToReview}
+            onUpdateItem={onUpdateItem}
+            setEditingId={setEditingId}
+            setEditValue={setEditValue}
+            handleEditSubmit={handleEditSubmit}
+          />
+        ))}
+        {/* 处理根目录下的孤立文件 */}
+        {node.items.map(item => (
+          <FileItem 
+            key={item.item_id}
+            item={item}
+            level={level}
+            readOnly={readOnly}
+            editingId={editingId}
+            editValue={editValue}
+            setEditingId={setEditingId}
+            setEditValue={setEditValue}
+            onEdit={onEdit}
+            onMoveToReview={onMoveToReview}
+            handleEditSubmit={handleEditSubmit}
+          />
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <div className={cn("flex flex-col", level > 0 && "ml-3.5 border-l border-on-surface/5 pl-1.5")}>
+      <div 
+        className={cn(
+          "flex items-center gap-2 py-1.5 px-2 rounded-md transition-all cursor-pointer group",
+          isExpanded ? "bg-surface-container-low/30" : "hover:bg-on-surface/2"
+        )}
+        onClick={() => onToggle(node.path)}
+      >
+        <div className="flex items-center gap-1.5 shrink-0">
+          <ChevronRight 
+            className={cn(
+              "w-3 h-3 text-on-surface-variant/30 transition-transform duration-200",
+              isExpanded && "rotate-90 text-primary/50",
+              !hasContent && "opacity-0"
+            )} 
+          />
+          <Folder className={cn("w-3.5 h-3.5 text-on-surface/20", isExpanded && "text-primary/40")} />
+        </div>
+        <span className={cn(
+          "text-[11px] font-bold truncate flex-1 tracking-tight text-on-surface/70",
+          (node.hasUnresolved || node.hasReview) && "text-on-surface"
+        )}>
+          {node.name}
+        </span>
+        
+        {/* 文件夹状态指示灯 */}
+        <div className="flex items-center gap-1 pr-1">
+          {node.hasUnresolved && <span className="w-1.5 h-1.5 rounded-full bg-warning animate-pulse" title="包含待确认项" />}
+          {node.hasReview && <span className="w-1.5 h-1.5 rounded-full bg-primary/40" title="包含待核对项" />}
+        </div>
+        
+        <span className="text-[9px] font-bold text-on-surface-variant/10 tabular-nums">
+          {node.items.length + Object.keys(node.children).length}
+        </span>
+      </div>
+
+      <AnimatePresence initial={false}>
+        {isExpanded && hasContent && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            className="overflow-hidden"
+          >
+            <div className="mt-0.5 space-y-0.5">
+              {/* 子目录递归 */}
+              {Object.values(node.children).map((child) => (
+                <FolderNode
+                  key={child.path}
+                  node={child}
+                  level={level + 1}
+                  readOnly={readOnly}
+                  editingId={editingId}
+                  editValue={editValue}
+                  expandedGroups={expandedGroups}
+                  onToggle={onToggle}
+                  onEdit={onEdit}
+                  onMoveToReview={onMoveToReview}
+                  onUpdateItem={onUpdateItem}
+                  setEditingId={setEditingId}
+                  setEditValue={setEditValue}
+                  handleEditSubmit={handleEditSubmit}
+                />
+              ))}
+
+              {/* 文件条目渲染 */}
+              {node.items.map((item) => {
+                const isDirItem = !item.display_name.includes('.') && node.children[item.display_name];
+                if (isDirItem) return null;
+                
+                return (
+                  <FileItem 
+                    key={item.item_id}
+                    item={item}
+                    level={level + 1}
+                    readOnly={readOnly}
+                    editingId={editingId}
+                    editValue={editValue}
+                    setEditingId={setEditingId}
+                    setEditValue={setEditValue}
+                    onEdit={onEdit}
+                    onMoveToReview={onMoveToReview}
+                    handleEditSubmit={handleEditSubmit}
+                  />
+                );
+              })}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+function FileItem({ 
+  item, 
+  level, 
+  readOnly, 
+  editingId, 
+  editValue, 
+  setEditingId, 
+  setEditValue, 
+  onEdit, 
+  onMoveToReview, 
+  handleEditSubmit 
+}: { 
+  item: PlanItem; 
+  level: number; 
+  readOnly: boolean; 
+  editingId: string | null; 
+  editValue: string;
+  setEditingId: (id: string | null) => void;
+  setEditValue: (val: string) => void;
+  onEdit: (id: string, path: string) => void;
+  onMoveToReview: (id: string) => void;
+  handleEditSubmit: (id: string) => void;
+}) {
+  const isFile = item.display_name.includes(".");
+  const Icon = isFile ? getFileIcon(item.display_name) : Folder;
+  const isEditing = editingId === item.item_id;
+  const isUnresolved = item.status === "unresolved";
+  const isReview = item.status === "review";
+
+  return (
+    <div 
+      className={cn(
+        "group/item flex flex-col pr-1 py-1 my-0.5 rounded-md transition-all",
+        isUnresolved ? "bg-warning/5 hover:bg-warning/10" : isReview ? "bg-primary/5 hover:bg-primary/10" : "hover:bg-on-surface/2"
+      )}
+      style={{ paddingLeft: `${level * 12 + 20}px` }}
+    >
+      <div className="flex items-center gap-2 text-[11px] text-on-surface-variant/70 hover:text-on-surface transition-colors">
+        <Icon className={cn("w-3 h-3 shrink-0", !isFile && "text-on-surface/40")} />
+        <div className="flex-1 min-w-0 flex flex-col gap-0.5">
+          <div className="flex items-center gap-2">
+            <span className={cn("truncate tracking-tight", !isFile && "font-bold text-on-surface/80")}>
+              {item.display_name}
+            </span>
+            {isUnresolved && (
+              <span className="px-1 py-0.5 rounded-[2px] bg-warning text-white text-[8px] font-black uppercase leading-none">待确认</span>
+            )}
+            {isReview && (
+              <span className="px-1 py-0.5 rounded-[2px] bg-primary text-white text-[8px] font-black uppercase leading-none">待核对</span>
+            )}
+          </div>
+          {item.suggested_purpose && (
+            <div className="text-[9px] text-on-surface-variant/40 leading-tight line-clamp-1 italic">
+              {item.suggested_purpose}
+            </div>
+          )}
+        </div>
+
+        {!readOnly && (
+          <div className="opacity-0 group-hover/item:opacity-100 flex items-center gap-0.5 pr-1">
+            <button
+              onClick={(e) => { e.stopPropagation(); onEdit(item.item_id, item.target_relpath || ""); }}
+              className="p-1 hover:bg-primary/10 rounded text-on-surface-variant/50 hover:text-primary transition-colors"
+            >
+              <Edit2 className="w-2.5 h-2.5" />
+            </button>
+            <button
+              onClick={(e) => { e.stopPropagation(); onMoveToReview(item.item_id); }}
+              className="p-1 hover:bg-warning/10 rounded text-on-surface-variant/50 hover:text-warning transition-colors"
+            >
+              <ArrowRight className="w-2.5 h-2.5" />
+            </button>
+          </div>
+        )}
+      </div>
+      {isEditing && (
+        <div className="flex gap-2 py-1 mt-1 ml-4 border-l border-primary/20 pl-2" onClick={(e) => e.stopPropagation()}>
+          <input
+            autoFocus
+            value={editValue}
+            onChange={(e) => setEditValue(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") handleEditSubmit(item.item_id);
+              if (e.key === "Escape") setEditingId(null);
+            }}
+            className="flex-1 bg-surface-container-low border-b border-primary text-[10px] py-0.5 outline-none font-mono"
+          />
+          <button onClick={() => handleEditSubmit(item.item_id)} className="text-[9px] font-black text-primary uppercase">OK</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function PreviewPanel({
   plan,
   stage,
@@ -70,13 +438,13 @@ export function PreviewPanel({
   onRunPrecheck,
   onUpdateItem,
 }: PreviewPanelProps) {
+  const [viewMode, setViewMode] = useState<"before" | "after">("after");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
-  const canPrecheck = plan.readiness.can_precheck;
 
-  const toggleGroup = (dir: string) => {
-    setExpandedGroups((prev) => ({ ...prev, [dir]: !prev[dir] }));
+  const toggleGroup = (path: string) => {
+    setExpandedGroups((prev) => ({ ...prev, [path]: !(prev[path] ?? true) }));
   };
 
   const handleEditSubmit = (itemId: string) => {
@@ -89,239 +457,211 @@ export function PreviewPanel({
     setEditValue("");
   };
 
+  const afterTree = buildFileTree(plan.groups);
+  const beforeTree = buildSourceTree(plan.items);
+  const currentTree = viewMode === "after" ? afterTree : beforeTree;
+  const isViewOnly = viewMode === "before" || readOnly;
+
   return (
     <div className="flex flex-col h-full bg-surface overflow-hidden">
-      <div className="flex-1 overflow-y-auto p-10 space-y-10 scrollbar-thin">
-        <div className="space-y-8">
-          <div className="flex items-center justify-between h-12">
-            <h2 className="text-sm font-bold font-headline text-on-surface tracking-widest uppercase">建议目录树</h2>
-            {plan.unresolved_items.length > 0 ? (
-              <div className="px-3 py-1 bg-warning-container/30 text-warning rounded text-[9px] font-black tracking-widest uppercase border border-warning/10">
-                存在冲突
-              </div>
-            ) : stage === "ready_to_execute" ? (
-              <div className="px-3 py-1 bg-emerald-500 text-white rounded text-[11px] font-black shadow-sm">
-                已通过预检
-              </div>
-            ) : canPrecheck ? (
-              <div className="px-3 py-1 bg-primary text-white rounded text-[11px] font-black shadow-sm">
-                可进入预检
-              </div>
-            ) : (
-              <div className="px-3 py-1 bg-surface-container-highest text-on-surface-variant/60 rounded text-[11px] font-black">
-                草案生成中
-              </div>
-            )}
+      <div className="flex-1 overflow-y-auto p-6 space-y-6 scrollbar-thin">
+        <div className="space-y-6">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-black text-on-surface uppercase tracking-widest flex items-center gap-2">
+              <Activity className="w-4 h-4 text-primary" /> 方案决策工作台
+            </h2>
+            <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-surface-container-high text-[9px] font-bold text-on-surface-variant uppercase tracking-widest">
+              {stage === "completed" ? "执行完毕" : "草案模式"}
+            </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="bg-surface-container-low p-5 rounded-md border border-on-surface/5 flex flex-col gap-2">
-              <div className="flex items-center gap-2 opacity-40">
-                <Archive className="w-3.5 h-3.5 text-on-surface" />
-                <span className="text-[11px] font-bold text-on-surface">预测目录数</span>
+          {/* 核心指标 4 宫格 */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            <div className="bg-surface-container-lowest/40 rounded-md p-3 border border-on-surface/5 flex flex-col gap-1.5">
+              <div className="flex items-center gap-1.5 opacity-40">
+                <ArrowRight className="w-3 h-3 text-primary" />
+                <span className="text-[9px] font-bold text-on-surface uppercase tracking-wider">移动文件</span>
               </div>
-              <p className="text-2xl font-black text-on-surface tabular-nums leading-none tracking-tight">
-                {plan.stats.directory_count}
-              </p>
-            </div>
-            <div className="bg-surface-container-low p-5 rounded-md border border-on-surface/5 flex flex-col gap-2">
-              <div className="flex items-center gap-2 mb-2 opacity-40">
-                <Activity className="w-3.5 h-3.5 text-on-surface" />
-                <span className="text-[11px] font-bold text-on-surface">待执行操作</span>
-              </div>
-              <p className="text-2xl font-black text-on-surface tabular-nums leading-none tracking-tight">
+              <p className="text-xl font-headline font-black text-on-surface tabular-nums leading-none">
                 {plan.stats.move_count}
               </p>
             </div>
+            <div className="bg-surface-container-lowest/40 rounded-md p-3 border border-on-surface/5 flex flex-col gap-1.5">
+              <div className="flex items-center gap-1.5 opacity-40">
+                <FolderPlus className="w-3 h-3 text-emerald-500" />
+                <span className="text-[9px] font-bold text-on-surface uppercase tracking-wider">新建目录</span>
+              </div>
+              <p className="text-xl font-headline font-black text-on-surface tabular-nums leading-none">
+                {plan.stats.directory_count}
+              </p>
+            </div>
+            <div className="bg-surface-container-lowest/40 rounded-md p-3 border border-on-surface/5 flex flex-col gap-1.5">
+              <div className="flex items-center gap-1.5 opacity-40">
+                <AlertTriangle className="w-3 h-3 text-warning" />
+                <span className="text-[9px] font-bold text-on-surface uppercase tracking-wider">待确认</span>
+              </div>
+              <p className={cn(
+                "text-xl font-headline font-black tabular-nums leading-none",
+                plan.unresolved_items.length > 0 ? "text-warning" : "text-on-surface/20"
+              )}>
+                {plan.unresolved_items.length}
+              </p>
+            </div>
+            <div className="bg-surface-container-lowest/40 rounded-md p-3 border border-on-surface/5 flex flex-col gap-1.5">
+              <div className="flex items-center gap-1.5 opacity-40">
+                <Archive className="w-3 h-3 text-on-surface-variant" />
+                <span className="text-[9px] font-bold text-on-surface uppercase tracking-wider">Review</span>
+              </div>
+              <p className="text-xl font-headline font-black text-on-surface tabular-nums leading-none">
+                {plan.review_items.length}
+              </p>
+            </div>
           </div>
 
-          <AnimatePresence>
-            {plan.unresolved_items.length > 0 && (
-              <motion.div
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: "auto" }}
-                exit={{ opacity: 0, height: 0 }}
-                className="p-6 bg-warning-container/10 border border-warning/20 rounded-md space-y-4 overflow-hidden shadow-sm"
-              >
-                <h3 className="text-xs font-black text-warning flex items-center gap-2">
-                  <AlertTriangle className="w-4 h-4" /> 架构冲突待决
-                </h3>
-                <div className="space-y-2">
-                  {plan.unresolved_items.map((item, idx) => {
-                    const matchedItem = findPlanItemForConflict(plan, item);
-                    return (
-                      <motion.div
-                        key={`${item}-${idx}`}
-                        className="bg-white border border-warning/10 p-4 rounded-md hover:border-warning/40 transition-all group flex items-start gap-4 shadow-xs"
-                        whileHover={{ x: 4 }}
-                      >
-                        <div className="mt-1 w-1 h-4 bg-warning/20 group-hover:bg-warning transition-colors" />
-                        <div className="flex-1">
-                          <p className="text-[12.5px] font-bold text-on-surface leading-normal">{item}</p>
-                          <p className="mt-2 text-[10px] text-on-surface-variant leading-relaxed">
-                            这些待确认项现在只在聊天区里处理。请在左侧聊天气泡中选择候选目录、归入 Review，或填写你的分类想法。
-                          </p>
-                          {matchedItem ? (
-                            <div className="mt-4 inline-flex items-center gap-1.5 rounded-md border border-on-surface/10 px-3 py-2 text-[11px] font-black text-on-surface-variant">
-                              <ArrowRight className="w-3 h-3" />
-                              可在聊天区直接归入 Review
-                            </div>
-                          ) : null}
-                        </div>
-                      </motion.div>
-                    );
-                  })}
+          {/* 方案总结与亮点 */}
+          {(plan.summary || (plan.change_highlights && plan.change_highlights.length > 0)) && (
+            <div className="space-y-4 pt-2">
+              {plan.summary && (
+                <div className="p-4 bg-primary/5 rounded-md border-l-2 border-primary/20">
+                  <p className="text-[13px] leading-6 text-on-surface/80 font-medium italic">
+                    “ {plan.summary} ”
+                  </p>
                 </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
+              )}
 
-          <div className="space-y-6">
-            <div className="flex items-center justify-between opacity-40">
-              <h3 className="text-xs font-black text-on-surface-variant/70 flex items-center gap-2">
-                <Layers className="w-4 h-4" /> 架构层级预览
-              </h3>
-              {!readOnly && canPrecheck ? (
-                <button
-                  type="button"
-                  onClick={onRunPrecheck}
-                  disabled={isBusy}
-                  className="inline-flex items-center gap-2 rounded-full bg-primary px-4 py-2 text-[11px] font-black text-white shadow-sm transition-opacity hover:opacity-90 disabled:opacity-30"
-                >
-                  <RefreshCw className={cn("w-3.5 h-3.5", isBusy && "animate-spin")} />
-                  开始预检
-                </button>
-              ) : !readOnly ? (
-                <button
-                  onClick={onRunPrecheck}
-                  disabled={isBusy}
-                  className="hover:text-primary transition-colors disabled:opacity-30"
-                  title="进入预检"
-                >
-                  <RefreshCw className={cn("w-3.5 h-3.5", isBusy && "animate-spin")} />
-                </button>
-              ) : (
-                <div className="rounded-full border border-on-surface/10 px-3 py-2 text-[11px] font-bold text-on-surface-variant">
-                  只读查看
+              {plan.change_highlights && plan.change_highlights.length > 0 && (
+                <div className="space-y-2.5">
+                  <h4 className="text-[10px] font-black text-on-surface-variant/40 uppercase tracking-[0.2em] flex items-center gap-2">
+                    <Sparkles className="w-3 h-3" /> 本轮重点变化
+                  </h4>
+                  <div className="grid grid-cols-1 gap-1.5">
+                    {plan.change_highlights.slice(0, 5).map((highlight, idx) => (
+                      <div key={idx} className="flex items-center gap-2.5 px-3 py-2 rounded-md bg-surface-container-low/30 text-[11px] text-on-surface/70 border border-on-surface/5">
+                        <Check className="w-3 h-3 text-primary/40" />
+                        {highlight}
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>
+          )}
 
-            <div className="space-y-1">
+          <div className="space-y-3">
+            <div className="flex flex-col gap-3">
+              <div className="flex items-center justify-between">
+                <h3 className="text-[9px] font-black text-on-surface-variant/30 flex items-center gap-1 uppercase tracking-[0.15em]">
+                  <Layers className="w-3 h-3" /> 目录层级
+                </h3>
+              </div>
+
+              {/* 视图切换分段选择器 */}
+              <div className="flex p-0.5 bg-surface-container-low/50 rounded-md border border-on-surface/5">
+                <button
+                  onClick={() => setViewMode("before")}
+                  className={cn(
+                    "flex-1 py-1.5 text-[10px] font-black uppercase tracking-widest transition-all rounded-[calc(0.375rem-2px)]",
+                    viewMode === "before" 
+                      ? "bg-surface-container-lowest text-on-surface shadow-sm" 
+                      : "text-on-surface-variant/40 hover:text-on-surface-variant/60"
+                  )}
+                >
+                  整理前
+                </button>
+                <button
+                  onClick={() => setViewMode("after")}
+                  className={cn(
+                    "flex-1 py-1.5 text-[10px] font-black uppercase tracking-widest transition-all rounded-[calc(0.375rem-2px)]",
+                    viewMode === "after" 
+                      ? "bg-surface-container-lowest text-on-surface shadow-sm" 
+                      : "text-on-surface-variant/40 hover:text-on-surface-variant/60"
+                  )}
+                >
+                  整理后
+                </button>
+              </div>
+            </div>
+
+            <div className="bg-surface-container-lowest/40 rounded-md p-2 border border-on-surface/5 min-h-[150px]">
               {plan.groups.length === 0 ? (
-                <div className="p-16 border border-dashed border-on-surface/5 rounded-md text-center text-xs font-bold text-on-surface-variant/40 italic">
-                  等待生成目录映射...
+                <div className="flex flex-col items-center justify-center h-40 text-[10px] font-bold text-on-surface-variant/10 italic gap-2">
+                  <Archive className="w-6 h-6 opacity-5" />
+                  等待扫描分析...
                 </div>
               ) : (
-                plan.groups.map((group, gIdx) => (
-                  <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ delay: gIdx * 0.02 }}
-                    key={group.directory}
-                    className="group/row bg-white hover:bg-surface-container-low/30 transition-all border-b border-on-surface/5 py-6 px-4 first:rounded-t-md last:rounded-b-md last:border-b-0"
-                  >
-                    <div className="flex items-center justify-between mb-4">
-                      <div className="flex items-center gap-4">
-                        <div className="w-8 h-8 rounded bg-surface-container-low flex items-center justify-center text-on-surface/30 group-hover/row:text-primary transition-colors">
-                          <Folder className="w-4 h-4 shadow-xs" />
-                        </div>
-                        <span className="text-[13px] font-bold text-on-surface tracking-tight leading-none">
-                          {group.directory}
-                        </span>
-                      </div>
-                      <span className="text-[11px] font-mono text-on-surface-variant/50 tabular-nums">
-                        {group.items.length} 项
-                      </span>
-                    </div>
-
-                    <div className="pl-12 grid grid-cols-1 gap-2">
-                      {(expandedGroups[group.directory] ? group.items : group.items.slice(0, 8)).map((item) => {
-                        const Icon = getFileIcon(item.display_name);
-                        const isEditing = editingId === item.item_id;
-                        return (
-                          <div key={item.item_id} className="flex flex-col gap-1 group/item">
-                            <div className="flex items-center gap-3 py-1 text-[12px] text-on-surface-variant hover:text-on-surface transition-colors">
-                              <Icon className="w-3.5 h-3.5 opacity-30 group-hover/item:opacity-80 transition-opacity" />
-                              <span className="truncate flex-1 tracking-tight pr-4">{item.display_name}</span>
-
-                              {!readOnly ? (
-                              <div className="opacity-0 group-hover/item:opacity-100 flex items-center gap-2 transition-opacity">
-                                <button
-                                  onClick={() => {
-                                    setEditingId(item.item_id);
-                                    setEditValue(item.target_relpath?.split("/").slice(0, -1).join("/") || "");
-                                  }}
-                                  className="p-1.5 hover:bg-primary/10 rounded transition-colors text-on-surface-variant hover:text-primary"
-                                  title="重新分组"
-                                >
-                                  <Edit2 className="w-3 h-3" />
-                                </button>
-                                <button
-                                  onClick={() => onUpdateItem(item.item_id, { move_to_review: true })}
-                                  className="p-1.5 hover:bg-warning/10 rounded transition-colors text-on-surface-variant hover:text-warning"
-                                  title="移至人工核对"
-                                >
-                                  <ArrowRight className="w-3 h-3" />
-                                </button>
-                              </div>
-                              ) : null}
-                            </div>
-
-                            {!readOnly && isEditing ? (
-                              <div className="flex gap-2 mt-1 px-1">
-                                <input
-                                  autoFocus
-                                  value={editValue}
-                                  onChange={(e) => setEditValue(e.target.value)}
-                                  onKeyDown={(e) => {
-                                    if (e.key === "Enter") handleEditSubmit(item.item_id);
-                                    if (e.key === "Escape") setEditingId(null);
-                                  }}
-                                  className="flex-1 bg-white border-b border-primary text-[11px] py-1 outline-none font-mono"
-                                  placeholder="目标目录 (如: Photos/Vacation)"
-                                />
-                                <button
-                                  onClick={() => handleEditSubmit(item.item_id)}
-                                  className="text-[10px] font-bold text-primary uppercase"
-                                >
-                                  保存
-                                </button>
-                                <button
-                                  onClick={() => setEditingId(null)}
-                                  className="text-[10px] font-bold text-on-surface-variant uppercase"
-                                >
-                                  取消
-                                </button>
-                              </div>
-                            ) : null}
-                          </div>
-                        );
-                      })}
-                      {group.items.length > 8 && (
-                        <button
-                          onClick={() => toggleGroup(group.directory)}
-                          className="w-fit text-[11px] text-primary font-black pl-0 pt-2 pb-2 italic hover:underline flex items-center gap-1 transition-all"
-                        >
-                          {expandedGroups[group.directory]
-                            ? "收起部分列表"
-                            : `查看全部 ${group.items.length} 个文件项`}
-                          <ChevronRight
-                            className={cn(
-                              "w-3 h-3 transition-transform",
-                              expandedGroups[group.directory] ? "-rotate-90" : "rotate-90",
-                            )}
-                          />
-                        </button>
-                      )}
-                    </div>
-                  </motion.div>
-                ))
+                <FolderNode
+                  node={currentTree}
+                  level={0}
+                  readOnly={isViewOnly}
+                  editingId={editingId}
+                  editValue={editValue}
+                  expandedGroups={expandedGroups}
+                  onToggle={toggleGroup}
+                  onEdit={(id, path) => {
+                    setEditingId(id);
+                    setEditValue(path.split("/").slice(0, -1).join("/") || "");
+                  }}
+                  onMoveToReview={(id) => onUpdateItem(id, { move_to_review: true })}
+                  onUpdateItem={onUpdateItem}
+                  setEditingId={setEditingId}
+                  setEditValue={setEditValue}
+                  handleEditSubmit={handleEditSubmit}
+                />
               )}
             </div>
           </div>
         </div>
       </div>
+
+      {!readOnly && (
+        <div className="shrink-0 p-8 bg-surface-container-lowest/60 backdrop-blur-xl border-t border-on-surface/5">
+          {/* 决策引导说明 */}
+          <div className="mb-4 flex items-start gap-2.5 px-1">
+            {plan.unresolved_items.length > 0 ? (
+              <div className="flex items-center gap-2 text-[11px] font-bold text-warning leading-relaxed">
+                <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                <span>仍有 {plan.unresolved_items.length} 项冲突待处理，请先在左侧对话区完成确认</span>
+              </div>
+            ) : plan.readiness.can_precheck || plan.items.length > 0 ? (
+              <div className="flex items-center gap-2 text-[11px] font-bold text-primary leading-relaxed">
+                <Check className="w-3.5 h-3.5 shrink-0" />
+                <span>整理方案已就绪，预检将严格模拟执行结果</span>
+              </div>
+            ) : null}
+          </div>
+
+          <button
+            onClick={onRunPrecheck}
+            disabled={isBusy || (!plan.readiness.can_precheck && plan.unresolved_items.length > 0)}
+            className={cn(
+              "w-full flex items-center justify-center gap-3 py-4 rounded-md text-[11px] font-headline font-black uppercase tracking-[0.25em] transition-all",
+              (plan.readiness.can_precheck || plan.unresolved_items.length === 0) && !isBusy
+                ? "bg-linear-to-b from-primary to-primary-dim text-white shadow-[0_8px_30px_rgb(76,98,88,0.15)] hover:shadow-[0_12px_40px_rgb(76,98,88,0.25)] active:scale-[0.98] cursor-pointer" 
+                : "bg-surface-container-highest text-on-surface-variant/30 cursor-not-allowed grayscale-[0.5] opacity-50"
+            )}
+          >
+            {isBusy ? (
+              <RefreshCw className="w-4 h-4 animate-spin" />
+            ) : (
+              <Activity className="w-4 h-4 ml-1 opacity-60" />
+            )}
+            {isBusy ? "正在同步方案中" : "开始方案预检"}
+          </button>
+          
+          <p className="mt-4 text-[9px] text-center font-bold text-on-surface-variant/30 uppercase tracking-[0.2em]">
+            预检将严格模拟文件冲突与目录写入权限
+          </p>
+        </div>
+      )}
     </div>
   );
+}
+
+interface PreviewPanelProps {
+  plan: PlanSnapshot;
+  stage: SessionStage;
+  isBusy: boolean;
+  readOnly?: boolean;
+  onRunPrecheck: () => void;
+  onUpdateItem: (itemId: string, payload: { target_dir?: string; move_to_review?: boolean }) => void;
 }

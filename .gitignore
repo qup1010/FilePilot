@@ -1,5 +1,6 @@
 __pycache__/
 *.py[cod]
+*$py.class
 前端参考
 
 # 环境与配置
@@ -9,13 +10,18 @@ env/
 .env
 .env.*
 !.env.example
+config.json
+.claude/
+.spec-workflow/
 
 # 临时数据与结果
 output/
 result.txt
+test_out.txt
 test_folder/
 legacy_drafts/
 .worktrees/
+.tmp/
 
 # 缓存与调试
 .pytest_cache/
@@ -24,16 +30,21 @@ legacy_drafts/
 .idea/
 .vscode/
 
-# Frontend
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+.npm/
+
+# Frontend (Next.js)
 frontend/node_modules/
 frontend/.next/
 frontend/out/
 frontend/build/
 frontend/.vercel
 frontend/.turbo
-frontend/npm-debug.log*
-frontend/yarn-debug.log*
-frontend/yarn-error.log*
 frontend/.env.local
 frontend/.env.development.local
 frontend/.env.test.local
@@ -44,8 +55,10 @@ desktop/src-tauri/target/
 desktop/src-tauri/gen/
 desktop/node_modules/
 desktop/src-tauri/binaries/
-desktop/src-tauri/target/
+desktop/.env.local
 
 # System / Logs
 .tmp-tauri-stdout.log
 *.log
+.gemini/
+.antigravity/

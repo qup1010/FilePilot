@@ -12,6 +12,8 @@ export type SessionStage =
   | "stale"
   | "interrupted";
 
+export type StreamStatus = "connected" | "connecting" | "disconnected";
+
 export type StrategyTemplateId =
   | "general_downloads"
   | "project_workspace"
@@ -48,10 +50,11 @@ export interface RecentAnalysisItem {
 
 export interface ScannerProgress {
   status?: string;
-  processed_count: number;
-  total_count: number;
-  current_item: string | null;
-  recent_analysis_items: RecentAnalysisItem[];
+  processed_count?: number;
+  total_count?: number;
+  current_item?: string | null;
+  recent_analysis_items?: RecentAnalysisItem[];
+  message?: string;
 }
 
 export interface PlanItem {
@@ -59,6 +62,8 @@ export interface PlanItem {
   display_name: string;
   source_relpath: string;
   target_relpath: string | null;
+  suggested_purpose?: string;
+  content_summary?: string;
   status: "planned" | "unresolved" | "review" | "invalidated" | string;
 }
 
@@ -72,6 +77,7 @@ export interface PlanSnapshot {
   summary: string;
   items: PlanItem[];
   groups: PlanGroup[];
+  display_plan?: any;
   unresolved_items: string[];
   review_items: PlanItem[];
   invalidated_items: PlanItem[];
@@ -233,6 +239,8 @@ export interface HistoryItem {
   status: string;
   created_at: string;
   item_count: number;
+  failure_count?: number;
+  is_session?: boolean;
 }
 
 export interface AppProfile {
@@ -307,6 +315,7 @@ export interface JournalSummary {
 export interface RuntimeConfig {
   base_url?: string;
   started_at?: string;
+  api_token?: string;
 }
 
 export function createDemoSessionSnapshot(stage: SessionStage): SessionSnapshot {

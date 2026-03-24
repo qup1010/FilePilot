@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { createApiClient } from "@/lib/api";
-import { getApiBaseUrl } from "@/lib/runtime";
+import { getApiBaseUrl, getApiToken } from "@/lib/runtime";
 import { createSessionEventStream, type SessionEventStream } from "@/lib/sse";
 import type {
   ActivityFeedEntry,
@@ -12,6 +12,7 @@ import type {
   SessionEvent,
   SessionSnapshot,
   SessionStage,
+  StreamStatus,
 } from "@/types/session";
 
 function createLocalMessageId(prefix: string): string {
@@ -71,18 +72,21 @@ export function useSession(sessionId: string | null) {
   const [chatError, setChatError] = useState<string | null>(null);
   const [assistantDraft, setAssistantDraft] = useState("");
   const [activityFeed, setActivityFeed] = useState<ActivityFeedEntry[]>([]);
+  const [streamStatus, setStreamStatus] = useState<StreamStatus>("disconnected");
   const streamRef = useRef<SessionEventStream | null>(null);
   const snapshotRef = useRef<SessionSnapshot | null>(null);
-  const api = createApiClient(getApiBaseUrl());
+  const api = createApiClient(getApiBaseUrl(), getApiToken());
 
   useEffect(() => {
     snapshotRef.current = snapshot;
   }, [snapshot]);
 
-  function resetConversationTransientState() {
+  function resetConversationTransientState(options?: { keepActivityFeed?: boolean }) {
     setAssistantDraft("");
-    setActivityFeed([]);
     setChatError(null);
+    if (!options?.keepActivityFeed) {
+      setActivityFeed([]);
+    }
   }
 
   function appendActivity(entry: Omit<ActivityFeedEntry, "id" | "time">) {
@@ -161,7 +165,10 @@ export function useSession(sessionId: string | null) {
     streamRef.current = createSessionEventStream({
       baseUrl: getApiBaseUrl(),
       sessionId,
+      accessToken: getApiToken(),
       onEvent: (event) => {
+        setStreamStatus("connected");
+
         if (event.event_type === "scan.action" || event.event_type === "plan.action") {
           const entry = actionMessageFromEvent(event);
           if (entry) {
@@ -184,8 +191,13 @@ export function useSession(sessionId: string | null) {
           setSnapshot(event.session_snapshot);
         }
 
-        if (event.event_type === "session.error") {
-          setChatError(event.session_snapshot?.last_error || "会话处理失败");
+        if (event.event_type === "session.error" || event.event_type === "session.interrupted") {
+          const snapshotError = event.session_snapshot?.last_error;
+          if (snapshotError) {
+             setChatError(snapshotError);
+          } else if (event.event_type === "session.error") {
+             setChatError("会话处理失败");
+          }
         } else {
           setChatError(null);
         }
@@ -193,7 +205,7 @@ export function useSession(sessionId: string | null) {
         setAssistantDraft("");
       },
       onError: () => {
-        setChatError("事件流已断开，请刷新当前会话。");
+        setStreamStatus("connecting");
       },
     });
 
@@ -273,7 +285,7 @@ export function useSession(sessionId: string | null) {
       return;
     }
     setLoading(true);
-    resetConversationTransientState();
+    resetConversationTransientState({ keepActivityFeed: true });
     try {
       const response = await api.scanSession(sessionId);
       setSnapshot(response.session_snapshot);
@@ -289,7 +301,7 @@ export function useSession(sessionId: string | null) {
       return;
     }
     setLoading(true);
-    resetConversationTransientState();
+    resetConversationTransientState({ keepActivityFeed: true });
     try {
       const response = await api.refreshSession(sessionId);
       setSnapshot(response.session_snapshot);
@@ -338,6 +350,7 @@ export function useSession(sessionId: string | null) {
     }
     setLoading(true);
     setChatError(null);
+    setAssistantDraft("");
     setActivityFeed([]);
     try {
       const response = await api.execute(sessionId, true);
@@ -355,6 +368,7 @@ export function useSession(sessionId: string | null) {
     }
     setLoading(true);
     setChatError(null);
+    setAssistantDraft("");
     setActivityFeed([]);
     try {
       const response = await api.rollback(sessionId, true);
@@ -382,15 +396,18 @@ export function useSession(sessionId: string | null) {
     }
   }
 
-  async function abandonSession() {
+  async function abandonSession(): Promise<boolean> {
     if (!sessionId) {
-      return;
+      return true;
     }
     setLoading(true);
     try {
       await api.abandonSession(sessionId);
+      resetConversationTransientState();
+      return true;
     } catch (err) {
       setChatError(err instanceof Error ? err.message : "放弃会话失败");
+      return false;
     } finally {
       setLoading(false);
     }
@@ -444,6 +461,7 @@ export function useSession(sessionId: string | null) {
     assistantDraft,
     activityFeed,
     chatError,
+    streamStatus,
     composerMode,
     refreshSnapshot,
     sendMessage,

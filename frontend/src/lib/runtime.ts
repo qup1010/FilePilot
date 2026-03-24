@@ -23,3 +23,7 @@ export function getApiBaseUrl(): string {
   const baseUrl = readRuntimeConfig().base_url?.trim() || DEFAULT_BASE_URL;
   return baseUrl.endsWith("/") ? baseUrl.slice(0, -1) : baseUrl;
 }
+
+export function getApiToken(): string {
+  return readRuntimeConfig().api_token?.trim() || "";
+}

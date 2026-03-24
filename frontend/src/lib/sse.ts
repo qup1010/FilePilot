@@ -1,10 +1,14 @@
 import type { SessionEvent } from "@/types/session";
 
-function buildEventsUrl(baseUrl: string, sessionId: string): string {
-  return new URL(
+function buildEventsUrl(baseUrl: string, sessionId: string, accessToken?: string): string {
+  const url = new URL(
     `/api/sessions/${sessionId}/events`,
     baseUrl.replace(/\/$/, "") + "/",
-  ).toString();
+  );
+  if (accessToken) {
+    url.searchParams.set("access_token", accessToken);
+  }
+  return url.toString();
 }
 
 export interface SessionEventStream {
@@ -14,6 +18,7 @@ export interface SessionEventStream {
 export interface CreateSessionEventStreamOptions {
   baseUrl: string;
   sessionId: string;
+  accessToken?: string;
   onEvent: (event: SessionEvent) => void;
   onError?: (error: Event) => void;
 }
@@ -29,12 +34,14 @@ export function createSessionEventStream(
     };
   }
 
-  const source = new EventSource(buildEventsUrl(options.baseUrl, options.sessionId));
+  const source = new EventSource(buildEventsUrl(options.baseUrl, options.sessionId, options.accessToken));
   const eventTypes = [
     "session.snapshot",
     "session.created",
     "session.resumed",
     "session.stale",
+    "session.abandoned",
+    "session.interrupted",
     "scan.started",
     "scan.completed",
     "plan.updated",
@@ -43,6 +50,7 @@ export function createSessionEventStream(
     "execution.completed",
     "rollback.started",
     "rollback.completed",
+    "cleanup.completed",
     "session.error",
     "scan.action",
     "scan.ai_typing",

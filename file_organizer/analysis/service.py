@@ -62,8 +62,18 @@ def _list_current_entries(directory: Path) -> list[str]:
 
 def validate_analysis_items(items: list[AnalysisItem] | list[dict], directory: Path) -> dict:
     parsed_items = _coerce_analysis_items(items)
-    parsed_names = [item.entry_name.strip() for item in parsed_items if item.entry_name.strip()]
-    invalid_lines = [item.entry_name for item in parsed_items if not item.entry_name.strip()]
+    parsed_names: list[str] = []
+    invalid_lines: list[str] = []
+    for item in parsed_items:
+        raw_name = item.entry_name.strip()
+        if not raw_name:
+            invalid_lines.append(item.entry_name)
+            continue
+        normalized_name = normalize_entry_name(raw_name, directory)
+        if not normalized_name:
+            invalid_lines.append(item.entry_name)
+            continue
+        parsed_names.append(normalized_name)
 
     expected = set(_list_current_entries(directory))
     actual = set(parsed_names)
@@ -87,7 +97,7 @@ def validate_analysis(content: str, directory: Path) -> dict:
     """兼容旧版文本分析结果校验。"""
     output = extract_output_content(content) or (content or "").strip()
     if not output:
-        return {"is_valid": False, "reason": "missing_output", "missing": [], "extra": [], "duplicate": [], "invalid_lines": []}
+        return {"is_valid": False, "reason": "missing_output", "missing": [], "extra": [], "duplicates": [], "invalid_lines": []}
 
     parsed_items = []
     invalid_lines = []
@@ -129,10 +139,23 @@ def _resolve_list_directory(target_dir: Path, raw_directory: str | None) -> Path
     return candidate
 
 
+def _resolve_readable_file(target_dir: Path, raw_filename: str | None) -> Path | None:
+    candidate = Path(resolve_tool_path(target_dir, raw_filename)).resolve()
+    try:
+        candidate.relative_to(target_dir.resolve())
+    except ValueError:
+        return None
+    if candidate.is_dir():
+        return None
+    return candidate
+
+
 def _dispatch_tool_call(target_dir: Path, name: str, args: dict):
     if name == "read_local_file":
-        filename = resolve_tool_path(target_dir, args.get("filename"))
-        return read_local_file(filename)
+        filename = _resolve_readable_file(target_dir, args.get("filename"))
+        if filename is None:
+            return "错误：仅读取目标目录内的文件，不允许访问目录外路径。"
+        return read_local_file(str(filename), allowed_base_dir=str(target_dir.resolve()))
     if name == "list_local_files":
         directory = _resolve_list_directory(target_dir, args.get("directory"))
         if directory is None:

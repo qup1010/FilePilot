@@ -1,4 +1,4 @@
-﻿import os
+import os
 
 import docx
 import pandas as pd
@@ -19,10 +19,17 @@ def _normalize_local_path(path: str) -> str:
     return os.path.normpath(path or ".")
 
 
-def _is_allowed_local_path(path: str) -> bool:
-    # 为了支持对任意绝对路径文件夹的分析，这里放宽限制，允许访问所有路径
-    # 在生产环境中，若涉及 Web 暴露，需重新考虑此处的安全性
-    return True
+def _is_allowed_local_path(path: str, allowed_base_dir: str | None = None) -> bool:
+    if not allowed_base_dir:
+        return True
+
+    resolved_path = os.path.abspath(path)
+    resolved_base = os.path.abspath(allowed_base_dir)
+    try:
+        common_path = os.path.commonpath([resolved_path, resolved_base])
+    except ValueError:
+        return False
+    return common_path == resolved_base
 
 
 def _read_text_with_fallback(filepath: str) -> str:
@@ -159,14 +166,16 @@ def list_local_files(directory=".", max_depth=DEFAULT_LIST_DEPTH, char_limit=DEF
         return f"无法列出目录 {directory}: {exc}"
 
 
-def read_local_file(filename, max_len=DEFAULT_MAX_LEN):
+def read_local_file(filename, max_len=DEFAULT_MAX_LEN, allowed_base_dir: str | None = None):
     """读取本地文件内容。"""
     try:
         filename = _normalize_local_path(filename)
-        if not _is_allowed_local_path(filename):
-            return "错误：基于安全考虑，本程序仅限读取当前目录或 test 子目录下的文件。"
+        if not _is_allowed_local_path(filename, allowed_base_dir=allowed_base_dir):
+            return "错误：基于安全考虑，本程序仅限读取允许目录内的文件。"
         if not os.path.exists(filename):
             return f"错误：文件 {filename} 不存在。"
+        if os.path.isdir(filename):
+            return f"错误：{filename} 是目录，不能按文件读取。"
 
         ext = os.path.splitext(filename)[1].lower()
         if ext == ".pdf":

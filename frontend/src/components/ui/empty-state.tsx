@@ -1,38 +1,39 @@
 "use client";
 
-import { motion } from "motion/react";
-import { clsx, type ClassValue } from "clsx";
-import { twMerge } from "tailwind-merge";
+import { motion } from "framer-motion";
+import { cn } from "@/lib/utils";
 
-function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs));
-}
-
-// --- Empty State (Architectural Style) ---
 export function EmptyState({ 
   icon: Icon, 
   title, 
   description, 
-  className 
+  className,
+  children
 }: { 
   icon: any; 
   title: string; 
   description: string; 
   className?: string; 
+  children?: React.ReactNode;
 }) {
   return (
     <motion.div 
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      className={cn("flex flex-col items-center justify-center text-center p-12 space-y-6", className)}
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      className={cn("flex flex-col items-center justify-center text-center p-16 space-y-8", className)}
     >
-      <div className="w-12 h-12 rounded-md bg-surface-container-highest flex items-center justify-center text-outline-variant transition-colors">
-        <Icon className="w-6 h-6 opacity-30" />
+      <div className="w-16 h-16 rounded-[24px] bg-surface-container-low border border-on-surface/5 flex items-center justify-center text-on-surface-variant/20 shadow-sm transition-transform hover:scale-110 duration-500">
+        <Icon className="w-8 h-8" />
       </div>
-      <div className="space-y-2">
-        <h3 className="text-base font-bold font-headline text-on-surface tracking-tight">{title}</h3>
-        <p className="text-xs text-on-surface-variant max-w-[240px] leading-relaxed font-sans">{description}</p>
+      <div className="space-y-3 max-w-[320px]">
+        <h3 className="text-lg font-black font-headline text-on-surface tracking-tight leading-tight">{title}</h3>
+        <p className="text-[13px] text-on-surface-variant/60 leading-relaxed font-medium">{description}</p>
       </div>
+      {children && (
+        <div className="pt-2 animate-in fade-in slide-in-from-bottom-2 duration-700 delay-300 fill-mode-both">
+          {children}
+        </div>
+      )}
     </motion.div>
   );
 }

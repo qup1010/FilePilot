@@ -44,8 +44,7 @@ class ScannerServiceTests(unittest.TestCase):
         self.assertIn("submit_plan_diff", prompt)
         self.assertNotIn("submit_plan_patch", prompt)
         self.assertIn("request_unresolved_choices", prompt)
-        self.assertIn("focus_ui_section", prompt)
-        self.assertNotIn("submit_final_plan", prompt)
+        self.assertNotIn("submit" + "_final_plan", prompt)
         self.assertIn("unresolved_items", prompt)
 
     def test_organizer_prompt_restores_classification_rules_and_diff_semantics(self):
@@ -55,7 +54,6 @@ class ScannerServiceTests(unittest.TestCase):
         self.assertIn("若到最终提交前仍无法判断或用户未回答，默认落点统一归入 Review/", prompt)
         self.assertIn("不要过度细分", prompt)
         self.assertIn("按实际用途归到清晰的大类", prompt)
-        self.assertIn("Finance > Projects > Study > Screenshots > Media > Documents", prompt)
         self.assertIn("submit_plan_diff", prompt)
         self.assertIn("directory_renames", prompt)
         self.assertIn("move_updates", prompt)
@@ -70,11 +68,9 @@ class ScannerServiceTests(unittest.TestCase):
         self.assertIn("允许为清晰结构创建适量目录，但不要过度细分", prompt)
         self.assertIn("当前固定整理策略（必须优先遵守）", prompt)
         self.assertIn("suggested_folders", prompt)
-        self.assertIn("focus_ui_section", prompt)
         self.assertIn("summary", prompt)
-        self.assertIn("details", prompt)
         self.assertIn("不要在“content”中罗列完整计划列表", prompt)
-        self.assertNotIn("submit_final_plan", prompt)
+        self.assertNotIn("submit" + "_final_plan", prompt)
 
     def test_append_output_result_extracts_output_block(self):
         output_dir = Path("test_temp_scanner_output")

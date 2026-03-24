@@ -4,16 +4,29 @@ import React, { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import {
   AlertTriangle,
+  Archive,
   ArrowRight,
+  Activity,
   Bot,
+  Check,
   ChevronDown,
   ChevronRight,
+  Clipboard,
+  Copy,
   Cpu,
+  Edit2,
+  ExternalLink,
+  Hash,
+  Layers,
+  ListChecks,
   Loader2,
+  RefreshCw,
   Send,
   Sparkles,
   User,
 } from "lucide-react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 
@@ -81,6 +94,102 @@ interface UnresolvedChoicesBubbleProps {
   onChangeNote: (itemId: string, note: string) => void;
   onSetAllReview: () => void;
   onSubmit: () => void;
+}
+
+function CodeBlock({ children, className }: { children: React.ReactNode; className?: string }) {
+  const [copied, setCopied] = useState(false);
+  const code = String(children).replace(/\n$/, "");
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(code);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <div className="group relative my-2 rounded-lg bg-on-surface/[0.03] overflow-hidden transition-colors hover:bg-on-surface/[0.05]">
+      <div className="flex items-center justify-between px-3 py-1.5 bg-on-surface/2 border-b border-on-surface/[0.02]">
+        <span className="text-[9px] font-bold uppercase tracking-widest text-on-surface-variant/20">Code Snippet</span>
+        <button
+          onClick={handleCopy}
+          className="flex items-center gap-1.5 px-1.5 py-0.5 rounded hover:bg-on-surface/5 text-[9px] font-bold transition-all text-on-surface-variant/40 hover:text-on-surface"
+        >
+          {copied ? <Check className="w-2.5 h-2.5 text-emerald-500/60" /> : <Copy className="w-2.5 h-2.5" />}
+          {copied ? "已复制" : "复制"}
+        </button>
+      </div>
+      <pre className={cn("p-3 font-mono text-[12px] leading-relaxed overflow-x-auto scrollbar-none", className)}>
+        {children}
+      </pre>
+    </div>
+  );
+}
+
+function MarkdownProse({ content }: { content: string }) {
+  return (
+    <ReactMarkdown
+      remarkPlugins={[remarkGfm]}
+      components={{
+        p: ({ node, ...props }) => <p className="mb-3 last:mb-0 leading-8 text-[14px]" {...props} />,
+        strong: ({ node, ...props }) => <strong className="font-black text-on-surface" {...props} />,
+        em: ({ node, ...props }) => <em className="italic text-on-surface/80" {...props} />,
+        ul: ({ node, ...props }) => <ul className="mb-4 ml-4 list-disc space-y-2 text-[14px]" {...props} />,
+        ol: ({ node, ...props }) => <ol className="mb-4 ml-4 list-decimal space-y-2 text-[14px]" {...props} />,
+        li: ({ node, ...props }) => (
+          <li className={cn("pl-1 leading-7", String(node?.position?.start.line).length > 2 && "ml-4")} {...props} />
+        ),
+        a: ({ node, ...props }) => (
+          <a
+            className="text-primary font-bold underline underline-offset-4 hover:text-primary-dim transition-colors inline-flex items-center gap-1 group/link"
+            target="_blank"
+            rel="noopener noreferrer"
+            {...props}
+          >
+            {props.children}
+            <ExternalLink className="w-3 h-3 opacity-30 group-hover/link:opacity-100 transition-opacity" />
+          </a>
+        ),
+        table: ({ node, ...props }) => (
+          <div className="my-6 overflow-x-auto rounded-xl border border-on-surface/5 bg-on-surface/[0.02]">
+            <table className="w-full text-left border-collapse text-[13px]" {...props} />
+          </div>
+        ),
+        thead: ({ node, ...props }) => <thead className="bg-on-surface/[0.03] text-on-surface/40 font-black uppercase tracking-widest text-[10px]" {...props} />,
+        th: ({ node, ...props }) => <th className="px-4 py-3 border-b border-on-surface/5" {...props} />,
+        td: ({ node, ...props }) => <td className="px-4 py-3 border-b border-on-surface/[0.03] leading-relaxed" {...props} />,
+        hr: ({ node, ...props }) => <hr className="my-8 border-t border-on-surface/5" {...props} />,
+        h1: ({ node, ...props }) => <h1 className="mb-5 mt-8 text-xl font-black font-headline tracking-tighter text-on-surface" {...props} />,
+        h2: ({ node, ...props }) => <h2 className="mb-4 mt-7 text-lg font-black tracking-tight text-on-surface/90 flex items-center gap-2" {...props} />,
+        h3: ({ node, ...props }) => (
+          <h3 className="mb-3 mt-6 text-sm font-black uppercase tracking-[0.2em] text-on-surface/60 flex items-center gap-2" {...props} />
+        ),
+        blockquote: ({ node, ...props }) => (
+          <blockquote className="border-l-4 border-primary/20 bg-primary/[0.03] rounded-r-lg px-6 py-4 my-6 italic text-on-surface/70 leading-8" {...props} />
+        ),
+        code: ({ node, inline, className, children, ...props }: any) => {
+          if (inline) {
+            return <code className="rounded bg-on-surface/5 px-1.5 py-0.5 font-mono text-[0.9em] font-bold text-primary" {...props}>{children}</code>;
+          }
+          return <CodeBlock className={className}>{children}</CodeBlock>;
+        },
+        input: ({ node, ...props }: any) => {
+          if (props.type === "checkbox") {
+            return (
+              <input
+                type="checkbox"
+                readOnly
+                checked={props.checked}
+                className="w-4 h-4 rounded border-on-surface/10 bg-on-surface/5 text-primary focus:ring-primary/20 transition-all mr-2"
+              />
+            );
+          }
+          return <input {...props} />;
+        },
+      }}
+    >
+      {content}
+    </ReactMarkdown>
+  );
 }
 
 function UnresolvedChoicesBubble({
@@ -238,7 +347,7 @@ export function ConversationPanel({
   notice,
 }: ConversationPanelProps) {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const [isPinnedToBottom, setIsPinnedToBottom] = useState(true);
   const [activityOpen, setActivityOpen] = useState(BUSY_STAGES.has(stage));
   const [resolutionDrafts, setResolutionDrafts] = useState<Record<string, ResolutionDraftMap>>({});
@@ -270,6 +379,14 @@ export function ConversationPanel({
       return next;
     });
   }, [messages]);
+
+  // 自适应输入框高度
+  useEffect(() => {
+    if (inputRef.current) {
+      inputRef.current.style.height = "auto";
+      inputRef.current.style.height = `${Math.min(inputRef.current.scrollHeight, 200)}px`;
+    }
+  }, [messageInput]);
 
   useEffect(() => {
     if (!isPinnedToBottom) {
@@ -418,48 +535,47 @@ export function ConversationPanel({
         {renderNotice}
 
         {activityFeed.length > 0 && (
-          <div className="rounded-2xl border border-on-surface/5 bg-white/66">
-            <button
-              type="button"
+          <div className="group/activity relative">
+            <div 
+              className={cn(
+                "flex items-center gap-3 px-4 py-2 rounded-lg transition-all cursor-pointer group-hover/activity:bg-on-surface/2",
+                activityOpen ? "bg-on-surface/2 mb-4" : "bg-transparent"
+              )}
               onClick={() => setActivityOpen((prev) => !prev)}
-              className="flex w-full items-center justify-between px-5 py-4 text-left"
             >
-              <div className="flex items-center gap-3">
-                <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-surface-container-low text-outline-variant">
-                  <Cpu className="h-4 w-4" />
-                </div>
-                <div>
-                  <p className="text-sm font-bold text-on-surface">运行轨迹</p>
-                  <p className="text-xs text-on-surface-variant">
-                    {BUSY_STAGES.has(stage) ? "当前正在处理任务，自动展开中" : "可展开查看最近的扫描与规划动作"}
-                  </p>
-                </div>
+              <div className={cn(
+                "flex h-6 w-6 items-center justify-center rounded-md text-on-surface-variant/30 transition-colors",
+                activityOpen ? "bg-primary/10 text-primary" : "bg-on-surface/5"
+              )}>
+                {BUSY_STAGES.has(stage) ? <Loader2 className="h-3 w-3 animate-spin" /> : <Activity className="h-3 w-3" />}
               </div>
-              {activityOpen ? <ChevronDown className="h-4 w-4 text-on-surface-variant" /> : <ChevronRight className="h-4 w-4 text-on-surface-variant" />}
-            </button>
+              
+              <div className="flex-1 min-w-0 flex items-center gap-3">
+                <span className="text-[10px] font-black uppercase tracking-[0.2em] text-on-surface-variant/40 shrink-0">运行轨迹</span>
+                {!activityOpen && activityFeed.length > 0 && (
+                  <p className="text-[11px] text-on-surface-variant/40 truncate italic flex-1 border-l border-on-surface/5 pl-3">
+                    {activityFeed[activityFeed.length - 1].message}
+                  </p>
+                )}
+              </div>
+
+              {activityOpen ? <ChevronDown className="h-3 w-3 text-on-surface-variant/20" /> : <ChevronRight className="h-3 w-3 text-on-surface-variant/20" />}
+            </div>
+
             <AnimatePresence initial={false}>
               {activityOpen ? (
                 <motion.div
                   initial={{ height: 0, opacity: 0 }}
                   animate={{ height: "auto", opacity: 1 }}
                   exit={{ height: 0, opacity: 0 }}
-                  className="overflow-hidden border-t border-on-surface/5"
+                  className="overflow-hidden mb-6"
                 >
-                  <div className="space-y-2 px-5 py-4">
+                  <div className="space-y-1.5 px-4 pb-2 border-l-2 border-on-surface/5 ml-3 mt-2">
                     {activityFeed.map((entry) => (
-                      <div key={entry.id} className="flex items-start gap-3 rounded-xl bg-surface-container-low/38 px-4 py-3">
-                        <div className={cn("mt-1 h-2 w-2 rounded-full", entry.important ? "bg-primary" : "bg-outline-variant/60")} />
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center justify-between gap-3">
-                            <span className="text-xs font-bold uppercase tracking-wide text-on-surface-variant/70">
-                              {entry.phase === "scan" ? "扫描" : entry.phase === "plan" ? "规划" : entry.phase}
-                            </span>
-                            <span className="text-[10px] font-mono text-on-surface-variant/50">{entry.time}</span>
-                          </div>
-                          <p className="mt-1 whitespace-pre-wrap break-words text-[14px] leading-6 text-on-surface-variant">
-                            {entry.message}
-                          </p>
-                        </div>
+                      <div key={entry.id} className="flex items-center gap-3 py-1 text-[12px] group/item text-on-surface-variant/60 hover:text-on-surface transition-colors">
+                        <span className="text-[9px] font-mono opacity-30 tabular-nums shrink-0">{entry.time}</span>
+                        <div className={cn("h-1 w-1 rounded-full shrink-0", entry.important ? "bg-primary" : "bg-on-surface/20")} />
+                        <p className="flex-1 truncate tracking-tight">{entry.message}</p>
                       </div>
                     ))}
                   </div>
@@ -469,33 +585,43 @@ export function ConversationPanel({
           </div>
         )}
 
-        <div className="space-y-6">
-          {messages.map((message) => {
+        <div className="space-y-2">
+          {messages.map((message, idx) => {
             const isAssistant = message.role === "assistant";
+            const prevMessage = messages[idx - 1];
+            const isGrouped = prevMessage && prevMessage.role === message.role;
+            
             return (
               <motion.div
                 key={message.id}
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                className={cn("flex gap-4", isAssistant ? "flex-row" : "flex-row-reverse justify-start")}
+                className={cn(
+                  "flex gap-4", 
+                  isAssistant ? "flex-row" : "flex-row-reverse justify-start",
+                  isGrouped ? "mt-1" : "mt-8"
+                )}
               >
-                <div
-                  className={cn(
-                    "w-9 h-9 rounded-xl flex items-center justify-center shrink-0 border border-on-surface/5",
-                    isAssistant ? "bg-white/88 text-primary" : "bg-primary text-white",
-                  )}
-                >
-                  {isAssistant ? <Bot className="w-4 h-4" /> : <User className="w-4 h-4" />}
+                {/* 头像仅在组的第一条显示 */}
+                <div className={cn(
+                  "w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border border-on-surface/5 transition-opacity",
+                  isAssistant ? "bg-white/90 text-primary" : "bg-primary/90 text-white shadow-sm",
+                  isGrouped ? "opacity-0" : "opacity-100"
+                )}>
+                  {isAssistant ? <Bot className="w-3.5 h-3.5" /> : <User className="w-3.5 h-3.5" />}
                 </div>
+                
                 <div
                   className={cn(
-                    "p-4 rounded-2xl text-[14px] leading-7 max-w-[85%] transition-all whitespace-pre-wrap",
+                    "p-4 rounded-2xl text-[14px] leading-7 max-w-[76%] transition-all",
                     isAssistant
-                      ? "bg-white/78 text-on-surface border border-on-surface/5"
-                      : "bg-primary/7 text-on-surface font-medium",
+                      ? "bg-white/88 text-on-surface border border-on-surface/5 shadow-sm"
+                      : "bg-surface-container-high text-on-surface font-medium whitespace-pre-wrap",
+                    isGrouped && isAssistant && "rounded-tl-sm",
+                    isGrouped && !isAssistant && "rounded-tr-sm"
                   )}
                 >
-                  {message.content ? <div>{message.content}</div> : null}
+                  {message.content ? <MarkdownProse content={message.content} /> : null}
                   {isAssistant && (message.blocks || []).map((block) => {
                     if (block.type !== "unresolved_choices") {
                       return null;
@@ -555,18 +681,24 @@ export function ConversationPanel({
           })}
 
           {assistantDraft && (
-            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="flex gap-4">
-              <div className="w-9 h-9 rounded-xl bg-white/88 border border-on-surface/5 flex items-center justify-center text-primary shrink-0">
-                <Bot className="w-4 h-4" />
+            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="flex gap-4 mt-8">
+              <div className="w-8 h-8 rounded-lg bg-white/90 border border-on-surface/5 flex items-center justify-center text-primary shrink-0">
+                <Bot className="w-3.5 h-3.5" />
               </div>
-              <div className="p-4 flex-1 bg-white/78 border border-on-surface/5 rounded-2xl text-[14px] leading-7 text-on-surface whitespace-pre-wrap">
-                <div className="mb-2 flex gap-1 items-center opacity-50">
-                  <span className="w-1 h-1 bg-primary rounded-full animate-bounce" />
-                  <span className="w-1 h-1 bg-primary rounded-full animate-bounce [animation-delay:0.2s]" />
-                  <span className="w-1 h-1 bg-primary rounded-full animate-bounce [animation-delay:0.4s]" />
-                  <span className="text-xs font-medium ml-2 text-on-surface-variant">正在生成回复...</span>
+              <div className="p-4 flex-1 bg-white/88 border border-on-surface/5 rounded-2xl text-[14px] leading-7 text-on-surface shadow-sm">
+                <div className="mb-3 flex gap-1 items-center opacity-30">
+                  <span className="w-1 h-1 bg-primary rounded-full animate-pulse" />
+                  <span className="text-[10px] font-black uppercase tracking-widest ml-1">AI 正在构思方案</span>
                 </div>
-                {assistantDraft}
+                <div className="relative">
+                  <MarkdownProse content={assistantDraft} />
+                  <motion.span 
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: [0, 1, 0] }}
+                    transition={{ repeat: Infinity, duration: 0.8 }}
+                    className="inline-block w-1.5 h-4 bg-primary/40 ml-1 translate-y-0.5"
+                  />
+                </div>
               </div>
             </motion.div>
           )}
@@ -603,31 +735,45 @@ export function ConversationPanel({
           </AnimatePresence>
 
           <AnimatePresence>
-            {unresolvedCount > 0 && composerMode === "editable" && (
+            {unresolvedCount > 0 && composerMode === "editable" ? (
               <motion.div
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: 10 }}
-                className="mb-4 px-4 py-2.5 bg-on-surface/4 rounded-2xl text-xs font-medium text-on-surface-variant flex items-center gap-2 border border-on-surface/5"
+                className="mb-4 px-4 py-2.5 bg-warning-container/10 rounded-2xl text-xs font-medium text-warning flex items-center gap-2 border border-warning/10"
               >
-                <AlertTriangle className="w-3.5 h-3.5 text-warning" />
+                <AlertTriangle className="w-3.5 h-3.5" />
                 还有 {unresolvedCount} 项待确认冲突
               </motion.div>
-            )}
+            ) : (unresolvedCount === 0 && stage === "planning" && composerMode === "editable") ? (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="mb-3 px-5 flex items-center gap-2.5 text-[11px] font-medium text-on-surface-variant/40 tracking-wider"
+              >
+                <span className="w-1 h-1 rounded-full bg-primary/20 shrink-0" />
+                <p>
+                  整理草案已就绪。若满意方案，请点击右侧面板底部的
+                  <span className="text-primary/60 font-bold mx-1 italic uppercase tracking-widest">“开始方案预检”</span>
+                </p>
+              </motion.div>
+            ) : null}
           </AnimatePresence>
 
           {composerMode === "editable" ? (
-            <div className="relative flex items-center rounded-[26px] border border-on-surface/8 bg-white/85 px-2 shadow-[0_10px_24px_rgba(36,48,42,0.05)]">
-              <input
+            <div className="relative flex items-end rounded-[22px] border border-on-surface/8 bg-white shadow-[0_8px_30px_rgba(0,0,0,0.04)] transition-all focus-within:border-primary/30 focus-within:shadow-[0_12px_40px_rgba(0,0,0,0.06)] px-2 pt-1 pb-1">
+              <textarea
                 ref={inputRef}
-                className="w-full bg-transparent border-l-2 border-transparent focus:border-primary rounded-[22px] py-4 px-4 pr-14 text-sm text-on-surface placeholder:text-on-surface-variant/45 outline-none transition-all disabled:opacity-50"
-                placeholder={isBusy ? "系统正在处理请求..." : "输入你的整理意图或修改要求..."}
-                type="text"
+                rows={1}
+                className="w-full bg-transparent border-none py-3 px-4 text-[14px] text-on-surface placeholder:text-on-surface-variant/30 outline-none resize-none scrollbar-none min-h-[44px]"
+                placeholder={isBusy ? "系统正在处理..." : "描述你的整理意图，或修改现有方案..."}
                 value={messageInput}
                 disabled={isBusy}
                 onChange={(event) => setMessageInput(event.target.value)}
                 onKeyDown={(event) => {
-                  if (event.key === "Enter") {
+                  if (event.key === "Enter" && !event.shiftKey) {
+                    event.preventDefault();
                     onSendMessage();
                   }
                 }}
@@ -635,7 +781,7 @@ export function ConversationPanel({
               <button
                 onClick={onSendMessage}
                 disabled={isBusy || !messageInput.trim()}
-                className="absolute right-2.5 text-on-surface-variant hover:text-primary p-2.5 transition-colors disabled:opacity-20 flex items-center justify-center active:scale-90"
+                className="mb-1.5 mr-1.5 p-2 rounded-xl text-on-surface-variant/40 hover:text-primary hover:bg-primary/5 transition-all disabled:opacity-10 flex items-center justify-center active:scale-95"
               >
                 {isBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
               </button>
@@ -646,11 +792,6 @@ export function ConversationPanel({
             </div>
           )}
 
-          <div className="mt-4 flex items-center justify-center gap-6 text-xs text-on-surface-variant/45 font-medium pointer-events-none">
-            <span>对话整理引擎</span>
-            <div className="w-1 h-1 bg-on-surface-variant/10 rounded-full" />
-            <span>当前阶段 {stage}</span>
-          </div>
         </div>
       )}
     </div>

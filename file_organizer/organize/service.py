@@ -21,9 +21,8 @@ COMMANDS_BLOCK_RE = re.compile(r"<COMMANDS>(.*?)</COMMANDS>", flags=re.S | re.I)
 MOVE_LINE_RE = re.compile(r'^\s*MOVE\s+"(.*?)"\s+"(.*?)"\s*$', flags=re.I)
 MKDIR_LINE_RE = re.compile(r'^\s*MKDIR\s+"(.*?)"\s*$', flags=re.I)
 PLAN_DIFF_TOOL_NAME = "submit_plan_diff"
-PRESENT_PLAN_TOOL_NAME = "focus_ui_section"
 UNRESOLVED_CHOICES_TOOL_NAME = "request_unresolved_choices"
-FINAL_PLAN_TOOL_NAME = "submit_final_plan"
+REPAIR_FINAL_PLAN_TOOL_NAME = "repair_commit_final_plan"
 MODEL_WAIT_MESSAGE = "正在等待模型回复..."
 
 
@@ -126,7 +125,6 @@ def _build_tool_result_messages(
     *,
     plan_diff=None,
     diff_errors: list[str] | None = None,
-    display_request: PlanDisplayRequest | None = None,
     unresolved_request: UnresolvedChoiceRequest | None = None,
     validation: dict | None = None,
 ) -> list[dict]:
@@ -139,17 +137,12 @@ def _build_tool_result_messages(
                 "summary": getattr(plan_diff, "summary", ""),
                 "errors": diff_errors or [],
             }
-        elif name == PRESENT_PLAN_TOOL_NAME:
-            payload = {
-                "ok": display_request is not None,
-                "display_plan": display_request.to_dict() if display_request else None,
-            }
         elif name == UNRESOLVED_CHOICES_TOOL_NAME:
             payload = {
                 "ok": unresolved_request is not None,
                 "request_id": getattr(unresolved_request, "request_id", ""),
             }
-        elif name == FINAL_PLAN_TOOL_NAME:
+        elif name == REPAIR_FINAL_PLAN_TOOL_NAME:
             payload = {
                 "ok": bool(validation and validation.get("is_valid")),
                 "validation": validation,
@@ -718,7 +711,7 @@ def _copy_pending_plan(plan: PendingPlan) -> PendingPlan:
         unresolved_items=list(plan.unresolved_items),
         summary=plan.summary,
     ).with_derived_directories()
-
+ 
 
 def _rename_target_root(target: str, from_name: str, to_name: str) -> str:
     target_parts = split_relative_parts(target)
@@ -910,28 +903,26 @@ def _build_repair_messages(
 
 def _extract_plan_submissions(
     message,
-) -> tuple[str, PlanDiff | None, FinalPlan | None, PlanDisplayRequest | None, UnresolvedChoiceRequest | None]:
+) -> tuple[str, PlanDiff | None, FinalPlan | None, UnresolvedChoiceRequest | None]:
     content = getattr(message, "content", "") or ""
     plan_diff = None
     final_plan = None
-    display_request = None
     unresolved_request = None
     for tool_call in getattr(message, "tool_calls", None) or []:
         args = json.loads(tool_call.function.arguments)
         if tool_call.function.name == PLAN_DIFF_TOOL_NAME:
             plan_diff = PlanDiff.from_dict(args)
-        elif tool_call.function.name == PRESENT_PLAN_TOOL_NAME:
-            display_request = PlanDisplayRequest.from_dict(args)
+
         elif tool_call.function.name == UNRESOLVED_CHOICES_TOOL_NAME:
             unresolved_request = UnresolvedChoiceRequest.from_dict(args)
-        elif tool_call.function.name == FINAL_PLAN_TOOL_NAME:
+        elif tool_call.function.name == REPAIR_FINAL_PLAN_TOOL_NAME:
             final_plan = FinalPlan.from_dict(args)
             
     if plan_diff is not None and final_plan is not None:
         final_plan = None
-        content += "\n[系统提示: 你在同一轮回复中既提交了 plan_diff 增量更新，又提交了 final_plan 最终计划。系统已优先执行 plan_diff 更新状态。请在之后用户确认无误的一轮中，单独调用 final_plan。]"
+        content += "\n[系统提示: 你在同一轮回复中既提交了 plan_diff 增量更新，又提交了 final_plan 最终计划。系统已优先执行 plan_diff 更新状态。]"
         
-    return content, plan_diff, final_plan, display_request, unresolved_request
+    return content, plan_diff, final_plan, unresolved_request
 
 
 def run_organizer_cycle(
@@ -955,7 +946,7 @@ def run_organizer_cycle(
         # 核心：发起 AI 对话获取建议
         message = chat_one_round(llm_messages, event_handler=event_handler, model=model, return_message=True)
         raw_content = getattr(message, "content", "") or ""
-        content, plan_diff, final_plan, display_request, unresolved_request = _extract_plan_submissions(message)
+        content, plan_diff, final_plan, unresolved_request = _extract_plan_submissions(message)
         message_blocks = []
         unresolved_block = _unresolved_request_to_block(unresolved_request)
         if unresolved_block:
@@ -987,7 +978,6 @@ def run_organizer_cycle(
             synthetic_content_used=synthetic_content_used,
         )
             
-        display_plan = display_request.to_dict() if display_request else None
 
         if plan_diff is not None:
             scan_items = extract_scan_items(scan_lines)
@@ -996,7 +986,6 @@ def run_organizer_cycle(
                 message,
                 plan_diff=plan_diff,
                 diff_errors=diff_errors,
-                display_request=display_request,
                 unresolved_request=unresolved_request,
             )
             assistant_context_messages = [assistant_context_message, *tool_result_messages]
@@ -1010,16 +999,14 @@ def run_organizer_cycle(
                 else:
                     return content, None
 
-            if display_plan is None:
-                display_plan = PlanDisplayRequest(
-                    focus="summary",
-                    summary=updated_pending.summary or "请先看整理摘要",
-                ).to_dict()
             return content, {
                 "is_valid": False,
                 "pending_plan": updated_pending,
                 "diff_summary": diff_summary,
-                "display_plan": display_plan,
+                "display_plan": PlanDisplayRequest(
+                    focus="summary",
+                    summary=updated_pending.summary or "请先看整理摘要",
+                ).to_dict(),
                 "unresolved_request": unresolved_request.to_dict() if unresolved_request else None,
                 "final_plan": None,
                 "repair_mode": False,
@@ -1033,14 +1020,13 @@ def run_organizer_cycle(
         if final_plan is None:
             tool_result_messages = _build_tool_result_messages(
                 message,
-                display_request=display_request,
                 unresolved_request=unresolved_request,
             )
             return content, {
                 "is_valid": False,
                 "pending_plan": current_pending,
                 "diff_summary": [],
-                "display_plan": display_plan,
+                "display_plan": None,
                 "unresolved_request": unresolved_request.to_dict() if unresolved_request else None,
                 "final_plan": None,
                 "repair_mode": False,
@@ -1055,7 +1041,6 @@ def run_organizer_cycle(
         validation = validate_final_plan(scan_lines, final_plan)
         tool_result_messages = _build_tool_result_messages(
             message,
-            display_request=display_request,
             unresolved_request=unresolved_request,
             validation=validation,
         )
@@ -1068,7 +1053,7 @@ def run_organizer_cycle(
                 "is_valid": True,
                 "pending_plan": updated_pending,
                 "diff_summary": diff_summary,
-                "display_plan": display_plan,
+                "display_plan": None,
                 "unresolved_request": unresolved_request.to_dict() if unresolved_request else None,
                 "final_plan": final_plan,
                 "repair_mode": False,
@@ -1095,10 +1080,10 @@ def run_organizer_cycle(
             _build_repair_messages(scan_lines, current_constraints, validation, strategy_instructions),
             event_handler=event_handler,
             model=model,
-            tools=[tool for tool in organizer_tools if tool["function"]["name"] == FINAL_PLAN_TOOL_NAME],
+            tools=[repair_final_plan_tool],
             return_message=True,
         )
-        repair_content, _, repaired_plan, _, _ = _extract_plan_submissions(repair_message)
+        repair_content, _, repaired_plan, _ = _extract_plan_submissions(repair_message)
         repair_validation = validate_final_plan(scan_lines, repaired_plan or FinalPlan())
         if repaired_plan is not None and repair_validation["is_valid"]:
             emit(event_handler, "command_validation_pass", {"attempt": attempt + 1, "details": repair_validation})
@@ -1149,12 +1134,41 @@ def run_organizer_cycle(
     return "", None
 
 
+repair_final_plan_tool = {
+    "type": "function",
+    "function": {
+        "name": REPAIR_FINAL_PLAN_TOOL_NAME,
+        "description": "仅在修复模式下提交完整最终方案，用于根据校验错误重建一份可执行的 FinalPlan。",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "directories": {"type": "array", "items": {"type": "string"}},
+                "moves": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "source": {"type": "string"},
+                            "target": {"type": "string"},
+                        },
+                        "required": ["source", "target"],
+                    },
+                },
+                "unresolved_items": {"type": "array", "items": {"type": "string"}},
+                "summary": {"type": "string"},
+            },
+            "required": ["directories", "moves", "unresolved_items"],
+        },
+    },
+}
+
+
 organizer_tools = [
     {
         "type": "function",
         "function": {
             "name": PLAN_DIFF_TOOL_NAME,
-            "description": "提交待定整理计划的增量变更。只要用户对某个 unresolved 项表达了确认或指定了位置，必须通过 unresolved_removals 将其移除，即使 target 路径未变。",
+            "description": "提交待定整理计划的变更。只要用户对某个 unresolved 项表达了确认或指定了位置，必须通过 unresolved_removals 将其移除，即使 target 路径未变。",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -1192,7 +1206,7 @@ organizer_tools = [
         "type": "function",
         "function": {
             "name": UNRESOLVED_CHOICES_TOOL_NAME,
-            "description": "为需要用户明确决策的待确认项生成聊天区交互卡片。每个 item 必须提供 2 个候选目录名，且不要把 Review 放进 suggested_folders。",
+            "description": "如果有用户明确决策的待确认项（unresolved items）调用此工具以获取用户对每个 unresolved items 的选择。每个 item 必须提供 2 个候选目录名，且不要把 Review 放进 suggested_folders。",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -1218,28 +1232,6 @@ organizer_tools = [
                     },
                 },
                 "required": ["request_id", "summary", "items"],
-            },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": PRESENT_PLAN_TOOL_NAME,
-            "description": "引导用户查看前端界面的特定区域（如：切换到变动详情页或问题项列表）。由于数据状态会自动同步，你仅在需要引导用户视觉焦点时调用此工具。",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "focus": {
-                        "type": "string", 
-                        "enum": ["summary", "changes", "details", "unresolved"],
-                        "description": "焦点目标区域：summary(概览面板), changes(本轮变动详情), details(完整计划列表), unresolved(待确认项列表)"
-                    },
-                    "reason": {
-                        "type": "string",
-                        "description": "引导用户查看该区域的简短中文理由（例如：'请检查我刚才为您调整的财务分类'）"
-                    },
-                },
-                "required": ["focus", "reason"],
             },
         },
     },

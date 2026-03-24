@@ -47,6 +47,7 @@ class OrganizerSession:
     updated_at: str = field(default_factory=utc_now_iso)
     stale_reason: str | None = None
     last_error: str | None = None
+    last_ai_pending_plan: dict | None = None
     summary: str = ""
 
     def touch(self) -> None:
@@ -82,6 +83,7 @@ class OrganizerSession:
             updated_at=data.get("updated_at", utc_now_iso()),
             stale_reason=data.get("stale_reason"),
             last_error=data.get("last_error"),
+            last_ai_pending_plan=data.get("last_ai_pending_plan"),
             summary=data.get("summary", ""),
         )
 

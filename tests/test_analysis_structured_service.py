@@ -64,6 +64,22 @@ class StructuredAnalysisServiceTests(unittest.TestCase):
         self.assertEqual(validation["missing"], [])
         self.assertEqual(validation["extra"], [])
 
+    def test_validate_analysis_items_normalizes_relative_and_absolute_entry_names(self):
+        items = [
+            AnalysisItem(entry_name="./合同.pdf", suggested_purpose="财务/合同", summary="付款协议"),
+            AnalysisItem(
+                entry_name=str((self.base_dir / "Screenshots").resolve()),
+                suggested_purpose="截图记录",
+                summary="软件报错截图",
+            ),
+        ]
+
+        validation = analysis_service.validate_analysis_items(items, self.base_dir)
+
+        self.assertTrue(validation["is_valid"])
+        self.assertEqual(validation["missing"], [])
+        self.assertEqual(validation["extra"], [])
+
     def test_append_output_result_accepts_structured_items(self):
         items = [
             AnalysisItem(
@@ -123,6 +139,13 @@ class StructuredAnalysisServiceTests(unittest.TestCase):
         self.assertIn("model_wait_start", events)
         self.assertIn("model_wait_end", events)
         self.assertLess(events.index("model_wait_start"), events.index("model_wait_end"))
+
+    def test_validate_analysis_returns_duplicates_key_for_missing_output(self):
+        validation = analysis_service.validate_analysis("", self.base_dir)
+
+        self.assertFalse(validation["is_valid"])
+        self.assertIn("duplicates", validation)
+        self.assertEqual(validation["duplicates"], [])
 
 
 if __name__ == "__main__":

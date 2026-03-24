@@ -1,20 +1,25 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   AlertTriangle,
   ArrowLeft,
   ArrowRight,
+  CheckCircle2,
+  FileSearch,
   FolderOpen,
   History,
   Layers3,
+  MousePointer2,
+  Search,
+  ShieldCheck,
   Sparkles,
   X,
 } from "lucide-react";
-import { clsx, type ClassValue } from "clsx";
-import { twMerge } from "tailwind-merge";
-import { motion, AnimatePresence } from "motion/react";
+import { motion, AnimatePresence } from "framer-motion";
+import { cn, getFriendlyStatus } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 
 import { createApiClient } from "@/lib/api";
 import { startFreshSession } from "@/lib/session-launcher-actions";
@@ -29,9 +34,6 @@ import {
 } from "@/lib/strategy-templates";
 import { SessionSnapshot, SessionStrategySelection, SessionStrategySummary } from "@/types/session";
 
-function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs));
-}
 
 const STAGE_LABELS: Record<string, string> = {
   idle: "空闲挂起",
@@ -60,15 +62,15 @@ const DEFAULT_STRATEGY_SUMMARY: SessionStrategySummary = {
 function StrategySummaryChips({ strategy }: { strategy: SessionStrategySummary }) {
   return (
     <div className="flex flex-wrap gap-2">
-      <span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">{strategy.template_label}</span>
-      <span className="rounded-full border border-on-surface/8 bg-white px-3 py-1 text-xs font-medium text-on-surface-variant">
+      <span className="rounded-full bg-primary/10 px-3 py-1 text-[11px] font-bold text-primary">{strategy.template_label}</span>
+      <span className="rounded-full border border-on-surface/8 bg-white px-3 py-1 text-[11px] font-bold text-on-surface-variant">
         {strategy.naming_style_label}
       </span>
-      <span className="rounded-full border border-on-surface/8 bg-white px-3 py-1 text-xs font-medium text-on-surface-variant">
+      <span className="rounded-full border border-on-surface/8 bg-white px-3 py-1 text-[11px] font-bold text-on-surface-variant">
         {strategy.caution_level_label}
       </span>
       {strategy.note ? (
-        <span className="rounded-full bg-warning-container/20 px-3 py-1 text-xs font-medium text-on-surface-variant">
+        <span className="rounded-full bg-warning-container/20 px-3 py-1 text-[11px] font-bold text-on-surface-variant">
           偏好：{strategy.note}
         </span>
       ) : null}
@@ -99,10 +101,16 @@ function StrategyDialog({
   onChangeCaution: (id: SessionStrategySelection["caution_level"]) => void;
   onChangeNote: (value: string) => void;
 }) {
+  const [step, setStep] = useState<1 | 2>(1);
   const currentTemplate = useMemo(() => getTemplateMeta(strategy.template_id), [strategy.template_id]);
   const previewDirectories = currentTemplate.previewDirectories[strategy.naming_style] || [];
   const namingLabel = NAMING_STYLE_OPTIONS.find((item) => item.id === strategy.naming_style)?.label || "中文目录";
   const cautionLabel = CAUTION_LEVEL_OPTIONS.find((item) => item.id === strategy.caution_level)?.label || "平衡";
+
+  // When opening, reset to step 1
+  useEffect(() => {
+    if (open) setStep(1);
+  }, [open]);
 
   return (
     <AnimatePresence>
@@ -116,184 +124,304 @@ function StrategyDialog({
           >
             <div className="flex shrink-0 items-start justify-between gap-6 border-b border-on-surface/6 px-8 py-6">
               <div className="space-y-3">
-                <div className="inline-flex items-center gap-2 rounded-full border border-primary/10 bg-primary/8 px-3 py-1 text-xs font-medium text-primary">
-                  <Layers3 className="h-3.5 w-3.5" />
-                  整理策略
+                <div className="flex items-center gap-3">
+                  <div className="inline-flex items-center gap-2 rounded-full border border-primary/10 bg-primary/8 px-3 py-1 text-[11px] font-black uppercase tracking-widest text-primary">
+                    <Layers3 className="h-3.5 w-3.5" />
+                    整理策略配置
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <div className={cn("h-1 w-8 rounded-full transition-all duration-500", step === 1 ? "bg-primary w-12" : "bg-primary/10")} />
+                    <div className={cn("h-1 w-8 rounded-full transition-all duration-500", step === 2 ? "bg-primary w-12" : "bg-primary/10")} />
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <h2 className="text-3xl font-black font-headline tracking-tight text-on-surface">配置这次整理规则</h2>
-                  <p className="max-w-2xl text-[15px] leading-7 text-on-surface-variant">
-                    这里决定本次会话的分类方式、目录命名风格和保守程度。确认后才真正开始扫描。
+                <div className="space-y-1">
+                  <h2 className="text-2xl font-black font-headline tracking-tight text-on-surface uppercase tracking-widest leading-tight">
+                    {step === 1 ? "第一步：核准推理模板" : "第二步：精细化规则调整"}
+                  </h2>
+                  <p className="max-w-2xl text-[13px] font-bold text-on-surface-variant/60 uppercase tracking-widest">
+                    {step === 1 
+                      ? "引擎将根据模板定义的语义模型对目标目录进行重构分析" 
+                      : "您可以基于特定的业务需求微调 AI 的决策偏好"}
                   </p>
                 </div>
               </div>
 
               <div className="flex items-start gap-3">
-                <div className="hidden rounded-[22px] border border-on-surface/8 bg-surface-container-low/35 px-5 py-4 lg:block">
-                  <div className="text-xs font-medium text-on-surface-variant/70">当前目录</div>
-                  <p className="mt-2 max-w-[320px] break-all text-sm font-medium text-on-surface">{targetDir}</p>
+                <div className="hidden rounded-2xl border border-on-surface/8 bg-surface-container-low/35 px-5 py-3 lg:block">
+                  <div className="text-[11px] font-black text-on-surface-variant/40 uppercase tracking-widest">目标目录</div>
+                  <p className="mt-1 max-w-[260px] truncate text-[13px] font-black text-on-surface font-mono opacity-80" title={targetDir}>{targetDir}</p>
                 </div>
-                <button
-                  type="button"
+                <Button
+                  variant="secondary"
+                  size="sm"
                   onClick={onClose}
-                  className="rounded-full border border-on-surface/8 bg-white p-2.5 text-on-surface-variant transition-colors hover:text-on-surface hover:bg-surface-container-low"
+                  className="w-11 h-11 p-0 rounded-full"
                   title="关闭"
                 >
                   <X className="h-4.5 w-4.5" />
-                </button>
+                </Button>
               </div>
             </div>
 
             <div className="min-h-0 flex-1 overflow-y-auto px-8 py-7">
-              <div className="grid gap-6 xl:grid-cols-[240px_minmax(0,1fr)]">
-                <div className="space-y-2">
-                  {STRATEGY_TEMPLATES.map((template) => {
-                    const active = strategy.template_id === template.id;
-                    return (
-                      <button
-                        key={template.id}
-                        type="button"
-                        disabled={loading}
-                        onClick={() => onTemplateSelect(template.id)}
-                        className={cn(
-                          "w-full rounded-[22px] border px-4 py-4 text-left transition-all disabled:opacity-50",
-                          active
-                            ? "border-primary/15 bg-white text-on-surface shadow-sm"
-                            : "border-transparent bg-surface-container-low/45 text-on-surface-variant hover:border-on-surface/8 hover:bg-white/70",
-                        )}
-                      >
-                        <p className="text-sm font-bold">{template.label}</p>
-                        <p className="mt-1 text-xs leading-5 opacity-80">{template.description}</p>
-                      </button>
-                    );
-                  })}
-                </div>
+              <AnimatePresence mode="wait">
+                {step === 1 ? (
+                  <motion.div
+                    key="step-1"
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: 10 }}
+                    className="grid gap-8 lg:grid-cols-[320px_minmax(0,1fr)]"
+                  >
+                    <div className="space-y-4">
+                      <div className="text-[11px] font-black text-on-surface-variant/40 uppercase tracking-[0.2em] px-1">集成推理模板</div>
+                      <div className="space-y-3">
+                        {STRATEGY_TEMPLATES.map((template) => {
+                          const active = strategy.template_id === template.id;
+                          return (
+                            <button
+                              key={template.id}
+                              type="button"
+                              disabled={loading}
+                              onClick={() => {
+                                onTemplateSelect(template.id);
+                              }}
+                              className={cn(
+                                "w-full rounded-[28px] border-2 px-6 py-5 text-left transition-all disabled:opacity-50 group relative overflow-hidden",
+                                active
+                                  ? "border-primary bg-primary/5 text-on-surface shadow-xl shadow-primary/10"
+                                  : "border-on-surface/5 bg-white/50 text-on-surface-variant hover:border-primary/20 hover:bg-white",
+                              )}
+                            >
+                              <div className="flex items-center justify-between mb-2">
+                                <p className={cn("text-[15px] font-black tracking-tight", active ? "text-primary" : "text-on-surface")}>{template.label}</p>
+                                {active && (
+                                   <div className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center">
+                                     <CheckCircle2 className="h-3.5 w-3.5" />
+                                   </div>
+                                )}
+                              </div>
+                              <p className="text-[12px] font-bold leading-relaxed text-on-surface-variant/60 group-hover:text-on-surface-variant/80 transition-colors uppercase tracking-widest">{template.description}</p>
+                              
+                              {active && (
+                                <motion.div 
+                                  layoutId="active-indicator"
+                                  className="absolute left-0 top-0 bottom-0 w-1 bg-primary"
+                                />
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
 
-                <div className="space-y-5">
-                  <div className="rounded-[32px] border border-on-surface/6 bg-white/80 p-8">
-                    <div className="grid gap-8 lg:grid-cols-[1.18fr_0.82fr]">
-                      <div className="space-y-5">
-                        <div className="space-y-3">
-                          <div className="text-xs font-medium text-on-surface-variant/70">整理结果预览</div>
-                          <p className="text-4xl font-black font-headline tracking-tight text-on-surface">{currentTemplate.label}</p>
-                          <p className="max-w-xl text-[15px] leading-8 text-on-surface-variant">{currentTemplate.description}</p>
+                    <div className="space-y-10">
+                      <div className="rounded-[40px] border border-on-surface/10 bg-white shadow-2xl shadow-on-surface/5 p-10">
+                        <div className="grid gap-12 lg:grid-cols-[1.2fr_0.8fr]">
+                          <div className="space-y-10">
+                            <div className="space-y-4">
+                              <div className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-4 py-1.5 text-[11px] font-black uppercase tracking-[0.2em] text-primary">
+                                <Sparkles className="h-4 w-4" />
+                                语义重构预览
+                              </div>
+                              <h3 className="text-4xl font-black font-headline tracking-tighter text-on-surface uppercase">{currentTemplate.label}</h3>
+                              <p className="max-w-xl text-[15px] font-bold leading-8 text-on-surface-variant/60">{currentTemplate.description}</p>
+                            </div>
+                            
+                            <div className="space-y-4">
+                              <div className="text-[11px] font-black text-on-surface-variant/40 uppercase tracking-[0.3em]">核心算法应用场景</div>
+                              <div className="text-[15px] font-bold leading-8 text-on-surface bg-surface-container-low/60 rounded-[28px] p-6 border border-on-surface/5 shadow-inner italic">
+                                "{currentTemplate.applicableScenarios}"
+                              </div>
+                            </div>
+
+                            <div className="flex flex-wrap gap-4">
+                              <div className="rounded-full border border-on-surface/8 bg-white px-5 py-2.5 text-[11px] font-black uppercase tracking-widest text-on-surface-variant/60 flex items-center gap-3 shadow-sm">
+                                <span className="opacity-30">命名语义:</span> {namingLabel}
+                              </div>
+                              <div className="rounded-full border border-on-surface/8 bg-white px-5 py-2.5 text-[11px] font-black uppercase tracking-widest text-on-surface-variant/60 flex items-center gap-3 shadow-sm">
+                                <span className="opacity-30">逻辑严谨度:</span> {cautionLabel}
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="space-y-6 rounded-[32px] bg-surface-container-low/30 p-8 border border-on-surface/5 relative overflow-hidden group">
+                            <div className="absolute top-0 right-0 p-4 opacity-10 rotate-12 group-hover:rotate-0 transition-transform duration-1000">
+                               <FolderOpen className="w-12 h-12" />
+                            </div>
+                            <div className="text-[11px] font-black text-on-surface-variant/40 uppercase tracking-[0.3em] mb-4">推测目录拓扑结构</div>
+                            <div className="space-y-3">
+                              {previewDirectories.map((directory, index) => (
+                                <motion.div
+                                  initial={{ opacity: 0, x: 20 }}
+                                  animate={{ opacity: 1, x: 0 }}
+                                  transition={{ delay: index * 0.1 }}
+                                  key={`${strategy.template_id}-${strategy.naming_style}-${directory}`}
+                                  className="flex items-center gap-4 rounded-[22px] bg-white px-5 py-4 shadow-sm border border-on-surface/5 hover:border-primary/20 transition-colors"
+                                >
+                                  <div className="w-2 h-2 rounded-full bg-primary/20" />
+                                  <span className="text-[14px] font-black text-on-surface tracking-tight">{directory}</span>
+                                </motion.div>
+                              ))}
+                            </div>
+                          </div>
                         </div>
-                        <div className="flex flex-wrap gap-2">
-                          <span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">{namingLabel}</span>
-                          <span className="rounded-full bg-surface-container px-3 py-1 text-xs font-medium text-on-surface-variant">{cautionLabel}</span>
+                      </div>
+                      
+                      <div className="flex items-center gap-4 rounded-[28px] bg-primary/5 border border-primary/10 p-6 px-8 shadow-sm">
+                        <div className="w-10 h-10 rounded-2xl bg-white flex items-center justify-center text-primary shadow-sm">
+                          <AlertTriangle className="h-5 w-5" />
                         </div>
-                        <p className="max-w-lg text-sm leading-7 text-on-surface-variant">
-                          当前模板会优先决定如何分组目录、目录名偏什么风格，以及不确定项是更保守地进入待确认区，还是尽量自动归类。
+                        <p className="text-[13px] font-bold text-primary/80 leading-relaxed uppercase tracking-widest">
+                          NOTE: 此时尚未开始对文件进行物理移动。点击“下一步”核对最终决策权重。
                         </p>
                       </div>
+                    </div>
+                  </motion.div>
+                ) : (
+                  <motion.div
+                    key="step-2"
+                    initial={{ opacity: 0, x: 10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -10 }}
+                    className="grid gap-6 lg:grid-cols-2"
+                  >
+                    <div className="space-y-6">
+                      <div className="rounded-[26px] border border-on-surface/6 bg-white/68 p-6">
+                        <div className="mb-6 flex items-center justify-between">
+                          <span className="text-[11px] font-black text-on-surface-variant/40 uppercase tracking-[0.3em]">目录命名风格</span>
+                        </div>
+                        <div className="grid grid-cols-1 gap-3">
+                          {NAMING_STYLE_OPTIONS.map((option) => {
+                            const active = strategy.naming_style === option.id;
+                            return (
+                              <button
+                                key={option.id}
+                                type="button"
+                                disabled={loading}
+                                onClick={() => onChangeNaming(option.id)}
+                                className={cn(
+                                  "w-full rounded-[24px] border-2 px-6 py-5 text-left transition-all disabled:opacity-50",
+                                  active ? "border-primary bg-primary/5 shadow-lg shadow-primary/5" : "border-on-surface/5 bg-surface-container-low/50 hover:border-primary/20",
+                                )}
+                              >
+                                <p className={cn("text-[14px] font-black uppercase tracking-tight", active ? "text-primary" : "text-on-surface")}>{option.label}</p>
+                                <p className="mt-1 text-[12px] font-bold text-on-surface-variant/50 leading-relaxed uppercase tracking-widest">{option.description}</p>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
 
-                      <div className="space-y-3 border-t border-on-surface/6 pt-5 lg:border-l lg:border-t-0 lg:pl-7 lg:pt-0">
-                        <div className="text-xs font-medium text-on-surface-variant/70">建议目录示例</div>
-                        {previewDirectories.map((directory, index) => (
-                          <div
-                            key={`${strategy.template_id}-${strategy.naming_style}-${directory}`}
-                            className="flex items-center justify-between border-b border-on-surface/6 py-3 first:pt-0 last:border-b-0 last:pb-0"
-                          >
-                            <span className="font-mono text-sm text-on-surface-variant/55">/{String(index + 1).padStart(2, "0")}</span>
-                            <span className="text-sm font-bold text-on-surface">{directory}</span>
+                      <div className="rounded-[26px] border border-on-surface/6 bg-white/68 p-6">
+                        <div className="mb-6 flex items-center justify-between">
+                          <span className="text-[11px] font-black text-on-surface-variant/40 uppercase tracking-[0.3em]">整理保守度</span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          {CAUTION_LEVEL_OPTIONS.map((option) => {
+                            const active = strategy.caution_level === option.id;
+                            return (
+                              <button
+                                key={option.id}
+                                type="button"
+                                disabled={loading}
+                                onClick={() => onChangeCaution(option.id)}
+                                className={cn(
+                                  "flex flex-col h-full rounded-[24px] border-2 px-6 py-6 text-left transition-all disabled:opacity-50",
+                                  active ? "border-primary bg-primary/5 shadow-lg shadow-primary/5" : "border-on-surface/5 bg-surface-container-low/50 hover:border-primary/20",
+                                )}
+                              >
+                                <p className={cn("text-[14px] font-black mb-2 uppercase tracking-tight", active ? "text-primary" : "text-on-surface")}>{option.label}</p>
+                                <p className="text-[12px] font-bold text-on-surface-variant/50 leading-relaxed uppercase tracking-widest">{option.description}</p>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-6">
+                      <div className="rounded-[32px] border border-on-surface/10 bg-white p-8 h-full flex flex-col shadow-xl shadow-on-surface/5">
+                        <div className="mb-6 flex items-center justify-between px-2">
+                          <span className="text-[11px] font-black text-on-surface-variant/40 uppercase tracking-[0.3em]">补充推理约束 / 偏好</span>
+                          <span className="text-[11px] font-black text-primary/40 uppercase tracking-widest">PROMPT CONTEXT</span>
+                        </div>
+                        <textarea
+                          value={strategy.note}
+                          disabled={loading}
+                          onChange={(event) => onChangeNote(event.target.value.slice(0, 200))}
+                          placeholder="例如：项目相关文件尽量集中；拿不准的都先放待确认区。"
+                          className="flex-1 w-full rounded-[28px] border-2 border-on-surface/5 bg-surface-container-low/20 px-6 py-6 text-[15px] font-bold leading-relaxed text-on-surface outline-none transition-all placeholder:text-on-surface-variant/20 focus:border-primary/40 focus:ring-8 focus:ring-primary/5 disabled:opacity-50 resize-none shadow-inner"
+                        />
+                        <div className="mt-8 flex items-center gap-4 rounded-[24px] bg-primary/5 p-6 border border-primary/10">
+                          <div className="w-10 h-10 rounded-2xl bg-white flex items-center justify-center text-primary shadow-sm">
+                             <Sparkles className="h-5 w-5" />
                           </div>
-                        ))}
+                          <p className="text-[12px] font-bold text-primary/80 leading-relaxed uppercase tracking-[0.1em]">
+                            AI 提示词注入: 引擎将把此项作为 top-level 系统规则强制执行。
+                          </p>
+                        </div>
                       </div>
                     </div>
-                  </div>
-
-                  <div className="grid gap-5 lg:grid-cols-2">
-                    <div className="rounded-[26px] border border-on-surface/6 bg-white/68 p-6">
-                      <div className="mb-4 text-xs font-medium text-on-surface-variant/70">目录命名风格</div>
-                      <div className="space-y-2">
-                        {NAMING_STYLE_OPTIONS.map((option) => {
-                          const active = strategy.naming_style === option.id;
-                          return (
-                            <button
-                              key={option.id}
-                              type="button"
-                              disabled={loading}
-                              onClick={() => onChangeNaming(option.id)}
-                              className={cn(
-                                "w-full rounded-[18px] border px-4 py-3 text-left transition-all disabled:opacity-50",
-                                active ? "border-primary/15 bg-primary/5" : "border-transparent bg-surface-container-low/50 hover:border-on-surface/8",
-                              )}
-                            >
-                              <p className="text-sm font-bold text-on-surface">{option.label}</p>
-                              <p className="mt-1 text-[13px] leading-6 text-on-surface-variant">{option.description}</p>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-
-                    <div className="rounded-[26px] border border-on-surface/6 bg-white/68 p-6">
-                      <div className="mb-4 text-xs font-medium text-on-surface-variant/70">整理保守度</div>
-                      <div className="space-y-2">
-                        {CAUTION_LEVEL_OPTIONS.map((option) => {
-                          const active = strategy.caution_level === option.id;
-                          return (
-                            <button
-                              key={option.id}
-                              type="button"
-                              disabled={loading}
-                              onClick={() => onChangeCaution(option.id)}
-                              className={cn(
-                                "w-full rounded-[18px] border px-4 py-3 text-left transition-all disabled:opacity-50",
-                                active ? "border-primary/15 bg-primary/5" : "border-transparent bg-surface-container-low/50 hover:border-on-surface/8",
-                              )}
-                            >
-                              <p className="text-sm font-bold text-on-surface">{option.label}</p>
-                              <p className="mt-1 text-[13px] leading-6 text-on-surface-variant">{option.description}</p>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="rounded-[26px] border border-on-surface/6 bg-white/68 p-6">
-                    <div className="mb-4 text-xs font-medium text-on-surface-variant/70">补充说明</div>
-                    <textarea
-                      value={strategy.note}
-                      disabled={loading}
-                      onChange={(event) => onChangeNote(event.target.value.slice(0, 200))}
-                      placeholder="例如：项目相关文件尽量集中；拿不准的都先放待确认。"
-                      className="min-h-[148px] w-full rounded-[22px] border border-on-surface/8 bg-surface-container-low/25 px-4 py-3 text-sm leading-7 text-on-surface outline-none transition-all placeholder:text-outline-variant/60 focus:border-primary/30 focus:ring-2 focus:ring-primary/10 disabled:opacity-50"
-                    />
-                  </div>
-                </div>
-              </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
 
             <div className="shrink-0 border-t border-on-surface/6 bg-white/92 px-8 py-5 backdrop-blur-sm">
-              <div className="flex flex-wrap items-center justify-between gap-4 rounded-[24px] border border-on-surface/6 bg-surface/72 px-5 py-4">
-                <div className="space-y-1">
-                  <p className="text-sm font-bold text-on-surface">当前配置</p>
-                  <div className="flex flex-wrap gap-2">
-                    <span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">{currentTemplate.label}</span>
-                    <span className="rounded-full bg-white px-3 py-1 text-xs font-medium text-on-surface-variant border border-on-surface/8">{namingLabel}</span>
-                    <span className="rounded-full bg-white px-3 py-1 text-xs font-medium text-on-surface-variant border border-on-surface/8">{cautionLabel}</span>
+              <div className="flex flex-wrap items-center justify-between gap-4 rounded-[28px] border border-on-surface/6 bg-surface/72 px-6 py-4">
+                <div className="flex flex-wrap items-center gap-3">
+                  <div className="text-xs font-bold text-on-surface-variant/60 uppercase tracking-wider">已选配置</div>
+                  <div className="flex flex-wrap gap-1.5">
+                    <span className="rounded-full bg-primary/10 px-3 py-1 text-[11px] font-bold text-primary">{currentTemplate.label}</span>
+                    {step === 2 && (
+                      <span className="rounded-full bg-white px-3 py-1 text-[11px] font-medium text-on-surface-variant border border-on-surface/8">
+                        {namingLabel} · {cautionLabel}
+                      </span>
+                    )}
                   </div>
                 </div>
 
                 <div className="flex items-center gap-3">
-                  <button
-                    type="button"
-                    onClick={onClose}
-                    className="rounded-[18px] border border-on-surface/10 px-5 py-3 text-sm font-medium text-on-surface-variant transition-colors hover:bg-surface-container-low hover:text-on-surface"
-                  >
-                    取消
-                  </button>
-                  <button
-                    type="button"
-                    onClick={onConfirm}
-                    disabled={loading}
-                    className="rounded-[18px] bg-primary px-6 py-3 text-sm font-bold text-white transition-all hover:opacity-90 hover:scale-[0.98] disabled:opacity-50 disabled:scale-100 flex items-center gap-2"
-                  >
-                    {loading ? "创建中" : "确认策略并开始扫描"}
-                    {!loading && <ArrowRight className="h-4 w-4" />}
-                  </button>
+                  {step === 1 ? (
+                    <>
+                      <Button
+                        variant="secondary"
+                        onClick={onClose}
+                        className="px-8 py-3.5"
+                      >
+                        取消
+                      </Button>
+                      <Button
+                        variant="primary"
+                        onClick={() => setStep(2)}
+                        className="px-10 py-3.5"
+                      >
+                        下一步
+                        <ArrowRight className="ml-2 h-4 w-4" />
+                      </Button>
+                    </>
+                  ) : (
+                    <>
+                      <Button
+                        variant="secondary"
+                        onClick={() => setStep(1)}
+                        className="px-8 py-3.5"
+                      >
+                        <ArrowLeft className="mr-2 h-4 w-4" />
+                        返回模版
+                      </Button>
+                      <Button
+                        variant="primary"
+                        onClick={onConfirm}
+                        disabled={loading}
+                        loading={loading}
+                        className="px-10 py-3.5"
+                      >
+                        {loading ? "处理中" : "确认策略并开始扫描"}
+                      </Button>
+                    </>
+                  )}
                 </div>
               </div>
             </div>
@@ -444,37 +572,72 @@ export function SessionLauncher() {
             </p>
           </div>
 
-          <div className="rounded-[34px] border border-on-surface/6 bg-white/72 p-7 shadow-[0_22px_60px_rgba(36,48,42,0.06)] backdrop-blur-sm text-left">
-            <div className="mb-4 text-sm font-medium text-on-surface-variant/75">目录选择</div>
-            <div className="relative">
-              <button
-                type="button"
+          <div className="rounded-[34px] border border-on-surface/10 bg-white/80 p-10 shadow-[0_32px_80px_rgba(36,48,42,0.08)] backdrop-blur-xl text-left">
+            <div className="mb-6 flex items-center justify-between">
+              <div className="text-[11px] font-black text-on-surface-variant/40 uppercase tracking-[0.3em]">AI 整理流水线</div>
+              <div className="flex items-center gap-6 text-[11px] font-black text-on-surface-variant/30 uppercase tracking-[0.2em]">
+                <span className="flex items-center gap-2 group transition-colors hover:text-primary"><Search className="h-3.5 w-3.5" /> 1.深度扫描</span>
+                <div className="w-4 h-px bg-on-surface/10" />
+                <span className="flex items-center gap-2 group transition-colors hover:text-primary"><FileSearch className="h-3.5 w-3.5" /> 2.逻辑重构</span>
+                <div className="w-4 h-px bg-on-surface/10" />
+                <span className="flex items-center gap-2 group transition-colors hover:text-primary"><CheckCircle2 className="h-3.5 w-3.5" /> 3.物理执行</span>
+              </div>
+            </div>
+            <div className="relative group">
+              <Button
+                variant="ghost"
                 onClick={handleSelectDir}
                 disabled={loading}
-                className="absolute left-4 top-1/2 -translate-y-1/2 rounded-xl p-2 text-outline transition-colors hover:bg-surface-container hover:text-primary disabled:opacity-50"
+                className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 p-0 rounded-xl hover:bg-surface-container-low"
                 title="浏览文件夹"
               >
                 <FolderOpen className="h-5 w-5" />
-              </button>
+              </Button>
               <input
                 value={targetDir}
                 onChange={(event) => setTargetDir(event.target.value)}
                 disabled={loading}
-                className="w-full rounded-[26px] border border-on-surface/8 bg-surface-container-low/25 py-5 pl-16 pr-44 text-[15px] text-on-surface outline-none transition-all placeholder:text-outline-variant/60 focus:border-primary/20 focus:ring-2 focus:ring-primary/10 disabled:opacity-70"
-                placeholder="例如: D:\\Downloads"
+                className="w-full rounded-[28px] border-2 border-on-surface/5 bg-surface-container-low/20 py-6 pl-16 pr-44 text-[15px] font-bold text-on-surface outline-none transition-all placeholder:text-on-surface-variant/20 focus:border-primary/40 focus:ring-8 focus:ring-primary/5 disabled:opacity-70 shadow-inner"
+                placeholder="例如: D:\\Downloads\\Incomplete"
                 onKeyDown={(e) => {
                   if (e.key === "Enter") openStrategyDialog();
                 }}
               />
-              <button
-                type="button"
+              <Button
+                variant="primary"
                 onClick={openStrategyDialog}
                 disabled={loading || !targetDir.trim()}
-                className="absolute right-2 top-1/2 -translate-y-1/2 rounded-[18px] bg-primary px-5 py-3 text-sm font-bold text-white transition-all hover:opacity-90 hover:scale-[0.98] disabled:opacity-50 disabled:scale-100 flex items-center gap-2"
+                loading={loading}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 px-8 py-4 h-[calc(100%-1.25rem)] rounded-[22px]"
               >
                 {loading ? "处理中" : "开始整理"}
-                {!loading && <ArrowRight className="h-4 w-4" />}
-              </button>
+                {!loading && <ArrowRight className="ml-2 h-4 w-4" />}
+              </Button>
+            </div>
+            
+            <div className="mt-8 flex flex-wrap items-center gap-x-10 gap-y-4 px-2">
+              <div className="flex items-center gap-3 text-[11px] font-black text-emerald-600 uppercase tracking-widest bg-emerald-500/5 px-4 py-2 rounded-full border border-emerald-500/10">
+                <ShieldCheck className="h-3.5 w-3.5" />
+                <span>安全预警：物理操作前需手动确认</span>
+              </div>
+              <div className="flex items-center gap-4 text-[11px] font-black text-on-surface-variant/40 uppercase tracking-widest">
+                <span className="opacity-40 italic">推荐场景:</span>
+                <div className="flex gap-4">
+                  {[
+                    { label: "下载目录", path: "D:\\Downloads" },
+                    { label: "桌面临时区", path: "C:\\Users\\Desktop" },
+                    { label: "项目工作区", path: "D:\\Projects" }
+                  ].map((scene) => (
+                    <button 
+                      key={scene.label}
+                      onClick={() => setTargetDir(scene.path)} 
+                      className="hover:text-primary hover:opacity-100 opacity-60 transition-all border-b border-on-surface/10 hover:border-primary"
+                    >
+                      {scene.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -523,13 +686,13 @@ export function SessionLauncher() {
                   <History className="h-6 w-6" />
                 </div>
                 <div className="space-y-1">
-                  <h2 className="text-xl font-bold font-headline text-on-surface">
-                    {isCompletedResume ? "发现该目录的历史整理记录" : "发现进行中的整理工作"}
+                  <h2 className="text-xl font-black font-headline text-on-surface uppercase tracking-tight">
+                    {isCompletedResume ? "发现已完成的整理历史" : "检测到未完成的整理进度"}
                   </h2>
-                  <p className="text-sm text-on-surface-variant">
+                  <p className="text-[13px] font-bold text-on-surface-variant/60 uppercase tracking-widest">
                     {isCompletedResume
-                      ? "你可以只读查看旧结果，也可以直接用当前策略重新开始新一轮整理。"
-                      : "如果继续上次会话，将沿用当时的策略配置和当前整理阶段。"}
+                      ? "您可以只读查看旧结果，或者应用当前策略启动新一轮重构"
+                      : "建议继续上次会话以保持整理逻辑的一致性"}
                   </p>
                 </div>
               </div>
@@ -540,42 +703,46 @@ export function SessionLauncher() {
                 <em>{STAGE_LABELS[resumePrompt.snapshot.stage] || resumePrompt.snapshot.stage}</em>）。
               </p>
 
-              <div className="mb-6 space-y-3 rounded-[24px] border border-on-surface/6 bg-surface-container-low/55 px-5 py-5">
-                <p className="text-xs font-medium text-on-surface-variant">继续上次整理时将沿用旧策略</p>
+              <div className="mb-8 space-y-4 rounded-[28px] border border-on-surface/5 bg-surface-container-low/40 p-6 shadow-inner">
+                <p className="text-[11px] font-black text-on-surface-variant/40 uppercase tracking-[0.2em]">正在沿用的逻辑架构</p>
                 <StrategySummaryChips strategy={resumeStrategy} />
               </div>
 
-              <div className="flex flex-col gap-3">
-                <button
+              <div className="flex flex-col gap-4">
+                <Button
+                  variant="primary"
                   onClick={handleConfirmResume}
-                  className="w-full rounded-xl bg-primary py-3 font-bold text-white transition-opacity hover:opacity-90 active:scale-[0.98]"
+                  className="w-full py-4 text-sm"
                 >
-                  {isCompletedResume ? "打开这次历史结果" : "继续上次整理"}
-                </button>
-                <div className="rounded-[20px] border border-on-surface/8 px-4 py-3 text-xs leading-6 text-on-surface-variant">
+                  {isCompletedResume ? "立即进入历史视图" : "恢复当前整理进度"}
+                </Button>
+                <div className="rounded-2xl border border-on-surface/5 bg-on-surface/5 px-5 py-4 text-[12px] font-bold leading-relaxed text-on-surface-variant/60 uppercase tracking-widest">
                   {isCompletedResume
-                    ? "如果选择“重新开始”，将直接使用你当前选中的新策略创建一条新的整理会话。"
-                    : "如果选择“重新开始”，将放弃旧会话并使用你当前选中的新策略重新创建整理任务。"}
+                    ? "RESTART: 将会基于您当前的最新策略配置，重新对目录进行全量深度扫描。"
+                    : "RESTART: 将放弃当前的未完成状态，并强制应用新策略重新初始化任务。"}
                 </div>
                 <div className="grid grid-cols-3 gap-3">
-                  <button
+                  <Button
+                    variant="secondary"
                     onClick={() => void handleStartFresh()}
-                    className="w-full rounded-xl bg-surface-container py-3 font-bold text-on-surface transition-colors hover:bg-surface-container-high active:scale-[0.98]"
+                    className="py-3.5"
                   >
                     重新开始
-                  </button>
-                  <button
+                  </Button>
+                  <Button
+                    variant="secondary"
                     onClick={handleReadOnlyView}
-                    className="w-full rounded-xl bg-white py-3 font-bold text-on-surface transition-colors border border-outline-variant/20 hover:bg-surface-container-low active:scale-[0.98]"
+                    className="py-3.5"
                   >
                     只读查看
-                  </button>
-                  <button
+                  </Button>
+                  <Button
+                    variant="ghost"
                     onClick={handleCancelResume}
-                    className="w-full rounded-xl border border-outline-variant/30 py-3 font-bold text-on-surface-variant transition-colors hover:bg-surface-container-low active:scale-[0.98]"
+                    className="py-3.5"
                   >
                     取消
-                  </button>
+                  </Button>
                 </div>
               </div>
             </motion.div>

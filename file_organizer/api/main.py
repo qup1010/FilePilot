@@ -1,16 +1,59 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 from pathlib import Path
 from queue import Empty
+from typing import Any
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
+from pydantic import BaseModel, ConfigDict, Field
 
 from file_organizer.app.session_service import OrganizerSessionService
 from file_organizer.app.session_store import SessionStore
+
+logger = logging.getLogger(__name__)
+
+
+class CreateSessionPayload(BaseModel):
+    target_dir: str
+    resume_if_exists: bool = False
+    strategy: dict[str, Any] | None = None
+
+
+class MessagePayload(BaseModel):
+    content: str
+
+
+class UpdateItemPayload(BaseModel):
+    item_id: str
+    target_dir: str | None = None
+    move_to_review: bool = False
+
+
+class ConfirmPayload(BaseModel):
+    confirm: bool = False
+
+
+class OpenDirPayload(BaseModel):
+    path: str | None = None
+
+
+class ConfigSwitchPayload(BaseModel):
+    id: str
+
+
+class AddProfilePayload(BaseModel):
+    name: str
+    copy_profile: bool = Field(default=True, alias="copy")
+
+
+class LlmTestPayload(BaseModel):
+    model_config = ConfigDict(extra="allow")
+    test_type: str = "text"
 
 
 def _error_response(service: OrganizerSessionService, session_id: str | None, error_code: str, status_code: int):
@@ -21,6 +64,20 @@ def _error_response(service: OrganizerSessionService, session_id: str | None, er
         except FileNotFoundError:
             pass
     return JSONResponse(status_code=status_code, content=content)
+
+
+def _get_request_token(request: Request) -> str:
+    header_token = request.headers.get("x-file-organizer-token", "").strip()
+    if header_token:
+        return header_token
+
+    authorization = request.headers.get("authorization", "")
+    if authorization.lower().startswith("bearer "):
+        bearer_token = authorization[7:].strip()
+        if bearer_token:
+            return bearer_token
+
+    return request.query_params.get("access_token", "").strip()
 
 
 def create_app(service: OrganizerSessionService | None = None) -> FastAPI:
@@ -38,17 +95,32 @@ def create_app(service: OrganizerSessionService | None = None) -> FastAPI:
         allow_headers=["*"],
     )
 
+    @app.middleware("http")
+    async def require_api_token(request: Request, call_next):
+        if request.method == "OPTIONS":
+            return await call_next(request)
+
+        path = request.url.path
+        if path == "/api/health" or not path.startswith("/api/"):
+            return await call_next(request)
+
+        expected_token = os.getenv("FILE_ORGANIZER_API_TOKEN", "").strip()
+        if expected_token and _get_request_token(request) != expected_token:
+            return JSONResponse(status_code=401, content={"detail": "UNAUTHORIZED"})
+
+        return await call_next(request)
+
     @app.get("/api/health")
     def health():
         return {"status": "ok", "instance_id": os.getenv("FILE_ORGANIZER_INSTANCE_ID")}
 
     @app.post("/api/sessions")
-    def create_session(payload: dict):
+    def create_session(payload: CreateSessionPayload):
         try:
             result = app.state.service.create_session(
-                payload["target_dir"],
-                bool(payload.get("resume_if_exists", False)),
-                payload.get("strategy"),
+                payload.target_dir,
+                payload.resume_if_exists,
+                payload.strategy,
             )
         except RuntimeError as exc:
             if str(exc) == "SESSION_LOCKED":
@@ -124,9 +196,9 @@ def create_app(service: OrganizerSessionService | None = None) -> FastAPI:
             raise
 
     @app.post("/api/sessions/{session_id}/messages")
-    def submit_message(session_id: str, payload: dict):
+    def submit_message(session_id: str, payload: MessagePayload):
         try:
-            result = app.state.service.submit_user_intent(session_id, payload["content"])
+            result = app.state.service.submit_user_intent(session_id, payload.content)
             return {
                 "session_id": session_id,
                 "assistant_message": result.assistant_message,
@@ -138,13 +210,13 @@ def create_app(service: OrganizerSessionService | None = None) -> FastAPI:
             return _error_response(app.state.service, session_id, "SESSION_STAGE_CONFLICT", 409)
 
     @app.post("/api/sessions/{session_id}/update-item")
-    def update_item(session_id: str, payload: dict):
+    def update_item(session_id: str, payload: UpdateItemPayload):
         try:
             result = app.state.service.update_item_target(
                 session_id,
-                payload["item_id"],
-                payload.get("target_dir"),
-                bool(payload.get("move_to_review", False)),
+                payload.item_id,
+                payload.target_dir,
+                payload.move_to_review,
             )
             return {"session_id": session_id, "session_snapshot": result.session_snapshot}
         except FileNotFoundError:
@@ -199,9 +271,9 @@ def create_app(service: OrganizerSessionService | None = None) -> FastAPI:
             return _error_response(app.state.service, session_id, "SESSION_STAGE_CONFLICT", 409)
 
     @app.post("/api/sessions/{session_id}/execute")
-    def execute(session_id: str, payload: dict):
+    def execute(session_id: str, payload: ConfirmPayload):
         try:
-            result = app.state.service.execute(session_id, bool(payload.get("confirm", False)))
+            result = app.state.service.execute(session_id, payload.confirm)
             return {"session_id": session_id, "session_snapshot": result.session_snapshot}
         except FileNotFoundError:
             raise HTTPException(status_code=404, detail="SESSION_NOT_FOUND")
@@ -213,9 +285,9 @@ def create_app(service: OrganizerSessionService | None = None) -> FastAPI:
             raise
 
     @app.post("/api/sessions/{session_id}/rollback")
-    def rollback(session_id: str, payload: dict):
+    def rollback(session_id: str, payload: ConfirmPayload):
         try:
-            result = app.state.service.rollback(session_id, bool(payload.get("confirm", False)))
+            result = app.state.service.rollback(session_id, payload.confirm)
             return {"session_id": session_id, "session_snapshot": result.session_snapshot}
         except FileNotFoundError:
             raise HTTPException(status_code=404, detail="SESSION_NOT_FOUND")
@@ -276,33 +348,31 @@ def create_app(service: OrganizerSessionService | None = None) -> FastAPI:
         return StreamingResponse(stream(), media_type="text/event-stream")
 
     @app.post("/api/utils/open-dir")
-    def open_dir(payload: dict):
-        path = payload.get("path")
+    def open_dir(payload: OpenDirPayload):
+        path = payload.path
         if not path or not os.path.exists(path):
             raise HTTPException(status_code=400, detail="INVALID_PATH")
-        
-        # 兼容 Windows 系统打开目录命令
+
         import subprocess
         try:
             subprocess.run(["explorer", os.path.abspath(path)], check=True)
             return {"status": "ok"}
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=str(e))
+        except Exception:
+            logger.exception("打开目录失败", extra={"path": path})
+            raise HTTPException(status_code=500, detail="OPEN_DIR_FAILED")
 
     @app.post("/api/utils/select-dir")
     def select_dir():
         import tkinter as tk
         from tkinter import filedialog
-        
-        # 初始化隐藏的主窗口，防止弹出一个空的 tk 窗口
+
         root = tk.Tk()
         root.withdraw()
-        # 让弹窗出现在最前面
         root.attributes("-topmost", True)
-        
+
         directory = filedialog.askdirectory(title="选择要整理的文件夹")
         root.destroy()
-        
+
         if directory:
             return {"path": os.path.abspath(directory)}
         return {"path": None}
@@ -323,15 +393,15 @@ def create_app(service: OrganizerSessionService | None = None) -> FastAPI:
         return {"status": "ok"}
 
     @app.post("/api/utils/config/switch")
-    def switch_config(payload: dict):
+    def switch_config(payload: ConfigSwitchPayload):
         from file_organizer.shared.config_manager import config_manager
-        config_manager.switch_profile(payload["id"])
+        config_manager.switch_profile(payload.id)
         return {"status": "ok", "active_id": config_manager.get_active_id()}
 
     @app.post("/api/utils/config/profiles")
-    def add_profile(payload: dict):
+    def add_profile(payload: AddProfilePayload):
         from file_organizer.shared.config_manager import config_manager
-        new_id = config_manager.add_profile(payload["name"], copy_from_active=payload.get("copy", True))
+        new_id = config_manager.add_profile(payload.name, copy_from_active=payload.copy_profile)
         return {"status": "ok", "id": new_id}
 
     @app.delete("/api/utils/config/profiles/{profile_id}")
@@ -341,27 +411,27 @@ def create_app(service: OrganizerSessionService | None = None) -> FastAPI:
         return {"status": "ok"}
 
     @app.post("/api/utils/test-llm")
-    def test_llm(payload: dict):
+    def test_llm(payload: LlmTestPayload):
         from openai import OpenAI
         from file_organizer.shared.config_manager import config_manager
-        
-        test_type = payload.get("test_type", "text")
-        
+
+        raw_payload = payload.model_dump()
+        test_type = raw_payload.get("test_type", "text")
+
         if test_type == "vision":
-            api_key = payload.get("IMAGE_ANALYSIS_API_KEY")
-            base_url = payload.get("IMAGE_ANALYSIS_BASE_URL")
-            # 处理脱敏
+            api_key = raw_payload.get("IMAGE_ANALYSIS_API_KEY")
+            base_url = raw_payload.get("IMAGE_ANALYSIS_BASE_URL")
             if api_key and api_key.startswith("sk-") and "..." in api_key:
                 api_key = config_manager.get("IMAGE_ANALYSIS_API_KEY")
             if not base_url:
-                base_url = payload.get("OPENAI_BASE_URL")
+                base_url = raw_payload.get("OPENAI_BASE_URL")
             if not api_key:
-                api_key = payload.get("OPENAI_API_KEY")
+                api_key = raw_payload.get("OPENAI_API_KEY")
                 if api_key and api_key.startswith("sk-") and "..." in api_key:
                     api_key = config_manager.get("OPENAI_API_KEY")
         else:
-            api_key = payload.get("OPENAI_API_KEY")
-            base_url = payload.get("OPENAI_BASE_URL")
+            api_key = raw_payload.get("OPENAI_API_KEY")
+            base_url = raw_payload.get("OPENAI_BASE_URL")
             if api_key and api_key.startswith("sk-") and "..." in api_key:
                 api_key = config_manager.get("OPENAI_API_KEY")
 
@@ -369,10 +439,11 @@ def create_app(service: OrganizerSessionService | None = None) -> FastAPI:
             client = OpenAI(api_key=api_key, base_url=base_url)
             client.models.list()
             return {"status": "ok", "message": f"{'视觉' if test_type == 'vision' else '文本'}模型链路连通性测试通过"}
-        except Exception as e:
+        except Exception:
+            logger.exception("模型链路连通性测试失败", extra={"test_type": test_type})
             return JSONResponse(
                 status_code=400,
-                content={"status": "error", "message": str(e)}
+                content={"status": "error", "message": "模型链路连通性测试失败"}
             )
 
     return app

@@ -16,6 +16,8 @@ export interface DirectoryTreeLeafEntry {
   status?: DirectoryTreeLeafStatus;
 }
 
+export type DirectoryTreeFilter = "all" | "failed" | "review" | "added";
+
 export interface DirectoryTreeColumnData {
   title: string;
   subtitle: string;
@@ -29,6 +31,7 @@ export interface DirectoryTreeColumnData {
 interface DirectoryTreeDiffProps {
   before: DirectoryTreeColumnData;
   after: DirectoryTreeColumnData;
+  filter?: DirectoryTreeFilter;
 }
 
 interface DirectoryTreeNode {
@@ -60,7 +63,7 @@ function relativePathFromBase(path: string, basePath?: string): string {
   return normalized;
 }
 
-function buildTree(column: DirectoryTreeColumnData): DirectoryTreeNode[] {
+function buildTree(column: DirectoryTreeColumnData, filter: DirectoryTreeFilter = "all"): DirectoryTreeNode[] {
   const root: DirectoryTreeNode = {
     name: "",
     path: "",
@@ -100,7 +103,16 @@ function buildTree(column: DirectoryTreeColumnData): DirectoryTreeNode[] {
     ensureDirectory(parts);
   }
 
-  for (const entry of column.leafEntries) {
+  // Filtering logic
+  const filteredLeafEntries = column.leafEntries.filter(entry => {
+    if (filter === "all") return true;
+    if (filter === "failed") return entry.status === "failed";
+    if (filter === "review") return entry.status === "review";
+    if (filter === "added") return entry.status === "pending" || entry.status === "success"; 
+    return true;
+  });
+
+  for (const entry of filteredLeafEntries) {
     const relative = relativePathFromBase(entry.path, column.basePath);
     const parts = [...baseRootParts, ...relative.split("/").filter(Boolean)];
     if (!parts.length) {
@@ -153,6 +165,20 @@ function buildTree(column: DirectoryTreeColumnData): DirectoryTreeNode[] {
 
   sortNodes(root.children);
   computeCounts(root);
+
+  // If filtering is on, we might want to hide empty directories
+  const pruneEmptyDirs = (nodes: DirectoryTreeNode[]): DirectoryTreeNode[] => {
+    return nodes.filter(node => {
+      if (node.kind === "file") return true;
+      node.children = pruneEmptyDirs(node.children);
+      return node.children.length > 0;
+    });
+  };
+
+  if (filter !== "all") {
+    return pruneEmptyDirs(root.children);
+  }
+
   return root.children;
 }
 
@@ -181,8 +207,8 @@ function statusBadge(status: DirectoryTreeLeafStatus | undefined) {
   };
 }
 
-function DirectoryTreePanel({ column }: { column: DirectoryTreeColumnData }) {
-  const tree = useMemo(() => buildTree(column), [column]);
+function DirectoryTreePanel({ column, filter = "all" }: { column: DirectoryTreeColumnData; filter?: DirectoryTreeFilter }) {
+  const tree = useMemo(() => buildTree(column, filter), [column, filter]);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
@@ -285,11 +311,11 @@ function DirectoryTreePanel({ column }: { column: DirectoryTreeColumnData }) {
   );
 }
 
-export function DirectoryTreeDiff({ before, after }: DirectoryTreeDiffProps) {
+export function DirectoryTreeDiff({ before, after, filter = "all" }: DirectoryTreeDiffProps) {
   return (
     <div className="grid gap-6 lg:grid-cols-2">
-      <DirectoryTreePanel column={before} />
-      <DirectoryTreePanel column={after} />
+      <DirectoryTreePanel column={before} filter={filter} />
+      <DirectoryTreePanel column={after} filter={filter} />
     </div>
   );
 }

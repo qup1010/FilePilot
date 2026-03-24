@@ -5,6 +5,7 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { AlertTriangle, Bot, Layers, RefreshCw } from "lucide-react";
 
 import { useSession } from "@/lib/use-session";
+import { getFriendlyStage } from "@/lib/utils";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ScanningOverlay } from "./workspace/scanning-overlay";
@@ -30,6 +31,7 @@ export default function WorkspaceClient() {
     assistantDraft,
     activityFeed,
     chatError,
+    streamStatus,
     composerMode,
     sendMessage,
     resolveUnresolvedChoices,
@@ -50,6 +52,21 @@ export default function WorkspaceClient() {
   const [leftWidth, setLeftWidth] = useState(62);
   const isResizing = React.useRef(false);
 
+  // Persistence for sidebar width
+  React.useEffect(() => {
+    const saved = localStorage.getItem("workspace_sidebar_width");
+    if (saved) {
+      const val = parseFloat(saved);
+      if (val > 35 && val < 75) {
+        setLeftWidth(val);
+      }
+    }
+  }, []);
+
+  const saveWidth = React.useCallback((width: number) => {
+    localStorage.setItem("workspace_sidebar_width", width.toString());
+  }, []);
+
   const scanner = useMemo(
     () => ({
       status: snapshot?.scanner_progress?.status || "idle",
@@ -57,6 +74,7 @@ export default function WorkspaceClient() {
       total_count: snapshot?.scanner_progress?.total_count || 0,
       current_item: snapshot?.scanner_progress?.current_item || null,
       recent_analysis_items: snapshot?.scanner_progress?.recent_analysis_items || [],
+      message: snapshot?.scanner_progress?.message || undefined,
     }),
     [snapshot?.scanner_progress],
   );
@@ -108,6 +126,7 @@ export default function WorkspaceClient() {
     document.removeEventListener("mousemove", handleMouseMove);
     document.removeEventListener("mouseup", stopResizing);
     document.body.style.cursor = "default";
+    saveWidth(leftWidth);
   };
 
   const handleSendMessage = async () => {
@@ -125,7 +144,11 @@ export default function WorkspaceClient() {
       return;
     }
     if (window.confirm("确定要放弃当前会话并返回首页吗？")) {
-      void abandonSession().then(() => router.push("/"));
+      abandonSession().then((success) => {
+        if (success) {
+          router.push("/");
+        }
+      });
     }
   };
 
@@ -230,8 +253,20 @@ export default function WorkspaceClient() {
                   <h2 className="text-base font-bold font-headline text-on-surface tracking-tight">
                     文件整理助手
                   </h2>
+                  {streamStatus === "connecting" && (
+                    <span className="flex items-center gap-1.5 text-[10px] font-bold text-warning/80 uppercase tracking-wider animate-pulse">
+                      <div className="w-1.5 h-1.5 rounded-full bg-warning" />
+                      连接波动
+                    </span>
+                  )}
+                  {streamStatus === "disconnected" && (
+                    <span className="flex items-center gap-1.5 text-[10px] font-bold text-error/60 uppercase tracking-wider">
+                      <div className="w-1.5 h-1.5 rounded-full bg-error/40" />
+                      停止连接
+                    </span>
+                  )}
                   <span className="rounded-full bg-surface-container px-2.5 py-1 text-xs font-medium text-on-surface-variant">
-                    {stage}
+                    {getFriendlyStage(stage)}
                   </span>
                   {snapshot?.strategy ? (
                     <span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary">
@@ -315,6 +350,7 @@ export default function WorkspaceClient() {
               <div className="p-10 max-w-4xl mx-auto">
                 <CompletionView
                   journal={journal}
+                  summary={snapshot?.summary || ""}
                   loading={journalLoading || !journal}
                   targetDir={snapshot?.target_dir || ""}
                   isBusy={isBusy}

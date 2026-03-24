@@ -4,7 +4,8 @@ import { AlertCircle, ArrowRight, CheckCircle2, FolderPlus, ListChecks, ShieldAl
 import { PrecheckSummary } from "@/types/session";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
-import { DirectoryTreeDiff, type DirectoryTreeLeafEntry } from "./directory-tree-diff";
+import { DirectoryTreeDiff, type DirectoryTreeLeafEntry, type DirectoryTreeFilter } from "./directory-tree-diff";
+import { useState } from "react";
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -29,6 +30,7 @@ export function PrecheckView({ summary, isBusy, readOnly = false, onExecute, onB
     return null;
   }
 
+  const [filter, setFilter] = useState<DirectoryTreeFilter>("all");
   const hasErrors = summary.blocking_errors.length > 0;
   const hasWarnings = summary.warnings.length > 0;
   const reviewCount = reviewMoveCount(summary);
@@ -110,11 +112,32 @@ export function PrecheckView({ summary, isBusy, readOnly = false, onExecute, onB
       </div>
 
       <div className="space-y-4">
-        <div className="space-y-1">
-          <h3 className="text-sm font-bold text-on-surface">目录树前后对比</h3>
-          <p className="text-sm text-on-surface-variant">左侧是当前目录中的原始结构，右侧是预检通过后将形成的目标结构。</p>
+        <div className="flex items-end justify-between">
+          <div className="space-y-1">
+            <h3 className="text-sm font-bold text-on-surface">目录树前后对比</h3>
+            <p className="text-sm text-on-surface-variant">左侧是当前目录中的原始结构，右侧是预检通过后将形成的目标结构。</p>
+          </div>
+          <div className="flex items-center gap-1.5 rounded-2xl bg-surface-container-low p-1 border border-on-surface/5">
+            {[
+              { id: "all", label: "全部" },
+              { id: "review", label: "Review" },
+            ].map((btn) => (
+              <button
+                key={btn.id}
+                onClick={() => setFilter(btn.id as any)}
+                className={cn(
+                  "px-4 py-1.5 text-[11px] font-black uppercase tracking-wider rounded-xl transition-all",
+                  filter === btn.id 
+                    ? "bg-white text-primary shadow-sm" 
+                    : "text-on-surface-variant/50 hover:text-on-surface"
+                )}
+              >
+                {btn.label}
+              </button>
+            ))}
+          </div>
         </div>
-        <DirectoryTreeDiff before={beforeTree} after={afterTree} />
+        <DirectoryTreeDiff before={beforeTree} after={afterTree} filter={filter} />
       </div>
 
       {(hasErrors || hasWarnings) ? (

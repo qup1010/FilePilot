@@ -10,9 +10,10 @@ const DEFAULT_API_PORT: &str = "8765";
 pub struct BackendLaunch {
     pub child: Child,
     pub instance_id: String,
+    pub api_token: String,
 }
 
-pub fn build_backend_command(project_root: &Path) -> Command {
+pub fn build_backend_command(project_root: &Path, api_token: &str) -> Command {
     let python = env::var("FILE_ORGANIZER_PYTHON").unwrap_or_else(|_| "python".to_string());
     let host = env::var("FILE_ORGANIZER_API_HOST").unwrap_or_else(|_| DEFAULT_API_HOST.to_string());
     let port = env::var("FILE_ORGANIZER_API_PORT").unwrap_or_else(|_| DEFAULT_API_PORT.to_string());
@@ -27,19 +28,25 @@ pub fn build_backend_command(project_root: &Path) -> Command {
         .env("PYTHONUTF8", "1")
         .env("FILE_ORGANIZER_API_HOST", &host)
         .env("FILE_ORGANIZER_API_PORT", &port)
-        .env("FILE_ORGANIZER_API_BASE_URL", &base_url);
+        .env("FILE_ORGANIZER_API_BASE_URL", &base_url)
+        .env("FILE_ORGANIZER_API_TOKEN", api_token);
     command
 }
 
 pub fn start_backend(project_root: &Path) -> Result<BackendLaunch, String> {
     validate_backend_port()?;
     let instance_id = Uuid::new_v4().to_string();
-    let mut command = build_backend_command(project_root);
+    let api_token = Uuid::new_v4().to_string();
+    let mut command = build_backend_command(project_root, &api_token);
     command.env("FILE_ORGANIZER_INSTANCE_ID", &instance_id);
     let child = command
         .spawn()
         .map_err(|error| format!("failed to launch python backend: {error}"))?;
-    Ok(BackendLaunch { child, instance_id })
+    Ok(BackendLaunch {
+        child,
+        instance_id,
+        api_token,
+    })
 }
 
 fn validate_backend_port() -> Result<(), String> {
@@ -59,7 +66,7 @@ mod tests {
 
     #[test]
     fn backend_command_uses_python_module_entrypoint() {
-        let command = build_backend_command(Path::new("D:/repo"));
+        let command = build_backend_command(Path::new("D:/repo"), "test-token");
         let args = command.get_args().map(|value| value.to_string_lossy().to_string()).collect::<Vec<_>>();
 
         assert_eq!(args, vec!["-m".to_string(), "file_organizer.api".to_string()]);
@@ -67,7 +74,7 @@ mod tests {
 
     #[test]
     fn backend_command_runs_from_project_root_and_sets_runtime_env() {
-        let command = build_backend_command(Path::new("D:/repo"));
+        let command = build_backend_command(Path::new("D:/repo"), "test-token");
         let envs = command
             .get_envs()
             .map(|(key, value)| {
@@ -84,6 +91,7 @@ mod tests {
         assert!(envs.iter().any(|(key, value)| {
             key == "FILE_ORGANIZER_API_BASE_URL" && value.as_deref() == Some("http://127.0.0.1:8765")
         }));
+        assert!(envs.iter().any(|(key, value)| key == "FILE_ORGANIZER_API_TOKEN" && value.as_deref() == Some("test-token")));
     }
 
     #[test]

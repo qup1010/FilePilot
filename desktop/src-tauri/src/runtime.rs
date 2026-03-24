@@ -6,6 +6,7 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use serde::{Deserialize, Serialize};
+use serde_json::json;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct DesktopRuntimeConfig {
@@ -36,9 +37,18 @@ pub fn read_runtime_config(path: &Path) -> Result<DesktopRuntimeConfig, String> 
         .map_err(|error| format!("failed to parse runtime config {}: {error}", path.display()))
 }
 
-pub fn build_runtime_injection_script(config: &DesktopRuntimeConfig) -> String {
+pub fn build_runtime_injection_script(config: &DesktopRuntimeConfig, api_token: &str) -> String {
+    let payload = json!({
+        "base_url": config.base_url,
+        "host": config.host,
+        "port": config.port,
+        "pid": config.pid,
+        "started_at": config.started_at,
+        "instance_id": config.instance_id,
+        "api_token": api_token,
+    });
     let payload =
-        serde_json::to_string(config).expect("serializing desktop runtime config should not fail");
+        serde_json::to_string(&payload).expect("serializing desktop runtime config should not fail");
     format!(
         "window.__FILE_ORGANIZER_RUNTIME__ = Object.freeze({payload});"
     )
@@ -189,10 +199,11 @@ mod tests {
             instance_id: Some("desktop-instance".into()),
         };
 
-        let script = build_runtime_injection_script(&config);
+        let script = build_runtime_injection_script(&config, "desktop-token");
 
         assert!(script.contains("window.__FILE_ORGANIZER_RUNTIME__"));
         assert!(script.contains("http://127.0.0.1:8765"));
+        assert!(script.contains("desktop-token"));
     }
 
     #[test]
@@ -258,28 +269,37 @@ mod tests {
         };
 
         let server = thread::spawn(move || {
-            for _ in 0..2 {
-                if let Ok((mut stream, _)) = listener.accept() {
-                    let mut buffer = [0_u8; 512];
-                    let _ = stream.read(&mut buffer);
-                    let response = concat!(
-                        "HTTP/1.1 200 OK\r\n",
-                        "Content-Type: application/json\r\n",
-                        "Connection: close\r\n",
-                        "\r\n",
-                        "{\"status\":\"ok\",\"instance_id\":\"desktop-instance\"}"
-                    );
-                    let _ = stream.write_all(response.as_bytes());
-                }
+            if let Ok((mut stream, _)) = listener.accept() {
+                let mut buffer = [0_u8; 512];
+                let _ = stream.read(&mut buffer);
+                let response = concat!(
+                    "HTTP/1.1 200 OK\r\n",
+                    "Content-Type: application/json\r\n",
+                    "Connection: close\r\n",
+                    "\r\n"
+                );
+                let body = r#"{"status":"ok","instance_id":"desktop-instance"}"#;
+                let _ = stream.write_all(format!("{response}{body}").as_bytes());
             }
         });
 
-        assert!(backend_reports_expected_instance(
-            &config,
-            "desktop-instance",
-            Duration::from_secs(1)
-        ));
-        assert!(runtime_file_is_owned_by_active_backend(&config, Duration::from_secs(1)));
+        let ok = backend_reports_expected_instance(&config, "desktop-instance", Duration::from_secs(1));
         server.join().expect("server thread");
+
+        assert!(ok);
+    }
+
+    #[test]
+    fn runtime_file_is_owned_by_active_backend_requires_instance_id() {
+        let config = DesktopRuntimeConfig {
+            base_url: "http://127.0.0.1:8765".into(),
+            host: "127.0.0.1".into(),
+            port: 8765,
+            pid: 1234,
+            started_at: "2026-03-21T00:00:00Z".into(),
+            instance_id: None,
+        };
+
+        assert!(!runtime_file_is_owned_by_active_backend(&config, Duration::from_millis(50)));
     }
 }

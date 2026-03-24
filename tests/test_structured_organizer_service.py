@@ -78,32 +78,6 @@ class StructuredOrganizerServiceTests(unittest.TestCase):
         self.assertTrue(any("Bills" in item for item in diff_summary))
         self.assertTrue(any("Screenshots/截图1.png" in item for item in diff_summary))
 
-    def test_run_organizer_cycle_returns_display_request_without_mutating_plan(self):
-        display_call = SimpleNamespace(
-            function=SimpleNamespace(
-                name="focus_ui_section",
-                arguments='{"focus": "details", "reason": "请先看当前计划"}',
-            )
-        )
-        message = SimpleNamespace(content="我先给你看看当前计划。", tool_calls=[display_call])
-        current_plan = PendingPlan(
-            directories=["Finance"],
-            moves=[PlanMove(source="合同.pdf", target="Finance/合同.pdf")],
-            unresolved_items=["截图1.png"],
-        )
-
-        with mock.patch.object(organizer_service, "chat_one_round", return_value=message):
-            content, result = organizer_service.run_organizer_cycle(
-                messages=[],
-                scan_lines="合同.pdf | 财务/合同 | 付款协议",
-                pending_plan=current_plan,
-            )
-
-        self.assertEqual(content, "我先给你看看当前计划。")
-        self.assertIs(result["pending_plan"], current_plan)
-        self.assertEqual(result["display_plan"], {"focus": "details", "summary": "", "reason": "请先看当前计划"})
-        self.assertFalse(result["is_valid"])
-
     def test_run_organizer_cycle_auto_displays_summary_after_diff_when_model_omits_present_tool(self):
         diff_call = SimpleNamespace(
             function=SimpleNamespace(
@@ -152,6 +126,7 @@ class StructuredOrganizerServiceTests(unittest.TestCase):
         self.assertEqual(result["unresolved_request"]["request_id"], "req_1")
         self.assertEqual(result["assistant_message"]["blocks"][0]["type"], "unresolved_choices")
         self.assertEqual(result["assistant_message"]["blocks"][0]["items"][0]["suggested_folders"], ["学习资料", "截图记录"])
+
     def test_apply_plan_diff_auto_removes_unresolved_when_moved_to_non_review(self):
         old_plan = PendingPlan(
             moves=[PlanMove(source="合同.pdf", target="Review/合同.pdf")],

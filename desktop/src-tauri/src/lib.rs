@@ -80,6 +80,7 @@ fn bootstrap_backend(app: &App) -> Result<(), String> {
     let launch = backend::start_backend(&state.project_root)?;
     let expected_pid = launch.child.id();
     let expected_instance_id = launch.instance_id.clone();
+    let api_token = launch.api_token.clone();
     let mut child = launch.child;
     let config = match runtime::wait_for_runtime_config(
         &runtime_path,
@@ -94,7 +95,7 @@ fn bootstrap_backend(app: &App) -> Result<(), String> {
         }
     };
 
-    let script = runtime::build_runtime_injection_script(&config);
+    let script = runtime::build_runtime_injection_script(&config, &api_token);
     state.set_backend_child(child);
     state.set_runtime_script(script.clone());
 

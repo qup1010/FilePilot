@@ -65,6 +65,12 @@ class SessionApiTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["instance_id"], "desktop-instance")
 
+    def test_post_sessions_returns_422_when_target_dir_is_missing(self):
+        response = self.client.post("/api/sessions", json={})
+
+        self.assertEqual(response.status_code, 422)
+        self.assertTrue(any(item["loc"][-1] == "target_dir" for item in response.json()["detail"]))
+
     def test_post_sessions_returns_created_mode_and_snapshot(self):
         response = self.client.post(
             "/api/sessions",
@@ -199,6 +205,20 @@ class SessionApiTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["session_snapshot"]["stage"], "planning")
+
+    def test_update_item_returns_422_when_item_id_is_missing(self):
+        created = self.client.post(
+            "/api/sessions",
+            json={"target_dir": str(self.target_dir), "resume_if_exists": False},
+        ).json()
+
+        response = self.client.post(
+            f"/api/sessions/{created['session_id']}/update-item",
+            json={"target_dir": "Review", "move_to_review": False},
+        )
+
+        self.assertEqual(response.status_code, 422)
+        self.assertTrue(any(item["loc"][-1] == "item_id" for item in response.json()["detail"]))
 
     def test_update_item_returns_409_when_session_is_scanning(self):
         created = self.service.create_session(str(self.target_dir), resume_if_exists=False)
@@ -384,6 +404,20 @@ class SessionApiTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["session_id"], created["session_id"])
+
+    def test_messages_endpoint_returns_422_when_content_is_missing(self):
+        created = self.client.post(
+            "/api/sessions",
+            json={"target_dir": str(self.target_dir), "resume_if_exists": False},
+        ).json()
+
+        response = self.client.post(
+            f"/api/sessions/{created['session_id']}/messages",
+            json={},
+        )
+
+        self.assertEqual(response.status_code, 422)
+        self.assertTrue(any(item["loc"][-1] == "content" for item in response.json()["detail"]))
 
     def test_messages_endpoint_returns_assistant_message(self):
         created = self.client.post(
