@@ -1,6 +1,8 @@
 import json
+import math
 import re
 from collections import Counter
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 from file_organizer.analysis.file_reader import list_local_files, read_local_file
@@ -11,6 +13,10 @@ from file_organizer.shared.events import emit
 from file_organizer.shared.path_utils import normalize_entry_name, resolve_tool_path
 
 MAX_ANALYSIS_RETRIES = 3
+BATCH_ANALYSIS_RETRIES = 2
+BATCH_THRESHOLD = 30
+BATCH_TARGET_SIZE = 15
+MAX_WORKERS = 3
 WORKDIR_PATH = Path.cwd().resolve()
 SUBMIT_ANALYSIS_TOOL_NAME = "submit_analysis_result"
 
@@ -21,6 +27,24 @@ def get_client():
 
 def _coerce_analysis_items(items: list[AnalysisItem] | list[dict] | None) -> list[AnalysisItem]:
     return [item if isinstance(item, AnalysisItem) else AnalysisItem.from_dict(item) for item in (items or [])]
+
+
+def _normalize_analysis_items(items: list[AnalysisItem] | list[dict] | None, directory: Path) -> tuple[list[AnalysisItem], list[str]]:
+    normalized_items: list[AnalysisItem] = []
+    invalid_lines: list[str] = []
+    for item in _coerce_analysis_items(items):
+        raw_name = item.entry_name.strip()
+        if not raw_name:
+            invalid_lines.append(item.entry_name)
+            continue
+        normalized_name = normalize_entry_name(raw_name, directory)
+        if not normalized_name:
+            invalid_lines.append(item.entry_name)
+            continue
+        item_data = dict(item.__dict__)
+        item_data["entry_name"] = normalized_name
+        normalized_items.append(AnalysisItem.from_dict(item_data))
+    return normalized_items, invalid_lines
 
 
 def render_analysis_items(items: list[AnalysisItem] | list[dict]) -> str:
@@ -60,22 +84,14 @@ def _list_current_entries(directory: Path) -> list[str]:
     return sorted(entry.name for entry in directory.iterdir() if not entry.name.startswith("."))
 
 
-def validate_analysis_items(items: list[AnalysisItem] | list[dict], directory: Path) -> dict:
-    parsed_items = _coerce_analysis_items(items)
-    parsed_names: list[str] = []
-    invalid_lines: list[str] = []
-    for item in parsed_items:
-        raw_name = item.entry_name.strip()
-        if not raw_name:
-            invalid_lines.append(item.entry_name)
-            continue
-        normalized_name = normalize_entry_name(raw_name, directory)
-        if not normalized_name:
-            invalid_lines.append(item.entry_name)
-            continue
-        parsed_names.append(normalized_name)
-
-    expected = set(_list_current_entries(directory))
+def validate_analysis_items(
+    items: list[AnalysisItem] | list[dict],
+    directory: Path,
+    expected_entries: list[str] | None = None,
+) -> dict:
+    parsed_items, invalid_lines = _normalize_analysis_items(items, directory)
+    parsed_names = [item.entry_name for item in parsed_items]
+    expected = set(expected_entries if expected_entries is not None else _list_current_entries(directory))
     actual = set(parsed_names)
     counter = Counter(parsed_names)
 
@@ -93,14 +109,13 @@ def validate_analysis_items(items: list[AnalysisItem] | list[dict], directory: P
     }
 
 
-def validate_analysis(content: str, directory: Path) -> dict:
-    """兼容旧版文本分析结果校验。"""
+def _parse_rendered_analysis_items(content: str, directory: Path) -> tuple[list[AnalysisItem], list[str]]:
+    parsed_items: list[AnalysisItem] = []
+    invalid_lines: list[str] = []
     output = extract_output_content(content) or (content or "").strip()
     if not output:
-        return {"is_valid": False, "reason": "missing_output", "missing": [], "extra": [], "duplicates": [], "invalid_lines": []}
+        return parsed_items, invalid_lines
 
-    parsed_items = []
-    invalid_lines = []
     for line in output.splitlines():
         line = line.strip()
         if not line or re.match(r"^分析目录路径[:：]", line):
@@ -109,19 +124,33 @@ def validate_analysis(content: str, directory: Path) -> dict:
             invalid_lines.append(line)
             continue
 
-        name = normalize_entry_name(line.split("|", 1)[0].strip(), directory)
+        parts = [part.strip() for part in line.split("|", 2)]
+        if len(parts) < 3:
+            invalid_lines.append(line)
+            continue
+
+        name = normalize_entry_name(parts[0], directory)
         if not name:
             invalid_lines.append(line)
             continue
         parsed_items.append(
             AnalysisItem(
                 entry_name=name,
-                suggested_purpose="待判断",
-                summary=line.split("|", 2)[-1].strip(),
+                suggested_purpose=parts[1] or "待判断",
+                summary=parts[2],
             )
         )
+    return parsed_items, invalid_lines
 
-    result = validate_analysis_items(parsed_items, directory)
+
+def validate_analysis(content: str, directory: Path, expected_entries: list[str] | None = None) -> dict:
+    """兼容旧版文本分析结果校验。"""
+    output = extract_output_content(content) or (content or "").strip()
+    if not output:
+        return {"is_valid": False, "reason": "missing_output", "missing": [], "extra": [], "duplicates": [], "invalid_lines": []}
+
+    parsed_items, invalid_lines = _parse_rendered_analysis_items(output, directory)
+    result = validate_analysis_items(parsed_items, directory, expected_entries=expected_entries)
     if invalid_lines:
         result["invalid_lines"] = list(result.get("invalid_lines", [])) + invalid_lines
         result["is_valid"] = False
@@ -183,26 +212,106 @@ def _emit_text_response(content: str, event_handler=None) -> None:
     emit(event_handler, "ai_streaming_end", {"full_content": content})
 
 
-def run_analysis_cycle(target_dir: Path, event_handler=None, model: str = ANALYSIS_MODEL_NAME):
-    global WORKDIR_PATH
-    """一个完整的分析循环：扫描 -> 工具调用/结构化提交 -> 校验 -> 重试。"""
-    target_dir = Path(target_dir).resolve()
-    WORKDIR_PATH = target_dir
+def _split_batches(entries: list[str]) -> list[list[str]]:
+    if not entries:
+        return []
+    batch_count = min(MAX_WORKERS, max(1, math.ceil(len(entries) / BATCH_TARGET_SIZE)))
+    base_size, remainder = divmod(len(entries), batch_count)
+    batches: list[list[str]] = []
+    cursor = 0
+    for index in range(batch_count):
+        size = base_size + (1 if index < remainder else 0)
+        if size <= 0:
+            continue
+        batches.append(entries[cursor:cursor + size])
+        cursor += size
+    return batches
+
+
+def _slice_files_info_for_batch(files_info: str, batch_entries: list[str], target_dir: Path) -> str:
+    lines = [line for line in (files_info or "").splitlines() if line.strip()]
+    if not lines:
+        return files_info
+
+    batch_set = set(batch_entries)
+    normalized_root = str(target_dir).replace("\\", "/").rstrip("/")
+    filtered_lines: list[str] = []
+    header_added = False
+
+    for line in lines:
+        parts = [part.strip() for part in line.split("|", 2)]
+        if len(parts) < 3:
+            if not header_added:
+                filtered_lines.append(line)
+                header_added = True
+            continue
+
+        path_text = parts[0]
+        normalized_path = path_text.replace("\\", "/").rstrip("/")
+
+        if path_text == "路径":
+            filtered_lines.append(line)
+            header_added = True
+            continue
+
+        if normalized_path == normalized_root:
+            filtered_lines.append(re.sub(r"包含\s+\d+\s+个条目", f"包含 {len(batch_entries)} 个条目", line, count=1))
+            continue
+
+        prefix = f"{normalized_root}/"
+        if not normalized_path.startswith(prefix):
+            continue
+        relative_path = normalized_path[len(prefix):]
+        top_level_name = relative_path.split("/", 1)[0]
+        if top_level_name in batch_set:
+            filtered_lines.append(line)
+
+    if len(filtered_lines) >= 2:
+        return "\n".join(filtered_lines)
+
+    fallback_lines = ["路径 | 类型 | 说明", f"{target_dir} | dir | 包含 {len(batch_entries)} 个条目"]
+    for entry in batch_entries:
+        entry_path = (target_dir / entry).resolve()
+        entry_kind = "dir" if entry_path.is_dir() else "file"
+        suffix = "目录条目" if entry_kind == "dir" else (entry_path.suffix.lower() or "无扩展名")
+        fallback_lines.append(f"{entry_path.as_posix()} | {entry_kind} | {suffix}")
+    return "\n".join(fallback_lines)
+
+
+def _build_retry_message(check: dict, retry_scope: str) -> str:
+    return (
+        "刚才的结果未通过校验。\n"
+        f"缺失：{check['missing']}\n"
+        f"多余：{check['extra']}\n"
+        f"重复：{check['duplicates']}\n"
+        f"请重新完整提交{retry_scope}分析结果。"
+    )
+
+
+def _run_analysis_worker(
+    *,
+    target_dir: Path,
+    files_info: str,
+    user_message: str,
+    expected_entries: list[str],
+    model: str,
+    event_handler=None,
+    max_retries: int = MAX_ANALYSIS_RETRIES,
+    retry_scope: str = "当前层条目",
+    wait_message: str = "正在分析目录内容",
+) -> list[AnalysisItem] | None:
     client = get_client()
-
-    files_info = list_local_files(str(target_dir), max_depth=0)
     messages = [{"role": "system", "content": build_system_prompt(files_info, target_dir=target_dir)}]
-    messages.append({"role": "user", "content": "请分析当前目录下的所有条目及其用途。"})
+    messages.append({"role": "user", "content": user_message})
 
-    for attempt in range(1, MAX_ANALYSIS_RETRIES + 1):
-        emit(event_handler, "cycle_start", {"attempt": attempt, "max_attempts": MAX_ANALYSIS_RETRIES})
-
+    for attempt in range(1, max_retries + 1):
+        emit(event_handler, "cycle_start", {"attempt": attempt, "max_attempts": max_retries})
         curr_messages = list(messages)
         legacy_text = ""
-        submitted_items: list[AnalysisItem] | None = None
+        normalized_items: list[AnalysisItem] = []
 
         while True:
-            emit(event_handler, "model_wait_start", {"message": "正在分析目录内容"})
+            emit(event_handler, "model_wait_start", {"message": wait_message})
             try:
                 response = client.chat.completions.create(model=model, messages=curr_messages, tools=tools, tool_choice="auto")
             finally:
@@ -210,11 +319,24 @@ def run_analysis_cycle(target_dir: Path, event_handler=None, model: str = ANALYS
             msg = response.choices[0].message
             submitted_items = _extract_submitted_analysis(getattr(msg, "tool_calls", None))
             if submitted_items is not None:
+                normalized_items, invalid_lines = _normalize_analysis_items(submitted_items, target_dir)
+                check = validate_analysis_items(normalized_items, target_dir, expected_entries=expected_entries)
+                if invalid_lines:
+                    check["invalid_lines"] = list(check.get("invalid_lines", [])) + invalid_lines
+                    check["is_valid"] = False
+                rendered = render_analysis_items(normalized_items)
                 break
 
             if not msg.tool_calls:
                 legacy_text = getattr(msg, "content", "") or ""
                 _emit_text_response(legacy_text, event_handler=event_handler)
+                parsed_items, invalid_lines = _parse_rendered_analysis_items(legacy_text, target_dir)
+                normalized_items = parsed_items
+                rendered = render_analysis_items(parsed_items) if parsed_items else (extract_output_content(legacy_text) or legacy_text.strip())
+                check = validate_analysis(rendered, target_dir, expected_entries=expected_entries)
+                if invalid_lines:
+                    check["invalid_lines"] = list(check.get("invalid_lines", [])) + invalid_lines
+                    check["is_valid"] = False
                 break
 
             curr_messages.append(msg)
@@ -232,26 +354,177 @@ def run_analysis_cycle(target_dir: Path, event_handler=None, model: str = ANALYS
                     "content": result,
                 })
 
-        if submitted_items is not None:
-            rendered = render_analysis_items(submitted_items)
-            check = validate_analysis_items(submitted_items, target_dir)
-        else:
-            rendered = extract_output_content(legacy_text) or legacy_text.strip()
-            check = validate_analysis(rendered, target_dir)
-
         if check["is_valid"]:
             emit(event_handler, "validation_pass", {"attempt": attempt})
-            return rendered
+            return normalized_items
 
         emit(event_handler, "validation_fail", {"attempt": attempt, "details": check})
-        if attempt < MAX_ANALYSIS_RETRIES:
-            retry_msg = f"刚才的结果未通过校验。\n缺失：{check['missing']}\n多余：{check['extra']}\n重复：{check['duplicates']}\n请重新完整提交当前层条目分析结果。"
+        if attempt < max_retries:
             if rendered:
                 messages.append({"role": "assistant", "content": rendered})
-            messages.append({"role": "user", "content": retry_msg})
-        else:
-            emit(event_handler, "retry_exhausted", {"attempt": attempt})
+            messages.append({"role": "user", "content": _build_retry_message(check, retry_scope)})
+            continue
+
+        emit(event_handler, "retry_exhausted", {"attempt": attempt})
+        return None
+    return None
+
+
+def _run_single_analysis(target_dir: Path, files_info: str, model: str, event_handler=None) -> str | None:
+    entries = _list_current_entries(target_dir)
+    items = _run_analysis_worker(
+        target_dir=target_dir,
+        files_info=files_info,
+        user_message="请分析当前目录下的所有条目及其用途。",
+        expected_entries=entries,
+        model=model,
+        event_handler=event_handler,
+        max_retries=MAX_ANALYSIS_RETRIES,
+        retry_scope="当前层条目",
+        wait_message="正在分析目录内容",
+    )
+    if items is None:
+        return None
+    return render_analysis_items(items)
+
+
+def _analyze_batch(
+    target_dir: Path,
+    batch_entries: list[str],
+    batch_index: int,
+    total_batches: int,
+    files_info: str,
+    model: str,
+    event_handler=None,
+) -> list[AnalysisItem]:
+    batch_files_info = _slice_files_info_for_batch(files_info, batch_entries, target_dir)
+    items = _run_analysis_worker(
+        target_dir=target_dir,
+        files_info=batch_files_info,
+        user_message="请分析以上条目及其用途。",
+        expected_entries=batch_entries,
+        model=model,
+        event_handler=event_handler,
+        max_retries=BATCH_ANALYSIS_RETRIES,
+        retry_scope="以上条目",
+        wait_message=f"正在分析批次 {batch_index + 1}/{total_batches}",
+    )
+    if items is None:
+        raise RuntimeError(f"batch_{batch_index}_analysis_failed")
+    return items
+
+
+def _placeholder_analysis_item(entry_name: str) -> AnalysisItem:
+    return AnalysisItem(
+        entry_name=entry_name,
+        suggested_purpose="待判断",
+        summary="分析未覆盖，需手动确认",
+    )
+
+
+def _merge_batch_results(batch_results: list[list[AnalysisItem]], target_dir: Path) -> list[AnalysisItem]:
+    merged_by_name: dict[str, AnalysisItem] = {}
+    valid_entries = set(_list_current_entries(target_dir))
+    for batch_items in batch_results:
+        normalized_items, _ = _normalize_analysis_items(batch_items, target_dir)
+        for item in normalized_items:
+            if item.entry_name not in valid_entries:
+                continue
+            merged_by_name.setdefault(item.entry_name, item)
+
+    ordered_items: list[AnalysisItem] = []
+    for entry_name in _list_current_entries(target_dir):
+        ordered_items.append(merged_by_name.get(entry_name) or _placeholder_analysis_item(entry_name))
+    return ordered_items
+
+
+def run_analysis_cycle(target_dir: Path, event_handler=None, model: str = ANALYSIS_MODEL_NAME):
+    global WORKDIR_PATH
+    """一个完整的分析循环：扫描 -> 工具调用/结构化提交 -> 校验 -> 重试。"""
+    target_dir = Path(target_dir).resolve()
+    WORKDIR_PATH = target_dir
+    entries = _list_current_entries(target_dir)
+    files_info = list_local_files(str(target_dir), max_depth=0)
+
+    if len(entries) <= BATCH_THRESHOLD:
+        return _run_single_analysis(target_dir, files_info, model, event_handler=event_handler)
+
+    detailed_files_info = list_local_files(str(target_dir), max_depth=1, char_limit=0)
+    batches = _split_batches(entries)
+    worker_count = min(MAX_WORKERS, len(batches))
+    emit(event_handler, "batch_split", {
+        "total_entries": len(entries),
+        "batch_count": len(batches),
+        "worker_count": worker_count,
+    })
+
+    finished_batches = 0
+    batch_results: list[list[AnalysisItem]] = []
+    failed_entries: list[str] = []
+
+    with ThreadPoolExecutor(max_workers=worker_count) as executor:
+        futures = {
+            executor.submit(
+                _analyze_batch,
+                target_dir,
+                batch_entries,
+                batch_index,
+                len(batches),
+                detailed_files_info,
+                model,
+                event_handler,
+            ): (batch_index, batch_entries)
+            for batch_index, batch_entries in enumerate(batches)
+        }
+
+        for future in as_completed(futures):
+            batch_index, batch_entries = futures[future]
+            try:
+                batch_results.append(future.result())
+                status = "completed"
+            except Exception:
+                failed_entries.extend(batch_entries)
+                status = "failed"
+
+            finished_batches += 1
+            emit(event_handler, "batch_progress", {
+                "batch_index": batch_index,
+                "total_batches": len(batches),
+                "status": status,
+                "completed_batches": finished_batches,
+            })
+
+    if failed_entries:
+        retry_batch_index = len(batches)
+        try:
+            batch_results.append(
+                _analyze_batch(
+                    target_dir,
+                    failed_entries,
+                    retry_batch_index,
+                    retry_batch_index + 1,
+                    detailed_files_info,
+                    model,
+                    event_handler,
+                )
+            )
+        except Exception:
+            pass
+
+    merged_items = _merge_batch_results(batch_results, target_dir)
+    check = validate_analysis_items(merged_items, target_dir)
+    if not check["is_valid"]:
+        merged_map = {item.entry_name: item for item in merged_items}
+        for entry_name in check.get("missing", []):
+            merged_map[entry_name] = _placeholder_analysis_item(entry_name)
+        merged_items = [merged_map.get(entry_name) or _placeholder_analysis_item(entry_name) for entry_name in entries]
+        check = validate_analysis_items(merged_items, target_dir)
+        if not check["is_valid"]:
+            emit(event_handler, "validation_fail", {"attempt": 1, "details": check})
             return None
+
+    emit(event_handler, "validation_pass", {"attempt": 1})
+    return render_analysis_items(merged_items)
 
 
 tools = [

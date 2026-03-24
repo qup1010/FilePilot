@@ -75,6 +75,8 @@ export default function WorkspaceClient() {
       total_count: snapshot?.scanner_progress?.total_count || 0,
       current_item: snapshot?.scanner_progress?.current_item || null,
       recent_analysis_items: snapshot?.scanner_progress?.recent_analysis_items || [],
+      batch_count: snapshot?.scanner_progress?.batch_count,
+      completed_batches: snapshot?.scanner_progress?.completed_batches,
       message: snapshot?.scanner_progress?.message || undefined,
     }),
     [snapshot?.scanner_progress],

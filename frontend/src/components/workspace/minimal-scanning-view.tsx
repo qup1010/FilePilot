@@ -13,6 +13,7 @@ interface MinimalScanningViewProps {
 
 export function MinimalScanningView({ scanner, progressPercent }: MinimalScanningViewProps) {
   const currentItem = scanner.current_item || "正在准备扫描";
+  const statusMessage = scanner.message || "AI 正在分析文件元数据与用途";
   
   return (
     <div className="h-full w-full flex flex-col items-center justify-center p-20 bg-surface">
@@ -34,7 +35,7 @@ export function MinimalScanningView({ scanner, progressPercent }: MinimalScannin
               正在同步目录结构
             </h2>
             <p className="text-[11px] font-black text-on-surface-variant/40 uppercase tracking-[0.3em]">
-              AI 正在分析文件元数据与用途
+              {statusMessage}
             </p>
           </div>
         </div>

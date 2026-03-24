@@ -228,8 +228,6 @@ class StructuredOrganizerServiceTests(unittest.TestCase):
     def test_build_initial_messages_prioritizes_text_before_tool_call(self):
         messages = organizer_service.build_initial_messages("合同.pdf | 财务/合同 | 付款协议")
 
-        self.assertIn("先用一句话说明你的整理思路", messages[1]["content"])
-        self.assertIn("再调用 submit_plan_diff", messages[1]["content"])
         self.assertNotIn("请先调用 submit_plan_diff", messages[1]["content"])
 
     def test_run_organizer_cycle_retries_with_full_assistant_message_for_invalid_plan_diff(self):

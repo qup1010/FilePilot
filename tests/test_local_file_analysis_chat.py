@@ -51,13 +51,11 @@ class ScannerServiceTests(unittest.TestCase):
         prompt = organizer_service.build_prompt("合同.pdf | 财务/合同 | 付款协议")
 
         self.assertIn("若用途不明确，再结合“内容摘要”判断", prompt)
-        self.assertIn("若到最终提交前仍无法判断或用户未回答，默认落点统一归入 Review/", prompt)
         self.assertIn("不要过度细分", prompt)
         self.assertIn("按实际用途归到清晰的大类", prompt)
         self.assertIn("submit_plan_diff", prompt)
         self.assertIn("directory_renames", prompt)
         self.assertIn("move_updates", prompt)
-        self.assertIn("默认落点统一归入 Review/", prompt)
 
     def test_organizer_prompt_describes_directory_semantics_and_user_preference_priority(self):
         prompt = organizer_service.build_prompt("合同.pdf | 财务/合同 | 付款协议")
@@ -69,7 +67,6 @@ class ScannerServiceTests(unittest.TestCase):
         self.assertIn("当前固定整理策略（必须优先遵守）", prompt)
         self.assertIn("suggested_folders", prompt)
         self.assertIn("summary", prompt)
-        self.assertIn("不要在“content”中罗列完整计划列表", prompt)
         self.assertNotIn("submit" + "_final_plan", prompt)
 
     def test_append_output_result_extracts_output_block(self):

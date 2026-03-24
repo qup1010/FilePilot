@@ -13,6 +13,7 @@ def build_system_prompt(files_info: str, target_dir: Path | None = None) -> str:
         "submit_analysis_result.items 必须与当前目录当前层真实条目一一对应，不能遗漏、不能新增、不能重复。\n"
         "每个 item 需要提供：entry_name、suggested_purpose、summary。\n"
         "默认只总结当前层文件和当前层文件夹。若某个子目录看起来很重要，你可以额外调用 list_local_files 深入最多 1 层补充证据，但最终提交仍只能覆盖当前层条目。\n"
+        "如果你从文件名推断用途有困难，才考虑结合文件内容进行判断。\n"
         "可能用途应基于文件名和内容做谨慎判断；信息不足时写未知或待判断，不要编造。\n"
         "summary 要简洁，不超过四十字，概括核心主题、结构或主要信息。"
     )

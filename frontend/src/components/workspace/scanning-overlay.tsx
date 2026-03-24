@@ -44,7 +44,7 @@ function getStatusMeta(scanner: ScannerProgress, progressPercent: number) {
     return {
       status,
       title: "正在读取目录结构",
-      description: "系统会先识别文件名、层级和基础元信息，再逐步补充内容摘要。",
+      description: scanner.message || "系统会先识别文件名、层级和基础元信息，再逐步补充内容摘要。",
       tone: "progress" as const,
     };
   }
@@ -53,7 +53,7 @@ function getStatusMeta(scanner: ScannerProgress, progressPercent: number) {
     return {
       status,
       title: "正在分析文件用途",
-      description: "系统会结合文件名、摘要和上下文判断每个文件的大致用途。",
+      description: scanner.message || "系统会结合文件名、摘要和上下文判断每个文件的大致用途。",
       tone: "progress" as const,
     };
   }
@@ -61,7 +61,7 @@ function getStatusMeta(scanner: ScannerProgress, progressPercent: number) {
   return {
     status,
     title: "正在汇总整理线索",
-    description: "扫描接近完成，系统正在把最近分析结果整理成可执行的初始方案。",
+    description: scanner.message || "扫描接近完成，系统正在把最近分析结果整理成可执行的初始方案。",
     tone: "progress" as const,
   };
 }

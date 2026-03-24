@@ -999,6 +999,20 @@ def run_organizer_cycle(
                 else:
                     return content, None
 
+            # 补丁：强制同步逻辑。如果 AI 发起了 UI 待确认请求但没在 plan_diff 里包含它们，强制补齐。
+            if unresolved_request:
+                changed = False
+                for item in unresolved_request.items:
+                    if item.item_id not in updated_pending.unresolved_items:
+                        updated_pending.unresolved_items.append(item.item_id)
+                        changed = True
+                    # 确保 moves 中存在，防止 AI 在 diff 中遗漏
+                    if not any(m.source == item.item_id for m in updated_pending.moves):
+                         updated_pending.moves.append(PlanMove(source=item.item_id, target="Review", raw=""))
+                         changed = True
+                if changed:
+                    diff_summary = _build_plan_change_summary(current_pending, updated_pending)
+
             return content, {
                 "is_valid": False,
                 "pending_plan": updated_pending,
@@ -1018,14 +1032,35 @@ def run_organizer_cycle(
 
         # 场景 B: AI 仅回复文字说明，未发起任何方案层面的增量修改或最终提交
         if final_plan is None:
+            # 补丁：强制同步逻辑。如果 AI 发起了 UI 待确认请求但没有通过 plan_diff 更新状态，
+            # 我们在此处合成一个更新后的 PendingPlan，确保后端 resolve 逻辑有据可查。
+            if unresolved_request:
+                if plan_diff is None:
+                    updated_pending = _copy_pending_plan(current_pending)
+                
+                # 遍历请求中的项目，确保它们都在 unresolved_items 中
+                for item in unresolved_request.items:
+                    if item.item_id not in updated_pending.unresolved_items:
+                        updated_pending.unresolved_items.append(item.item_id)
+                        # 确保 move 存在且指向 Review
+                        if not any(m.source == item.item_id for m in updated_pending.moves):
+                            updated_pending.moves.append(PlanMove(source=item.item_id, target="Review", raw=""))
+                
+                # 如果是补丁生成的 updated_pending，也需要计算 diff_summary（虽然可能为空）
+                if plan_diff is None:
+                    diff_summary = _build_plan_change_summary(current_pending, updated_pending)
+            else:
+                updated_pending = current_pending
+                diff_summary = []
+
             tool_result_messages = _build_tool_result_messages(
                 message,
                 unresolved_request=unresolved_request,
             )
             return content, {
                 "is_valid": False,
-                "pending_plan": current_pending,
-                "diff_summary": [],
+                "pending_plan": updated_pending,
+                "diff_summary": diff_summary,
                 "display_plan": None,
                 "unresolved_request": unresolved_request.to_dict() if unresolved_request else None,
                 "final_plan": None,

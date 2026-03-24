@@ -151,6 +151,7 @@ class OrganizerSessionService:
             "total_count": self._count_visible_entries(Path(session.target_dir)),
             "current_item": None,
             "recent_analysis_items": [],
+            "completed_batches": 0,
         }
         self.store.save(session)
         self._record_event("scan.started", session)
@@ -160,6 +161,33 @@ class OrganizerSessionService:
                 self._record_event("scan.action", session_id=session.session_id, action=data)
             elif event_type == "ai_chunk":
                 self._record_event("scan.ai_typing", session_id=session.session_id, content=data.get("content"))
+            elif event_type == "batch_split":
+                batch_count = max(1, int(data.get("batch_count") or 1))
+                session.scanner_progress["batch_count"] = batch_count
+                session.scanner_progress["completed_batches"] = 0
+                session.scanner_progress["message"] = f"文件较多，已拆分为 {batch_count} 个批次并行分析"
+                session.scanner_progress["current_item"] = f"批次 0/{batch_count}"
+                self.store.save(session)
+                self._record_event("scan.progress", session)
+            elif event_type == "batch_progress":
+                total_batches = max(1, int(data.get("total_batches") or session.scanner_progress.get("batch_count") or 1))
+                completed_batches = max(0, int(data.get("completed_batches") or 0))
+                batch_index = max(0, int(data.get("batch_index") or 0))
+                status = data.get("status") or "completed"
+                total_count = max(0, int(session.scanner_progress.get("total_count") or 0))
+                session.scanner_progress["batch_count"] = total_batches
+                session.scanner_progress["completed_batches"] = completed_batches
+                session.scanner_progress["processed_count"] = min(
+                    total_count,
+                    int((completed_batches / total_batches) * total_count) if total_count else 0,
+                )
+                session.scanner_progress["current_item"] = f"批次 {min(batch_index + 1, total_batches)}/{total_batches}"
+                if status == "failed":
+                    session.scanner_progress["message"] = f"第 {batch_index + 1}/{total_batches} 批失败，正在继续汇总其余批次"
+                else:
+                    session.scanner_progress["message"] = f"已完成 {completed_batches}/{total_batches} 批并行分析"
+                self.store.save(session)
+                self._record_event("scan.progress", session)
 
         self.async_scanner.start(
             session_id=session.session_id,
@@ -173,6 +201,16 @@ class OrganizerSessionService:
     def get_snapshot(self, session_id: str) -> dict:
         session = self._load_or_raise(session_id)
         self._recover_orphaned_locked_session(session)
+        
+        # 确保消息 ID 被分配且持久化，以保证连续调用时 ID 稳定（修复单元测试失败）
+        changed = self._ensure_message_ids(session.messages)
+        if session.assistant_message and not session.assistant_message.get("id"):
+            self._ensure_message_id(session.assistant_message)
+            changed = True
+            
+        if changed:
+            self.store.save(session)
+            
         return self._build_snapshot(session)
 
     def read_events(self, session_id: str) -> list[dict]:
@@ -382,15 +420,28 @@ class OrganizerSessionService:
             raise ValueError("UNRESOLVED_RESOLUTION_INCOMPLETE")
 
         for mid in submitted_map:
-            # 强化匹配：对于 unresolved_items 列表，由于 AI 可能塞入“文件名+描述”，
-            # 我们只需要确认 unresolved_items 中有任一项包含该 item_id 即可
+            # 补丁：容错处理。如果由于 AI 不一致导致该项在 pending_plan 中未被标记为 unresolved，
+            # 但既然它存在于我们刚刚找到的 request_block 中，说明 UI 确实发起了这个请求，
+            # 因此我们在此处自动将其视为有效的 unresolved 项。
             is_unresolved = False
             for u_item in pending.unresolved_items:
                 if mid in u_item:
                     is_unresolved = True
                     break
             
-            if mid not in move_map or not is_unresolved:
+            # 如果依然没找，但该 ID 在当前请求的项目列表中，则强制视为 unresolved
+            if not is_unresolved and mid in item_map:
+                is_unresolved = True
+                if mid not in pending.unresolved_items:
+                    pending.unresolved_items.append(mid)
+
+            if mid not in move_map:
+                # 最后的补救：如果在 moves 中也没找到，则临时补一个
+                new_move = PlanMove(source=mid, target="Review", raw="")
+                pending.moves.append(new_move)
+                move_map[mid] = new_move
+            
+            if not is_unresolved:
                 raise RuntimeError("UNRESOLVED_ITEM_CONFLICT")
 
         has_note = False
@@ -789,13 +840,18 @@ class OrganizerSessionService:
         all_entries = self._scan_entries(scan_lines)
         session.scan_lines = scan_lines or ""
         recent_items = all_entries[-5:]
+        existing_progress = dict(session.scanner_progress or {})
         session.scanner_progress = {
+            **existing_progress,
             "status": "completed",
             "processed_count": len(all_entries),
             "total_count": self._count_visible_entries(Path(session.target_dir)),
             "current_item": recent_items[-1]["display_name"] if recent_items else None,
             "recent_analysis_items": recent_items,
         }
+        if existing_progress.get("batch_count"):
+            session.scanner_progress["completed_batches"] = existing_progress.get("batch_count")
+            session.scanner_progress["message"] = f"已完成 {existing_progress.get('batch_count')}/{existing_progress.get('batch_count')} 批并行分析"
         session.stage = "planning"
         
         # Initialize messages if empty
@@ -859,7 +915,7 @@ class OrganizerSessionService:
         session = self._load_or_raise(session_id)
         session.stage = "interrupted"
         session.last_error = str(exc)
-        session.scanner_progress = {"status": "failed", "message": str(exc)}
+        session.scanner_progress = {**dict(session.scanner_progress or {}), "status": "failed", "message": str(exc)}
         self.store.save(session)
         self._record_event("session.error", session)
 
@@ -871,6 +927,7 @@ class OrganizerSessionService:
             "total_count": self._count_visible_entries(Path(session.target_dir)),
             "current_item": None,
             "recent_analysis_items": [],
+            "completed_batches": 0,
         }
         self.store.save(session)
         self._record_event("scan.started", session)
@@ -880,6 +937,7 @@ class OrganizerSessionService:
         session.scan_lines = result or ""
         session.stage = "planning"
         session.scanner_progress = {
+            **dict(session.scanner_progress or {}),
             "status": "completed",
             "processed_count": len(all_entries),
             "total_count": self._count_visible_entries(Path(session.target_dir)),

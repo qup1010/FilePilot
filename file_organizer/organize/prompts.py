@@ -15,6 +15,7 @@ submit_plan_diff：只提交本轮变更字段（directory_renames, move_updates
   * 顺序 must 一致，目标必须是相对路径且保留原名。
   * 如果某项不需要移动，也需要调用MOVE，但是目标路径必须和源路径完全一致。
   * 只要这轮变更中有待确认项（unresolved items），就必须使用 unresolved_adds 登记该项的【原始文件名】。
+  * 所有待确认项必须使用unresolved_adds提交上去，并且需要创建Review目录，并且把所有待确认项暂时归入Review目录
 
 2. request_unresolved_choices：当你提交的计划中有 unresolved items（待确认项）时，你必须调用此工具来请求用户确认这些项的归类。
   * request_id: 本次待确认请求的唯一标识。

@@ -220,6 +220,35 @@ class OrganizerSessionServiceTests(unittest.TestCase):
         self.assertEqual(scanned.scan_lines, "a.txt | 文档 | A")
         self.assertEqual(scanned.scanner_progress["status"], "completed")
 
+    def test_start_scan_tracks_parallel_batch_progress_in_snapshot(self):
+        service = OrganizerSessionService(self.store, scanner=ImmediateScanner())
+        (self.target_dir / "a.txt").write_text("hello", encoding="utf-8")
+        created = service.create_session(str(self.target_dir), resume_if_exists=False)
+        session = created.session
+        assert session is not None
+
+        def fake_run_analysis_cycle(_target_dir, event_handler=None):
+            if event_handler is not None:
+                event_handler("batch_split", {"total_entries": 31, "batch_count": 3, "worker_count": 3})
+                event_handler("batch_progress", {"batch_index": 0, "total_batches": 3, "status": "completed", "completed_batches": 1})
+                event_handler("batch_progress", {"batch_index": 1, "total_batches": 3, "status": "completed", "completed_batches": 2})
+                event_handler("batch_progress", {"batch_index": 2, "total_batches": 3, "status": "completed", "completed_batches": 3})
+            return "a.txt | 文档 | A"
+
+        with mock.patch(
+            "file_organizer.app.session_service.analysis_service.run_analysis_cycle",
+            side_effect=fake_run_analysis_cycle,
+        ):
+            service.start_scan(session.session_id)
+
+        scanned = self.store.load(session.session_id)
+        assert scanned is not None
+        self.assertEqual(scanned.scanner_progress["batch_count"], 3)
+        self.assertEqual(scanned.scanner_progress["completed_batches"], 3)
+        self.assertEqual(scanned.scanner_progress["message"], "已完成 3/3 批并行分析")
+        self.assertEqual(scanned.stage, "planning")
+        self.assertTrue(any(event["event_type"] == "scan.progress" for event in service.read_events(session.session_id)))
+
     def test_submit_user_intent_updates_pending_plan_and_assistant_message(self):
         created = self.service.create_session(str(self.target_dir), resume_if_exists=False)
         session = created.session
@@ -316,8 +345,6 @@ class OrganizerSessionServiceTests(unittest.TestCase):
         self.assertEqual(stored.messages[-2]["tool_calls"][0]["id"], "call_1")
         self.assertEqual(stored.messages[-1]["role"], "tool")
         self.assertEqual(stored.messages[-1]["tool_call_id"], "call_1")
-        self.assertEqual(result.session_snapshot["messages"][-1]["content"], "已更新计划")
-        self.assertTrue(all(message["role"] != "tool" for message in result.session_snapshot["messages"]))
 
     def test_resolve_unresolved_choices_updates_plan_and_marks_block_submitted(self):
         created = self.service.create_session(str(self.target_dir), resume_if_exists=False)

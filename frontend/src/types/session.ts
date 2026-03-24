@@ -54,6 +54,8 @@ export interface ScannerProgress {
   total_count?: number;
   current_item?: string | null;
   recent_analysis_items?: RecentAnalysisItem[];
+  batch_count?: number;
+  completed_batches?: number;
   message?: string;
 }
 
@@ -380,6 +382,9 @@ export function createDemoSessionSnapshot(stage: SessionStage): SessionSnapshot 
       processed_count: stage === "scanning" ? 12 : 24,
       total_count: 40,
       current_item: stage === "scanning" ? "project-notes.docx" : null,
+      batch_count: stage === "scanning" ? 3 : undefined,
+      completed_batches: stage === "scanning" ? 1 : undefined,
+      message: stage === "scanning" ? "文件较多，已拆分为 3 个批次并行分析" : undefined,
       recent_analysis_items: [
         {
           item_id: "notes.md",
