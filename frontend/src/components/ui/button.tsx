@@ -21,15 +21,15 @@ export function Button({
 }: ButtonProps) {
   const variants = {
     primary: "bg-primary text-white shadow-lg shadow-primary/20 hover:opacity-90 active:scale-95",
-    secondary: "bg-surface-container-low border border-on-surface/5 text-on-surface-variant hover:bg-white hover:shadow-sm active:scale-95",
+    secondary: "bg-surface-container-low border border-on-surface/5 text-on-surface hover:bg-white hover:shadow-sm active:scale-95",
     danger: "bg-error-container/10 border border-error/10 text-error hover:bg-error hover:text-white active:scale-95",
-    ghost: "bg-transparent text-on-surface-variant hover:bg-on-surface/5 active:scale-95"
+    ghost: "bg-transparent text-on-surface hover:bg-on-surface/5 active:scale-95"
   };
 
   const sizes = {
-    sm: "px-4 py-1.5 text-[11px] rounded-lg",
-    md: "px-6 py-2.5 text-[13px] rounded-xl",
-    lg: "px-10 py-4 text-sm rounded-2xl"
+    sm: "px-4 py-2 text-[12px] rounded-sm",
+    md: "px-6 py-2.5 text-[14px] rounded-md",
+    lg: "px-10 py-4 text-sm rounded-lg"
   };
 
   return (
@@ -37,7 +37,7 @@ export function Button({
       whileTap={{ scale: 0.97 }}
       disabled={disabled || loading}
       className={cn(
-        "font-black uppercase tracking-widest transition-all inline-flex items-center justify-center gap-2 disabled:opacity-50 disabled:pointer-events-none disabled:grayscale",
+        "font-semibold tracking-[0.01em] transition-all inline-flex items-center justify-center gap-2 disabled:opacity-50 disabled:pointer-events-none disabled:grayscale",
         variants[variant],
         sizes[size],
         className

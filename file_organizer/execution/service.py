@@ -57,6 +57,23 @@ def load_execution_journal(execution_id: str) -> ExecutionJournal | None:
     return ExecutionJournal.from_dict(json.loads(path.read_text(encoding="utf-8")))
 
 
+def delete_execution_journal(execution_id: str) -> bool:
+    path = _journal_path(execution_id)
+    if not path.exists():
+        return False
+
+    journal = ExecutionJournal.from_dict(json.loads(path.read_text(encoding="utf-8")))
+    path.unlink()
+
+    latest_index_path, executions_dir = _history_paths()
+    latest_index = read_latest_index(latest_index_path, executions_dir)
+    if latest_index.get(str(Path(journal.target_dir).resolve())) == execution_id:
+        latest_index.pop(str(Path(journal.target_dir).resolve()), None)
+        write_latest_index(latest_index, latest_index_path, executions_dir)
+
+    return True
+
+
 def _coerce_final_plan(parsed_commands) -> FinalPlan:
     if isinstance(parsed_commands, FinalPlan):
         return parsed_commands

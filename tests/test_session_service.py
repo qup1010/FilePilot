@@ -634,6 +634,18 @@ class OrganizerSessionServiceTests(unittest.TestCase):
         self.assertEqual(reloaded.integrity_flags["interrupted_during"], "executing")
         self.assertEqual(reloaded.last_error, "executing_interrupted")
 
+    def test_delete_history_entry_removes_session_file_and_latest_index(self):
+        created = self.service.create_session(str(self.target_dir), resume_if_exists=False)
+        session = created.session
+        assert session is not None
+
+        result = self.service.delete_history_entry(session.session_id)
+
+        self.assertEqual(result["status"], "deleted")
+        self.assertEqual(result["entry_type"], "session")
+        self.assertIsNone(self.store.load(session.session_id))
+        self.assertIsNone(self.store.find_latest_by_directory(self.target_dir))
+
     def test_update_item_target_uses_target_dir_and_removes_unresolved_item(self):
         created = self.service.create_session(str(self.target_dir), resume_if_exists=False)
         session = created.session

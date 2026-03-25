@@ -33,6 +33,14 @@
     to { transform: rotate(360deg); }
   }
   --animate-spin-slow: spin-slow 2.4s linear infinite;
+
+  /* Architectural Radius Scale */
+  --radius-xs: 2px;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 10px;
+  --radius-2xl: 12px;
 }
 
 @layer base {
@@ -88,12 +96,43 @@
 
   body {
     @apply bg-surface text-on-surface font-sans antialiased;
-    background-image: radial-gradient(circle at top left, rgba(76, 98, 88, 0.07), transparent 30%), linear-gradient(180deg, rgba(255,255,255,0.75), rgba(255,255,255,0));
+    background-image: radial-gradient(circle at top left, rgba(76, 98, 88, 0.07), transparent 40%), linear-gradient(180deg, rgba(255,255,255,0.8), rgba(255,255,255,0));
   }
   
   h1, h2, h3, h4 {
     @apply font-headline;
   }
+
+  p {
+    color: color-mix(in srgb, var(--on-surface) 78%, transparent);
+  }
+}
+
+.text-ui-title {
+  font-size: 1rem;
+  line-height: 1.35;
+  letter-spacing: -0.01em;
+}
+
+.text-ui-section {
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  letter-spacing: 0.01em;
+}
+
+.text-ui-body {
+  font-size: 0.9375rem;
+  line-height: 1.7;
+}
+
+.text-ui-meta {
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: color-mix(in srgb, var(--on-surface-variant) 88%, transparent);
+}
+
+.text-ui-muted {
+  color: color-mix(in srgb, var(--on-surface-variant) 76%, transparent);
 }
 
 .glass-surface {

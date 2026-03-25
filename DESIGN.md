@@ -1,192 +1,501 @@
-# Design System Specification: The Architectural Workspace
+# 设计系统规范：桌面级建筑式工作台 (Desktop Architectural Workbench)
 
+## 1. 设计总纲
 
+### 核心定位
 
-## 1. Overview & Creative North Star
+这不是一个营销网站，也不是一个“精致 SaaS 后台”。  
+它是一款**本地文件整理桌面工具**，需要服务高频、长时段、以任务为中心的使用场景。
 
-**Creative North Star: The Silent Partner**
+界面的首要职责不是“惊艳”，而是建立一种**稳定、可信、可持续工作的环境感**。
 
-This design system moves beyond "minimalism" into the realm of **Architectural Clarity**. It is designed for high-stakes desktop productivity where the interface must recede to let the user’s data lead. We reject the "standard" SaaS aesthetic of heavy borders and bright gradients. Instead, we embrace an editorial approach: intentional white space, sophisticated tonal layering, and a rigid adherence to typography as the primary structural element.
+我们要的不是“网页式产品感”，而是：
 
+- 像一个被严格整理过的桌面工作台
+- 像一张有结构、有秩序的操作台
+- 像一个让用户长时间停留也不会疲劳的工具环境
 
+### 视觉论点 (Visual Thesis)
 
-The goal is to create a sense of **Ambient Authority**. The interface should feel like a well-organized physical desk—composed of layered surfaces, clear sightlines, and a tactile sense of depth that guides the eye without shouting for attention.
+**冷静、精确、低装饰、低噪声。**  
+界面应该像建筑平面图一样清晰，像高质量办公器具一样克制。
 
+### 内容论点 (Content Plan for Product UI)
 
+对于产品型页面，内容顺序固定为：
 
----
+1. 当前上下文
+2. 当前任务或当前记录
+3. 结构化信息
+4. 直接操作
 
+不要出现网页式的 hero、宣传式导语、情绪型大段文案。
 
+### 交互论点 (Interaction Thesis)
 
-## 2. Colors & Surface Philosophy
+动效用于建立“结构感”，而不是建立“氛围感”。
 
-We utilize a sophisticated palette of muted grays and low-saturation blues to maintain a "Cool/Neutral" temperature, reducing cognitive fatigue during long work sessions.
+推荐只保留 3 类动效：
 
+- 面板切换时的短距离位移与淡入
+- 列表选中与详情区更新的状态过渡
+- 加载、思考、执行中的轻量脉冲与进度反馈
 
-
-### The "No-Line" Rule
-
-**Standard 1px borders are strictly prohibited for sectioning.** To create a high-end, custom feel, boundaries must be defined through background shifts.
-
-* **The Technique:** Use `surface-container-low` for your base workspace and `surface-container-lowest` (#ffffff) for active content areas. The transition in hex code is enough to define the edge.
-
-* **Exception:** If a physical boundary is required for accessibility, use a **Ghost Border**: the `outline-variant` token at 15% opacity.
-
-
-
-### Surface Hierarchy & Nesting
-
-Treat the UI as a series of nested physical layers.
-
-* **Level 0 (Base):** `surface` (#f8f9fa) – Used for the global background.
-
-* **Level 1 (Sub-navigation/Sidebars):** `surface-container` (#eaeff1) – Creates a slight recession.
-
-* **Level 2 (Main Canvas):** `surface-container-low` (#f1f4f6) – The primary staging area.
-
-* **Level 3 (Active Cards/Modals):** `surface-container-lowest` (#ffffff) – Pops forward as the most important layer.
-
-
-
-### Glass & Texture
-
-To move away from a "flat" feel, floating elements (menus, popovers) should use **Glassmorphism**:
-
-* **Fill:** `surface_container_lowest` at 85% opacity.
-
-* **Effect:** 12px – 20px Backdrop Blur.
-
-* **CTA Soul:** For primary actions, use a subtle vertical gradient from `primary` (#496177) to `primary_dim` (#3d556a). This adds a "weighted" feel to buttons that solid colors cannot replicate.
-
-
+禁止用大面积漂浮、放大、发光、漂移感动效制造“网页展示感”。
 
 ---
 
+## 2. 产品气质与判断标准
 
+### 产品气质关键词
 
-## 3. Typography: The Editorial Engine
+- 桌面工具
+- 建筑式结构
+- 环境权威感
+- 高密度但不拥挤
+- 冷静而有分量
 
-Typography is our primary architectural tool. We use a pairing of **Manrope** for structural headings and **Inter** for data density.
+### 首屏必须回答的 3 个问题
 
+任何产品页面进入首屏后，用户必须立刻知道：
 
+1. 我现在在哪个模块？
+2. 当前最重要的内容是什么？
+3. 下一步我能做什么？
 
-* **Display & Headlines (Manrope):** Large, bold, and authoritative. Use `display-md` or `headline-lg` to anchor a page. The wider apertures of Manrope provide an expensive, modern feel.
+如果首屏优先给出了“品牌氛围”“设计情绪”“页面介绍”，而不是这 3 个问题的答案，这个页面就偏离了桌面工具方向。
 
-* **Body & Labels (Inter):** Specifically chosen for its high x-height and legibility in data-heavy tables.
+### 核心判断
 
-* **The Hierarchy Rule:** Never use two different sizes of Inter to define hierarchy if you can use one size with a weight change (Medium vs. Regular) and a color shift (using `on_surface_variant` for secondary data).
+如果一个页面：
 
+- 更像一张网页
+- 更像一个落地页
+- 更像一个 SaaS dashboard
+- 更像一组漂浮卡片
 
+那它就不符合本规范。
 
-| Role | Font | Size | Use Case |
+如果一个页面：
 
+- 更像一个稳定的应用框架
+- 更像一个带导航、主区、详情区的工具壳
+- 更像一个结构严谨的工作面板
+
+那它就是正确方向。
+
+---
+
+## 3. 页面结构原则 (Layout First)
+
+### 总原则
+
+**先定义框架，再定义组件。**  
+所有页面先想清楚“哪一块是框架、哪一块是工作面、哪一块是辅助信息”，再决定是否需要卡片。
+
+### 标准桌面布局
+
+默认采用以下结构：
+
+- 顶部：工具栏 / 当前上下文栏
+- 左侧：导航、列表、记录流或目录结构
+- 中间：主工作区
+- 右侧：详情区、检查器、状态区
+
+并不是每页都必须三栏，但必须体现出**稳定的框架关系**。
+
+### 严禁网页化结构
+
+以下结构默认禁止：
+
+- 居中窄栏页面
+- 巨大的网页式 hero
+- 页面开头的大面积介绍块
+- 顶部大横幅 + 下方长文档式滚动
+- 用多个大卡片堆叠出“假层级”
+
+### 小窗口策略
+
+桌面应用必须考虑小窗口和窄宽度场景。
+
+原则：
+
+- 小窗口下优先压缩介绍区，而不是压缩工作内容
+- 优先保留：任务、列表、状态、操作
+- 优先隐藏或折叠：摘要文案、装饰区、说明性区块
+- 小窗口下禁止首屏被单个概览区占满
+
+### 页面模式约定
+
+#### 首页
+
+首页不是官网首页，而是**启动工作台**。
+
+应优先展示：
+
+- 开始新整理
+- 继续上次任务
+- 最近记录
+- 当前运行状态
+
+不应出现宣传式 hero、品牌型情绪块。
+
+#### 工作区
+
+工作区是核心产品界面，必须保持最强结构感。
+
+推荐模式：
+
+- 左：对话 / 操作
+- 右：目录结构 / 预检 / 完成结果
+
+当前任务必须永远比视觉装饰更突出。
+
+#### 历史页
+
+历史页应是**列表 + 详情**页面，而不是“历史页介绍页”。
+
+应优先展示：
+
+- 搜索
+- 筛选
+- 记录列表
+- 记录详情
+- 可执行动作
+
+顶部如果需要概览，只允许是**紧凑摘要带**，不允许做成大型 hero 区。
+
+#### 设置页
+
+设置页是运维型页面，不是品牌页面。
+
+应优先：
+
+- 清晰分组
+- 紧凑表单
+- 直接操作
+- 配置状态反馈
+
+不要做成大卡片瀑布或营销式设置页。
+
+---
+
+## 4. 色彩与表面哲学 (Surfaces, Not Cards)
+
+### 色彩目标
+
+整体色温保持冷静、中性、低饱和，减少长时间使用的认知疲劳。
+
+### 颜色角色
+
+- `surface`: 全局底色
+- `surface-container`: 次级框架区域
+- `surface-container-low`: 主画布基底
+- `surface-container-lowest`: 活跃层、浮层、输入层
+- `primary`: 唯一主强调色
+- `warning` / `error`: 仅用于状态，不参与装饰
+
+### 无痕分区原则 (No-Line Rule)
+
+**优先用表面层级分区，不靠硬边框分区。**
+
+默认做法：
+
+- 用背景色阶切换定义区域
+- 用留白和对齐建立分组
+- 用微弱阴影或半透明边框补足必要边界
+
+只有在浮层、模态框、弹出菜单等真正需要物理边界感时，才允许使用明显边界。
+
+### 玻璃感使用规则
+
+毛玻璃只允许用于：
+
+- 下拉菜单
+- 浮层
+- 模态框
+- 临时工具面板
+
+禁止用于：
+
+- 整页主工作区
+- 常规列表卡片
+- 大面积内容容器
+
+换句话说，**玻璃感应该是例外，不应该成为基础语言**。
+
+### 背景使用规则
+
+允许全局存在非常轻的环境纹理或弱渐变，但：
+
+- 不得抢过工作内容
+- 不得让文字对比下降
+- 不得在常规产品区域中形成“网页海报感”
+
+产品 UI 的主层级必须靠结构，而不是靠背景特效。
+
+---
+
+## 5. 字体系统 (Typography as Structure)
+
+字体是本系统的核心建筑工具。
+
+### 字体分工
+
+- **Manrope**
+  用于页面级标题、主模块名、强结构标题
+- **Inter**
+  用于正文、数据、标签、输入、表格、列表
+
+### 中文排版硬规则
+
+- 中文标签默认禁止 `uppercase`
+- 中文界面禁止使用过强字距来制造“高级感”
+- 中文正文最小不低于 `14px`
+- 中文次级信息最小不低于 `12px`
+- 不允许用 `9px / 10px` 承担主要信息表达
+
+### 字号分层
+
+| 角色 | 字体 | 建议字号 | 用途 |
 | :--- | :--- | :--- | :--- |
+| 页面标题 | Manrope | 28px - 36px | 模块名 / 主标题 |
+| 区域标题 | Inter / Manrope | 16px - 20px | 面板标题 / 子区域标题 |
+| 正文 | Inter | 14px - 15px | 正常说明 / 数据文本 |
+| 次级说明 | Inter | 12px - 13px | 元信息 / 辅助说明 |
+| 极小标签 | Inter | 12px | 时间、状态、弱提示 |
 
-| **Headline-LG** | Manrope | 2.0rem | Primary Page Title |
+### 层级建立原则
 
-| **Title-MD** | Inter | 1.125rem | Section Headers / Table Groups |
+优先使用以下手段建立层级：
 
-| **Body-MD** | Inter | 0.875rem | Standard Data / Form Inputs |
+- 字重
+- 对齐
+- 留白
+- 表面层次
+- 内容位置
 
-| **Label-SM** | Inter | 0.6875rem | Metadata / Micro-copy |
+避免依赖：
 
-
-
----
-
-
-
-## 4. Elevation & Depth
-
-In this system, depth is achieved through **Tonal Layering** and **Ambient Light**, not drop shadows.
-
-
-
-* **The Layering Principle:** Place a `surface-container-lowest` card on top of a `surface-container-low` section. The contrast (White on Soft Gray) creates a natural lift.
-
-* **Ambient Shadows:** For floating elements (Modals/Dropdowns), use a multi-layered shadow:
-
-* *Shadow 1:* 0px 4px 20px 0px (on-surface @ 4% opacity)
-
-* *Shadow 2:* 0px 8px 40px 0px (on-surface @ 6% opacity)
-
-* **Interaction Depth:** When a user hovers over a card, do not increase the shadow. Instead, shift the background color from `surface-container-low` to `surface-bright`.
-
-
+- 过大的字号跳跃
+- 大面积全大写
+- 过强的 tracking
+- 花哨颜色
 
 ---
 
+## 6. 圆角、边框与阴影
 
+### 圆角规范
 
-## 5. Components
+本项目采用**小圆角建筑语言**。
 
+建议值：
 
+- 工具按钮：4px - 8px
+- 输入框 / 小面板：10px - 12px
+- 主面板 / 大容器：12px - 16px
+- 模态框 / 浮层：16px - 20px
 
-### Buttons
+禁止：
 
-* **Primary:** Gradient fill (`primary` to `primary_dim`), white text, `md` (0.375rem) corner radius.
+- Full / Pill 作为默认语言
+- 大面积 24px、28px、32px 圆角成为常态
 
-* **Secondary:** Ghost style. No fill, `outline-variant` Ghost Border (20% opacity).
+只有胶囊筛选器、状态 badge 等特定场景可以使用 full radius。
 
-* **Tertiary:** No border, no fill. Text uses `primary` color. Only for low-emphasis actions.
+### 边框规范
 
+- 常规面板：弱边框或无边框
+- 活跃态：弱强调边框
+- 浮层：允许 10% - 15% 透明度的边框
 
+不要让每个区域都带一层显性描边。
 
-### Data Tables (The Core Productivity Tool)
+### 阴影规范
 
-* **Strict Rule:** No vertical or horizontal dividers.
+阴影只用于表现“浮层”，不用于把普通内容都做成漂浮卡片。
 
-* **Structure:** Use `spacing.4` (0.9rem) for row padding. Separate rows using a subtle hover state shift to `surface-container-high`.
+允许：
 
-* **Alignment:** Numeric data must be tabular-lining and right-aligned for instant scanning.
+- 模态框阴影
+- 浮层阴影
+- 当前活跃面板的极轻阴影
 
+禁止：
 
-
-### Input Fields
-
-* **Style:** Minimalist. Underline-only or a subtle `surface-container-highest` background.
-
-* **Active State:** Use a 2px bottom border of `primary` (#496177). Avoid "glowing" focus rings; use a sharp, 1px inset of `primary_fixed` instead.
-
-
-
-### Chips & Badges
-
-* **Semantic Chips:** Use high-transparency backgrounds. For an Error state, `error_container` at 30% opacity with `on_error_container` text. This ensures the "Operational Safety" colors are present but not distracting.
-
-
-
----
-
-
-
-## 6. Do's and Don'ts
-
-
-
-### Do:
-
-* **Use intentional asymmetry:** In a dashboard, allow the left sidebar and right content area to have vastly different widths and weights to create a sense of custom "editorial" layout.
-
-* **Respect the Spacing Scale:** Stick strictly to the `0.2rem` increments. If an element feels "tight," jump two steps up the scale (e.g., from `spacing.4` to `spacing.6`).
-
-* **Prioritize Typography:** If a layout feels messy, remove a box or a background and try to solve the hierarchy using only font weight and `on_surface_variant` color.
-
-
+- 每张普通卡片都带明显阴影
+- 悬浮时明显抬升
+- 用大阴影制造“高级感”
 
 ---
 
-## 7. Product Architecture Patterns
+## 7. 组件规则 (Component Rules)
 
-This system is not intended for generic SaaS dashboards or module-heavy enterprise tools. It is designed for a **single-session desktop workbench** where conversation drives action and structured state remains continuously visible.
+### 工具栏 / 顶栏
 
+顶栏要像桌面应用工具栏，而不是网站导航。
 
+要求：
 
+- 高度紧凑
+- 品牌与当前上下文清晰
+- 工具按钮克制
+- 中间区域优先承载导航或当前工作状态
 
-### Don't:
+不允许：
 
-* **Don't use 100% Black:** Never use #000000. Use `on_background` (#2b3437) for text to maintain the "Calm/Professional" tone.
+- 过强的居中导航表演感
+- 大型网页式品牌头图
+- 顶栏过高导致工作区首屏被挤压
 
-* **Don't use Rounded Corners for everything:** While we have a scale, keep larger containers at `md` (0.375rem) to maintain a "structured" and "architectural" feel. Avoid `full` (pill) shapes unless it's a small utility chip.
+### 列表与记录流
 
-* **Don't use dividers:** If you feel the need to add a line, add `spacing.8` (1.75rem) of white space instead. If that fails, change the background color of the section.
+列表是高频工作区，不应做成“卡片秀场”。
+
+要求：
+
+- 优先强调选中态
+- 记录项之间主要靠留白、色阶和轻边界区分
+- 删除、过滤、搜索属于工具动作，视觉优先级低于选中和状态
+
+### 详情区 / 检查器
+
+详情区应是一个连续工作面，而不是多个无关卡片堆叠。
+
+正确做法：
+
+- 一块主内容面板
+- 必要时局部插入次级容器
+- 重要操作固定在稳定位置
+
+### 按钮
+
+- 主按钮只用一种主强调色
+- 次按钮尽量轻
+- 删除、回退等危险动作只在必要时升高视觉权重
+
+不要让页面同时出现多个“看起来都像主按钮”的按钮。
+
+### 输入框
+
+输入框必须像工具控件，而不是网站表单。
+
+要求：
+
+- 平稳背景
+- 清晰激活态
+- 少装饰
+- 占位文案简短直接
+
+### 空状态
+
+空状态不是插画展示位。
+
+它只需要回答：
+
+- 为什么这里是空的
+- 用户接下来做什么
+
+禁止把空状态做成二次 hero。
+
+---
+
+## 8. 运动原则 (Motion)
+
+动效服务结构，不服务戏剧。
+
+### 应保留的动效
+
+- 列表选择到详情切换时的轻微淡入
+- 标签切换时的短距离位移
+- Loading / Thinking 的轻脉冲
+- 模态框进入与退出
+
+### 应避免的动效
+
+- 大面积缩放
+- 漂浮感悬停
+- 过长的进入动画
+- 带明显展示意味的首屏动画
+
+### 速度建议
+
+- 常规界面反馈：120ms - 180ms
+- 面板切换：180ms - 240ms
+- 模态出现：200ms - 260ms
+
+一切动效都应显得像“系统响应”，而不是“设计展示”。
+
+---
+
+## 9. 做与不做 (Do / Don’t)
+
+### 坚持做
+
+- 先做框架，再做组件
+- 用面板和布局组织页面，而不是用卡片组织页面
+- 保持高密度但高可读
+- 让当前任务始终是视觉中心
+- 让页面一眼看出是桌面工具，不是网站
+
+### 严格避免
+
+- 网页式 hero
+- 大面积介绍区
+- 卡片瀑布
+- 过多玻璃感
+- 过多圆角
+- 多个强调色并存
+- 中文界面大面积 uppercase
+- “精致但不高效”的视觉决定
+
+---
+
+## 10. 页面级实施指令
+
+后续所有页面重构，都按以下规则执行：
+
+### 首页
+
+- 直接进入“开始整理”与“继续任务”
+- 不做品牌展示 hero
+- 历史和运行状态只作为辅助区
+
+### 工作区
+
+- 保持双面板工作台结构
+- 对话与结构结果必须是主角
+- 所有装饰都不得抢过任务状态
+
+### 历史页
+
+- 以“列表 + 详情”作为绝对主结构
+- 顶部摘要必须紧凑
+- 小窗口下优先压缩概览，而不是压缩记录内容
+
+### 设置页
+
+- 以分组表单与状态反馈为主
+- 不做展示型卡片布局
+
+---
+
+## 11. 最终检验标准 (Litmus Checks)
+
+每次设计改动后，必须问自己：
+
+1. 这个页面像桌面应用，还是像网页？
+2. 首屏最重要的是任务，还是视觉？
+3. 当前结构是面板式，还是卡片式？
+4. 小窗口下，是否仍然先看到工作内容？
+5. 去掉大阴影和背景特效后，页面是否仍然成立？
+
+如果答案偏向：
+
+- “像网页”
+- “像展示页”
+- “像卡片集合”
+- “像设计练习”
+
+那就说明设计方向错了，必须重做。

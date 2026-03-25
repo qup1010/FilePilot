@@ -465,7 +465,7 @@ function FileItem({
         )}
       </div>
       {hoverDetails.length > 0 && (
-        <div className="pointer-events-none absolute left-6 right-3 top-full z-20 mt-1 hidden rounded-xl border border-on-surface/10 bg-surface-container px-3 py-2 text-[11px] leading-5 text-on-surface shadow-lg group-hover/item:block">
+        <div className="pointer-events-none absolute left-6 right-3 top-full z-20 mt-1 hidden rounded-lg border border-on-surface/10 bg-surface-container px-3 py-2 text-[11px] leading-5 text-on-surface shadow-lg group-hover/item:block">
           {hoverDetails.map((line) => (
             <div key={line}>{line}</div>
           ))}
@@ -577,7 +577,7 @@ export function PreviewPanel({
           {(plan.summary || (plan.change_highlights && plan.change_highlights.length > 0)) && (
             <div className="py-2">
               {plan.summary && (
-                <div className="px-6 py-4 rounded-xl bg-on-surface/[0.02] border border-on-surface/[0.04]">
+                <div className="px-6 py-4 rounded-lg bg-on-surface/[0.02] border border-on-surface/[0.04]">
                   <p className="text-[14px] leading-7 text-on-surface/70 font-medium italic">
                     “ {plan.summary} ”
                   </p>
@@ -637,7 +637,7 @@ export function PreviewPanel({
               </div>
             </div>
 
-            <div className="bg-surface-container-lowest/20 rounded-xl p-2 border border-on-surface/[0.04] min-h-[200px] shadow-xs">
+            <div className="bg-surface-container-lowest/20 rounded-lg p-2 border border-on-surface/[0.04] min-h-[200px] shadow-xs">
               {!hasTreeContent ? (
                 <div className="flex flex-col items-center justify-center h-40 text-[10px] font-bold text-on-surface-variant/10 italic gap-2">
                   <Archive className="w-6 h-6 opacity-5" />
@@ -689,7 +689,7 @@ export function PreviewPanel({
             onClick={onRunPrecheck}
             disabled={isBusy || (!plan.readiness.can_precheck && plan.unresolved_items.length > 0)}
             className={cn(
-              "w-full flex items-center justify-center gap-3 py-4.5 rounded-xl text-[11px] font-black uppercase tracking-[0.3em] transition-all",
+              "w-full flex items-center justify-center gap-3 py-4.5 rounded-md text-[11px] font-black uppercase tracking-[0.3em] transition-all",
               (plan.readiness.can_precheck || plan.unresolved_items.length === 0) && !isBusy
                 ? "bg-primary text-white shadow-[0_12px_40px_rgba(76,98,88,0.1)] hover:bg-primary-dim hover:shadow-[0_15px_45px_rgba(76,98,88,0.18)] active:scale-[0.98] cursor-pointer" 
                 : "bg-on-surface/5 text-on-surface-variant/20 cursor-not-allowed opacity-60"

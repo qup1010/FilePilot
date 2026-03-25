@@ -1,29 +1,42 @@
 "use client";
 
-import React, { ReactNode, useEffect, useMemo, useState } from 'react';
-import { usePathname, useSearchParams } from 'next/navigation';
-import Link from 'next/link';
-import { Settings, LayoutGrid, History, Terminal } from 'lucide-react';
-import { clsx, type ClassValue } from 'clsx';
-import { twMerge } from 'tailwind-merge';
+import React, { ReactNode, useEffect, useMemo, useState } from "react";
+import { usePathname, useSearchParams } from "next/navigation";
+import Link from "next/link";
+import { Settings, LayoutGrid, History, Terminal, ChevronRight } from "lucide-react";
+import { clsx, type ClassValue } from "clsx";
+import { twMerge } from "tailwind-merge";
 
-const LAST_WORKSPACE_HREF_KEY = 'last_workspace_href';
+const LAST_WORKSPACE_HREF_KEY = "last_workspace_href";
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+function getModuleLabel(pathname: string) {
+  if (pathname === "/history") {
+    return { title: "历史记录", detail: "查看会话、执行结果与回退记录" };
+  }
+  if (pathname === "/settings") {
+    return { title: "设置", detail: "管理本地 API、运行环境与偏好" };
+  }
+  if (pathname.startsWith("/workspace")) {
+    return { title: "工作区", detail: "继续当前整理任务" };
+  }
+  return { title: "工作台", detail: "新建整理任务或继续上次会话" };
+}
+
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const isSettings = pathname === '/settings';
-  const [lastWorkspaceHref, setLastWorkspaceHref] = useState('/');
+  const isSettings = pathname === "/settings";
+  const [lastWorkspaceHref, setLastWorkspaceHref] = useState("/");
 
   const currentWorkbenchHref = useMemo(() => {
-    if (pathname === '/') {
-      return '/';
+    if (pathname === "/") {
+      return "/";
     }
-    if (!pathname.startsWith('/workspace')) {
+    if (!pathname.startsWith("/workspace")) {
       return null;
     }
     const query = searchParams.toString();
@@ -31,7 +44,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   }, [pathname, searchParams]);
 
   useEffect(() => {
-    if (typeof window === 'undefined') {
+    if (typeof window === "undefined") {
       return;
     }
 
@@ -42,7 +55,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (!currentWorkbenchHref || typeof window === 'undefined') {
+    if (!currentWorkbenchHref || typeof window === "undefined") {
       return;
     }
 
@@ -50,38 +63,49 @@ export function AppShell({ children }: { children: ReactNode }) {
     setLastWorkspaceHref(currentWorkbenchHref);
   }, [currentWorkbenchHref]);
 
-  const workbenchHref = currentWorkbenchHref || lastWorkspaceHref || '/';
+  const workbenchHref = currentWorkbenchHref || lastWorkspaceHref || "/";
+  const moduleCopy = getModuleLabel(pathname);
 
   const navItems = [
-    { href: workbenchHref, icon: LayoutGrid, label: '工作台' },
-    { href: '/history', icon: History, label: '历史档案' },
+    { href: workbenchHref, icon: LayoutGrid, label: "工作台" },
+    { href: "/history", icon: History, label: "历史" },
   ];
 
   const isNavActive = (href: string) => {
-    if (href === '/') {
-      return pathname === '/' || pathname.startsWith('/workspace');
+    if (href === "/") {
+      return pathname === "/" || pathname.startsWith("/workspace");
     }
     return pathname.startsWith(href);
   };
 
   return (
-    <div className="bg-surface text-on-surface h-screen flex flex-col overflow-hidden font-sans">
-      {/* Permanent Header */}
-      <header className="flex justify-between items-center w-full px-5 py-2.5 lg:px-6 border-b border-outline-variant/10 bg-white/72 backdrop-blur-3xl z-50 h-[72px] shrink-0">
-        <div className="flex items-center gap-6 lg:gap-9 min-w-0">
-          {/* Logo Section */}
-          <Link href="/" className="flex items-center gap-3 hover:opacity-80 transition-opacity min-w-0">
-            <div className="w-10 h-10 rounded-2xl bg-on-surface text-white flex items-center justify-center font-black shadow-xl shadow-on-surface/10 text-xl italic select-none">
-              W
+    <div className="flex h-screen flex-col overflow-hidden bg-surface text-on-surface font-sans">
+      <header className="z-50 grid h-[62px] shrink-0 grid-cols-[minmax(0,1fr)_auto] items-center border-b border-on-surface/8 bg-surface-container-lowest px-3 sm:px-4 lg:grid-cols-[260px_minmax(0,1fr)_auto] lg:px-5">
+        <div className="flex min-w-0 items-center gap-3 border-r border-on-surface/6 pr-3 lg:pr-4">
+          <Link href="/" className="flex min-w-0 items-center gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-[10px] border border-on-surface/8 bg-surface-container text-[0.95rem] font-black text-on-surface">
+              F
             </div>
-            <div className="flex flex-col min-w-0">
-              <span className="text-[1.1rem] font-black tracking-tight text-on-surface font-headline leading-tight truncate">File Workbench</span>
-              <span className="text-[10px] font-black text-on-surface-variant/30 uppercase tracking-[0.22em] leading-none">AI File Organizer</span>
+            <div className="min-w-0">
+              <p className="truncate text-[14px] font-black tracking-tight text-on-surface">File Organizer</p>
+              <p className="truncate text-ui-meta text-ui-muted">Desktop Workbench</p>
             </div>
           </Link>
+        </div>
 
-          {/* Center Navigation */}
-          <nav className="hidden md:flex items-center gap-1.5 p-1 bg-surface-container-low/50 rounded-[18px] border border-on-surface/5">
+        <div className="hidden min-w-0 items-center gap-3 px-4 lg:flex">
+          <div className="flex min-w-0 items-center gap-2 text-[12px] font-medium text-ui-muted">
+            <span>当前模块</span>
+            <ChevronRight className="h-3.5 w-3.5 text-on-surface/30" />
+          </div>
+          <div className="min-w-0">
+            <p className="truncate text-[14px] font-semibold text-on-surface">{moduleCopy.title}</p>
+            <p className="truncate text-ui-meta text-ui-muted">{moduleCopy.detail}</p>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-end gap-1.5 sm:gap-2">
+          <nav className="flex items-center rounded-[10px] border border-on-surface/6 bg-surface-container px-1 py-1">
             {navItems.map((item) => {
               const isActive = isNavActive(item.href);
               return (
@@ -89,55 +113,41 @@ export function AppShell({ children }: { children: ReactNode }) {
                   key={item.href}
                   href={item.href}
                   className={cn(
-                    "px-5 py-2 rounded-[14px] text-[12px] font-black transition-all flex items-center gap-2 tracking-tight uppercase",
-                    isActive 
-                      ? "bg-white text-on-surface shadow-sm border border-on-surface/5" 
-                      : "text-on-surface-variant/30 hover:text-on-surface hover:bg-white/40"
+                    "inline-flex items-center gap-2 rounded-[8px] px-2.5 py-2 text-[12px] font-semibold transition-colors sm:px-3",
+                    isActive ? "bg-white text-on-surface" : "text-ui-muted hover:text-on-surface",
                   )}
                 >
-                  <item.icon className={cn("w-4 h-4", isActive ? "text-primary" : "text-current")} />
-                  {item.label}
+                  <item.icon className={cn("h-4 w-4", isActive ? "text-primary" : "text-current")} />
+                  <span className="hidden sm:inline">{item.label}</span>
                 </Link>
               );
             })}
           </nav>
-        </div>
-        
-        {/* Right Utilities */}
-        <div className="flex items-center gap-3">
-          <div className="hidden xl:flex flex-col items-end mr-4 pointer-events-none select-none">
-            <span className="text-[11px] font-black text-on-surface/40 tracking-widest uppercase">面向目录整理</span>
-            <span className="text-[11px] font-bold text-on-surface-variant/20 uppercase tracking-widest">v2.0.0 Alpha</span>
-          </div>
 
-          <div className="h-7 w-px bg-on-surface/5 mx-1.5" />
-
-          <button 
-            className="w-11 h-11 flex items-center justify-center rounded-2xl transition-all duration-300 outline-none border border-transparent text-on-surface-variant/30 hover:text-on-surface hover:bg-white hover:border-on-surface/5 hover:shadow-sm"
+          <button
+            type="button"
+            className="hidden h-9 w-9 items-center justify-center rounded-[10px] border border-transparent text-ui-muted transition-colors hover:border-on-surface/8 hover:bg-white hover:text-on-surface lg:inline-flex"
             title="查看执行日志"
           >
-            <Terminal className="w-5 h-5" />
+            <Terminal className="h-[18px] w-[18px]" />
           </button>
 
-          <Link 
+          <Link
             href={isSettings ? "/" : "/settings"}
             className={cn(
-              "w-11 h-11 flex items-center justify-center rounded-2xl transition-all duration-300 outline-none border",
-              isSettings 
-                ? "text-primary bg-primary/10 border-primary/20 shadow-lg shadow-primary/10" 
-                : "text-on-surface-variant/30 hover:text-on-surface hover:bg-white border-transparent hover:border-on-surface/5 hover:shadow-sm"
+              "inline-flex h-9 w-9 items-center justify-center rounded-[10px] border transition-colors",
+              isSettings
+                ? "border-primary/20 bg-primary/10 text-primary"
+                : "border-transparent text-ui-muted hover:border-on-surface/8 hover:bg-white hover:text-on-surface",
             )}
             title="系统设置"
           >
-            <Settings className={cn("w-5 h-5 transition-transform duration-500", isSettings && "rotate-90")} />
+            <Settings className="h-[18px] w-[18px]" />
           </Link>
         </div>
       </header>
 
-      {/* Main Content Area */}
-      <main className="flex-1 flex flex-col overflow-hidden relative">
-        {children}
-      </main>
+      <main className="relative flex flex-1 flex-col overflow-hidden">{children}</main>
     </div>
   );
 }

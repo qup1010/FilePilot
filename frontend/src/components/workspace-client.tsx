@@ -2,7 +2,7 @@
 
 import React, { useMemo, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { AlertTriangle, Bot, ChevronDown, Layers, Loader2, RefreshCw } from "lucide-react";
+import { AlertTriangle, Bot, Layers, Loader2, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 import { useSession } from "@/lib/use-session";
@@ -10,7 +10,6 @@ import { getFriendlyStage } from "@/lib/utils";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { ScanningOverlay } from "./workspace/scanning-overlay";
 import { MinimalScanningView } from "./workspace/minimal-scanning-view";
 import { PrecheckView } from "./workspace/precheck-view";
 import { CompletionView } from "./workspace/completion-view";
@@ -57,13 +56,13 @@ export default function WorkspaceClient() {
   const [messageInput, setMessageInput] = useState("");
   const [leftWidth, setLeftWidth] = useState(62);
   const [exitConfirmOpen, setExitConfirmOpen] = useState(false);
+  const [mobileTab, setMobileTab] = useState<"conversation" | "preview">("conversation");
   const [dividerLeft, setDividerLeft] = useState<number | null>(null);
   const containerRef = React.useRef<HTMLDivElement>(null);
   const leftPaneRef = React.useRef<HTMLElement>(null);
   const [isResizingState, setIsResizingState] = useState(false);
   const isResizing = React.useRef(false);
 
-  // Persistence for sidebar width
   React.useEffect(() => {
     const saved = localStorage.getItem("workspace_sidebar_width");
     if (saved) {
@@ -116,19 +115,14 @@ export default function WorkspaceClient() {
   const progressPercent = scanner.total_count > 0 ? (scanner.processed_count / scanner.total_count) * 100 : 0;
   const showConversationPane = !["ready_to_execute", "completed"].includes(stage);
   const effectiveComposerMode = isReadOnly ? "hidden" : composerMode;
+  const preferredMobileTab = useMemo<"conversation" | "preview">(() => {
+    if (isReadOnly || stage === "ready_to_execute" || stage === "completed") {
+      return "preview";
+    }
+    return "conversation";
+  }, [isReadOnly, stage]);
 
-  const handleStartResizing = (event: React.MouseEvent<HTMLDivElement>) => {
-    event.preventDefault();
-    isResizing.current = true;
-    setIsResizingState(true);
-    document.addEventListener("mousemove", handleMouseMove);
-    document.addEventListener("mouseup", stopResizing);
-    document.body.style.cursor = "col-resize";
-    document.body.style.userSelect = "none";
-    document.body.style.webkitUserSelect = "none";
-  };
-
-  const handleMouseMove = (event: MouseEvent) => {
+  const handleMouseMove = React.useCallback((event: MouseEvent) => {
     if (!isResizing.current) {
       return;
     }
@@ -149,9 +143,9 @@ export default function WorkspaceClient() {
     const boundedX = Math.min(Math.max(event.clientX - rect.left, minLeftPx), maxLeftPx);
     const newWidth = (boundedX / rect.width) * 100;
     setLeftWidth(newWidth);
-  };
+  }, []);
 
-  const stopResizing = () => {
+  const stopResizing = React.useCallback(() => {
     isResizing.current = false;
     setIsResizingState(false);
     document.removeEventListener("mousemove", handleMouseMove);
@@ -160,6 +154,17 @@ export default function WorkspaceClient() {
     document.body.style.userSelect = "";
     document.body.style.webkitUserSelect = "";
     saveWidth(leftWidth);
+  }, [handleMouseMove, leftWidth, saveWidth]);
+
+  const handleStartResizing = (event: React.MouseEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    isResizing.current = true;
+    setIsResizingState(true);
+    document.addEventListener("mousemove", handleMouseMove);
+    document.addEventListener("mouseup", stopResizing);
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+    document.body.style.webkitUserSelect = "none";
   };
 
   const handleSendMessage = async () => {
@@ -265,6 +270,10 @@ export default function WorkspaceClient() {
   }, [stage, journal, journalLoading, isBusy, loadJournal]);
 
   React.useEffect(() => {
+    setMobileTab(preferredMobileTab);
+  }, [preferredMobileTab]);
+
+  React.useEffect(() => {
     if (!showConversationPane) {
       setDividerLeft(null);
       return;
@@ -293,230 +302,296 @@ export default function WorkspaceClient() {
     };
   }, [showConversationPane, leftWidth]);
 
+  const renderPreviewContent = () => {
+    if (stage === "scanning") {
+      return <MinimalScanningView scanner={scanner} progressPercent={progressPercent} />;
+    }
+
+    if (stage === "completed") {
+      return (
+        <div className="h-full overflow-y-auto p-5 max-w-[1040px] mx-auto lg:p-6 scrollbar-thin">
+          <CompletionView
+            journal={journal}
+            summary={snapshot?.summary || ""}
+            loading={journalLoading || !journal}
+            targetDir={snapshot?.target_dir || ""}
+            isBusy={isBusy}
+            readOnly={isReadOnly}
+            onOpenExplorer={() => void openExplorer(snapshot?.target_dir || "")}
+            onCleanupDirs={() => {
+              if (!isReadOnly) {
+                void cleanupEmptyDirs();
+              }
+            }}
+            onRollback={() => {
+              if (!isReadOnly) {
+                void rollback();
+              }
+            }}
+          />
+        </div>
+      );
+    }
+
+    if (stage === "ready_to_execute") {
+      return (
+        <div className="h-full overflow-y-auto p-4 lg:p-6 scrollbar-thin">
+          <PrecheckView
+            summary={precheck}
+            isBusy={isBusy}
+            readOnly={isReadOnly}
+            onExecute={() => {
+              if (!isReadOnly) {
+                void execute();
+              }
+            }}
+            onBack={() => {
+              if (!isReadOnly) {
+                void returnToPlanning();
+              }
+            }}
+          />
+        </div>
+      );
+    }
+
+    return (
+      <ErrorBoundary fallbackTitle="预览区加载失败">
+        {stage === "idle" || stage === "draft" ? (
+          <EmptyState
+            icon={Layers}
+            title="整理预览准备中"
+            description="先开始扫描，系统会在这里显示整理前后的目录变化。"
+            className="h-[70vh]"
+          />
+        ) : stage === "stale" || stage === "interrupted" ? (
+          <div className="h-full overflow-y-auto p-5 lg:p-6 scrollbar-thin">
+            <div className="rounded-lg border border-warning/20 bg-warning-container/15 p-6 shadow-sm">
+              <div className="flex items-start gap-4">
+                <div className="mt-1 rounded-lg bg-warning/15 p-3 text-warning">
+                  {stage === "interrupted" ? <AlertTriangle className="h-5 w-5" /> : <RefreshCw className="h-5 w-5" />}
+                </div>
+                <div className="space-y-3">
+                  <h3 className="text-lg font-bold text-on-surface">
+                    {stage === "interrupted" ? "处理被中断了" : "当前方案已过期"}
+                  </h3>
+                  <p className="text-sm leading-6 text-on-surface-variant">
+                    {stage === "interrupted"
+                      ? (snapshot?.last_error || "请重新刷新方案，确认目录状态后再继续。")
+                      : "目录内容已经变化，建议先重新扫描后再继续。"}
+                  </p>
+                  <div className="flex flex-wrap gap-3">
+                    <button
+                      type="button"
+                      onClick={() => void refreshPlan()}
+                      className="rounded-lg bg-primary px-4 py-2.5 text-sm font-bold text-white shadow-sm transition-opacity hover:opacity-90"
+                    >
+                      重新扫描
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleExitWorkbench}
+                      className="rounded-lg border border-on-surface/10 px-4 py-2.5 text-sm font-bold text-on-surface-variant transition-colors hover:bg-surface-container-low hover:text-on-surface"
+                    >
+                      结束这次整理
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <PreviewPanel
+            plan={plan}
+            stage={stage}
+            isBusy={isBusy}
+            readOnly={isReadOnly}
+            onRunPrecheck={() => {
+              if (!isReadOnly) {
+                void runPrecheck();
+              }
+            }}
+            onUpdateItem={(id, payload) => {
+              if (!isReadOnly) {
+                void updateItem({ item_id: id, ...payload });
+              }
+            }}
+          />
+        )}
+      </ErrorBoundary>
+    );
+  };
+
+  const conversationPanel = (
+    <ConversationPanel
+      messages={chatMessages}
+      assistantDraft={assistantDraft}
+      activityFeed={activityFeed}
+      error={chatError}
+      composerMode={effectiveComposerMode}
+      isBusy={isBusy}
+      isComposerLocked={isComposerLocked}
+      composerStatus={composerStatus}
+      stage={stage}
+      messageInput={messageInput}
+      setMessageInput={setMessageInput}
+      onSendMessage={handleSendMessage}
+      onStartScan={() => void scan()}
+      onResolveUnresolved={(payload) => {
+        if (!isReadOnly) {
+          void resolveUnresolvedChoices(payload);
+        }
+      }}
+      unresolvedCount={plan.unresolved_items.length}
+      notice={statusNotice}
+    />
+  );
+
+  const conversationHeader = (
+    <div className="shrink-0 px-5 py-4 flex items-center justify-between border-b border-on-surface/5 bg-surface/55 backdrop-blur-xl z-20 gap-4 lg:px-10 lg:py-5 lg:h-[88px]">
+      <div className="flex items-center gap-4 min-w-0">
+        <div className="hidden sm:flex w-10 h-10 rounded-lg bg-white/50 items-center justify-center text-primary/70 border border-on-surface/[0.03] shadow-xs shrink-0">
+          <Bot className="w-5 h-5" />
+        </div>
+        <div className="flex flex-col gap-1 min-w-0">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <h2 className="text-ui-title font-black text-on-surface truncate">
+              {getFriendlyStage(stage)}
+            </h2>
+            <span className="rounded-md bg-primary/8 border border-primary/10 px-2 py-0.5 text-ui-meta font-semibold text-primary/80 whitespace-nowrap">
+              文件整理工作台
+            </span>
+          </div>
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-ui-meta">
+            <p className="truncate max-w-[36rem] text-ui-muted">
+              {snapshot?.target_dir || dirParam || "..."}
+            </p>
+            {assistantRuntime ? (
+              <span className="flex items-center gap-1.5 text-primary/70">
+                <Loader2 className="h-3 w-3 animate-spin-slow" />
+                {assistantRuntime.label}
+              </span>
+            ) : null}
+            {streamStatus !== "connected" ? (
+              <span
+                className={cn(
+                  "rounded-md px-2 py-0.5 font-medium border",
+                  streamStatus === "connecting"
+                    ? "border-warning/20 bg-warning-container/20 text-warning"
+                    : "border-on-surface/10 bg-surface-container-low text-ui-muted",
+                )}
+              >
+                {streamStatus === "connecting" ? "正在连接" : "离线"}
+              </span>
+            ) : null}
+          </div>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-3 shrink-0">
+        <button
+          onClick={handleExitWorkbench}
+          className="text-[12px] font-medium text-ui-muted px-3 py-2 rounded-lg transition-all hover:text-error hover:bg-error-container/10"
+        >
+          结束会话
+        </button>
+      </div>
+    </div>
+  );
+
   return (
     <div ref={containerRef} className="flex-1 flex min-h-0 overflow-hidden relative bg-surface">
       <ErrorBoundary fallbackTitle="页面加载出错了" className="flex-1">
-        {showConversationPane ? (
-        <section ref={leftPaneRef} style={{ width: `${leftWidth}%` }} className="relative flex min-h-0 h-full min-w-[400px] flex-col">
-          <div className="shrink-0 px-8 py-5 flex items-center justify-between border-b border-on-surface/5 bg-surface/40 backdrop-blur-xl z-20 gap-6 lg:px-10 h-[88px]">
-            <div className="flex items-center gap-5 min-w-0">
-              <div className="w-10 h-10 rounded-xl bg-white/40 flex items-center justify-center text-primary/60 border border-on-surface/[0.03] shadow-xs shrink-0">
-                <Bot className="w-5 h-5" />
-              </div>
-              <div className="flex flex-col gap-1 min-w-0">
-                <div className="flex items-center gap-2.5">
-                  <h2 className="text-[15px] font-black text-on-surface tracking-tight truncate">
-                    文件整理工作台
-                  </h2>
-                  <div className="h-1 w-1 rounded-full bg-on-surface/10 md:block hidden" />
-                  <span className="rounded-full bg-primary/5 border border-primary/10 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-primary/70 whitespace-nowrap">
-                    {getFriendlyStage(stage)}
-                  </span>
-                </div>
-                <div className="flex items-center gap-2 text-[11px] font-medium text-on-surface-variant/40">
-                  <p className="truncate hover:text-on-surface-variant/60 cursor-default transition-colors">
-                    {snapshot?.target_dir || dirParam || "..."}
-                  </p>
-                  {assistantRuntime ? (
-                    <>
-                      <div className="w-1 h-1 rounded-full bg-on-surface/10" />
-                      <span className="flex items-center gap-1.5 transition-colors text-primary/60 uppercase tracking-widest font-black">
-                        <Loader2 className="h-2.5 w-2.5 animate-spin-slow" />
-                        {assistantRuntime.label}
-                      </span>
-                    </>
-                  ) : null}
-                </div>
-              </div>
-            </div>
+        <div className="hidden lg:flex flex-1 min-h-0">
+          {showConversationPane ? (
+            <section
+              ref={leftPaneRef}
+              style={{ width: `${leftWidth}%` }}
+              className="relative flex min-h-0 h-full min-w-[400px] flex-col"
+            >
+              {conversationHeader}
+              {conversationPanel}
+            </section>
+          ) : null}
 
-            <div className="flex items-center gap-3 shrink-0">
-              {streamStatus !== "connected" && (
-                <div className={cn(
-                  "flex items-center gap-1.5 px-2 py-1 rounded-full text-[9px] font-black uppercase tracking-widest",
-                  streamStatus === "connecting" ? "text-warning animate-pulse" : "text-on-surface-variant/20"
-                )}>
-                  {streamStatus === "connecting" ? "正在连接" : "离线"}
-                </div>
+          {showConversationPane ? (
+            <div
+              onMouseDown={handleStartResizing}
+              className={cn(
+                "absolute top-0 bottom-0 w-2.5 z-40 transition-colors cursor-col-resize flex items-center justify-center select-none group",
+                isResizingState ? "bg-transparent" : "hover:bg-primary/[0.03]",
               )}
-              <button
-                onClick={handleExitWorkbench}
-                className="text-[11px] font-black text-on-surface-variant/30 hover:text-error/60 px-4 py-2 rounded-lg transition-all hover:bg-error-container/5 uppercase tracking-widest"
-              >
-                结束会话
-              </button>
-            </div>
-          </div>
-
-          <ConversationPanel
-            messages={chatMessages}
-            assistantDraft={assistantDraft}
-            activityFeed={activityFeed}
-            error={chatError}
-            composerMode={effectiveComposerMode}
-            isBusy={isBusy}
-            isComposerLocked={isComposerLocked}
-            composerStatus={composerStatus}
-            stage={stage}
-            messageInput={messageInput}
-            setMessageInput={setMessageInput}
-            onSendMessage={handleSendMessage}
-            onStartScan={() => void scan()}
-            onResolveUnresolved={(payload) => {
-              if (!isReadOnly) {
-                void resolveUnresolvedChoices(payload);
-              }
-            }}
-            unresolvedCount={plan.unresolved_items.length}
-            notice={statusNotice}
-          />
-        </section>
-        ) : null}
-
-        {showConversationPane ? (
-          <div
-            onMouseDown={handleStartResizing}
-            className={cn(
-              "absolute top-0 bottom-0 w-2.5 z-40 transition-colors cursor-col-resize flex items-center justify-center select-none group",
-              isResizingState ? "bg-transparent" : "hover:bg-primary/[0.03]"
-            )}
-            style={{ left: dividerLeft !== null ? `${dividerLeft - 1.25}px` : `calc(${leftWidth}% - 1.25px)` }}
-          >
-            {/* 视觉分界线 */}
-            <div className={cn(
-              "w-[1px] h-full transition-all duration-300",
-              isResizingState 
-                ? "bg-primary/40 shadow-[0_0_15px_rgba(76,98,88,0.4)] scale-x-[1.5]" 
-                : "bg-on-surface/[0.04] group-hover:bg-primary/20"
-            )} />
-            
-            {/* 磁吸手柄 */}
-            <div className={cn(
-              "absolute top-1/2 -translate-y-1/2 w-5 h-9 rounded-full bg-white border border-on-surface/5 shadow-[0_2px_8px_rgba(0,0,0,0.04)] flex flex-col items-center justify-center gap-0.5 transition-all duration-200",
-              isResizingState 
-                ? "opacity-100 scale-110 shadow-[0_4px_12px_rgba(0,0,0,0.08)] border-primary/20" 
-                : "opacity-0 group-hover:opacity-100 scale-100"
-            )}>
-              <div className={cn("w-[1.5px] h-3 rounded-full transition-colors", isResizingState ? "bg-primary/40" : "bg-on-surface/15")} />
-              <div className={cn("w-[1.5px] h-3 rounded-full transition-colors", isResizingState ? "bg-primary/40" : "bg-on-surface/15")} />
-            </div>
-          </div>
-        ) : null}
-
-        <section
-          style={{ width: showConversationPane ? `${100 - leftWidth}%` : "100%" }}
-          className="flex min-h-0 h-full min-w-[340px] flex-col bg-surface overflow-hidden"
-        >
-          <div className="flex-1 min-h-0">
-            {stage === "scanning" ? (
-              <MinimalScanningView scanner={scanner} progressPercent={progressPercent} />
-            ) : stage === "completed" ? (
-              <div className="h-full overflow-y-auto p-5 max-w-[1040px] mx-auto lg:p-6 scrollbar-thin">
-                <CompletionView
-                  journal={journal}
-                  summary={snapshot?.summary || ""}
-                  loading={journalLoading || !journal}
-                  targetDir={snapshot?.target_dir || ""}
-                  isBusy={isBusy}
-                  readOnly={isReadOnly}
-                  onOpenExplorer={() => void openExplorer(snapshot?.target_dir || "")}
-                  onCleanupDirs={() => {
-                    if (!isReadOnly) {
-                      void cleanupEmptyDirs();
-                    }
-                  }}
-                  onRollback={() => {
-                    if (!isReadOnly) {
-                      void rollback();
-                    }
-                  }}
-                />
-              </div>
-            ) : stage === "ready_to_execute" ? (
-              <div className="h-full overflow-y-auto p-5 lg:p-6 scrollbar-thin">
-                <PrecheckView
-                  summary={precheck}
-                  isBusy={isBusy}
-                  readOnly={isReadOnly}
-                  onExecute={() => {
-                    if (!isReadOnly) {
-                      void execute();
-                    }
-                  }}
-                  onBack={() => {
-                    if (!isReadOnly) {
-                      void returnToPlanning();
-                    }
-                  }}
-                />
-              </div>
-            ) : (
-              <ErrorBoundary fallbackTitle="预览区加载失败">
-                {stage === "idle" || stage === "draft" ? (
-                  <EmptyState
-                    icon={Layers}
-                    title="整理预览准备中"
-                    description="先开始扫描，系统会在这里显示整理前后的目录变化。"
-                    className="h-[70vh]"
-                  />
-                ) : stage === "stale" || stage === "interrupted" ? (
-                  <div className="h-full overflow-y-auto p-5 lg:p-6 scrollbar-thin">
-                    <div className="rounded-2xl border border-warning/20 bg-warning-container/15 p-6 shadow-sm">
-                      <div className="flex items-start gap-4">
-                        <div className="mt-1 rounded-full bg-warning/15 p-3 text-warning">
-                          {stage === "interrupted" ? <AlertTriangle className="h-5 w-5" /> : <RefreshCw className="h-5 w-5" />}
-                        </div>
-                        <div className="space-y-3">
-                          <h3 className="text-lg font-bold text-on-surface">
-                            {stage === "interrupted" ? "处理被中断了" : "当前方案已过期"}
-                          </h3>
-                          <p className="text-sm leading-6 text-on-surface-variant">
-                            {stage === "interrupted"
-                              ? (snapshot?.last_error || "请重新刷新方案，确认目录状态后再继续。")
-                              : "目录内容已经变化，建议先重新扫描后再继续。"}
-                          </p>
-                          <div className="flex flex-wrap gap-3">
-                            <button
-                              type="button"
-                              onClick={() => void refreshPlan()}
-                              className="rounded-xl bg-primary px-4 py-2.5 text-sm font-bold text-white shadow-sm transition-opacity hover:opacity-90"
-                            >
-                              重新扫描
-                            </button>
-                            <button
-                              type="button"
-                              onClick={handleExitWorkbench}
-                              className="rounded-xl border border-on-surface/10 px-4 py-2.5 text-sm font-bold text-on-surface-variant transition-colors hover:bg-surface-container-low hover:text-on-surface"
-                            >
-                              结束这次整理
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <PreviewPanel
-                    plan={plan}
-                    stage={stage}
-                    isBusy={isBusy}
-                    readOnly={isReadOnly}
-                    onRunPrecheck={() => {
-                      if (!isReadOnly) {
-                        void runPrecheck();
-                      }
-                    }}
-                    onUpdateItem={(id, payload) => {
-                      if (!isReadOnly) {
-                        void updateItem({ item_id: id, ...payload });
-                      }
-                    }}
-                  />
+              style={{ left: dividerLeft !== null ? `${dividerLeft - 1.25}px` : `calc(${leftWidth}% - 1.25px)` }}
+            >
+              <div
+                className={cn(
+                  "w-[1px] h-full transition-all duration-300",
+                  isResizingState
+                    ? "bg-primary/40 shadow-[0_0_15px_rgba(76,98,88,0.4)] scale-x-[1.5]"
+                    : "bg-on-surface/[0.04] group-hover:bg-primary/20",
                 )}
-              </ErrorBoundary>
+              />
+              <div
+                className={cn(
+                  "absolute top-1/2 -translate-y-1/2 w-5 h-9 rounded-md bg-white border border-on-surface/5 shadow-[0_2px_8px_rgba(0,0,0,0.04)] flex flex-col items-center justify-center gap-0.5 transition-all duration-200",
+                  isResizingState
+                    ? "opacity-100 scale-110 shadow-[0_4px_12px_rgba(0,0,0,0.08)] border-primary/20"
+                    : "opacity-0 group-hover:opacity-100 scale-100",
+                )}
+              >
+                <div className={cn("w-[1.5px] h-3 rounded-sm transition-colors", isResizingState ? "bg-primary/40" : "bg-on-surface/15")} />
+                <div className={cn("w-[1.5px] h-3 rounded-sm transition-colors", isResizingState ? "bg-primary/40" : "bg-on-surface/15")} />
+              </div>
+            </div>
+          ) : null}
+
+          <section
+            style={{ width: showConversationPane ? `${100 - leftWidth}%` : "100%" }}
+            className="flex min-h-0 h-full min-w-[340px] flex-col bg-surface overflow-hidden"
+          >
+            <div className="flex-1 min-h-0">{renderPreviewContent()}</div>
+          </section>
+        </div>
+
+        <div className="flex lg:hidden flex-1 min-h-0 flex-col">
+          {showConversationPane ? (
+            <>
+              {conversationHeader}
+              <div className="shrink-0 border-b border-on-surface/5 bg-surface/80 px-4 py-3 backdrop-blur-sm">
+                <div className="grid grid-cols-2 gap-2 rounded-lg bg-surface-container-low/70 p-1 border border-on-surface/5">
+                  {[
+                    { id: "conversation", label: "对话" },
+                    { id: "preview", label: "预览" },
+                  ].map((tab) => (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      onClick={() => setMobileTab(tab.id as "conversation" | "preview")}
+                      className={cn(
+                        "rounded-md px-4 py-2.5 text-[13px] font-semibold transition-all",
+                        mobileTab === tab.id
+                          ? "bg-white text-on-surface shadow-sm border border-on-surface/5"
+                          : "text-ui-muted",
+                      )}
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </>
+          ) : null}
+
+          <div className="flex-1 min-h-0 overflow-hidden">
+            {showConversationPane && mobileTab === "conversation" ? (
+              conversationPanel
+            ) : (
+              <section className="flex min-h-0 h-full flex-col bg-surface overflow-hidden">
+                <div className="flex-1 min-h-0">{renderPreviewContent()}</div>
+              </section>
             )}
           </div>
-        </section>
+        </div>
       </ErrorBoundary>
       <ConfirmDialog
         open={exitConfirmOpen}

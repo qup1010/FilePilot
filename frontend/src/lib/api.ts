@@ -62,6 +62,7 @@ export interface ApiClient {
   openDir(path: string): Promise<{ status: string }>;
   selectDir(): Promise<{ path: string | null }>;
   getHistory(): Promise<HistoryItem[]>;
+  deleteHistoryEntry(entry_id: string): Promise<{ status: string; entry_id: string; entry_type: string }>;
   getConfig(): Promise<AppConfig>;
   updateConfig(config: Record<string, any>): Promise<{ status: string }>;
   switchProfile(id: string): Promise<{ status: string; active_id: string }>;
@@ -201,6 +202,13 @@ export function createApiClient(baseUrl: string, apiToken?: string): ApiClient {
         headers: buildAuthHeaders(apiToken),
       });
       return parseResponse<HistoryItem[]>(response);
+    },
+    async deleteHistoryEntry(entry_id) {
+      const response = await fetch(joinUrl(baseUrl, `/api/history/${entry_id}`), {
+        method: "DELETE",
+        headers: buildAuthHeaders(apiToken),
+      });
+      return parseResponse<{ status: string; entry_id: string; entry_type: string }>(response);
     },
     async getConfig() {
       const response = await fetch(joinUrl(baseUrl, "/api/utils/config"), {

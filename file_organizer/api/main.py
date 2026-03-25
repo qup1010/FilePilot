@@ -318,6 +318,13 @@ def create_app(service: OrganizerSessionService | None = None) -> FastAPI:
     def list_history():
         return app.state.service.list_history()
 
+    @app.delete("/api/history/{entry_id}")
+    def delete_history(entry_id: str):
+        try:
+            return app.state.service.delete_history_entry(entry_id)
+        except FileNotFoundError:
+            raise HTTPException(status_code=404, detail="HISTORY_ENTRY_NOT_FOUND")
+
     @app.get("/api/sessions/{session_id}/events")
     def events(session_id: str, request: Request):
         def stream():

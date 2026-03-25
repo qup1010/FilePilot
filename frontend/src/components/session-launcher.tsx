@@ -568,7 +568,7 @@ export function SessionLauncher() {
     <>
       <div className="relative mx-auto flex w-full max-w-[66rem] justify-center">
         <div className="w-full max-w-[56rem] space-y-3 text-center">
-          <div className="inline-flex items-center gap-2 rounded-full border border-outline-variant/15 bg-white/60 px-3 py-1 text-[11px] font-medium text-on-surface-variant/75">
+          <div className="inline-flex items-center gap-2 rounded-full border border-outline-variant/15 bg-white/60 px-3 py-1 text-ui-meta font-medium">
             文件整理
           </div>
           <div className="space-y-2">
@@ -582,8 +582,8 @@ export function SessionLauncher() {
 
           <div className="rounded-[28px] border border-on-surface/10 bg-white/80 p-5 shadow-[0_24px_60px_rgba(36,48,42,0.08)] backdrop-blur-xl text-left md:p-6">
             <div className="mb-4 flex items-center justify-between gap-4">
-              <div className="text-[11px] font-black text-on-surface-variant/40 uppercase tracking-[0.3em]">整理步骤</div>
-              <div className="hidden md:flex items-center gap-3 text-[10px] font-black text-on-surface-variant/30 uppercase tracking-[0.16em] md:text-[11px]">
+              <div className="text-ui-section font-semibold text-ui-muted">整理步骤</div>
+              <div className="hidden md:flex items-center gap-3 text-ui-meta font-semibold text-ui-muted">
                 <span className="flex items-center gap-2 group transition-colors hover:text-primary"><Search className="h-3.5 w-3.5" /> 1. 扫描</span>
                 <div className="w-4 h-px bg-on-surface/10" />
                 <span className="flex items-center gap-2 group transition-colors hover:text-primary"><FileSearch className="h-3.5 w-3.5" /> 2. 调整方案</span>
@@ -624,7 +624,7 @@ export function SessionLauncher() {
             </div>
             
             <div className="mt-4 flex items-center px-1">
-              <div className="flex items-center gap-3 text-[11px] font-black text-emerald-600 uppercase tracking-widest bg-emerald-500/5 px-4 py-2 rounded-full border border-emerald-500/10">
+              <div className="flex items-center gap-3 text-ui-section font-semibold text-emerald-700 bg-emerald-500/5 px-4 py-2 rounded-full border border-emerald-500/10">
                 <ShieldCheck className="h-3.5 w-3.5" />
                 <span>可随时回退</span>
               </div>
@@ -676,10 +676,10 @@ export function SessionLauncher() {
                   <History className="h-6 w-6" />
                 </div>
                 <div className="space-y-1">
-                  <h2 className="text-xl font-black font-headline text-on-surface uppercase tracking-tight">
+                  <h2 className="text-xl font-black font-headline text-on-surface tracking-tight">
                     {isCompletedResume ? "发现之前的整理记录" : "发现上一次还没整理完"}
                   </h2>
-                  <p className="text-[13px] font-bold text-on-surface-variant/60 uppercase tracking-widest">
+                  <p className="text-ui-body font-medium text-ui-muted">
                     {isCompletedResume
                       ? "你可以先看看之前的结果，也可以按现在的设置重新开始"
                       : "你可以继续上一次，或者重新开始这次整理"}
@@ -694,7 +694,7 @@ export function SessionLauncher() {
               </p>
 
               <div className="mb-8 space-y-4 rounded-[28px] border border-on-surface/5 bg-surface-container-low/40 p-6 shadow-inner">
-                <p className="text-[11px] font-black text-on-surface-variant/40 uppercase tracking-[0.2em]">上一次使用的设置</p>
+                <p className="text-ui-section font-semibold text-ui-muted">上一次使用的设置</p>
                 <StrategySummaryChips strategy={resumeStrategy} />
               </div>
 
@@ -706,7 +706,7 @@ export function SessionLauncher() {
                 >
                   {isCompletedResume ? "查看之前的结果" : "继续上一次整理"}
                 </Button>
-                <div className="rounded-2xl border border-on-surface/5 bg-on-surface/5 px-5 py-4 text-[12px] font-bold leading-relaxed text-on-surface-variant/60 uppercase tracking-widest">
+                <div className="rounded-2xl border border-on-surface/5 bg-on-surface/5 px-5 py-4 text-ui-section font-medium leading-relaxed text-ui-muted">
                   {isCompletedResume
                     ? "重新开始会按你现在的设置重新扫描这个目录。"
                     : "重新开始会放弃上一次未完成的状态，并按现在的设置重新扫描。"}

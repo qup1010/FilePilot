@@ -744,6 +744,23 @@ class OrganizerSessionService:
         history.sort(key=lambda x: str(x.get("created_at") or ""), reverse=True)
         return history
 
+    def delete_history_entry(self, entry_id: str) -> dict:
+        session = self.store.load(entry_id)
+        if session is not None:
+            deleted = self.store.delete(entry_id)
+            if not deleted:
+                raise FileNotFoundError(entry_id)
+            return {"status": "deleted", "entry_id": entry_id, "entry_type": "session"}
+
+        journal = execution_service.load_execution_journal(entry_id)
+        if journal is not None:
+            deleted = execution_service.delete_execution_journal(entry_id)
+            if not deleted:
+                raise FileNotFoundError(entry_id)
+            return {"status": "deleted", "entry_id": entry_id, "entry_type": "execution"}
+
+        raise FileNotFoundError(entry_id)
+
     def get_journal_summary(self, session_id: str) -> dict:
         journal_id = None
         try:

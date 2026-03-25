@@ -94,6 +94,32 @@ class SessionStore:
                 latest_index.pop(session.target_dir, None)
                 _atomic_write_json(self.latest_index_path, latest_index)
 
+    def delete(self, session_id: str) -> bool:
+        with self._write_lock:
+            session = self.load(session_id)
+            if session is None:
+                return False
+
+            session_path = self.sessions_dir / f"{session_id}.json"
+            if session_path.exists():
+                session_path.unlink()
+
+            latest_index = self._read_latest_index()
+            if latest_index.get(session.target_dir) == session_id:
+                latest_index.pop(session.target_dir, None)
+                _atomic_write_json(self.latest_index_path, latest_index)
+
+            lock_path = self._lock_path(Path(session.target_dir))
+            if lock_path.exists():
+                try:
+                    payload = json.loads(lock_path.read_text(encoding="utf-8"))
+                except json.JSONDecodeError:
+                    payload = {}
+                if payload.get("owner_session_id") == session_id:
+                    lock_path.unlink()
+
+            return True
+
     def acquire_directory_lock(self, target_dir: Path, owner_id: str) -> LockResult:
         with self._write_lock:
             lock_path = self._lock_path(target_dir)

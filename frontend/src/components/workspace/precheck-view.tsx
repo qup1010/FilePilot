@@ -34,6 +34,27 @@ export function PrecheckView({ summary, isBusy, readOnly = false, onExecute, onB
   const hasErrors = summary.blocking_errors.length > 0;
   const hasWarnings = summary.warnings.length > 0;
   const reviewCount = reviewMoveCount(summary);
+  const summaryTone = hasErrors ? "danger" : hasWarnings ? "warning" : "success";
+
+  const statusBadgeClass = cn(
+    "inline-flex items-center gap-2 rounded-2xl border px-4 py-3 text-sm font-bold shadow-sm",
+    summaryTone === "danger"
+      ? "border-error/20 bg-error-container/15 text-error"
+      : summaryTone === "warning"
+        ? "border-warning/20 bg-warning-container/15 text-warning"
+        : "border-emerald-500/20 bg-emerald-500/10 text-emerald-700",
+  );
+
+  const statusTitle = hasErrors
+    ? "当前不能执行"
+    : hasWarnings
+      ? "可执行，但建议先看提醒"
+      : "可以执行";
+  const statusDescription = hasErrors
+    ? "预检发现了必须先处理的问题，先修复后再执行会更安全。"
+    : hasWarnings
+      ? "结构已经通过，但还有一些提醒值得先确认。"
+      : "结构检查已经通过，可以进入真实执行阶段。";
 
   const beforeTree = {
     title: "整理前目录树",
@@ -55,67 +76,72 @@ export function PrecheckView({ summary, isBusy, readOnly = false, onExecute, onB
 
   return (
     <div className="mx-auto max-w-6xl space-y-10 py-6">
-      <div className="flex flex-col gap-6 rounded-[2rem] border border-on-surface/6 bg-white/76 p-8 shadow-sm lg:flex-row lg:items-end lg:justify-between">
-        <div className="space-y-3">
-          <div className="inline-flex items-center gap-2 rounded-full border border-primary/10 bg-primary/6 px-3 py-1 text-[11px] font-bold text-primary">
-            <CheckCircle2 className="h-3.5 w-3.5" />
-            可以开始预检
+      <div className="space-y-6 rounded-[2rem] border border-on-surface/6 bg-white/76 p-6 shadow-sm lg:p-8">
+        <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+          <div className="space-y-3">
+            <div className="inline-flex items-center gap-2 rounded-full border border-primary/10 bg-primary/6 px-3 py-1 text-ui-meta font-semibold text-primary">
+              <CheckCircle2 className="h-3.5 w-3.5" />
+              执行概览
+            </div>
+            <div>
+              <h2 className="text-2xl font-black tracking-tight text-on-surface">{statusTitle}</h2>
+              <p className="mt-2 max-w-2xl text-ui-body text-ui-muted">
+                {statusDescription} 这一页只帮你确认真实影响范围，现在还不会真正移动文件。
+              </p>
+            </div>
           </div>
-          <div>
-            <h2 className="text-2xl font-black tracking-tight text-on-surface">方案已经可以预检了</h2>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-on-surface-variant">
-              待确认项已经处理完了，结构检查也通过了。下一步会检查真实文件系统里的冲突和权限，但不会马上移动文件。
-            </p>
+
+          <div className={statusBadgeClass}>
+            {summaryTone === "danger" ? (
+              <ShieldAlert className="h-4 w-4" />
+            ) : summaryTone === "warning" ? (
+              <AlertCircle className="h-4 w-4" />
+            ) : (
+              <CheckCircle2 className="h-4 w-4" />
+            )}
+            {statusTitle}
           </div>
         </div>
 
-        <div
-          className={cn(
-            "inline-flex items-center gap-2 rounded-2xl border px-4 py-3 text-sm font-bold shadow-sm",
-            hasErrors
-              ? "border-error/20 bg-error-container/15 text-error"
-              : "border-emerald-500/20 bg-emerald-500/10 text-emerald-600",
-          )}
-        >
-          {hasErrors ? <ShieldAlert className="h-4 w-4" /> : <CheckCircle2 className="h-4 w-4" />}
-          {hasErrors ? "还有问题需要处理" : "结构检查已通过"}
-        </div>
-      </div>
-
-      <div className="grid gap-4 md:grid-cols-3">
-        <div className="rounded-[1.5rem] border border-on-surface/6 bg-white/78 p-5 shadow-sm">
-          <div className="flex items-center gap-3 text-primary">
-            <FolderPlus className="h-4 w-4" />
-            <span className="text-xs font-bold uppercase tracking-widest">目标目录</span>
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          <div className="rounded-[1.5rem] border border-on-surface/6 bg-white/88 p-5 shadow-sm">
+            <p className="text-ui-meta font-semibold">将移动的条目</p>
+            <p className="mt-3 text-3xl font-black text-on-surface">{summary.move_preview.length}</p>
+            <p className="mt-2 text-ui-meta">这些条目会在执行阶段按目标结构落位。</p>
           </div>
-          <p className="mt-4 text-3xl font-black text-on-surface">{summary.mkdir_preview.length}</p>
-          <p className="mt-2 text-xs leading-5 text-on-surface-variant">预检时会检查这些目录是否可以正常使用。</p>
-        </div>
-
-        <div className="rounded-[1.5rem] border border-on-surface/6 bg-white/78 p-5 shadow-sm">
-          <div className="flex items-center gap-3 text-primary">
-            <ArrowRight className="h-4 w-4" />
-            <span className="text-xs font-bold uppercase tracking-widest">涉及移动</span>
+          <div className="rounded-[1.5rem] border border-on-surface/6 bg-white/88 p-5 shadow-sm">
+            <p className="text-ui-meta font-semibold">将新建的目录</p>
+            <p className="mt-3 text-3xl font-black text-on-surface">{summary.mkdir_preview.length}</p>
+            <p className="mt-2 text-ui-meta">执行前会确认这些目录可以正常创建和使用。</p>
           </div>
-          <p className="mt-4 text-3xl font-black text-on-surface">{summary.move_preview.length}</p>
-          <p className="mt-2 text-xs leading-5 text-on-surface-variant">这些条目会在执行阶段按右侧目录树落位。</p>
-        </div>
-
-        <div className="rounded-[1.5rem] border border-warning/12 bg-warning-container/10 p-5 shadow-sm">
-          <div className="flex items-center gap-3 text-warning">
-            <ShieldAlert className="h-4 w-4" />
-            <span className="text-xs font-bold uppercase tracking-widest">Review 项</span>
+          <div className="rounded-[1.5rem] border border-warning/12 bg-warning-container/10 p-5 shadow-sm">
+            <p className="text-ui-meta font-semibold text-warning">进入 Review 的条目</p>
+            <p className="mt-3 text-3xl font-black text-on-surface">{reviewCount}</p>
+            <p className="mt-2 text-ui-meta">这些条目会先进 `Review`，不会丢失，后续仍可继续整理。</p>
           </div>
-          <p className="mt-4 text-3xl font-black text-on-surface">{reviewCount}</p>
-          <p className="mt-2 text-xs leading-5 text-on-surface-variant">这些条目会先放在 `Review` 下，方便之后慢慢确认。</p>
+          <div className="rounded-[1.5rem] border border-on-surface/6 bg-white/88 p-5 shadow-sm">
+            <p className="text-ui-meta font-semibold">Blocking errors</p>
+            <p className="mt-3 text-2xl font-black text-on-surface">{hasErrors ? "有" : "无"}</p>
+            <p className="mt-2 text-ui-meta">{hasErrors ? "存在必须先处理的问题。" : "当前没有阻止执行的问题。"}</p>
+          </div>
+          <div className="rounded-[1.5rem] border border-on-surface/6 bg-white/88 p-5 shadow-sm">
+            <p className="text-ui-meta font-semibold">Warnings</p>
+            <p className="mt-3 text-2xl font-black text-on-surface">{hasWarnings ? "有" : "无"}</p>
+            <p className="mt-2 text-ui-meta">{hasWarnings ? "建议执行前先阅读提醒。" : "当前没有额外提醒。"}</p>
+          </div>
+          <div className="rounded-[1.5rem] border border-primary/10 bg-primary/6 p-5 shadow-sm">
+            <p className="text-ui-meta font-semibold text-primary">回退能力</p>
+            <p className="mt-3 text-2xl font-black text-on-surface">支持最近一次回退</p>
+            <p className="mt-2 text-ui-meta">如果结果不合适，之后仍可以按最近一次执行记录回退。</p>
+          </div>
         </div>
       </div>
 
       <div className="space-y-4">
-        <div className="flex items-end justify-between">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div className="space-y-1">
-            <h3 className="text-sm font-bold text-on-surface">目录树前后对比</h3>
-            <p className="text-sm text-on-surface-variant">左侧是整理前的位置，右侧是整理后的目标结构。</p>
+            <h3 className="text-base font-bold text-on-surface">目录树前后对比</h3>
+            <p className="text-sm text-ui-muted">先看上面的执行概览，再到这里确认具体会落在哪些目录。</p>
           </div>
           <div className="flex items-center gap-1.5 rounded-2xl bg-surface-container-low p-1 border border-on-surface/5">
             {[
@@ -126,10 +152,10 @@ export function PrecheckView({ summary, isBusy, readOnly = false, onExecute, onB
                 key={btn.id}
                 onClick={() => setFilter(btn.id as any)}
                 className={cn(
-                  "px-4 py-1.5 text-[11px] font-black uppercase tracking-wider rounded-xl transition-all",
+                  "px-4 py-1.5 text-[12px] font-semibold rounded-xl transition-all",
                   filter === btn.id 
                     ? "bg-white text-primary shadow-sm" 
-                    : "text-on-surface-variant/50 hover:text-on-surface"
+                    : "text-ui-muted hover:text-on-surface"
                 )}
               >
                 {btn.label}
@@ -144,7 +170,7 @@ export function PrecheckView({ summary, isBusy, readOnly = false, onExecute, onB
         <div className="space-y-4 rounded-[1.75rem] border border-on-surface/6 bg-surface-container-low/45 p-6">
           <div className="flex items-center gap-3">
             <ShieldAlert className="h-5 w-5 text-on-surface/35" />
-            <h3 className="text-sm font-bold text-on-surface">预检结果</h3>
+            <h3 className="text-base font-bold text-on-surface">预检结果</h3>
           </div>
 
           <div className="space-y-3">
@@ -152,7 +178,7 @@ export function PrecheckView({ summary, isBusy, readOnly = false, onExecute, onB
               <div key={`${err}-${index}`} className="flex items-start gap-3 rounded-2xl border border-error/15 bg-white px-4 py-4">
                 <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-error" />
                 <div>
-                  <p className="text-sm font-bold text-on-surface">需要先处理的问题</p>
+                  <p className="text-sm font-bold text-on-surface">必须先处理</p>
                   <p className="mt-1 text-sm leading-6 text-on-surface-variant">{err}</p>
                 </div>
               </div>
@@ -162,11 +188,23 @@ export function PrecheckView({ summary, isBusy, readOnly = false, onExecute, onB
               <div key={`${warn}-${index}`} className="flex items-start gap-3 rounded-2xl border border-warning/15 bg-white px-4 py-4">
                 <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
                 <div>
-                  <p className="text-sm font-bold text-on-surface">提醒</p>
+                  <p className="text-sm font-bold text-on-surface">建议执行前确认</p>
                   <p className="mt-1 text-sm leading-6 text-on-surface-variant">{warn}</p>
                 </div>
               </div>
             ))}
+
+            {reviewCount > 0 ? (
+              <div className="flex items-start gap-3 rounded-2xl border border-primary/15 bg-white px-4 py-4">
+                <FolderPlus className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                <div>
+                  <p className="text-sm font-bold text-on-surface">Review 提醒</p>
+                  <p className="mt-1 text-sm leading-6 text-on-surface-variant">
+                    这次有 {reviewCount} 项会先进入 `Review`。这些内容不会丢失，之后仍可继续整理或重新归类。
+                  </p>
+                </div>
+              </div>
+            ) : null}
           </div>
         </div>
       ) : null}
@@ -181,7 +219,7 @@ export function PrecheckView({ summary, isBusy, readOnly = false, onExecute, onB
             <p className="mt-1 text-sm leading-6 text-on-surface-variant">
               {readOnly
                 ? "这里只用于查看之前的预检结果。如需继续整理，请回到首页重新选择。"
-                : "执行后会真正移动本地文件。如果结果不合适，之后仍然可以整批回退。"}
+                : "执行后会真实移动本地文件。如果结果不合适，之后仍然可以按最近一次执行记录回退。"}
             </p>
           </div>
         </div>

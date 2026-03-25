@@ -29,7 +29,7 @@ export function MinimalScanningView({ scanner, progressPercent }: MinimalScannin
             animate={{ opacity: 1, scale: 1 }}
             className="flex justify-center"
           >
-            <div className="flex h-16 w-16 items-center justify-center rounded-3xl border border-on-surface/5 bg-white text-primary shadow-xl shadow-primary/5">
+            <div className="flex h-16 w-16 items-center justify-center rounded-xl border border-on-surface/5 bg-white text-primary shadow-xl shadow-primary/5">
               <Loader2 className="h-8 w-8 animate-spin-slow" />
             </div>
           </motion.div>
@@ -42,7 +42,7 @@ export function MinimalScanningView({ scanner, progressPercent }: MinimalScannin
               {statusMessage}
             </p>
             <div className="flex justify-center pt-2">
-              <span className="inline-flex items-center gap-2 rounded-full border border-primary/12 bg-primary/[0.06] px-3 py-1 text-[10px] font-black uppercase tracking-[0.24em] text-primary">
+              <span className="inline-flex items-center gap-2 rounded-lg border border-primary/12 bg-primary/[0.06] px-3 py-1 text-[10px] font-black uppercase tracking-[0.24em] text-primary">
                 {isParallel ? <GitBranch className="h-3 w-3" /> : <Layers3 className="h-3 w-3" />}
                 {isParallel ? `并行分析 ${batchCount} 批` : "单线程分析"}
               </span>
@@ -51,7 +51,7 @@ export function MinimalScanningView({ scanner, progressPercent }: MinimalScannin
         </div>
 
         <div className="grid gap-4 md:grid-cols-2">
-          <div className="rounded-[28px] border border-on-surface/6 bg-white/72 p-6 shadow-[0_18px_48px_rgba(0,0,0,0.04)]">
+          <div className="rounded-xl border border-on-surface/6 bg-white/72 p-6 shadow-[0_18px_48px_rgba(0,0,0,0.04)]">
             <div className="flex items-center justify-between gap-4">
               <span className="text-[10px] font-black uppercase tracking-[0.24em] text-primary">
                 条目进度
@@ -75,7 +75,7 @@ export function MinimalScanningView({ scanner, progressPercent }: MinimalScannin
             </p>
           </div>
 
-          <div className="rounded-[28px] border border-on-surface/6 bg-white/72 p-6 shadow-[0_18px_48px_rgba(0,0,0,0.04)]">
+          <div className="rounded-xl border border-on-surface/6 bg-white/72 p-6 shadow-[0_18px_48px_rgba(0,0,0,0.04)]">
             <div className="flex items-center justify-between gap-4">
               <span className="text-[10px] font-black uppercase tracking-[0.24em] text-primary">
                 {isParallel ? "批次进度" : "当前状态"}
@@ -100,7 +100,7 @@ export function MinimalScanningView({ scanner, progressPercent }: MinimalScannin
           </div>
         </div>
 
-        <div className="flex items-center gap-4 rounded-[28px] border border-on-surface/5 bg-white/50 p-5 transition-all">
+        <div className="flex items-center gap-4 rounded-xl border border-on-surface/5 bg-white/50 p-5 transition-all">
           <div className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-primary" />
           <div className="min-w-0 flex-1">
             <p className="mb-1 text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">

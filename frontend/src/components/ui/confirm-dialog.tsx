@@ -47,13 +47,13 @@ export function ConfirmDialog({
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 16, scale: 0.98 }}
             transition={{ duration: 0.18 }}
-            className="w-full max-w-2xl rounded-[30px] border border-on-surface/8 bg-white p-8 shadow-[0_24px_80px_rgba(36,48,42,0.18)]"
+            className="w-full max-w-2xl rounded-xl border border-on-surface/8 bg-white p-8 shadow-[0_24px_80px_rgba(36,48,42,0.18)]"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="flex items-start gap-5">
               <div
                 className={cn(
-                  "flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border",
+                  "flex h-12 w-12 shrink-0 items-center justify-center rounded-md border",
                   isDanger
                     ? "border-error/12 bg-error-container/20 text-error"
                     : "border-primary/12 bg-primary/10 text-primary",

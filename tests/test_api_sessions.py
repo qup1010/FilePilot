@@ -11,6 +11,8 @@ from fastapi.testclient import TestClient
 from file_organizer.api.main import create_app
 from file_organizer.app.session_service import OrganizerSessionService
 from file_organizer.app.session_store import SessionStore
+from file_organizer.execution.models import ExecutionJournal
+from file_organizer.execution.service import save_execution_journal
 
 
 class SessionApiTests(unittest.TestCase):
@@ -172,6 +174,33 @@ class SessionApiTests(unittest.TestCase):
         self.assertEqual(payload["session_id"], created["session_id"])
         self.assertEqual(payload["session_snapshot"]["session_id"], created["session_id"])
         self.assertEqual(payload["session_snapshot"]["stage"], "draft")
+
+    def test_delete_history_endpoint_removes_session_entry(self):
+        created = self.client.post(
+            "/api/sessions",
+            json={"target_dir": str(self.target_dir), "resume_if_exists": False},
+        ).json()
+
+        response = self.client.delete(f"/api/history/{created['session_id']}")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["entry_type"], "session")
+        self.assertIsNone(self.store.load(created["session_id"]))
+
+    def test_delete_history_endpoint_removes_execution_entry(self):
+        journal = ExecutionJournal(
+            execution_id="exec-delete-1",
+            target_dir=str(self.target_dir.resolve()),
+            created_at="2025-01-01T00:00:00+00:00",
+            status="completed",
+            items=[],
+        )
+        save_execution_journal(journal)
+
+        response = self.client.delete("/api/history/exec-delete-1")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["entry_type"], "execution")
 
     def test_resume_endpoint_returns_stale_snapshot_when_directory_changed(self):
         created = self.client.post(
