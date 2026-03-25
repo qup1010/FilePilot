@@ -54,7 +54,7 @@ export default function WorkspaceClient() {
   } = useSession(sessionIdParam);
 
   const [messageInput, setMessageInput] = useState("");
-  const [leftWidth, setLeftWidth] = useState(62);
+  const [leftWidth, setLeftWidth] = useState(56);
   const [exitConfirmOpen, setExitConfirmOpen] = useState(false);
   const [mobileTab, setMobileTab] = useState<"conversation" | "preview">("conversation");
   const [dividerLeft, setDividerLeft] = useState<number | null>(null);
@@ -67,7 +67,7 @@ export default function WorkspaceClient() {
     const saved = localStorage.getItem("workspace_sidebar_width");
     if (saved) {
       const val = parseFloat(saved);
-      if (val > 35 && val < 75) {
+      if (val > 32 && val < 72) {
         setLeftWidth(val);
       }
     }
@@ -137,8 +137,8 @@ export default function WorkspaceClient() {
       return;
     }
 
-    const minLeftPx = 400;
-    const minRightPx = 340;
+    const minLeftPx = 360;
+    const minRightPx = 320;
     const maxLeftPx = Math.max(minLeftPx, rect.width - minRightPx);
     const boundedX = Math.min(Math.max(event.clientX - rect.left, minLeftPx), maxLeftPx);
     const newWidth = (boundedX / rect.width) * 100;
@@ -503,12 +503,12 @@ export default function WorkspaceClient() {
   return (
     <div ref={containerRef} className="flex-1 flex min-h-0 overflow-hidden relative bg-surface">
       <ErrorBoundary fallbackTitle="页面加载出错了" className="flex-1">
-        <div className="hidden lg:flex flex-1 min-h-0">
+        <div className="hidden min-[1100px]:flex flex-1 min-h-0">
           {showConversationPane ? (
             <section
               ref={leftPaneRef}
               style={{ width: `${leftWidth}%` }}
-              className="relative flex min-h-0 h-full min-w-[400px] flex-col"
+              className="relative flex min-h-0 h-full min-w-[360px] flex-col"
             >
               {conversationHeader}
               {conversationPanel}
@@ -548,13 +548,13 @@ export default function WorkspaceClient() {
 
           <section
             style={{ width: showConversationPane ? `${100 - leftWidth}%` : "100%" }}
-            className="flex min-h-0 h-full min-w-[340px] flex-col bg-surface overflow-hidden"
+            className="flex min-h-0 h-full min-w-[320px] flex-col bg-surface overflow-hidden"
           >
             <div className="flex-1 min-h-0">{renderPreviewContent()}</div>
           </section>
         </div>
 
-        <div className="flex lg:hidden flex-1 min-h-0 flex-col">
+        <div className="flex min-[1100px]:hidden flex-1 min-h-0 flex-col">
           {showConversationPane ? (
             <>
               {conversationHeader}

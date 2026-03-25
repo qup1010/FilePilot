@@ -546,7 +546,7 @@ export function PreviewPanel({
             </div>
           </div>
 
-          <div className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="grid gap-2.5 sm:grid-cols-2 2xl:grid-cols-4">
             <div className="rounded-[10px] border border-on-surface/8 bg-surface-container-lowest px-4 py-3.5">
               <span className="text-[12px] font-medium text-ui-muted">移动文件</span>
               <p className="mt-2 text-[1.35rem] font-black leading-none tracking-tight tabular-nums text-on-surface">

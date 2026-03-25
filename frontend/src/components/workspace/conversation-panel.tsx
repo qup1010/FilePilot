@@ -624,7 +624,7 @@ export function ConversationPanel({
                 
                 <div
                   className={cn(
-                    "max-w-[80%] rounded-[10px] p-4 text-ui-body leading-relaxed transition-all",
+                    "max-w-[90%] 2xl:max-w-[84%] rounded-[10px] p-4 text-ui-body leading-relaxed transition-all",
                     isAssistant
                       ? "border border-on-surface/8 bg-surface-container-lowest text-on-surface"
                       : "bg-surface-container-high text-on-surface font-medium whitespace-pre-wrap",
