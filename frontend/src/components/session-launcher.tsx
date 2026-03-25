@@ -562,18 +562,18 @@ export function SessionLauncher() {
   return (
     <>
       <div className="rounded-[12px] border border-on-surface/8 bg-surface-container-lowest shadow-[0_6px_18px_rgba(37,45,40,0.04)]">
-        <div className="border-b border-on-surface/8 bg-surface-container-low px-4 py-4 lg:px-5">
+        <div className="border-b border-on-surface/8 bg-surface-container-low px-4 py-6 lg:px-8 lg:py-8">
           <div className="flex flex-col gap-3">
-            <div className="flex flex-col gap-3">
-              <div className="space-y-2">
-                <div className="inline-flex items-center gap-2 rounded-[8px] border border-primary/12 bg-primary/8 px-2.5 py-1 text-[12px] font-medium text-primary">
+            <div className="flex flex-col gap-2">
+              <div className="space-y-1.5 sm:space-y-3">
+                <div className="inline-flex items-center gap-2 rounded-[8px] border border-primary/12 bg-primary/8 px-2.5 py-1 text-[11px] font-bold text-primary sm:text-[12px]">
                   文件整理
                 </div>
-                <h2 className="text-[1.35rem] font-black font-headline tracking-tight text-on-surface lg:text-[1.55rem]">
+                <h2 className="text-[1.45rem] font-black font-headline tracking-tighter text-on-surface sm:text-[1.85rem] lg:text-[2.25rem] leading-tight">
                   新建整理任务
                 </h2>
-                <p className="max-w-2xl text-[14px] leading-6 text-ui-muted">
-                  先确定目标目录和默认策略，再进入工作区继续调整、预检和执行。
+                <p className="max-w-3xl text-[13px] leading-relaxed text-ui-muted sm:text-[15px]">
+                  先确定目标目录和默认策略，再进入工作区继续调整。
                 </p>
               </div>
             </div>
@@ -614,8 +614,8 @@ export function SessionLauncher() {
           </div>
         </div>
 
-        <div className="grid gap-3 p-4 lg:grid-cols-[minmax(0,1.04fr)_280px] lg:p-5">
-          <div className="rounded-[11px] border border-on-surface/8 bg-surface-container-low p-4">
+        <div className="grid gap-3 p-4 min-[1360px]:grid-cols-[minmax(0,1fr)_minmax(260px,320px)] min-[1360px]:p-6 min-[1360px]:gap-4 2xl:p-8">
+          <div className="min-w-0 rounded-[11px] border border-on-surface/8 bg-surface-container-low p-4 lg:p-5">
             <div className="mb-3">
               <div>
                 <div className="text-[12px] font-medium text-ui-muted">目标目录</div>
@@ -637,7 +637,7 @@ export function SessionLauncher() {
                 value={targetDir}
                 onChange={(event) => setTargetDir(event.target.value)}
                 disabled={loading}
-                className="w-full rounded-[11px] border border-on-surface/8 bg-surface-container-lowest py-3.5 pl-[3.25rem] pr-4 text-[14px] font-medium text-on-surface outline-none transition-all placeholder:text-on-surface-variant/35 focus:border-primary/40 focus:ring-4 focus:ring-primary/5 disabled:opacity-70"
+                className="w-full min-w-0 rounded-[11px] border border-on-surface/8 bg-surface-container-lowest py-3.5 pl-[3.25rem] pr-4 text-[14px] font-medium text-on-surface outline-none transition-all placeholder:text-on-surface-variant/35 focus:border-primary/40 focus:ring-4 focus:ring-primary/5 disabled:opacity-70"
                 placeholder="例如: D:\\Downloads\\Incomplete"
                 onKeyDown={(e) => {
                   if (e.key === "Enter") openStrategyDialog();
@@ -645,18 +645,18 @@ export function SessionLauncher() {
               />
             </div>
 
-            <div className="mt-3 space-y-2 text-[12px] text-ui-muted">
-              <div className="inline-flex items-center gap-2">
-                <Search className="h-3.5 w-3.5 text-primary/70" />
-                扫描后可以继续调整方案，不需要重新开始
+            <div className="mt-4 space-y-2.5 text-[12px] text-ui-muted">
+              <div className="flex items-start gap-2">
+                <Search className="mt-[2px] h-3.5 w-3.5 shrink-0 text-primary/70" />
+                <span className="min-w-0 flex-1 leading-relaxed">扫描后可以继续调整方案，不需要重新开始</span>
               </div>
-              <div className="inline-flex items-center gap-2">
-                <FileSearch className="h-3.5 w-3.5 text-primary/70" />
-                有拿不准的内容会先进 `Review`
+              <div className="flex items-start gap-2">
+                <FileSearch className="mt-[2px] h-3.5 w-3.5 shrink-0 text-primary/70" />
+                <span className="min-w-0 flex-1 leading-relaxed">有拿不准的内容会先进 `Review`</span>
               </div>
-              <div className="inline-flex items-center gap-2">
-                <ShieldCheck className="h-3.5 w-3.5 text-primary/70" />
-                支持回退操作，执行更安心
+              <div className="flex items-start gap-2">
+                <ShieldCheck className="mt-[2px] h-3.5 w-3.5 shrink-0 text-primary/70" />
+                <span className="min-w-0 flex-1 leading-relaxed">支持回退操作，执行更安心</span>
               </div>
             </div>
 
@@ -674,7 +674,7 @@ export function SessionLauncher() {
             </div>
           </div>
 
-          <div className="rounded-[11px] border border-on-surface/8 bg-surface-container-lowest p-4">
+          <div className="min-w-0 rounded-[11px] border border-on-surface/8 bg-surface-container-lowest p-4 lg:p-5">
             <div className="text-[12px] font-medium text-ui-muted">当前默认策略</div>
             <div className="mt-2 space-y-2">
               <h3 className="text-[1.02rem] font-black font-headline tracking-tight text-on-surface">

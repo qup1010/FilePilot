@@ -80,26 +80,24 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-surface text-on-surface font-sans">
-      <header className="z-50 grid h-[54px] shrink-0 grid-cols-[minmax(0,1fr)_auto] items-center border-b border-on-surface/8 bg-surface-container-lowest px-3 sm:px-4 lg:grid-cols-[190px_minmax(0,1fr)_auto] lg:px-4">
-        <div className="flex min-w-0 items-center gap-2 border-r border-on-surface/6 pr-3 lg:pr-4">
-          <Link href="/" className="flex min-w-0 items-center gap-2.5">
-            <div className="flex h-8 w-8 items-center justify-center rounded-[9px] border border-on-surface/8 bg-surface-container text-[0.92rem] font-black text-on-surface">
+      <header className="z-50 grid h-[54px] shrink-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center border-b border-on-surface/8 bg-surface-container-lowest px-2 sm:px-4">
+        <div className="flex shrink-0 items-center gap-2 border-r border-on-surface/6 pr-3 lg:pr-4">
+          <Link href="/" className="flex items-center gap-2.5">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[9px] border border-on-surface/8 bg-surface-container text-[0.92rem] font-black text-on-surface transition-transform active:scale-95">
               F
             </div>
-            <div className="min-w-0">
-              <p className="truncate text-[14px] font-black tracking-tight text-on-surface">File Organizer</p>
-            </div>
+            <p className="hidden md:block truncate text-[14px] font-black tracking-tight text-on-surface">File Organizer</p>
           </Link>
         </div>
 
-        <div className="flex min-w-0 items-center gap-2 px-3 lg:px-4">
-          <p className="truncate text-[14px] font-semibold text-on-surface">{moduleCopy.title}</p>
-          <ChevronRight className="h-3.5 w-3.5 text-on-surface/25" />
+        <div className="flex min-w-0 items-center gap-1.5 px-3 lg:gap-2.5">
+          <p className="truncate text-[13px] font-bold text-on-surface sm:text-[14px]">{moduleCopy.title}</p>
+          <ChevronRight className="hidden sm:block h-3.5 w-3.5 text-on-surface/25" />
           <p className="hidden truncate text-[12px] text-ui-muted sm:block">{moduleCopy.detail}</p>
         </div>
 
         <div className="flex items-center justify-end gap-1.5 sm:gap-2">
-          <nav className="flex items-center rounded-[9px] border border-on-surface/6 bg-surface-container px-1 py-1">
+          <nav className="flex items-center rounded-[10px] border border-on-surface/6 bg-surface-container p-0.5 sm:p-1">
             {navItems.map((item) => {
               const isActive = isNavActive(item.href);
               return (
@@ -107,12 +105,12 @@ export function AppShell({ children }: { children: ReactNode }) {
                   key={item.href}
                   href={item.href}
                   className={cn(
-                    "inline-flex items-center gap-2 rounded-[7px] px-2.5 py-1.5 text-[12px] font-semibold transition-colors sm:px-3",
-                    isActive ? "bg-white text-on-surface" : "text-ui-muted hover:text-on-surface",
+                    "inline-flex items-center gap-2 rounded-[8px] px-2 py-1.5 text-[12px] font-bold transition-all sm:px-3",
+                    isActive ? "bg-white text-on-surface shadow-sm" : "text-ui-muted hover:text-on-surface",
                   )}
                 >
                   <item.icon className={cn("h-4 w-4", isActive ? "text-primary" : "text-current")} />
-                  <span className="hidden sm:inline">{item.label}</span>
+                  <span className="hidden md:inline">{item.label}</span>
                 </Link>
               );
             })}

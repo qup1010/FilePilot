@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, CheckCircle2, Folder, History, Info, Layers, RotateCcw, ShieldCheck } from "lucide-react";
+import { AlertTriangle, ArrowLeft, CheckCircle2, Folder, History, Info, Layers, RotateCcw, ShieldCheck } from "lucide-react";
 import { JournalSummary } from "@/types/session";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
@@ -22,6 +22,7 @@ interface CompletionViewProps {
   onOpenExplorer: () => void;
   onCleanupDirs: () => void;
   onRollback: () => void;
+  onGoHome: () => void;
 }
 
 export function CompletionView({
@@ -34,6 +35,7 @@ export function CompletionView({
   onOpenExplorer,
   onCleanupDirs,
   onRollback,
+  onGoHome,
 }: CompletionViewProps) {
   const [filter, setFilter] = useState<DirectoryTreeFilter>("all");
   const [rollbackConfirmOpen, setRollbackConfirmOpen] = useState(false);
@@ -250,6 +252,15 @@ export function CompletionView({
       ) : null}
 
       <section className={cn("rounded-[12px] border border-on-surface/8 bg-surface-container-low px-4 py-3.5", readOnly ? "flex flex-col gap-3" : "flex flex-col gap-3 md:flex-row md:items-center")}>
+        <button
+          type="button"
+          onClick={onGoHome}
+          disabled={isBusy}
+          className="order-0 flex items-center justify-center gap-3 rounded-[10px] border border-on-surface/8 bg-surface-container-lowest px-5 py-3 text-sm font-medium text-on-surface-variant transition-colors hover:bg-surface-container hover:text-on-surface disabled:opacity-40"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          返回主页
+        </button>
         <button
           type="button"
           onClick={onOpenExplorer}

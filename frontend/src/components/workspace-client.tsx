@@ -177,7 +177,7 @@ export default function WorkspaceClient() {
   };
 
   const handleExitWorkbench = () => {
-    if (isReadOnly) {
+    if (isReadOnly || stage === "completed") {
       router.push("/");
       return;
     }
@@ -328,6 +328,7 @@ export default function WorkspaceClient() {
                 void rollback();
               }
             }}
+            onGoHome={handleExitWorkbench}
           />
         </div>
       );
