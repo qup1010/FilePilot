@@ -1,11 +1,15 @@
 from __future__ import annotations
 
+import logging
 import os
 
 import uvicorn
 
 from file_organizer.api.main import create_app
 from file_organizer.api.runtime import clear_backend_runtime, write_backend_runtime
+from file_organizer.shared.logging_utils import setup_backend_logging
+
+logger = logging.getLogger(__name__)
 
 
 def main() -> None:
@@ -13,22 +17,33 @@ def main() -> None:
     port = int(os.getenv("FILE_ORGANIZER_API_PORT", "8765"))
     reload = os.getenv("FILE_ORGANIZER_API_RELOAD", "true").lower() == "true"
     base_url = os.getenv("FILE_ORGANIZER_API_BASE_URL", f"http://{host}:{port}")
-    
+
+    runtime_log_path = setup_backend_logging()
     write_backend_runtime(base_url, host, port)
     try:
+        logger.info(
+            "backend.starting host=%s port=%s reload=%s runtime_log=%s",
+            host,
+            port,
+            reload,
+            runtime_log_path,
+        )
         if reload:
-            print(f"[Core] Starting with Hot-Reload enabled for path: {os.getcwd()}")
+            logger.info("backend.reload_enabled cwd=%s", os.getcwd())
             uvicorn.run(
-                "file_organizer.api.main:create_app", 
-                factory=True, 
-                host=host, 
-                port=port, 
+                "file_organizer.api.main:create_app",
+                factory=True,
+                host=host,
+                port=port,
                 reload=True,
-                reload_dirs=["file_organizer"]
+                reload_dirs=["file_organizer"],
+                log_config=None,
+                access_log=False,
             )
         else:
-            uvicorn.run(create_app(), host=host, port=port)
+            uvicorn.run(create_app(), host=host, port=port, log_config=None, access_log=False)
     finally:
+        logger.info("backend.stopping host=%s port=%s", host, port)
         clear_backend_runtime()
 
 

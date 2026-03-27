@@ -1,74 +1,119 @@
 "use client";
 
-import React, { ReactNode, useEffect, useMemo, useState } from "react";
+import React, { ReactNode } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { Settings, LayoutGrid, History, ChevronRight } from "lucide-react";
+import { LayoutGrid, History, ChevronRight, Settings } from "lucide-react";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 
-const LAST_WORKSPACE_HREF_KEY = "last_workspace_href";
+const WORKSPACE_CONTEXT_KEY = "workspace_header_context";
+const SETTINGS_CONTEXT_KEY = "settings_header_context";
+const HISTORY_CONTEXT_KEY = "history_header_context";
+const APP_CONTEXT_EVENT = "file-organizer-context-change";
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-function getModuleLabel(pathname: string) {
+function readStoredContext(key: string) {
+  if (typeof window === "undefined") {
+    return null;
+  }
+  const raw = window.localStorage.getItem(key);
+  if (!raw) {
+    return null;
+  }
+  try {
+    return JSON.parse(raw) as { title?: string; detail?: string; dirName?: string; stage?: string };
+  } catch {
+    return null;
+  }
+}
+
+function getBaseModuleLabel(pathname: string, searchParams: URLSearchParams) {
   if (pathname === "/history") {
-    return { title: "历史记录", detail: "会话与执行档案" };
+    return {
+      title: "历史",
+      detail: "会话与执行档案",
+    };
   }
   if (pathname === "/settings") {
-    return { title: "设置", detail: "本地配置与偏好" };
+    return {
+      title: "设置",
+      detail: "模型配置",
+    };
   }
   if (pathname.startsWith("/workspace")) {
-    return { title: "工作区", detail: "当前整理任务" };
+    const dirParam = searchParams.get("dir");
+    const dirName = dirParam
+      ? decodeURIComponent(dirParam).replace(/[\\/]$/, "").split(/[\\/]/).pop() || "当前任务"
+      : "当前任务";
+    return {
+      title: dirName,
+      detail: "当前整理任务",
+    };
   }
-  return { title: "工作台", detail: "新建任务或继续会话" };
+  return { title: "新建任务", detail: "选择目录并启动新的整理任务" };
+}
+
+function getStoredModuleLabel(pathname: string, searchParams: URLSearchParams) {
+  if (pathname === "/history") {
+    const stored = readStoredContext(HISTORY_CONTEXT_KEY);
+    return {
+      title: "历史",
+      detail: stored?.detail || "会话与执行档案",
+    };
+  }
+  if (pathname === "/settings") {
+    const stored = readStoredContext(SETTINGS_CONTEXT_KEY);
+    return {
+      title: "设置",
+      detail: stored?.detail || "模型配置",
+    };
+  }
+  if (pathname.startsWith("/workspace")) {
+    const stored = readStoredContext(WORKSPACE_CONTEXT_KEY);
+    const dirParam = searchParams.get("dir");
+    const dirName = dirParam ? decodeURIComponent(dirParam).replace(/[\\/]$/, "").split(/[\\/]/).pop() || "当前任务" : stored?.dirName || "当前任务";
+    return {
+      title: dirName,
+      detail: stored?.stage || "当前整理任务",
+    };
+  }
+  return { title: "新建任务", detail: "选择目录并启动新的整理任务" };
 }
 
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const isSettings = pathname === "/settings";
-  const [lastWorkspaceHref, setLastWorkspaceHref] = useState("/");
+  const [moduleCopy, setModuleCopy] = React.useState(() => getBaseModuleLabel(pathname, searchParams));
 
-  const currentWorkbenchHref = useMemo(() => {
-    if (pathname === "/") {
-      return "/";
-    }
-    if (!pathname.startsWith("/workspace")) {
-      return null;
-    }
-    const query = searchParams.toString();
-    return query ? `${pathname}?${query}` : pathname;
+  React.useEffect(() => {
+    setModuleCopy(getBaseModuleLabel(pathname, searchParams));
   }, [pathname, searchParams]);
 
-  useEffect(() => {
-    if (typeof window === "undefined") {
-      return;
-    }
+  React.useEffect(() => {
+    const syncModuleCopy = () => {
+      setModuleCopy(getStoredModuleLabel(pathname, searchParams));
+    };
 
-    const savedHref = window.localStorage.getItem(LAST_WORKSPACE_HREF_KEY);
-    if (savedHref) {
-      setLastWorkspaceHref(savedHref);
-    }
-  }, []);
+    syncModuleCopy();
 
-  useEffect(() => {
-    if (!currentWorkbenchHref || typeof window === "undefined") {
-      return;
-    }
+    const handleContextChange = () => {
+      syncModuleCopy();
+    };
 
-    window.localStorage.setItem(LAST_WORKSPACE_HREF_KEY, currentWorkbenchHref);
-    setLastWorkspaceHref(currentWorkbenchHref);
-  }, [currentWorkbenchHref]);
-
-  const workbenchHref = currentWorkbenchHref || lastWorkspaceHref || "/";
-  const moduleCopy = getModuleLabel(pathname);
+    window.addEventListener(APP_CONTEXT_EVENT, handleContextChange);
+    return () => {
+      window.removeEventListener(APP_CONTEXT_EVENT, handleContextChange);
+    };
+  }, [pathname, searchParams]);
 
   const navItems = [
-    { href: workbenchHref, icon: LayoutGrid, label: "工作台" },
+    { href: "/", icon: LayoutGrid, label: "新建任务" },
     { href: "/history", icon: History, label: "历史" },
+    { href: "/settings", icon: Settings, label: "设置" },
   ];
 
   const isNavActive = (href: string) => {
@@ -115,19 +160,6 @@ export function AppShell({ children }: { children: ReactNode }) {
               );
             })}
           </nav>
-
-          <Link
-            href={isSettings ? "/" : "/settings"}
-            className={cn(
-              "inline-flex h-8 w-8 items-center justify-center rounded-[9px] border transition-colors",
-              isSettings
-                ? "border-primary/20 bg-primary/10 text-primary"
-                : "border-transparent text-ui-muted hover:border-on-surface/8 hover:bg-white hover:text-on-surface",
-            )}
-            title="系统设置"
-          >
-            <Settings className="h-[18px] w-[18px]" />
-          </Link>
         </div>
       </header>
 

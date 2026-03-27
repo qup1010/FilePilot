@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import uuid
 from queue import Queue
 from pathlib import Path
@@ -17,6 +18,10 @@ from file_organizer.organize.strategy_templates import (
     normalize_strategy_selection,
 )
 from file_organizer.rollback import service as rollback_service
+from file_organizer.shared.logging_utils import append_debug_event
+
+
+logger = logging.getLogger(__name__)
 
 
 class OrganizerSessionService:
@@ -34,6 +39,11 @@ class OrganizerSessionService:
         latest = self.store.find_latest_by_directory(path)
         if latest is not None and latest.stage not in self._TERMINAL_STAGES:
             if resume_if_exists:
+                self._log_runtime_event(
+                    "session.resume_available",
+                    latest,
+                    existing_session_id=latest.session_id,
+                )
                 return CreateSessionResult(mode="resume_available", restorable_session=latest)
             raise RuntimeError("SESSION_LOCKED")
 
@@ -50,6 +60,8 @@ class OrganizerSessionService:
             raise RuntimeError("SESSION_LOCKED")
 
         self.store.save(session)
+        self._log_runtime_event("session.created", session, strategy=self._strategy_selection(session))
+        self._write_session_debug_event("session.created", session, payload={"strategy": self._strategy_selection(session)})
         self._record_event("session.created", session)
         return CreateSessionResult(mode="created", session=session)
 
@@ -59,6 +71,8 @@ class OrganizerSessionService:
         self.store.save(session)
         self.store.mark_abandoned(session_id)
         self.store.release_directory_lock(Path(session.target_dir), session_id)
+        self._log_runtime_event("session.abandoned", session)
+        self._write_session_debug_event("session.abandoned", session)
         self._record_event("session.abandoned", session)
         return self._build_snapshot(session)
 
@@ -79,10 +93,14 @@ class OrganizerSessionService:
             session.stale_reason = "directory_changed"
             session.integrity_flags["is_stale"] = True
             self.store.save(session)
+            self._log_runtime_event("session.stale", session, reason="directory_changed")
+            self._write_session_debug_event("session.stale", session, payload={"reason": "directory_changed"})
             self._record_event("session.stale", session)
             return session
 
         self.store.save(session)
+        self._log_runtime_event("session.resumed", session)
+        self._write_session_debug_event("session.resumed", session)
         self._record_event("session.resumed", session)
         return session
 
@@ -131,6 +149,19 @@ class OrganizerSessionService:
         session.stage = "planning"
         session.precheck_summary = None
         self.store.save(session)
+        self._log_runtime_event(
+            "session.refreshed",
+            session,
+            invalidated_count=len(invalidated_items),
+        )
+        self._write_session_debug_event(
+            "session.refreshed",
+            session,
+            payload={
+                "invalidated_count": len(invalidated_items),
+                "invalidated_items": invalidated_items,
+            },
+        )
         self._record_event("plan.updated", session)
         return SessionMutationResult(session_snapshot=self._build_snapshot(session))
 
@@ -148,6 +179,12 @@ class OrganizerSessionService:
         session.stage = "scanning"
         session.scanner_progress = self._initial_scan_progress(target_dir)
         self.store.save(session)
+        self._log_runtime_event("scan.started", session)
+        self._write_session_debug_event(
+            "scan.started",
+            session,
+            payload={"entry_count": session.scanner_progress.get("total_count", 0)},
+        )
         self._record_event("scan.started", session)
         seen_entries: set[str] = set()
         parallel_state = {"enabled": False}
@@ -332,6 +369,17 @@ class OrganizerSessionService:
         self._ensure_mutable_stage(session)
         session.messages.append(self._ensure_message_id({"role": "user", "content": content}))
         pending_plan = self._pending_plan_from_session(session)
+        self._log_runtime_event(
+            "plan.user_intent_submitted",
+            session,
+            message_count=len(session.messages),
+            content_preview=content[:120],
+        )
+        self._write_session_debug_event(
+            "plan.user_intent_submitted",
+            session,
+            payload={"content": content},
+        )
         def on_plan_event(event_type: str, data: dict):
             self._forward_runtime_event("plan", session.session_id, event_type, data)
 
@@ -356,6 +404,12 @@ class OrganizerSessionService:
         session.last_ai_pending_plan = self._pending_plan_to_dict(updated_pending)
         
         self.store.save(session)
+        self._log_runtime_event("plan.updated", session, source="user_intent")
+        self._write_session_debug_event(
+            "plan.updated",
+            session,
+            payload={"source": "user_intent", "summary": session.summary},
+        )
         self._record_event("plan.updated", session)
         return SessionMutationResult(
             session_snapshot=self._build_snapshot(session),
@@ -365,6 +419,17 @@ class OrganizerSessionService:
     def resolve_unresolved_choices(self, session_id: str, request_id: str, resolutions: list[dict]) -> SessionMutationResult:
         session = self._load_or_raise(session_id)
         self._ensure_mutable_stage(session)
+        self._log_runtime_event(
+            "plan.unresolved_choices_submitted",
+            session,
+            request_id=request_id,
+            resolution_count=len(resolutions or []),
+        )
+        self._write_session_debug_event(
+            "plan.unresolved_choices_submitted",
+            session,
+            payload={"request_id": request_id, "resolutions": resolutions or []},
+        )
 
         message, request_block = self._find_unresolved_request_message(session, request_id)
         if request_block is None or message is None:
@@ -503,6 +568,12 @@ class OrganizerSessionService:
             session.precheck_summary = None
 
         self.store.save(session)
+        self._log_runtime_event("plan.updated", session, source="resolve_unresolved_choices")
+        self._write_session_debug_event(
+            "plan.updated",
+            session,
+            payload={"source": "resolve_unresolved_choices", "summary": session.summary},
+        )
         self._record_event("plan.updated", session)
         return SessionMutationResult(
             session_snapshot=self._build_snapshot(session),
@@ -512,6 +583,8 @@ class OrganizerSessionService:
     def run_precheck(self, session_id: str) -> SessionMutationResult:
         session = self._load_or_raise(session_id)
         self._ensure_mutable_stage(session)
+        self._log_runtime_event("precheck.started", session)
+        self._write_session_debug_event("precheck.started", session)
         final_plan = self._final_plan_from_session(session)
         plan = execution_service.build_execution_plan(final_plan, Path(session.target_dir))
         precheck = execution_service.validate_execution_preconditions(plan)
@@ -531,6 +604,18 @@ class OrganizerSessionService:
         }
         session.stage = "ready_to_execute" if precheck.can_execute else "planning"
         self.store.save(session)
+        self._log_runtime_event(
+            "precheck.completed",
+            session,
+            can_execute=precheck.can_execute,
+            blocking_error_count=len(precheck.blocking_errors),
+            warning_count=len(precheck.warnings),
+        )
+        self._write_session_debug_event(
+            "precheck.completed",
+            session,
+            payload=session.precheck_summary,
+        )
         self._record_event("precheck.ready", session)
         return SessionMutationResult(session_snapshot=self._build_snapshot(session))
 
@@ -630,6 +715,8 @@ class OrganizerSessionService:
 
         session.stage = "executing"
         self.store.save(session)
+        self._log_runtime_event("execution.started", session)
+        self._write_session_debug_event("execution.started", session)
         self._record_event("execution.started", session)
 
         final_plan = self._final_plan_from_session(session)
@@ -640,6 +727,13 @@ class OrganizerSessionService:
             session.stage = "interrupted"
             session.last_error = "missing_execution_journal"
             self.store.save(session)
+            self._log_runtime_event("execution.failed", session, reason="missing_execution_journal", level=logging.ERROR)
+            self._write_session_debug_event(
+                "execution.failed",
+                session,
+                level="ERROR",
+                payload={"reason": "missing_execution_journal"},
+            )
             self._record_event("session.interrupted", session)
             return SessionMutationResult(session_snapshot=self._build_snapshot(session))
 
@@ -656,6 +750,18 @@ class OrganizerSessionService:
         session.stage = "completed"
         self.store.save(session)
         self.store.release_directory_lock(Path(session.target_dir), session.session_id)
+        self._log_runtime_event(
+            "execution.completed",
+            session,
+            execution_id=journal_id,
+            success_count=report.success_count,
+            failure_count=report.failure_count,
+        )
+        self._write_session_debug_event(
+            "execution.completed",
+            session,
+            payload=session.execution_report,
+        )
         self._record_event("execution.completed", session)
         return SessionMutationResult(session_snapshot=self._build_snapshot(session))
 
@@ -673,6 +779,8 @@ class OrganizerSessionService:
 
         session.stage = "rolling_back"
         self.store.save(session)
+        self._log_runtime_event("rollback.started", session)
+        self._write_session_debug_event("rollback.started", session)
         self._record_event("rollback.started", session)
 
         journal = rollback_service.load_latest_execution_for_directory(Path(session.target_dir))
@@ -693,6 +801,18 @@ class OrganizerSessionService:
         session.stage = "stale"
         session.integrity_flags["is_stale"] = True
         self.store.save(session)
+        self._log_runtime_event(
+            "rollback.completed",
+            session,
+            journal_id=journal.execution_id,
+            success_count=report.success_count,
+            failure_count=report.failure_count,
+        )
+        self._write_session_debug_event(
+            "rollback.completed",
+            session,
+            payload=session.rollback_report,
+        )
         self._record_event("rollback.completed", session)
         return SessionMutationResult(session_snapshot=self._build_snapshot(session))
 
@@ -830,6 +950,21 @@ class OrganizerSessionService:
             session.execution_report["has_cleanup_candidates"] = False
             session.execution_report["cleanup_candidate_count"] = max(0, len(empty_dirs) - len(cleaned))
         self.store.save(session)
+        self._log_runtime_event(
+            "cleanup.completed",
+            session,
+            cleaned_count=len(cleaned),
+            candidate_count=len(empty_dirs),
+        )
+        self._write_session_debug_event(
+            "cleanup.completed",
+            session,
+            payload={
+                "candidate_count": len(empty_dirs),
+                "cleaned_count": len(cleaned),
+                "cleaned_dirs": [str(path) for path in cleaned],
+            },
+        )
         self._record_event("cleanup.completed", session, cleaned_count=len(cleaned))
         return {
             "session_id": session_id,
@@ -973,6 +1108,20 @@ class OrganizerSessionService:
             self._ensure_message_ids(session.messages)
             
         self.store.save(session)
+        self._log_runtime_event(
+            "scan.completed",
+            session,
+            entry_count=len(all_entries),
+            auto_plan_pending=not session.assistant_message and not (session.plan_snapshot or {}).get("moves"),
+        )
+        self._write_session_debug_event(
+            "scan.completed",
+            session,
+            payload={
+                "entry_count": len(all_entries),
+                "recent_items": recent_items,
+            },
+        )
         self._record_event("scan.completed", session)
 
         # Trigger initial organization cycle automatically if no plan suggestion yet
@@ -981,6 +1130,8 @@ class OrganizerSessionService:
                 self._forward_runtime_event("plan", session.session_id, event_type, data)
 
             try:
+                self._log_runtime_event("plan.auto_started", session)
+                self._write_session_debug_event("plan.auto_started", session)
                 assistant_message, cycle_result = organize_service.run_organizer_cycle(
                     messages=list(session.messages),
                     scan_lines=session.scan_lines,
@@ -1007,14 +1158,29 @@ class OrganizerSessionService:
                         session.last_ai_pending_plan = self._pending_plan_to_dict(updated_pending)
                 
                 self.store.save(session)
+                self._log_runtime_event("plan.auto_completed", session, summary=session.summary)
+                self._write_session_debug_event(
+                    "plan.auto_completed",
+                    session,
+                    payload={"summary": session.summary},
+                )
                 self._record_event("plan.updated", session)
             except Exception as exc:
-                # Fail silently for auto-planning, log it
-                import traceback
-                traceback.print_exc()
+                logger.exception(
+                    "plan.auto_failed session_id=%s target_dir=%s",
+                    session.session_id,
+                    session.target_dir,
+                )
                 session.last_error = f"自动规划失败: {str(exc)}"
                 session.stage = "interrupted"
                 self.store.save(session)
+                self._log_runtime_event("plan.auto_failed", session, level=logging.ERROR, error=str(exc))
+                self._write_session_debug_event(
+                    "plan.auto_failed",
+                    session,
+                    level="ERROR",
+                    payload={"error": str(exc)},
+                )
                 self._record_event("plan.updated", session)
 
     def _fail_async_scan(self, session_id: str, exc: Exception) -> None:
@@ -1023,6 +1189,19 @@ class OrganizerSessionService:
         session.last_error = str(exc)
         session.scanner_progress = {**dict(session.scanner_progress or {}), "status": "failed", "message": str(exc)}
         self.store.save(session)
+        logger.exception(
+            "scan.failed session_id=%s target_dir=%s",
+            session.session_id,
+            session.target_dir,
+            exc_info=exc,
+        )
+        self._log_runtime_event("scan.failed", session, level=logging.ERROR, error=str(exc))
+        self._write_session_debug_event(
+            "scan.failed",
+            session,
+            level="ERROR",
+            payload={"error": str(exc)},
+        )
         self._record_event("session.error", session)
 
     def _run_scan_sync(self, session: OrganizerSession, scan_runner) -> str:
@@ -1045,6 +1224,12 @@ class OrganizerSessionService:
             "message": "已完成单线程扫描分析",
         }
         self.store.save(session)
+        self._log_runtime_event("scan.completed", session, entry_count=len(all_entries), mode="sync")
+        self._write_session_debug_event(
+            "scan.completed",
+            session,
+            payload={"entry_count": len(all_entries), "mode": "sync"},
+        )
         self._record_event("scan.completed", session)
         return result
 
@@ -1231,6 +1416,47 @@ class OrganizerSessionService:
                 dirs.add(move.target.rsplit("/", 1)[0])
         return sorted(list(dirs))
 
+    def _log_runtime_event(
+        self,
+        event_type: str,
+        session: OrganizerSession,
+        *,
+        level: int = logging.INFO,
+        **details,
+    ) -> None:
+        summary = {
+            "moves": len((session.pending_plan or {}).get("moves", [])),
+            "unresolved": len((session.pending_plan or {}).get("unresolved_items", [])),
+        }
+        if details:
+            summary.update(details)
+        logger.log(
+            level,
+            "%s session_id=%s target_dir=%s stage=%s summary=%s",
+            event_type,
+            session.session_id,
+            session.target_dir,
+            session.stage,
+            json.dumps(summary, ensure_ascii=False),
+        )
+
+    def _write_session_debug_event(
+        self,
+        kind: str,
+        session: OrganizerSession,
+        *,
+        level: str = "INFO",
+        payload: dict | list | str | None = None,
+    ) -> None:
+        append_debug_event(
+            kind=kind,
+            level=level,
+            session_id=session.session_id,
+            target_dir=session.target_dir,
+            stage=session.stage,
+            payload=payload,
+        )
+
     def _record_event(self, event_type: str, session: OrganizerSession | None = None, session_id: str | None = None, **kwargs):
         s_id = session_id or (session.session_id if session else None)
         if not s_id:
@@ -1330,4 +1556,10 @@ class OrganizerSessionService:
         session.last_error = session.last_error or f"{interrupted_during}_interrupted"
         session.last_journal_id = session.last_journal_id or self._latest_execution_id(Path(session.target_dir))
         self.store.save(session)
+        self._log_runtime_event("session.interrupted", session, interrupted_during=interrupted_during)
+        self._write_session_debug_event(
+            "session.interrupted",
+            session,
+            payload={"interrupted_during": interrupted_during},
+        )
         self._record_event("session.interrupted", session)

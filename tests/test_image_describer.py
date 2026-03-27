@@ -26,6 +26,24 @@ class ImageDescriberTests(unittest.TestCase):
 
         self.assertIn("图片分析失败", result)
 
+    def test_describe_image_fails_when_explicit_vision_config_is_incomplete(self):
+        with mock.patch(
+            "file_organizer.analysis.image_describer.get_image_analysis_settings",
+            return_value={
+                "enabled": True,
+                "base_url": "",
+                "api_key": "secret",
+                "model": "",
+            },
+        ), mock.patch(
+            "file_organizer.analysis.image_describer.create_image_analysis_client",
+            side_effect=ValueError("缺少必要配置: IMAGE_ANALYSIS_BASE_URL"),
+        ):
+            result = describe_image(self.image_path)
+
+        self.assertIn("图片分析失败", result)
+        self.assertIn("IMAGE_ANALYSIS_BASE_URL", result)
+
     def test_describe_image_uses_isolated_messages_and_returns_short_summary(self):
         response = SimpleNamespace(
             choices=[

@@ -1,5 +1,7 @@
 import type {
+  LaunchStrategyConfig,
   SessionStrategySelection,
+  SessionStrategySummary,
   StrategyCautionLevel,
   StrategyNamingStyle,
   StrategyTemplateId,
@@ -116,5 +118,54 @@ export function getSuggestedSelection(templateId: StrategyTemplateId): Pick<Sess
   return {
     naming_style: template.defaultNamingStyle || DEFAULT_STRATEGY_SELECTION.naming_style,
     caution_level: template.defaultCautionLevel || DEFAULT_STRATEGY_SELECTION.caution_level,
+  };
+}
+
+function isValidTemplateId(value: unknown): value is StrategyTemplateId {
+  return STRATEGY_TEMPLATES.some((template) => template.id === value);
+}
+
+function isValidNamingStyle(value: unknown): value is StrategyNamingStyle {
+  return NAMING_STYLE_OPTIONS.some((option) => option.id === value);
+}
+
+function isValidCautionLevel(value: unknown): value is StrategyCautionLevel {
+  return CAUTION_LEVEL_OPTIONS.some((option) => option.id === value);
+}
+
+export function getLaunchStrategyFromConfig(config?: LaunchStrategyConfig | null): SessionStrategySelection {
+  const templateId = isValidTemplateId(config?.LAUNCH_DEFAULT_TEMPLATE_ID)
+    ? config.LAUNCH_DEFAULT_TEMPLATE_ID
+    : DEFAULT_STRATEGY_SELECTION.template_id;
+  const suggested = getSuggestedSelection(templateId);
+
+  return {
+    template_id: templateId,
+    naming_style: isValidNamingStyle(config?.LAUNCH_DEFAULT_NAMING_STYLE)
+      ? config.LAUNCH_DEFAULT_NAMING_STYLE
+      : suggested.naming_style,
+    caution_level: isValidCautionLevel(config?.LAUNCH_DEFAULT_CAUTION_LEVEL)
+      ? config.LAUNCH_DEFAULT_CAUTION_LEVEL
+      : suggested.caution_level,
+    note: typeof config?.LAUNCH_DEFAULT_NOTE === "string" ? config.LAUNCH_DEFAULT_NOTE : "",
+  };
+}
+
+export function shouldSkipLaunchStrategyPrompt(config?: LaunchStrategyConfig | null): boolean {
+  return Boolean(config?.LAUNCH_SKIP_STRATEGY_PROMPT);
+}
+
+export function buildStrategySummary(strategy: SessionStrategySelection): SessionStrategySummary {
+  const template = getTemplateMeta(strategy.template_id);
+  const namingLabel = NAMING_STYLE_OPTIONS.find((item) => item.id === strategy.naming_style)?.label || "中文目录";
+  const cautionLabel = CAUTION_LEVEL_OPTIONS.find((item) => item.id === strategy.caution_level)?.label || "平衡";
+
+  return {
+    ...strategy,
+    template_label: template.label,
+    template_description: template.description,
+    naming_style_label: namingLabel,
+    caution_level_label: cautionLabel,
+    preview_directories: template.previewDirectories[strategy.naming_style] || [],
   };
 }

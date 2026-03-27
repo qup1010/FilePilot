@@ -1,15 +1,16 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import {
   AlertCircle,
   CheckCircle2,
+  ChevronDown,
   Cpu,
   Edit3,
   Eye,
   EyeOff,
   Globe,
-  Info,
+  Layers3,
   Plus,
   RefreshCw,
   Settings as SettingsIcon,
@@ -18,13 +19,23 @@ import {
   Trash2,
   type LucideIcon,
 } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 
+import { Button } from "@/components/ui/button";
+import { ErrorAlert } from "@/components/ui/error-alert";
 import { createApiClient } from "@/lib/api";
 import { getApiBaseUrl, getApiToken } from "@/lib/runtime";
-import { ErrorAlert } from "@/components/ui/error-alert";
-import { Button } from "@/components/ui/button";
+import {
+  CAUTION_LEVEL_OPTIONS,
+  getSuggestedSelection,
+  getTemplateMeta,
+  NAMING_STYLE_OPTIONS,
+  STRATEGY_TEMPLATES,
+} from "@/lib/strategy-templates";
 import { cn } from "@/lib/utils";
+
+type PresetType = "text" | "vision";
+type SettingsCategory = "models" | "launch" | "advanced";
 
 interface SettingsSectionProps {
   icon: LucideIcon;
@@ -48,6 +59,45 @@ interface InputShellProps {
   className?: string;
 }
 
+interface PresetItem {
+  id: string;
+  name: string;
+}
+
+interface DialogState {
+  type: "prompt" | "confirm";
+  title: string;
+  message: string;
+  value?: string;
+  onConfirm: (value?: string) => void;
+}
+
+const SETTINGS_CATEGORIES: Array<{
+  id: SettingsCategory;
+  label: string;
+  description: string;
+  icon: LucideIcon;
+}> = [
+  {
+    id: "models",
+    label: "模型配置",
+    description: "文本与图片模型预设",
+    icon: Layers3,
+  },
+  {
+    id: "launch",
+    label: "启动默认值",
+    description: "新任务启动策略",
+    icon: SettingsIcon,
+  },
+  {
+    id: "advanced",
+    label: "其他设置",
+    description: "日志与少量开关",
+    icon: ShieldCheck,
+  },
+];
+
 function SettingsSection({
   icon: Icon,
   title,
@@ -59,7 +109,7 @@ function SettingsSection({
   return (
     <section
       className={cn(
-        "rounded-[12px] border border-on-surface/8 bg-surface-container-lowest p-4 shadow-[0_6px_18px_rgba(36,48,42,0.05)] lg:p-5",
+        "rounded-[12px] border border-on-surface/8 bg-surface-container-lowest p-5 shadow-[0_8px_24px_rgba(36,48,42,0.06)]",
         disabled && "opacity-55",
       )}
     >
@@ -115,6 +165,32 @@ function InputShell({ icon: Icon, children, className }: InputShellProps) {
   );
 }
 
+function StrategyOptionButton({
+  active,
+  label,
+  description,
+  onClick,
+}: {
+  active: boolean;
+  label: string;
+  description: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "w-full rounded-[10px] border px-4 py-3 text-left transition-colors",
+        active ? "border-primary/20 bg-primary/6" : "border-on-surface/8 bg-surface-container-low hover:border-primary/16",
+      )}
+    >
+      <p className={cn("text-[14px] font-semibold tracking-tight", active ? "text-primary" : "text-on-surface")}>{label}</p>
+      <p className="mt-1 text-[13px] leading-6 text-ui-muted">{description}</p>
+    </button>
+  );
+}
+
 function ToggleSwitch({
   checked,
   onClick,
@@ -144,11 +220,79 @@ function ToggleSwitch({
   );
 }
 
+function PresetManager({
+  title,
+  presets,
+  activeId,
+  onSwitch,
+  onAdd,
+  onDelete,
+}: {
+  title: string;
+  presets: PresetItem[];
+  activeId: string;
+  onSwitch: (id: string) => void;
+  onAdd: () => void;
+  onDelete: (preset: PresetItem) => void;
+}) {
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between gap-3">
+        <div className="space-y-1">
+          <p className="text-[12px] font-semibold text-on-surface">{title}</p>
+          <p className="text-[12px] text-on-surface-variant/60">切换后只影响这一类模型的地址、模型和密钥。</p>
+        </div>
+        <Button variant="secondary" size="sm" onClick={onAdd} className="px-4 py-2">
+          <Plus className="mr-1 h-4 w-4" />
+          新建
+        </Button>
+      </div>
+
+      <div className="grid gap-2 md:grid-cols-2">
+        {presets.map((preset) => (
+          <button
+            key={preset.id}
+            type="button"
+            onClick={() => onSwitch(preset.id)}
+            className={cn(
+              "group flex items-center justify-between rounded-[10px] border px-3.5 py-3 text-left transition-colors",
+              activeId === preset.id
+                ? "border-primary/18 bg-primary/6"
+                : "border-on-surface/8 bg-white hover:border-primary/14",
+            )}
+          >
+            <div className="min-w-0">
+              <p className="truncate text-[13px] font-semibold tracking-tight text-on-surface">{preset.name}</p>
+              <p className="text-[11px] text-on-surface-variant/45">{preset.id}</p>
+            </div>
+            {preset.id !== "default" ? (
+              <span
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onDelete(preset);
+                }}
+                className="rounded-[8px] p-1.5 text-on-surface-variant/35 transition-colors hover:bg-error/5 hover:text-error"
+              >
+                <Trash2 className="h-4 w-4" />
+              </span>
+            ) : null}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function SettingsPage() {
-  const [profiles, setProfiles] = useState<any[]>([]);
-  const [activeId, setActiveId] = useState<string>("");
+  const APP_CONTEXT_EVENT = "file-organizer-context-change";
+  const SETTINGS_CONTEXT_KEY = "settings_header_context";
+  const [api] = useState(() => createApiClient(getApiBaseUrl(), getApiToken()));
   const [config, setConfig] = useState<any>(null);
   const [originalConfig, setOriginalConfig] = useState<any>(null);
+  const [textPresets, setTextPresets] = useState<PresetItem[]>([]);
+  const [visionPresets, setVisionPresets] = useState<PresetItem[]>([]);
+  const [activeTextPresetId, setActiveTextPresetId] = useState("default");
+  const [activeVisionPresetId, setActiveVisionPresetId] = useState("default");
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -157,6 +301,8 @@ export default function SettingsPage() {
 
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [dialog, setDialog] = useState<DialogState | null>(null);
+  const [activeCategory, setActiveCategory] = useState<SettingsCategory>("models");
   const [testResult, setTestResult] = useState<{
     type: "text" | "vision";
     status: "success" | "error";
@@ -164,35 +310,22 @@ export default function SettingsPage() {
   } | null>(null);
   const [showKey, setShowKey] = useState(false);
   const [showVisionKey, setShowVisionKey] = useState(false);
+  const [textEditorExpanded, setTextEditorExpanded] = useState(true);
+  const [visionEditorExpanded, setVisionEditorExpanded] = useState(true);
 
-  const [dialog, setDialog] = useState<{
-    type: "prompt" | "confirm";
-    title: string;
-    message: string;
-    value?: string;
-    onConfirm: (val?: string) => void;
-  } | null>(null);
-
-  const api = useMemo(() => createApiClient(getApiBaseUrl(), getApiToken()), []);
-
-  const isDirty = useMemo(() => {
-    if (!config || !originalConfig) return false;
-    return JSON.stringify(config) !== JSON.stringify(originalConfig);
-  }, [config, originalConfig]);
-
-  const activeProfile = useMemo(
-    () => profiles.find((profile) => profile.id === activeId) ?? null,
-    [profiles, activeId],
-  );
+  const isDirty = config && originalConfig ? JSON.stringify(config) !== JSON.stringify(originalConfig) : false;
+  const launchTemplate = getTemplateMeta(config?.LAUNCH_DEFAULT_TEMPLATE_ID ?? "general_downloads");
 
   const fetchAll = async () => {
     setLoading(true);
     try {
       const data = await api.getConfig();
-      setProfiles(data.profiles);
-      setActiveId(data.active_id);
       setConfig(data.config);
       setOriginalConfig(data.config);
+      setTextPresets(data.text_presets);
+      setVisionPresets(data.vision_presets);
+      setActiveTextPresetId(data.active_text_preset_id);
+      setActiveVisionPresetId(data.active_vision_preset_id);
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -204,10 +337,36 @@ export default function SettingsPage() {
     void fetchAll();
   }, []);
 
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    const currentCategory = SETTINGS_CATEGORIES.find((item) => item.id === activeCategory);
+    window.localStorage.setItem(
+      SETTINGS_CONTEXT_KEY,
+      JSON.stringify({
+        title: "设置",
+        detail: currentCategory?.label || "模型配置",
+      }),
+    );
+    window.dispatchEvent(new Event(APP_CONTEXT_EVENT));
+  }, [APP_CONTEXT_EVENT, SETTINGS_CONTEXT_KEY, activeCategory]);
+
   const handleChange = (key: string, value: any) => {
     setConfig((prev: any) => ({ ...prev, [key]: value }));
     setSuccess(null);
     setTestResult(null);
+  };
+
+  const handleLaunchTemplateChange = (templateId: string) => {
+    const suggested = getSuggestedSelection(templateId as any);
+    setConfig((prev: any) => ({
+      ...prev,
+      LAUNCH_DEFAULT_TEMPLATE_ID: templateId,
+      LAUNCH_DEFAULT_NAMING_STYLE: suggested.naming_style,
+      LAUNCH_DEFAULT_CAUTION_LEVEL: suggested.caution_level,
+    }));
+    setSuccess(null);
   };
 
   const handleSave = async () => {
@@ -223,85 +382,6 @@ export default function SettingsPage() {
     } finally {
       setSaving(false);
     }
-  };
-
-  const performSwitch = async (id: string) => {
-    setDialog(null);
-    setLoading(true);
-    try {
-      await api.switchProfile(id);
-      await fetchAll();
-      setSuccess("已切换配置方案");
-      setTimeout(() => setSuccess(null), 3000);
-    } catch (err: any) {
-      setError(err.message);
-      setLoading(false);
-    }
-  };
-
-  const handleSwitchProfile = async (id: string) => {
-    if (id === activeId) return;
-    if (isDirty) {
-      setDialog({
-        type: "confirm",
-        title: "放弃未保存修改？",
-        message: "当前配置还有未保存内容，切换方案后这些修改会丢失。",
-        onConfirm: () => {
-          void performSwitch(id);
-        },
-      });
-      return;
-    }
-    await performSwitch(id);
-  };
-
-  const handleAddProfile = async () => {
-    setDialog({
-      type: "prompt",
-      title: "新建配置方案",
-      message: "输入一个便于识别的方案名称。",
-      value: "我的新方案",
-      onConfirm: async (name) => {
-        if (!name) return;
-        setDialog(null);
-        setLoading(true);
-        try {
-          await api.addProfile(name, true);
-          await fetchAll();
-        } catch (err: any) {
-          setError(err.message);
-          setLoading(false);
-        }
-      },
-    });
-  };
-
-  const handleDeleteProfile = async (id: string, name: string) => {
-    if (id === "default") {
-      setDialog({
-        type: "confirm",
-        title: "无法删除默认方案",
-        message: "默认方案会一直保留。",
-        onConfirm: () => setDialog(null),
-      });
-      return;
-    }
-    setDialog({
-      type: "confirm",
-      title: "确认删除方案？",
-      message: `确定删除“${name}”吗？删除后不能恢复。`,
-      onConfirm: async () => {
-        setDialog(null);
-        setLoading(true);
-        try {
-          await api.deleteProfile(id);
-          await fetchAll();
-        } catch (err: any) {
-          setError(err.message);
-          setLoading(false);
-        }
-      },
-    });
   };
 
   const handleTest = async (type: "text" | "vision") => {
@@ -330,14 +410,95 @@ export default function SettingsPage() {
     }
   };
 
+  const performSwitchPreset = async (presetType: PresetType, id: string) => {
+    setDialog(null);
+    setLoading(true);
+    setError(null);
+    try {
+      await api.switchPreset(presetType, id);
+      await fetchAll();
+      setSuccess(`${presetType === "text" ? "文本" : "图片"}预设已切换`);
+      setTimeout(() => setSuccess(null), 3000);
+    } catch (err: any) {
+      setError(err.message);
+      setLoading(false);
+    }
+  };
+
+  const handleSwitchPreset = (presetType: PresetType, id: string) => {
+    const currentId = presetType === "text" ? activeTextPresetId : activeVisionPresetId;
+    if (currentId === id) {
+      return;
+    }
+    if (isDirty) {
+      setDialog({
+        type: "confirm",
+        title: "放弃未保存修改？",
+        message: "切换预设后，当前未保存的修改会丢失。",
+        onConfirm: () => {
+          void performSwitchPreset(presetType, id);
+        },
+      });
+      return;
+    }
+    void performSwitchPreset(presetType, id);
+  };
+
+  const handleAddPreset = (presetType: PresetType) => {
+    setDialog({
+      type: "prompt",
+      title: `新建${presetType === "text" ? "文本" : "图片"}预设`,
+      message: "输入一个便于识别的预设名称。",
+      value: presetType === "text" ? "新的文本预设" : "新的图片预设",
+      onConfirm: async (value) => {
+        const name = String(value || "").trim();
+        if (!name) {
+          return;
+        }
+        setDialog(null);
+        setLoading(true);
+        setError(null);
+        try {
+          await api.addPreset(presetType, name, true);
+          await fetchAll();
+          setSuccess(`${presetType === "text" ? "文本" : "图片"}预设已创建`);
+          setTimeout(() => setSuccess(null), 3000);
+        } catch (err: any) {
+          setError(err.message);
+          setLoading(false);
+        }
+      },
+    });
+  };
+
+  const handleDeletePreset = (presetType: PresetType, preset: PresetItem) => {
+    setDialog({
+      type: "confirm",
+      title: "确认删除预设？",
+      message: `确定删除“${preset.name}”吗？删除后不能恢复。`,
+      onConfirm: async () => {
+        setDialog(null);
+        setLoading(true);
+        setError(null);
+        try {
+          await api.deletePreset(presetType, preset.id);
+          await fetchAll();
+          setSuccess(`${presetType === "text" ? "文本" : "图片"}预设已删除`);
+          setTimeout(() => setSuccess(null), 3000);
+        } catch (err: any) {
+          setError(err.message);
+          setLoading(false);
+        }
+      },
+    });
+  };
+
   if (loading || !config) {
     return (
       <div className="flex flex-1 items-center justify-center bg-surface">
         <div className="flex flex-col items-center gap-5">
           <RefreshCw className="h-9 w-9 animate-spin text-primary/40" />
-          <p className="text-[12px] font-medium text-on-surface-variant/55">
-            正在读取设置
-          </p>
+          <p className="text-[12px] font-medium text-on-surface-variant/55">正在读取设置</p>
         </div>
       </div>
     );
@@ -345,107 +506,21 @@ export default function SettingsPage() {
 
   return (
     <div className="flex min-h-0 flex-1 overflow-hidden bg-surface">
-      <aside className="w-[236px] shrink-0 overflow-y-auto border-r border-on-surface/6 bg-surface-container-low px-4 py-4">
-        <div className="space-y-4">
-          <div className="flex items-start justify-between gap-3">
-            <div className="space-y-1">
-              <h2 className="text-[13px] font-semibold tracking-tight text-on-surface">
-                配置方案
-              </h2>
-              <p className="text-[12px] leading-5 text-on-surface-variant/70">
-                每个方案保存一套模型和偏好设置。
-              </p>
-            </div>
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={handleAddProfile}
-              className="h-9 w-9 rounded-[10px] p-0"
-              title="新建方案"
-            >
-              <Plus className="h-4 w-4" />
-            </Button>
-          </div>
-
-          <nav className="space-y-2">
-            {profiles.map((profile) => (
-              <div
-                key={profile.id}
-                className={cn(
-                  "group flex cursor-pointer items-center justify-between gap-3 rounded-[10px] border px-3.5 py-3 transition-all",
-                  activeId === profile.id
-                    ? "border-on-surface/8 bg-white text-on-surface"
-                    : "border-transparent bg-transparent text-on-surface-variant/70 hover:border-primary/10 hover:bg-white/70 hover:text-on-surface",
-                )}
-                onClick={() => void handleSwitchProfile(profile.id)}
-              >
-                <div className="flex min-w-0 items-center gap-3">
-                  <div
-                    className={cn(
-                      "h-2.5 w-2.5 shrink-0 rounded-full",
-                      activeId === profile.id ? "bg-primary" : "bg-on-surface/12",
-                    )}
-                  />
-                  <div className="min-w-0">
-                    <p className="truncate text-[13px] font-semibold tracking-tight">{profile.name}</p>
-                    <p className="text-[11px] text-on-surface-variant/40">
-                      {profile.id}
-                    </p>
-                  </div>
-                </div>
-
-                {profile.id !== "default" ? (
-                  <button
-                    type="button"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      void handleDeleteProfile(profile.id, profile.name);
-                    }}
-                    className="rounded-[8px] p-1.5 text-on-surface-variant/25 opacity-0 transition-all hover:bg-error/5 hover:text-error hover:opacity-100 group-hover:opacity-70"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                ) : null}
-              </div>
-            ))}
-          </nav>
-
-          <div className="rounded-[12px] border border-primary/10 bg-primary/6 p-3.5">
-            <div className="flex items-start gap-3">
-              <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-[8px] bg-white text-primary">
-                <Info className="h-4 w-4" />
-              </div>
-              <div className="space-y-1.5">
-                <p className="text-[12px] font-semibold text-primary/85">
-                  桌面版建议
-                </p>
-                <p className="text-[12px] leading-5 text-on-surface-variant/70">
-                  为不同目录准备不同方案，后续切换时会更快，也更不容易改错配置。
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </aside>
-
       <main className="min-w-0 flex-1 overflow-y-auto bg-surface">
-        <div className="mx-auto flex w-full max-w-[940px] flex-col gap-4 px-4 py-4 lg:px-5 lg:py-5">
-          <div className="sticky top-0 z-20 rounded-[12px] border border-on-surface/8 bg-surface-container-lowest px-4 py-3.5 shadow-[0_8px_22px_rgba(36,48,42,0.06)]">
-            <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="mx-auto flex w-full max-w-[1360px] flex-col gap-5 px-5 py-5">
+          <div className="sticky top-0 z-20 rounded-[12px] border border-on-surface/8 bg-surface-container-lowest/92 px-4 py-3 backdrop-blur-sm shadow-[0_8px_18px_rgba(36,48,42,0.05)]">
+            <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="min-w-0 space-y-1.5">
                 <div className="flex flex-wrap items-center gap-3">
                   <h1 className="text-[1.35rem] font-black tracking-tight text-on-surface">设置与偏好</h1>
-                  <span className="rounded-[8px] border border-on-surface/8 bg-surface-container-low px-2.5 py-1 text-[12px] font-medium text-on-surface-variant/65">
-                    {activeProfile?.name || "当前方案"}
-                  </span>
                   {isDirty ? (
                     <span className="rounded-[8px] border border-warning/10 bg-warning-container/20 px-2.5 py-1 text-[12px] font-medium text-warning">
                       未保存
                     </span>
                   ) : null}
                 </div>
-                <p className="max-w-[620px] text-[13px] leading-5 text-on-surface-variant/70">
-                  调整文本模型、图片理解和调试选项。设置页会和工作区保持同一套更紧凑的桌面风格。
+                <p className="max-w-[760px] text-[13px] leading-5 text-on-surface-variant/70">
+                  文本模型和图片理解模型现在分别拥有独立预设；切换其一不会影响另一类模型。
                 </p>
               </div>
 
@@ -478,259 +553,442 @@ export default function SettingsPage() {
 
           {error ? <ErrorAlert title="设置操作失败" message={error} /> : null}
 
-          <SettingsSection
-            icon={Cpu}
-            title="文本模型设置"
-            description="决定系统如何理解目录内容、生成整理建议，以及整理对话的稳定性。"
-            actions={
-              <Button
-                onClick={() => void handleTest("text")}
-                disabled={testing}
-                loading={testing}
-                variant="secondary"
-                size="sm"
-                className="px-5 py-2.5"
-              >
-                测试连接
-              </Button>
-            }
-          >
-            {testResult?.type === "text" ? (
-              <div
-                className={cn(
-                  "flex items-center gap-3 rounded-[10px] border px-4 py-3 text-[12px] font-medium",
-                  testResult.status === "success"
-                    ? "border-emerald-500/10 bg-emerald-500/5 text-emerald-700"
-                    : "border-error/10 bg-error/5 text-error",
-                )}
-              >
-                {testResult.status === "success" ? (
-                  <CheckCircle2 className="h-4.5 w-4.5 shrink-0" />
-                ) : (
-                  <AlertCircle className="h-4.5 w-4.5 shrink-0" />
-                )}
-                <p>{testResult.message}</p>
-              </div>
-            ) : null}
-
-            <div className="grid gap-4 xl:grid-cols-2">
-              <FieldGroup
-                label="方案名称"
-                hint="这个名字会显示在侧边栏和会话页面中。"
-                className="xl:col-span-2"
-              >
-                <InputShell icon={Edit3}>
-                  <input
-                    value={config.name}
-                    onChange={(event) => handleChange("name", event.target.value)}
-                    className="w-full bg-transparent py-2 text-[14px] font-semibold text-on-surface outline-none"
-                    placeholder="例如：下载目录默认方案"
-                  />
-                </InputShell>
-              </FieldGroup>
-
-              <FieldGroup label="接口地址 / Base URL">
-                <InputShell icon={Globe}>
-                  <input
-                    value={config.OPENAI_BASE_URL}
-                    onChange={(event) => handleChange("OPENAI_BASE_URL", event.target.value)}
-                    className="w-full bg-transparent py-2 text-sm font-mono font-medium text-on-surface outline-none"
-                    placeholder="https://api.openai.com/v1"
-                  />
-                </InputShell>
-              </FieldGroup>
-
-              <FieldGroup
-                label="模型 ID / Model"
-                hint="建议选择更擅长长文本理解和指令跟随的模型。"
-              >
-                <InputShell icon={Terminal}>
-                  <input
-                    value={config.OPENAI_MODEL}
-                    onChange={(event) => handleChange("OPENAI_MODEL", event.target.value)}
-                    className="w-full bg-transparent py-2 text-sm font-semibold text-on-surface outline-none"
-                    placeholder="gpt-4o"
-                  />
-                </InputShell>
-              </FieldGroup>
-
-              <FieldGroup
-                label="API 密钥 / Key"
-                hint="只在当前本地方案中保存，切换其他方案时不会自动同步。"
-                className="xl:col-span-2"
-              >
-                <InputShell icon={ShieldCheck}>
-                  <input
-                    type={showKey ? "text" : "password"}
-                    value={config.OPENAI_API_KEY}
-                    onChange={(event) => handleChange("OPENAI_API_KEY", event.target.value)}
-                    className="w-full bg-transparent py-2 pr-2 text-sm font-mono font-medium text-on-surface outline-none"
-                    placeholder="sk-..."
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowKey((current) => !current)}
-                    className="rounded-[8px] p-2 text-on-surface-variant/35 transition-colors hover:bg-surface-container-low hover:text-on-surface"
-                  >
-                    {showKey ? <EyeOff className="h-4.5 w-4.5" /> : <Eye className="h-4.5 w-4.5" />}
-                  </button>
-                </InputShell>
-              </FieldGroup>
-            </div>
-          </SettingsSection>
-
-          <SettingsSection
-            icon={Globe}
-            title="图片理解设置"
-            description="开启后，系统可以读取图片和扫描件里的内容；未开启时会完全跳过图片分析。"
-            actions={
-              <div className="flex items-center gap-3">
-                {config.IMAGE_ANALYSIS_ENABLED ? (
-                  <Button
-                    onClick={() => void handleTest("vision")}
-                    disabled={testVision}
-                    loading={testVision}
-                    variant="secondary"
-                    size="sm"
-                    className="px-5 py-2.5"
-                  >
-                    测试图片能力
-                  </Button>
-                ) : null}
-                <div className="flex items-center gap-3 rounded-[10px] border border-on-surface/8 bg-surface-container-low px-3 py-2">
-                  <span className="text-[12px] font-medium text-on-surface-variant/55">
-                    开关
-                  </span>
-                  <ToggleSwitch
-                    checked={Boolean(config.IMAGE_ANALYSIS_ENABLED)}
-                    onClick={() => handleChange("IMAGE_ANALYSIS_ENABLED", !config.IMAGE_ANALYSIS_ENABLED)}
-                  />
+          <div className="grid gap-5 grid-cols-[248px_minmax(0,1fr)]">
+            <aside className="sticky top-[84px] h-fit space-y-3">
+              <div>
+                <div className="flex flex-col gap-2">
+                  {SETTINGS_CATEGORIES.map((category) => {
+                    const Icon = category.icon;
+                    const active = activeCategory === category.id;
+                    return (
+                      <button
+                        key={category.id}
+                        type="button"
+                        onClick={() => setActiveCategory(category.id)}
+                        className={cn(
+                          "rounded-[12px] border px-4 py-3 text-left transition-colors",
+                          active
+                            ? "border-primary/18 bg-primary/7"
+                            : "border-on-surface/8 bg-surface-container-lowest hover:border-primary/14",
+                        )}
+                      >
+                        <div className="flex items-start gap-3">
+                          <div
+                            className={cn(
+                              "mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] border",
+                              active
+                                ? "border-primary/12 bg-primary/10 text-primary"
+                                : "border-on-surface/8 bg-surface-container-low text-on-surface-variant/55",
+                            )}
+                          >
+                            <Icon className="h-4.5 w-4.5" />
+                          </div>
+                          <div className="space-y-1">
+                            <p className={cn("text-[13px] font-semibold tracking-tight", active ? "text-on-surface" : "text-on-surface-variant/80")}>
+                              {category.label}
+                            </p>
+                            <p className="text-[12px] leading-5 text-on-surface-variant/60">{category.description}</p>
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
-            }
-            disabled={!config.IMAGE_ANALYSIS_ENABLED}
-          >
-            {testResult?.type === "vision" ? (
-              <div
-                className={cn(
-                  "flex items-center gap-3 rounded-[10px] border px-4 py-3 text-[12px] font-medium",
-                  testResult.status === "success"
-                    ? "border-emerald-500/10 bg-emerald-500/5 text-emerald-700"
-                    : "border-error/10 bg-error/5 text-error",
-                )}
-              >
-                {testResult.status === "success" ? (
-                  <CheckCircle2 className="h-4.5 w-4.5 shrink-0" />
-                ) : (
-                  <AlertCircle className="h-4.5 w-4.5 shrink-0" />
-                )}
-                <p>{testResult.message}</p>
-              </div>
-            ) : null}
+            </aside>
 
-            <div
-              className={cn(
-                "grid gap-4 xl:grid-cols-2",
-                !config.IMAGE_ANALYSIS_ENABLED && "pointer-events-none",
-              )}
-            >
-              <FieldGroup
-                label="图片接口地址"
-                hint="留空时沿用上面的文本接口地址。"
-              >
-                <InputShell icon={Globe}>
-                  <input
-                    value={config.IMAGE_ANALYSIS_BASE_URL}
-                    onChange={(event) => handleChange("IMAGE_ANALYSIS_BASE_URL", event.target.value)}
-                    className="w-full bg-transparent py-2 text-sm font-mono font-medium text-on-surface outline-none"
-                    placeholder="留空时会沿用文本接口地址"
-                  />
-                </InputShell>
-              </FieldGroup>
-
-              <FieldGroup
-                label="图片模型 ID"
-                hint="如需独立图片模型，可在这里覆盖文本模型配置。"
-              >
-                <InputShell icon={Terminal}>
-                  <input
-                    value={config.IMAGE_ANALYSIS_MODEL}
-                    onChange={(event) => handleChange("IMAGE_ANALYSIS_MODEL", event.target.value)}
-                    className="w-full bg-transparent py-2 text-sm font-semibold text-on-surface outline-none"
-                    placeholder="例如：gpt-4o"
-                  />
-                </InputShell>
-              </FieldGroup>
-
-              <FieldGroup
-                label="图片接口密钥"
-                hint="留空时沿用上面的文本 API 密钥。"
-                className="xl:col-span-2"
-              >
-                <InputShell icon={ShieldCheck}>
-                  <input
-                    type={showVisionKey ? "text" : "password"}
-                    value={config.IMAGE_ANALYSIS_API_KEY}
-                    onChange={(event) => handleChange("IMAGE_ANALYSIS_API_KEY", event.target.value)}
-                    className="w-full bg-transparent py-2 pr-2 text-sm font-mono font-medium text-on-surface outline-none"
-                    placeholder="留空时会沿用文本 API 密钥"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowVisionKey((current) => !current)}
-                    className="rounded-[8px] p-2 text-on-surface-variant/35 transition-colors hover:bg-surface-container-low hover:text-on-surface"
+            <div className="space-y-5">
+              {activeCategory === "models" ? (
+                <>
+                  <SettingsSection
+                    icon={Cpu}
+                    title="文本模型设置"
+                    description="文本模型预设单独管理目录分析和整理对话所用的 Base URL、模型 ID 与 API 密钥。"
+                    actions={
+                      <Button
+                        onClick={() => void handleTest("text")}
+                        disabled={testing}
+                        loading={testing}
+                        variant="secondary"
+                        size="sm"
+                        className="px-5 py-2.5"
+                      >
+                        测试文本能力
+                      </Button>
+                    }
                   >
-                    {showVisionKey ? <EyeOff className="h-4.5 w-4.5" /> : <Eye className="h-4.5 w-4.5" />}
-                  </button>
-                </InputShell>
-              </FieldGroup>
-            </div>
-          </SettingsSection>
+                    <div className="rounded-[12px] border border-on-surface/8 bg-surface-container-low px-4 py-4">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div className="space-y-1">
+                          <p className="text-[12px] font-medium text-on-surface-variant/60">当前激活文本预设</p>
+                          <p className="text-[14px] font-semibold text-on-surface">{textPresets.find((preset) => preset.id === activeTextPresetId)?.name || "默认文本模型"}</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setTextEditorExpanded((current) => !current)}
+                          className="inline-flex items-center gap-2 rounded-[8px] border border-on-surface/8 bg-surface-container-lowest px-3 py-1.5 text-[12px] font-medium text-on-surface-variant transition-colors hover:text-on-surface"
+                        >
+                          {textEditorExpanded ? "收起编辑区" : "展开编辑区"}
+                          <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", textEditorExpanded && "rotate-180")} />
+                        </button>
+                      </div>
+                    </div>
 
-          <SettingsSection
-            icon={ShieldCheck}
-            title="其他设置"
-            description="保留少量调试选项，避免把桌面版设置页做成过长的开发面板。"
-          >
-            <div className="grid gap-3 lg:grid-cols-2">
-              <div className="rounded-[12px] border border-on-surface/8 bg-surface-container-low px-4 py-3.5">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="space-y-1.5">
-                    <h3 className="text-[13px] font-semibold tracking-tight text-on-surface">详细日志</h3>
-                    <p className="text-[12px] leading-5 text-on-surface-variant/65">
-                      在 `logs/` 目录保存更完整的排查信息。
+                    <PresetManager
+                      title="文本预设"
+                      presets={textPresets}
+                      activeId={activeTextPresetId}
+                      onSwitch={(id) => handleSwitchPreset("text", id)}
+                      onAdd={() => handleAddPreset("text")}
+                      onDelete={(preset) => handleDeletePreset("text", preset)}
+                    />
+
+                    {testResult?.type === "text" ? (
+                      <div
+                        className={cn(
+                          "flex items-center gap-3 rounded-[10px] border px-4 py-3 text-[12px] font-medium",
+                          testResult.status === "success"
+                            ? "border-emerald-500/10 bg-emerald-500/5 text-emerald-700"
+                            : "border-error/10 bg-error/5 text-error",
+                        )}
+                      >
+                        {testResult.status === "success" ? (
+                          <CheckCircle2 className="h-4.5 w-4.5 shrink-0" />
+                        ) : (
+                          <AlertCircle className="h-4.5 w-4.5 shrink-0" />
+                        )}
+                        <p>{testResult.message}</p>
+                      </div>
+                    ) : null}
+
+                    {textEditorExpanded ? (
+                    <div className="grid gap-4 xl:grid-cols-2">
+                      <FieldGroup label="文本预设名称" className="xl:col-span-2">
+                        <InputShell icon={Edit3}>
+                          <input
+                            value={config.name}
+                            onChange={(event) => handleChange("name", event.target.value)}
+                            className="w-full bg-transparent py-2 text-sm font-semibold text-on-surface outline-none"
+                            placeholder="例如：OpenAI 主链路"
+                          />
+                        </InputShell>
+                      </FieldGroup>
+
+                      <FieldGroup label="接口地址 / Base URL">
+                        <InputShell icon={Globe}>
+                          <input
+                            value={config.OPENAI_BASE_URL}
+                            onChange={(event) => handleChange("OPENAI_BASE_URL", event.target.value)}
+                            className="w-full bg-transparent py-2 text-sm font-mono font-medium text-on-surface outline-none"
+                            placeholder="https://api.openai.com/v1"
+                          />
+                        </InputShell>
+                      </FieldGroup>
+
+                      <FieldGroup label="模型 ID / Model">
+                        <InputShell icon={Terminal}>
+                          <input
+                            value={config.OPENAI_MODEL}
+                            onChange={(event) => handleChange("OPENAI_MODEL", event.target.value)}
+                            className="w-full bg-transparent py-2 text-sm font-semibold text-on-surface outline-none"
+                            placeholder="gpt-5.2"
+                          />
+                        </InputShell>
+                      </FieldGroup>
+
+                      <FieldGroup label="API 密钥 / Key" className="xl:col-span-2">
+                        <InputShell icon={ShieldCheck}>
+                          <input
+                            type={showKey ? "text" : "password"}
+                            value={config.OPENAI_API_KEY}
+                            onChange={(event) => handleChange("OPENAI_API_KEY", event.target.value)}
+                            className="w-full bg-transparent py-2 pr-2 text-sm font-mono font-medium text-on-surface outline-none"
+                            placeholder="sk-..."
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowKey((current) => !current)}
+                            className="rounded-[8px] p-2 text-on-surface-variant/35 transition-colors hover:bg-surface-container-low hover:text-on-surface"
+                          >
+                            {showKey ? <EyeOff className="h-4.5 w-4.5" /> : <Eye className="h-4.5 w-4.5" />}
+                          </button>
+                        </InputShell>
+                      </FieldGroup>
+                    </div>
+                    ) : null}
+                  </SettingsSection>
+
+                  <SettingsSection
+                    icon={Globe}
+                    title="图片理解设置"
+                    description="图片理解预设独立切换；打开图片理解开关后，只会使用当前激活的图片预设。"
+                    actions={
+                      <div className="flex items-center gap-3">
+                        {config.IMAGE_ANALYSIS_ENABLED ? (
+                          <Button
+                            onClick={() => void handleTest("vision")}
+                            disabled={
+                              testVision
+                              || !config.IMAGE_ANALYSIS_BASE_URL
+                              || !config.IMAGE_ANALYSIS_MODEL
+                              || !config.IMAGE_ANALYSIS_API_KEY
+                            }
+                            loading={testVision}
+                            variant="secondary"
+                            size="sm"
+                            className="px-5 py-2.5"
+                          >
+                            测试图片能力
+                          </Button>
+                        ) : null}
+                        <div className="flex items-center gap-3 rounded-[10px] border border-on-surface/8 bg-surface-container-low px-3 py-2">
+                          <span className="text-[12px] font-medium text-on-surface-variant/55">开关</span>
+                          <ToggleSwitch
+                            checked={Boolean(config.IMAGE_ANALYSIS_ENABLED)}
+                            onClick={() => handleChange("IMAGE_ANALYSIS_ENABLED", !config.IMAGE_ANALYSIS_ENABLED)}
+                          />
+                        </div>
+                      </div>
+                    }
+                    disabled={!config.IMAGE_ANALYSIS_ENABLED}
+                  >
+                    <div className="rounded-[12px] border border-on-surface/8 bg-surface-container-low px-4 py-4">
+                      <div className="grid gap-3 lg:grid-cols-2">
+                        <div className="space-y-1">
+                          <p className="text-[12px] font-medium text-on-surface-variant/60">当前图片预设</p>
+                          <p className="text-[14px] font-semibold text-on-surface">{visionPresets.find((preset) => preset.id === activeVisionPresetId)?.name || "默认图片模型"}</p>
+                        </div>
+                        <div className="space-y-1">
+                          <p className="text-[12px] font-medium text-on-surface-variant/60">图片理解</p>
+                          <p className={cn("text-[14px] font-semibold", config.IMAGE_ANALYSIS_ENABLED ? "text-primary" : "text-on-surface-variant")}>
+                            {config.IMAGE_ANALYSIS_ENABLED ? "已开启" : "未开启"}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+                        <p className="text-[12px] leading-5 text-on-surface-variant/65">
+                          切换图片预设只会更新图片链路配置；真正生效仍取决于上面的图片理解开关是否开启。
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => setVisionEditorExpanded((current) => !current)}
+                          className="inline-flex items-center gap-2 rounded-[8px] border border-on-surface/8 bg-surface-container-lowest px-3 py-1.5 text-[12px] font-medium text-on-surface-variant transition-colors hover:text-on-surface"
+                        >
+                          {visionEditorExpanded ? "收起编辑区" : "展开编辑区"}
+                          <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", visionEditorExpanded && "rotate-180")} />
+                        </button>
+                      </div>
+                    </div>
+
+                    <PresetManager
+                      title="图片预设"
+                      presets={visionPresets}
+                      activeId={activeVisionPresetId}
+                      onSwitch={(id) => handleSwitchPreset("vision", id)}
+                      onAdd={() => handleAddPreset("vision")}
+                      onDelete={(preset) => handleDeletePreset("vision", preset)}
+                    />
+
+                    {testResult?.type === "vision" ? (
+                      <div
+                        className={cn(
+                          "flex items-center gap-3 rounded-[10px] border px-4 py-3 text-[12px] font-medium",
+                          testResult.status === "success"
+                            ? "border-emerald-500/10 bg-emerald-500/5 text-emerald-700"
+                            : "border-error/10 bg-error/5 text-error",
+                        )}
+                      >
+                        {testResult.status === "success" ? (
+                          <CheckCircle2 className="h-4.5 w-4.5 shrink-0" />
+                        ) : (
+                          <AlertCircle className="h-4.5 w-4.5 shrink-0" />
+                        )}
+                        <p>{testResult.message}</p>
+                      </div>
+                    ) : null}
+
+                    {visionEditorExpanded ? (
+                    <div
+                      className={cn(
+                        "grid gap-4 xl:grid-cols-2",
+                        !config.IMAGE_ANALYSIS_ENABLED && "pointer-events-none",
+                      )}
+                    >
+                      <FieldGroup label="图片预设名称" className="xl:col-span-2">
+                        <InputShell icon={Edit3}>
+                          <input
+                            value={config.IMAGE_ANALYSIS_NAME ?? ""}
+                            onChange={(event) => handleChange("IMAGE_ANALYSIS_NAME", event.target.value)}
+                            className="w-full bg-transparent py-2 text-sm font-semibold text-on-surface outline-none"
+                            placeholder="例如：Qwen Vision"
+                          />
+                        </InputShell>
+                      </FieldGroup>
+
+                      <FieldGroup label="图片接口地址">
+                        <InputShell icon={Globe}>
+                          <input
+                            value={config.IMAGE_ANALYSIS_BASE_URL}
+                            onChange={(event) => handleChange("IMAGE_ANALYSIS_BASE_URL", event.target.value)}
+                            className="w-full bg-transparent py-2 text-sm font-mono font-medium text-on-surface outline-none"
+                            placeholder="https://api.openai.com/v1"
+                          />
+                        </InputShell>
+                      </FieldGroup>
+
+                      <FieldGroup label="图片模型 ID">
+                        <InputShell icon={Terminal}>
+                          <input
+                            value={config.IMAGE_ANALYSIS_MODEL}
+                            onChange={(event) => handleChange("IMAGE_ANALYSIS_MODEL", event.target.value)}
+                            className="w-full bg-transparent py-2 text-sm font-semibold text-on-surface outline-none"
+                            placeholder="gpt-4o"
+                          />
+                        </InputShell>
+                      </FieldGroup>
+
+                      <FieldGroup label="图片接口密钥" className="xl:col-span-2">
+                        <InputShell icon={ShieldCheck}>
+                          <input
+                            type={showVisionKey ? "text" : "password"}
+                            value={config.IMAGE_ANALYSIS_API_KEY}
+                            onChange={(event) => handleChange("IMAGE_ANALYSIS_API_KEY", event.target.value)}
+                            className="w-full bg-transparent py-2 pr-2 text-sm font-mono font-medium text-on-surface outline-none"
+                            placeholder="sk-..."
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowVisionKey((current) => !current)}
+                            className="rounded-[8px] p-2 text-on-surface-variant/35 transition-colors hover:bg-surface-container-low hover:text-on-surface"
+                          >
+                            {showVisionKey ? <EyeOff className="h-4.5 w-4.5" /> : <Eye className="h-4.5 w-4.5" />}
+                          </button>
+                        </InputShell>
+                      </FieldGroup>
+                    </div>
+                    ) : null}
+                  </SettingsSection>
+                </>
+              ) : null}
+
+              {activeCategory === "launch" ? (
+                <SettingsSection
+                  icon={SettingsIcon}
+                  title="新任务启动"
+                  description="管理当前默认策略，并决定是否每次启动前先确认一次。"
+                >
+                  <div className="grid gap-4 xl:grid-cols-2">
+                    <FieldGroup
+                      label="默认整理模板"
+                      hint="这些值会作为首页当前预设显示，也会作为策略弹窗的预填值。"
+                      className="xl:col-span-2"
+                    >
+                      <div className="grid gap-3 xl:grid-cols-2">
+                        {STRATEGY_TEMPLATES.map((template) => (
+                          <StrategyOptionButton
+                            key={template.id}
+                            active={config.LAUNCH_DEFAULT_TEMPLATE_ID === template.id}
+                            label={template.label}
+                            description={template.description}
+                            onClick={() => handleLaunchTemplateChange(template.id)}
+                          />
+                        ))}
+                      </div>
+                    </FieldGroup>
+
+                    <FieldGroup label="默认命名风格">
+                      <div className="grid gap-3">
+                        {NAMING_STYLE_OPTIONS.map((option) => (
+                          <StrategyOptionButton
+                            key={option.id}
+                            active={config.LAUNCH_DEFAULT_NAMING_STYLE === option.id}
+                            label={option.label}
+                            description={option.description}
+                            onClick={() => handleChange("LAUNCH_DEFAULT_NAMING_STYLE", option.id)}
+                          />
+                        ))}
+                      </div>
+                    </FieldGroup>
+
+                    <FieldGroup label="默认整理方式">
+                      <div className="grid gap-3">
+                        {CAUTION_LEVEL_OPTIONS.map((option) => (
+                          <StrategyOptionButton
+                            key={option.id}
+                            active={config.LAUNCH_DEFAULT_CAUTION_LEVEL === option.id}
+                            label={option.label}
+                            description={option.description}
+                            onClick={() => handleChange("LAUNCH_DEFAULT_CAUTION_LEVEL", option.id)}
+                          />
+                        ))}
+                      </div>
+                    </FieldGroup>
+
+                    <FieldGroup
+                      label="默认补充说明"
+                      hint="例如：项目文件尽量放在一起；拿不准的先放 Review。"
+                      className="xl:col-span-2"
+                    >
+                      <textarea
+                        value={config.LAUNCH_DEFAULT_NOTE}
+                        onChange={(event) => handleChange("LAUNCH_DEFAULT_NOTE", event.target.value.slice(0, 200))}
+                        className="min-h-28 w-full resize-none rounded-[10px] border border-on-surface/8 bg-white px-4 py-3 text-[14px] leading-7 text-on-surface outline-none transition-all placeholder:text-on-surface-variant/35 focus:border-primary focus:ring-4 focus:ring-primary/5"
+                        placeholder="例如：学习资料尽量按课程整理，不确定的先留在 Review。"
+                      />
+                    </FieldGroup>
+                  </div>
+
+                  <div className="rounded-[12px] border border-on-surface/8 bg-surface-container-low px-4 py-3.5">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="space-y-1.5">
+                        <h3 className="text-[13px] font-semibold tracking-tight text-on-surface">直接用默认值启动</h3>
+                        <p className="text-[12px] leading-5 text-on-surface-variant/65">
+                          关闭时，每次新任务仍会先确认本次策略。开启后，首页会直接使用这里保存的默认策略启动。
+                        </p>
+                      </div>
+                      <ToggleSwitch
+                        checked={Boolean(config.LAUNCH_SKIP_STRATEGY_PROMPT)}
+                        onClick={() => handleChange("LAUNCH_SKIP_STRATEGY_PROMPT", !config.LAUNCH_SKIP_STRATEGY_PROMPT)}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="rounded-[12px] border border-primary/12 bg-primary/6 px-4 py-3.5">
+                    <p className="text-[12px] leading-6 text-primary/85">
+                      当前默认模板：{launchTemplate.label}。如果首页仍保持“先确认策略”模式，弹窗会以这组默认值作为预填起点。
                     </p>
                   </div>
-                  <ToggleSwitch
-                    checked={Boolean(config.DEBUG_MODE)}
-                    onClick={() => handleChange("DEBUG_MODE", !config.DEBUG_MODE)}
-                  />
-                </div>
-              </div>
+                </SettingsSection>
+              ) : null}
 
-              <div className="rounded-[12px] border border-dashed border-on-surface/10 bg-white px-4 py-3.5">
-                <div className="flex items-start gap-3">
-                  <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-[8px] bg-surface-container-low text-on-surface-variant/30">
-                    <SettingsIcon className="h-4.5 w-4.5" />
+              {activeCategory === "advanced" ? (
+                <SettingsSection
+                  icon={ShieldCheck}
+                  title="其他设置"
+                  description="保留少量高频开关，不把设置页扩成调试控制台。"
+                >
+                  <div className="rounded-[12px] border border-on-surface/8 bg-surface-container-low px-4 py-3.5">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="space-y-1.5">
+                        <h3 className="text-[13px] font-semibold tracking-tight text-on-surface">详细日志</h3>
+                        <p className="text-[12px] leading-5 text-on-surface-variant/65">
+                          基础运行日志始终写入 `logs/backend/runtime.log`；打开后会额外写入 `logs/backend/debug.jsonl`。
+                        </p>
+                      </div>
+                      <ToggleSwitch
+                        checked={Boolean(config.DEBUG_MODE)}
+                        onClick={() => handleChange("DEBUG_MODE", !config.DEBUG_MODE)}
+                      />
+                    </div>
                   </div>
-                  <div className="space-y-1.5">
-                    <h3 className="text-[13px] font-semibold tracking-tight text-on-surface">补充说明</h3>
-                    <p className="text-[12px] leading-5 text-on-surface-variant/65">
-                      如果还需要更底层的调整，可以再查看项目里的 `config.yaml`。
-                    </p>
-                  </div>
-                </div>
-              </div>
+                </SettingsSection>
+              ) : null}
             </div>
-          </SettingsSection>
+          </div>
 
-          <div className="pb-3 text-center">
-            <p className="text-[12px] font-medium text-on-surface-variant/35">
-              Local Settings
-            </p>
-            <p className="mt-1 text-[11px] leading-5 text-on-surface-variant/35">
-              保存后，新配置会在后续整理会话中直接生效。
-            </p>
+          <div className="flex items-center justify-between border-t border-on-surface/6 px-1 pt-2 text-[11px] text-on-surface-variant/40">
+            <p>Local Settings</p>
+            <p>保存后，当前激活的文本/图片预设会在后续整理会话中直接生效。</p>
           </div>
         </div>
       </main>
@@ -777,11 +1035,7 @@ export default function SettingsPage() {
                   <Button variant="secondary" onClick={() => setDialog(null)} className="flex-1 py-3">
                     取消
                   </Button>
-                  <Button
-                    variant="primary"
-                    onClick={() => dialog.onConfirm(dialog.value)}
-                    className="flex-1 py-3"
-                  >
+                  <Button variant="primary" onClick={() => dialog.onConfirm(dialog.value)} className="flex-1 py-3">
                     {dialog.type === "confirm" ? "确定" : "创建"}
                   </Button>
                 </div>

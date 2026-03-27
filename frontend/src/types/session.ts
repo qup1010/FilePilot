@@ -42,6 +42,14 @@ export interface SessionStrategySummary extends SessionStrategySelection {
   preview_directories?: string[];
 }
 
+export interface LaunchStrategyConfig {
+  LAUNCH_DEFAULT_TEMPLATE_ID?: StrategyTemplateId;
+  LAUNCH_DEFAULT_NAMING_STYLE?: StrategyNamingStyle;
+  LAUNCH_DEFAULT_CAUTION_LEVEL?: StrategyCautionLevel;
+  LAUNCH_DEFAULT_NOTE?: string;
+  LAUNCH_SKIP_STRATEGY_PROMPT?: boolean;
+}
+
 export interface RecentAnalysisItem {
   item_id: string;
   display_name: string;
@@ -254,15 +262,12 @@ export interface HistoryItem {
   is_session?: boolean;
 }
 
-export interface AppProfile {
-  id: string;
-  name: string;
-}
-
 export interface AppConfig {
-  active_id: string;
-  config: Record<string, any>;
-  profiles: AppProfile[];
+  config: Record<string, any> & LaunchStrategyConfig;
+  text_presets: { id: string; name: string }[];
+  vision_presets: { id: string; name: string }[];
+  active_text_preset_id: string;
+  active_vision_preset_id: string;
 }
 
 export interface UpdateItemRequest {

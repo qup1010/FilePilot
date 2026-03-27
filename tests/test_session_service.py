@@ -1,12 +1,14 @@
 import shutil
 import time
 import unittest
+import json
 from pathlib import Path
 from unittest import mock
 
 from file_organizer.app.session_service import OrganizerSessionService
 from file_organizer.app.session_store import SessionStore
 from file_organizer.organize.models import PendingPlan, PlanMove
+from file_organizer.shared.logging_utils import setup_backend_logging
 
 
 class ImmediateScanner:
@@ -207,6 +209,29 @@ class OrganizerSessionServiceTests(unittest.TestCase):
         self.assertFalse((self.target_dir / "Docs" / "a.txt").exists())
         self.assertEqual(result.session_snapshot["rollback_report"]["status"], "success")
 
+    def test_execute_and_rollback_write_runtime_log_summaries(self):
+        log_dir = self.root / "logs" / "backend"
+        setup_backend_logging(log_dir=log_dir)
+        (self.target_dir / "a.txt").write_text("hello", encoding="utf-8")
+        created = self.service.create_session(str(self.target_dir), resume_if_exists=False)
+        session = created.session
+        assert session is not None
+        session.stage = "ready_to_execute"
+        session.pending_plan = {
+            "directories": ["Docs"],
+            "moves": [{"source": "a.txt", "target": "Docs/a.txt"}],
+            "unresolved_items": [],
+            "summary": "move to docs",
+        }
+        self.store.save(session)
+
+        self.service.execute(session.session_id, confirm=True)
+        self.service.rollback(session.session_id, confirm=True)
+
+        content = (log_dir / "runtime.log").read_text(encoding="utf-8")
+        self.assertIn("execution.completed", content)
+        self.assertIn("rollback.completed", content)
+
     def test_start_scan_moves_session_into_planning_when_runner_finishes(self):
         created = self.service.create_session(str(self.target_dir), resume_if_exists=False)
         session = created.session
@@ -238,6 +263,9 @@ class OrganizerSessionServiceTests(unittest.TestCase):
         with mock.patch(
             "file_organizer.app.session_service.analysis_service.run_analysis_cycle",
             side_effect=fake_run_analysis_cycle,
+        ), mock.patch(
+            "file_organizer.app.session_service.organize_service.run_organizer_cycle",
+            return_value=("", None),
         ):
             service.start_scan(session.session_id)
 
@@ -248,6 +276,37 @@ class OrganizerSessionServiceTests(unittest.TestCase):
         self.assertEqual(scanned.scanner_progress["message"], "已完成 3/3 批并行分析")
         self.assertEqual(scanned.stage, "planning")
         self.assertTrue(any(event["event_type"] == "scan.progress" for event in service.read_events(session.session_id)))
+
+    def test_start_scan_writes_runtime_log_for_create_scan_and_auto_plan(self):
+        log_dir = self.root / "logs" / "backend"
+        setup_backend_logging(log_dir=log_dir)
+        service = OrganizerSessionService(self.store, scanner=ImmediateScanner())
+        created = service.create_session(str(self.target_dir), resume_if_exists=False)
+        session = created.session
+        assert session is not None
+        pending = PendingPlan(
+            directories=["Docs"],
+            moves=[PlanMove(source="a.txt", target="Docs/a.txt")],
+            unresolved_items=[],
+            summary="planned",
+        )
+
+        with mock.patch(
+            "file_organizer.app.session_service.analysis_service.run_analysis_cycle",
+            return_value="a.txt | 文档 | A",
+        ), mock.patch(
+            "file_organizer.app.session_service.organize_service.build_initial_messages",
+            return_value=[{"role": "system", "content": "scan"}],
+        ), mock.patch(
+            "file_organizer.app.session_service.organize_service.run_organizer_cycle",
+            return_value=("已规划", {"pending_plan": pending, "is_valid": False, "diff_summary": ["planned"]}),
+        ):
+            service.start_scan(session.session_id)
+
+        content = (log_dir / "runtime.log").read_text(encoding="utf-8")
+        self.assertIn("session.created", content)
+        self.assertIn("scan.completed", content)
+        self.assertIn("plan.auto_completed", content)
 
     def test_start_scan_tracks_single_thread_runtime_progress_in_events(self):
         service = OrganizerSessionService(self.store, scanner=ImmediateScanner())
@@ -267,6 +326,9 @@ class OrganizerSessionServiceTests(unittest.TestCase):
         with mock.patch(
             "file_organizer.app.session_service.analysis_service.run_analysis_cycle",
             side_effect=fake_run_analysis_cycle,
+        ), mock.patch(
+            "file_organizer.app.session_service.organize_service.run_organizer_cycle",
+            return_value=("", None),
         ):
             service.start_scan(session.session_id)
 
@@ -601,6 +663,48 @@ class OrganizerSessionServiceTests(unittest.TestCase):
         self.assertEqual(latest["session_snapshot"]["stage"], "interrupted")
         self.assertEqual(latest["session_snapshot"]["scanner_progress"]["status"], "failed")
         self.assertEqual(latest["session_snapshot"]["last_error"], "scanner boom")
+
+    def test_auto_plan_failure_logs_exception_and_debug_event(self):
+        log_dir = self.root / "logs" / "backend"
+        setup_backend_logging(log_dir=log_dir)
+        debug_path = self.root / "logs" / "backend" / "debug.jsonl"
+        service = OrganizerSessionService(self.store, scanner=ImmediateScanner())
+        created = service.create_session(str(self.target_dir), resume_if_exists=False)
+        session = created.session
+        assert session is not None
+
+        with mock.patch(
+            "file_organizer.app.session_service.analysis_service.run_analysis_cycle",
+            return_value="a.txt | 文档 | A",
+        ), mock.patch(
+            "file_organizer.app.session_service.organize_service.build_initial_messages",
+            return_value=[{"role": "system", "content": "scan"}],
+        ), mock.patch(
+            "file_organizer.app.session_service.organize_service.run_organizer_cycle",
+            side_effect=RuntimeError("planner boom"),
+        ), mock.patch(
+            "file_organizer.shared.logging_utils.DEBUG_LOG_PATH",
+            debug_path,
+        ), mock.patch(
+            "file_organizer.shared.logging_utils.is_debug_logging_enabled",
+            return_value=True,
+        ), mock.patch(
+            "file_organizer.app.session_service.logger.exception",
+        ) as logger_exception:
+            service.start_scan(session.session_id)
+
+        reloaded = self.store.load(session.session_id)
+        self.assertIsNotNone(reloaded)
+        assert reloaded is not None
+        self.assertEqual(reloaded.stage, "interrupted")
+        self.assertIn("自动规划失败", reloaded.last_error)
+        logger_exception.assert_called()
+
+        content = (log_dir / "runtime.log").read_text(encoding="utf-8")
+        self.assertIn("plan.auto_started", content)
+        self.assertIn("plan.auto_failed", content)
+        debug_lines = [json.loads(line) for line in debug_path.read_text(encoding="utf-8").splitlines() if line.strip()]
+        self.assertIn("plan.auto_failed", [entry["kind"] for entry in debug_lines])
 
     def test_get_snapshot_recovers_orphaned_scanning_session_to_interrupted(self):
         created = self.service.create_session(str(self.target_dir), resume_if_exists=False)

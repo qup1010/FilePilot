@@ -67,7 +67,7 @@ export function PrecheckView({ summary, isBusy, readOnly = false, onExecute, onB
   };
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6 py-6">
+    <div className="mx-auto max-w-[1360px] space-y-5 py-5">
       <section className="rounded-[12px] border border-on-surface/8 bg-surface-container-lowest shadow-[0_8px_24px_rgba(37,45,40,0.04)]">
         <div className="border-b border-on-surface/8 bg-surface-container-low px-5 py-4 lg:px-6">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
@@ -141,10 +141,11 @@ export function PrecheckView({ summary, isBusy, readOnly = false, onExecute, onB
         </div>
       </section>
 
-      <section className="space-y-4">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+      <section className="space-y-4 rounded-[12px] border border-on-surface/8 bg-surface-container-lowest p-5 shadow-[0_8px_24px_rgba(37,45,40,0.04)]">
+        <div className="flex flex-col gap-3 border-b border-on-surface/8 pb-4 lg:flex-row lg:items-end lg:justify-between">
           <div className="space-y-1">
-            <h3 className="text-[15px] font-semibold text-on-surface">目录树前后对比</h3>
+            <p className="text-[12px] font-medium text-ui-muted">结构对比</p>
+            <h3 className="text-[15px] font-black tracking-tight text-on-surface">目录树前后对比</h3>
             <p className="text-[13px] leading-6 text-ui-muted">先看上面的执行概览，再到这里确认具体会落在哪些目录。</p>
           </div>
           <div className="flex items-center gap-1.5 rounded-[10px] border border-on-surface/8 bg-surface-container p-1">
@@ -171,10 +172,10 @@ export function PrecheckView({ summary, isBusy, readOnly = false, onExecute, onB
       </section>
 
       {(hasErrors || hasWarnings || reviewCount > 0) ? (
-        <section className="space-y-3 rounded-[12px] border border-on-surface/8 bg-surface-container-low p-5">
+        <section className="space-y-3 rounded-[12px] border border-on-surface/8 bg-surface-container-low p-5 shadow-[0_8px_24px_rgba(37,45,40,0.04)]">
           <div className="flex items-center gap-3">
             <ShieldAlert className="h-5 w-5 text-on-surface/40" />
-            <h3 className="text-[15px] font-semibold text-on-surface">预检结果</h3>
+            <h3 className="text-[15px] font-black tracking-tight text-on-surface">预检结果</h3>
           </div>
 
           {summary.blocking_errors.map((err, index) => (
@@ -211,13 +212,14 @@ export function PrecheckView({ summary, isBusy, readOnly = false, onExecute, onB
         </section>
       ) : null}
 
-      <section className="rounded-[12px] border border-primary/12 bg-primary/6 p-5">
+      <section className="rounded-[12px] border border-primary/12 bg-primary/6 p-5 shadow-[0_8px_24px_rgba(37,45,40,0.04)]">
         <div className="flex items-start gap-4">
           <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[10px] bg-primary text-white">
             <ListChecks className="h-5 w-5" />
           </div>
           <div>
-            <h4 className="text-[15px] font-semibold text-on-surface">{readOnly ? "这是之前的只读结果" : "确认执行这次整理吗？"}</h4>
+            <p className="text-[12px] font-medium text-primary/80">后续操作</p>
+            <h4 className="mt-1 text-[15px] font-black tracking-tight text-on-surface">{readOnly ? "这是之前的只读结果" : "确认执行这次整理吗？"}</h4>
             <p className="mt-1 text-[13px] leading-6 text-ui-muted">
               {readOnly
                 ? "这里只用于查看之前的预检结果。如需继续整理，请回到首页重新选择。"

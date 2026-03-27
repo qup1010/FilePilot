@@ -63,6 +63,8 @@ function formatMovePath(path: string | null, baseDir: string) {
 }
 
 export default function HistoryPage() {
+  const APP_CONTEXT_EVENT = "file-organizer-context-change";
+  const HISTORY_CONTEXT_KEY = "history_header_context";
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -185,6 +187,27 @@ export default function HistoryPage() {
       setSelectedSessionId(filteredHistory[0].execution_id);
     }
   }, [filteredHistory, selectedSessionId]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    if (!selectedEntry) {
+      window.localStorage.setItem(
+        HISTORY_CONTEXT_KEY,
+        JSON.stringify({ detail: "会话与执行档案" }),
+      );
+      window.dispatchEvent(new Event(APP_CONTEXT_EVENT));
+      return;
+    }
+    window.localStorage.setItem(
+      HISTORY_CONTEXT_KEY,
+      JSON.stringify({
+        detail: `${getEntryName(selectedEntry)} · ${getEntrySummary(selectedEntry)}`,
+      }),
+    );
+    window.dispatchEvent(new Event(APP_CONTEXT_EVENT));
+  }, [APP_CONTEXT_EVENT, HISTORY_CONTEXT_KEY, selectedEntry]);
 
   const handleRollback = async () => {
     if (!journal || !selectedSessionId) return;

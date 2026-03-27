@@ -1,4 +1,4 @@
-﻿from .config import (
+from .config import (
     ANALYSIS_MODEL_NAME,
     DEFAULT_ANALYSIS_MODEL,
     DEFAULT_BASE_URL,
@@ -17,6 +17,14 @@
 )
 from .events import emit
 from .history_store import build_journal_path, ensure_history_dirs, read_latest_index, write_latest_index
+from .logging_utils import (
+    BACKEND_LOG_DIR,
+    DEBUG_LOG_PATH,
+    RUNTIME_LOG_PATH,
+    append_debug_event,
+    sanitize_for_logging,
+    setup_backend_logging,
+)
 from .path_utils import (
     is_absolute_path,
     normalize_entry_name,
