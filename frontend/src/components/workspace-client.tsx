@@ -485,6 +485,8 @@ export default function WorkspaceClient() {
       }}
       unresolvedCount={plan.unresolved_items.length}
       notice={statusNotice}
+      scanner={scanner}
+      progressPercent={progressPercent}
     />
   );
 

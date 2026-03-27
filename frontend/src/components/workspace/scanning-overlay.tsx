@@ -109,6 +109,15 @@ function getItemSummary(item: RecentAnalysisItem) {
   return "正在等待摘要结果";
 }
 
+function getPhaseIndex(status: ScannerProgress["status"], progressPercent: number) {
+  if (status === "failed") return 0;
+  if (status === "completed") return 3;
+  if (progressPercent < 20) return 0;
+  if (progressPercent < 50) return 1;
+  if (progressPercent < 80) return 2;
+  return 3;
+}
+
 export function ScanningOverlay({ scanner, progressPercent }: ScanningOverlayProps) {
   const processedCount = scanner.processed_count || 0;
   const totalCount = scanner.total_count || 0;
@@ -127,20 +136,56 @@ export function ScanningOverlay({ scanner, progressPercent }: ScanningOverlayPro
         : recentItems.length > 0
           ? "最近结果仍在持续刷新"
           : "正在等待首批结果";
+  const phaseIndex = getPhaseIndex(scanner.status, clampedPercent);
+  const phases = [
+    {
+      label: "读取目录",
+      detail: "识别文件夹层级和待分析条目",
+      icon: FolderTree,
+    },
+    {
+      label: "抽取摘要",
+      detail: "读取文本与文件元信息",
+      icon: FileSearch,
+    },
+    {
+      label: "判断用途",
+      detail: "结合内容与上下文生成用途判断",
+      icon: Sparkles,
+    },
+    {
+      label: scanner.status === "completed" ? "草案生成" : "结果汇总",
+      detail: "整理最近结果，准备进入方案阶段",
+      icon: Layers3,
+    },
+  ];
+  const completionText = totalCount > 0 ? `${processedCount} / ${totalCount}` : `${processedCount}`;
+  const boardTone =
+    meta.tone === "error"
+      ? "from-error/10 via-error/5 to-transparent"
+      : meta.tone === "success"
+        ? "from-emerald-500/10 via-emerald-500/5 to-transparent"
+        : "from-primary/10 via-primary/5 to-transparent";
+  const accentTone =
+    meta.tone === "error"
+      ? "bg-error/10 text-error"
+      : meta.tone === "success"
+        ? "bg-emerald-500/12 text-emerald-700"
+        : "bg-primary/10 text-primary";
 
   return (
-    <div className="flex h-full w-full items-center justify-center bg-surface px-5 py-6 lg:px-8">
+    <div className="flex h-full w-full items-center justify-center bg-surface px-4 py-4 lg:px-5">
       <motion.div
         initial={{ opacity: 0, y: 18 }}
         animate={{ opacity: 1, y: 0 }}
-        className="w-full max-w-[1360px] overflow-hidden rounded-[14px] border border-on-surface/8 bg-surface-container-lowest shadow-[0_16px_42px_rgba(24,32,28,0.08)]"
+        className="flex h-full min-h-[720px] w-full max-w-[1480px] flex-col overflow-hidden rounded-[16px] border border-black/5 bg-surface-container-lowest shadow-[0_12px_32px_rgba(24,26,31,0.05)]"
       >
-        <div className="border-b border-on-surface/8 bg-surface-container-low px-6 py-5 lg:px-7">
-          <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
+        <div className="border-b border-black/5 bg-surface-container-low px-5 py-4 lg:px-6">
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
             <div className="flex items-start gap-4">
               <div
                 className={cn(
-                  "flex h-14 w-14 shrink-0 items-center justify-center rounded-[12px] border",
+                  "flex h-11 w-11 shrink-0 items-center justify-center rounded-[12px] border",
                   meta.tone === "error"
                     ? "border-error/15 bg-error/8 text-error"
                     : meta.tone === "success"
@@ -148,190 +193,168 @@ export function ScanningOverlay({ scanner, progressPercent }: ScanningOverlayPro
                       : "border-primary/12 bg-primary/8 text-primary",
                 )}
               >
-                {meta.tone === "error" ? (
-                  <AlertCircle className="h-7 w-7" />
-                ) : meta.tone === "success" ? (
-                  <CheckCircle2 className="h-7 w-7" />
-                ) : (
-                  <ScanSearch className="h-7 w-7" />
-                )}
+                {meta.tone === "error" ? <AlertCircle className="h-5 w-5" /> : meta.tone === "success" ? <CheckCircle2 className="h-5 w-5" /> : <ScanSearch className="h-5 w-5" />}
               </div>
-
-              <div className="space-y-2">
-                <div className="flex flex-wrap items-center gap-3">
-                  <div className="rounded-full border border-primary/12 bg-primary/8 px-3 py-1 text-[12px] font-semibold text-primary">
-                    {meta.stageLabel}
-                  </div>
-                  <div className="rounded-full border border-on-surface/8 bg-surface-container-lowest px-3 py-1 text-[12px] font-medium text-on-surface-variant">
-                    {meta.batchSummary}
-                  </div>
+              <div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className={cn("rounded-full px-3 py-1 text-[11px] font-semibold", accentTone)}>{meta.stageLabel}</span>
+                  <span className="rounded-full bg-black/[0.04] px-3 py-1 text-[11px] font-medium text-ui-muted">{meta.batchSummary}</span>
                 </div>
-                <h2 className="text-[1.35rem] font-black tracking-tight text-on-surface lg:text-[1.55rem]">{meta.title}</h2>
-                <p className="max-w-3xl text-[14px] leading-7 text-ui-muted">{meta.description}</p>
+                <h2 className="mt-3 text-[1.35rem] font-black tracking-tight text-on-surface">{meta.title}</h2>
+                <p className="mt-2 max-w-3xl text-[13px] leading-6 text-ui-muted">{meta.description}</p>
               </div>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-3 xl:min-w-[420px]">
-              <div className="rounded-[10px] border border-on-surface/8 bg-surface-container-lowest px-4 py-3">
-                <div className="flex items-center gap-2 text-[12px] font-medium text-ui-muted">
+            <div className="grid gap-3 sm:grid-cols-3 xl:min-w-[430px]">
+              <div className="rounded-[12px] border border-black/5 bg-surface px-4 py-3">
+                <div className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.14em] text-ui-muted">
                   <Clock3 className="h-3.5 w-3.5" />
                   扫描进度
                 </div>
-                <p className="mt-3 text-[1.7rem] font-black tabular-nums text-on-surface">{clampedPercent}%</p>
-                <p className="mt-2 text-[12px] leading-5 text-on-surface-variant/65">{activityLabel}</p>
+                <p className="mt-3 text-[1.55rem] font-black tabular-nums text-on-surface">{clampedPercent}%</p>
               </div>
-              <div className="rounded-[10px] border border-on-surface/8 bg-surface-container-lowest px-4 py-3">
-                <div className="flex items-center gap-2 text-[12px] font-medium text-ui-muted">
+              <div className="rounded-[12px] border border-black/5 bg-surface px-4 py-3">
+                <div className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.14em] text-ui-muted">
                   <Layers3 className="h-3.5 w-3.5" />
                   条目统计
                 </div>
-                <p className="mt-3 text-[1.1rem] font-black tabular-nums text-on-surface">
-                  {processedCount}/{totalCount || "?"}
-                </p>
+                <p className="mt-3 text-[1.2rem] font-black tabular-nums text-on-surface">{completionText}</p>
               </div>
-              <div className="rounded-[10px] border border-on-surface/8 bg-surface-container-lowest px-4 py-3">
-                <div className="flex items-center gap-2 text-[12px] font-medium text-ui-muted">
+              <div className="rounded-[12px] border border-black/5 bg-surface px-4 py-3">
+                <div className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.14em] text-ui-muted">
                   <FolderTree className="h-3.5 w-3.5" />
                   批次状态
                 </div>
-                <p className="mt-3 text-[1.1rem] font-black tabular-nums text-on-surface">
-                  {isParallel ? `${completedBatches}/${batchCount}` : "单批次"}
-                </p>
+                <p className="mt-3 text-[1.2rem] font-black tabular-nums text-on-surface">{isParallel ? `${completedBatches}/${batchCount}` : "单批次"}</p>
               </div>
             </div>
           </div>
-          <div className="mt-5 h-2 overflow-hidden rounded-full bg-surface-container-high">
+          <div className="mt-4 h-2 overflow-hidden rounded-full bg-black/[0.05]">
             <motion.div
-              className="h-full rounded-full bg-primary"
+              className={cn("h-full rounded-full", meta.tone === "error" ? "bg-error" : meta.tone === "success" ? "bg-emerald-500" : "bg-primary")}
               initial={{ width: 0 }}
-              animate={{ width: `${Math.max(6, progressPercent)}%` }}
+              animate={{ width: `${Math.max(6, clampedPercent)}%` }}
               transition={{ duration: 0.35 }}
             />
           </div>
         </div>
 
-        <div className="grid gap-0 xl:grid-cols-[0.84fr_1.2fr_0.96fr]">
-          <div className="border-b border-on-surface/8 px-6 py-5 xl:border-b-0 xl:border-r xl:px-7">
-            <div className="flex items-center gap-2 text-[12px] font-medium text-ui-muted">
-              <Layers3 className="h-4 w-4 text-primary" />
-              当前阶段
+        <div className="grid min-h-0 flex-1 gap-0 xl:grid-cols-[minmax(0,1fr)_300px]">
+          <div className="min-h-0 border-b border-black/5 px-5 py-5 xl:border-b-0 xl:border-r lg:px-6">
+            <div className="rounded-[16px] border border-black/5 bg-surface px-4 py-4">
+              <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-ui-muted">当前处理项</p>
+              <p className="mt-3 break-all text-[15px] font-semibold leading-7 text-on-surface">{currentItem}</p>
+              <p className="mt-2 text-[12px] leading-6 text-ui-muted">{meta.helper}</p>
             </div>
-            <div className="mt-4 space-y-3">
-              <div className="rounded-[10px] border border-on-surface/8 bg-surface-container-lowest px-4 py-4">
-                <p className="text-[12px] font-medium text-ui-muted">阶段说明</p>
-                <p className="mt-2 text-[13px] leading-7 text-on-surface">{meta.helper}</p>
+
+            <div className="mt-4">
+              <div className="flex items-center justify-between gap-4">
+                <div className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.18em] text-ui-muted">
+                  <FileSearch className="h-4 w-4 text-primary" />
+                  最近分析结果
+                </div>
+                <span className="text-[11px] text-ui-muted">{activityLabel}</span>
               </div>
-              <div className="rounded-[10px] border border-on-surface/8 bg-surface-container-lowest px-4 py-4">
-                <p className="text-[12px] font-medium text-ui-muted">处理模式</p>
-                <p className="mt-2 text-[13px] font-semibold text-on-surface">
-                  {isParallel ? `并行分析 ${batchCount} 个批次` : "顺序扫描单批次"}
-                </p>
-                <p className="mt-2 text-[12px] leading-6 text-ui-muted">
-                  {isParallel ? "批次完成后会立刻刷新最近结果与整体覆盖度。" : "每处理完一批条目，进度和最近结果都会继续推进。"}
-                </p>
-              </div>
-              <div className="rounded-[10px] border border-on-surface/8 bg-surface-container-lowest px-4 py-4">
-                <p className="text-[12px] font-medium text-ui-muted">等待建议</p>
-                <p className="mt-2 text-[12px] leading-6 text-ui-muted">
-                  如果目录很大、文件较多或包含图片与扫描件，扫描时间会更长。保持窗口打开即可，不会因为等待而提前执行文件移动。
-                </p>
-              </div>
+
+              {recentItems.length > 0 ? (
+                <div className="mt-4 space-y-3">
+                  {recentItems.map((item, index) => (
+                    <motion.div
+                      key={`${item.item_id}-${index}`}
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: index * 0.04 }}
+                      className="rounded-[14px] border border-black/5 bg-surface px-4 py-3.5"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="truncate text-[13px] font-semibold text-on-surface">{item.display_name}</p>
+                          <p className="mt-1 truncate text-[12px] text-ui-muted">{item.source_relpath}</p>
+                        </div>
+                        <span className={cn("shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold", index === 0 ? accentTone : "bg-black/[0.04] text-on-surface-variant/70")}>
+                          {index === 0 ? "最新" : "已分析"}
+                        </span>
+                      </div>
+                      <p className="mt-3 text-[12px] leading-6 text-on-surface-variant">{getItemSummary(item)}</p>
+                      {item.suggested_purpose ? (
+                        <div className="mt-3 inline-flex rounded-full bg-primary/8 px-2.5 py-1 text-[11px] font-medium text-primary">
+                          {item.suggested_purpose}
+                        </div>
+                      ) : null}
+                    </motion.div>
+                  ))}
+                </div>
+              ) : (
+                <div className="mt-4 flex min-h-[220px] items-center justify-center rounded-[16px] border border-dashed border-black/8 bg-surface-container-low/45">
+                  <div className="text-center">
+                    <Loader2 className="mx-auto h-7 w-7 animate-spin text-primary/35" />
+                    <p className="mt-3 text-[14px] font-semibold text-on-surface">正在等待首批扫描结果</p>
+                    <p className="mt-2 max-w-sm text-[12px] leading-6 text-ui-muted">
+                      当目录结构读取完成后，这里会开始显示最近处理过的文件和摘要。
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
-          <div className="border-b border-on-surface/8 px-6 py-5 xl:border-b-0 xl:border-r xl:px-7">
-            <div className="flex items-center gap-2 text-[12px] font-medium text-ui-muted">
-              <FileSearch className="h-4 w-4 text-primary" />
-              当前处理项与最近结果
+          <aside className="flex min-h-0 flex-col bg-surface-container-low/28 px-5 py-5 lg:px-6">
+            <div className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.18em] text-ui-muted">
+              <ShieldCheck className="h-4 w-4 text-primary" />
+              扫描轨迹
             </div>
-
-            <div className="mt-4 rounded-[10px] border border-primary/12 bg-primary/6 px-4 py-4">
-              <p className="text-[12px] font-medium text-primary/80">当前处理项</p>
-              <p className="mt-2 break-all text-[14px] font-semibold text-on-surface">{currentItem}</p>
-              <p className="mt-2 text-[12px] leading-6 text-ui-muted">这里只显示当前卡住或正在读取的条目，便于判断扫描停留在哪一步。</p>
-            </div>
-
-            {recentItems.length > 0 ? (
-              <div className="mt-4 space-y-3">
-                {recentItems.map((item, index) => (
-                  <motion.div
-                    key={`${item.item_id}-${index}`}
-                    initial={{ opacity: 0, y: 12 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: index * 0.05 }}
-                    className="rounded-[10px] border border-on-surface/8 bg-surface-container-lowest px-4 py-3.5"
-                  >
-                    <div className="mb-2 flex items-center gap-2">
-                      <span
+            <div className="mt-4 space-y-4">
+              {phases.map((phase, index) => {
+                const Icon = phase.icon;
+                const isActive = index === phaseIndex;
+                const isDone = scanner.status !== "failed" && index < phaseIndex;
+                return (
+                  <div key={phase.label} className="flex gap-3">
+                    <div className="flex flex-col items-center">
+                      <div
                         className={cn(
-                          "rounded-full px-2 py-0.5 text-[11px] font-semibold",
-                          index === 0 ? "bg-primary/10 text-primary" : "bg-surface-container-low text-on-surface-variant/70",
+                          "flex h-8 w-8 items-center justify-center rounded-full border",
+                          isDone
+                            ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-600"
+                            : isActive
+                              ? "border-primary/20 bg-primary/10 text-primary"
+                              : "border-black/6 bg-black/[0.03] text-on-surface-variant/60",
                         )}
                       >
-                        {index === 0 ? "刚完成" : "已分析"}
-                      </span>
-                    </div>
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="min-w-0">
-                        <p className="truncate text-[13px] font-semibold text-on-surface">{item.display_name}</p>
-                        <p className="mt-1 truncate text-[12px] text-ui-muted">{item.source_relpath}</p>
+                        <Icon className="h-4 w-4" />
                       </div>
-                      {item.suggested_purpose ? (
-                        <span className="shrink-0 rounded-full bg-primary/8 px-2.5 py-1 text-[11px] font-medium text-primary">
-                          {item.suggested_purpose}
-                        </span>
-                      ) : null}
+                      {index < phases.length - 1 ? <div className="mt-2 h-7 w-px bg-black/8" /> : null}
                     </div>
-                    <p className="mt-3 text-[12px] leading-6 text-on-surface-variant">{getItemSummary(item)}</p>
-                  </motion.div>
-                ))}
-              </div>
-            ) : (
-              <div className="mt-4 flex min-h-[280px] flex-col items-center justify-center rounded-[12px] border border-dashed border-on-surface/8 bg-surface-container-low text-center">
-                <Loader2 className="h-8 w-8 animate-spin text-primary/40" />
-                <p className="mt-4 text-[14px] font-semibold text-on-surface">正在等待首批扫描结果</p>
-                <p className="mt-2 max-w-sm text-[13px] leading-6 text-ui-muted">
-                  首批结果出来后，这里会滚动显示最近已分析完成的文件、路径和一行摘要。
-                </p>
-              </div>
-            )}
-          </div>
-
-          <div className="px-6 py-5 xl:px-7">
-            <div className="flex items-center gap-2 text-[12px] font-medium text-ui-muted">
-              <ShieldCheck className="h-4 w-4 text-primary" />
-              扫描说明
+                    <div className="pt-0.5">
+                      <p className="text-[13px] font-semibold text-on-surface">{phase.label}</p>
+                      <p className="mt-1 text-[12px] leading-5 text-ui-muted">{phase.detail}</p>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
-            <div className="mt-4 space-y-3">
-              <div className="rounded-[10px] border border-on-surface/8 bg-surface-container-lowest px-4 py-4">
-                <div className="flex items-center gap-2 text-[12px] font-medium text-ui-muted">
-                  <Sparkles className="h-3.5 w-3.5 text-primary" />
-                  当前系统在做什么
-                </div>
-                <p className="mt-3 text-[13px] leading-7 text-on-surface">
-                  {meta.description}
-                </p>
-              </div>
-              <div className="rounded-[10px] border border-on-surface/8 bg-surface-container-lowest px-4 py-4">
+
+            <div className="mt-6 space-y-3">
+              <div className="rounded-[14px] border border-black/5 bg-surface px-4 py-4">
                 <div className="flex items-center gap-2 text-[12px] font-medium text-ui-muted">
                   <ImageIcon className="h-3.5 w-3.5 text-primary" />
-                  图片与复杂文件
+                  复杂文件
                 </div>
-                <p className="mt-3 text-[12px] leading-6 text-ui-muted">
-                  如果目录里包含图片、扫描件、压缩包或大体积文件，扫描过程通常会更慢，这是因为系统需要补充摘要和用途判断。
+                <p className="mt-3 text-[12px] leading-6 text-on-surface-variant">
+                  图片、扫描件、压缩包和大文件会拖长扫描时间，因为系统需要补充摘要和用途判断。
                 </p>
               </div>
-              <div className="rounded-[10px] border border-on-surface/8 bg-surface-container-lowest px-4 py-4">
+              <div className="rounded-[14px] border border-black/5 bg-surface px-4 py-4">
                 <div className="flex items-center gap-2 text-[12px] font-medium text-ui-muted">
                   <CheckCircle2 className="h-3.5 w-3.5 text-primary" />
                   安全边界
                 </div>
-                <p className="mt-3 text-[12px] leading-6 text-ui-muted">
-                  扫描阶段只读取目录结构、文件名和内容摘要，用来生成第一版整理建议。真正落盘前，还会经过预检和最终确认。
+                <p className="mt-3 text-[12px] leading-6 text-on-surface-variant">
+                  当前只读取信息，不会执行移动或删除。扫描完成后还会先做预检，再由你最终确认。
                 </p>
               </div>
             </div>
-          </div>
+          </aside>
         </div>
       </motion.div>
     </div>

@@ -769,7 +769,13 @@ class OrganizerSessionService:
         if not confirm:
             raise ValueError("confirmation_required")
 
-        session = self._load_or_raise(session_id)
+        session = self.store.load(session_id)
+        if session is None:
+            journal = execution_service.load_execution_journal(session_id)
+            if journal is None:
+                raise KeyError(f"Session {session_id} not found")
+            return self._rollback_execution_journal(journal)
+
         if session.stage not in {"completed", "interrupted"}:
             raise RuntimeError("SESSION_STAGE_CONFLICT")
 
@@ -815,6 +821,45 @@ class OrganizerSessionService:
         )
         self._record_event("rollback.completed", session)
         return SessionMutationResult(session_snapshot=self._build_snapshot(session))
+
+    def _rollback_execution_journal(self, journal) -> SessionMutationResult:
+        if journal.status not in {"completed", "partial_failure"}:
+            raise RuntimeError("SESSION_STAGE_CONFLICT")
+
+        target_dir = Path(journal.target_dir)
+        lock_result = self.store.acquire_directory_lock(target_dir, journal.execution_id)
+        if not lock_result.acquired:
+            raise RuntimeError("SESSION_LOCKED")
+
+        try:
+            plan = rollback_service.build_rollback_plan(journal)
+            report = rollback_service.execute_rollback_plan(plan)
+            rollback_service.finalize_rollback_state(journal, report)
+        finally:
+            self.store.release_directory_lock(target_dir, journal.execution_id)
+
+        return SessionMutationResult(
+            session_snapshot={
+                "session_id": journal.execution_id,
+                "target_dir": journal.target_dir,
+                "stage": "stale",
+                "execution_report": {
+                    "execution_id": journal.execution_id,
+                    "journal_id": journal.execution_id,
+                    "status": journal.status,
+                },
+                "rollback_report": {
+                    "journal_id": journal.execution_id,
+                    "restored_from_execution_id": journal.execution_id,
+                    "success_count": report.success_count,
+                    "failure_count": report.failure_count,
+                    "status": "success" if report.failure_count == 0 else "partial_failure",
+                },
+                "integrity_flags": {
+                    "is_stale": True,
+                },
+            }
+        )
 
     def list_history(self) -> list[dict]:
         from file_organizer.shared import config

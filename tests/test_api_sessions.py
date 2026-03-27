@@ -318,6 +318,43 @@ class SessionApiTests(unittest.TestCase):
         self.assertEqual(rollback.status_code, 200)
         self.assertEqual(rollback.json()["session_snapshot"]["stage"], "stale")
 
+    def test_rollback_endpoint_returns_404_when_session_missing(self):
+        response = self.client.post("/api/sessions/missing-session-id/rollback", json={"confirm": True})
+
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.json()["detail"], "SESSION_NOT_FOUND")
+
+    def test_rollback_endpoint_accepts_execution_id_from_history(self):
+        (self.target_dir / "a.txt").write_text("hello", encoding="utf-8")
+        created = self.client.post(
+            "/api/sessions",
+            json={"target_dir": str(self.target_dir), "resume_if_exists": False},
+        ).json()
+        session = self.store.load(created["session_id"])
+        assert session is not None
+        session.stage = "ready_to_execute"
+        session.pending_plan = {
+            "directories": ["Docs"],
+            "moves": [{"source": "a.txt", "target": "Docs/a.txt"}],
+            "unresolved_items": [],
+            "summary": "move to docs",
+        }
+        self.store.save(session)
+
+        execute = self.client.post(f"/api/sessions/{session.session_id}/execute", json={"confirm": True})
+        execution_id = execute.json()["session_snapshot"]["execution_report"]["execution_id"]
+
+        rollback = self.client.post(f"/api/sessions/{execution_id}/rollback", json={"confirm": True})
+
+        self.assertEqual(rollback.status_code, 200)
+        self.assertEqual(rollback.json()["session_snapshot"]["stage"], "stale")
+        self.assertEqual(
+            rollback.json()["session_snapshot"]["rollback_report"]["restored_from_execution_id"],
+            execution_id,
+        )
+        self.assertTrue((self.target_dir / "a.txt").exists())
+        self.assertFalse((self.target_dir / "Docs" / "a.txt").exists())
+
     def test_return_to_planning_endpoint_restores_ready_for_precheck_stage(self):
         created = self.client.post(
             "/api/sessions",

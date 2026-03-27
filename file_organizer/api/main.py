@@ -297,6 +297,8 @@ def create_app(service: OrganizerSessionService | None = None) -> FastAPI:
         try:
             result = app.state.service.rollback(session_id, payload.confirm)
             return {"session_id": session_id, "session_snapshot": result.session_snapshot}
+        except KeyError:
+            raise HTTPException(status_code=404, detail="SESSION_NOT_FOUND")
         except FileNotFoundError:
             raise HTTPException(status_code=404, detail="SESSION_NOT_FOUND")
         except RuntimeError as exc:
