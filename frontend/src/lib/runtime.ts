@@ -35,9 +35,16 @@ export function isTauriDesktop(): boolean {
   return typeof window !== "undefined" && !!window.__TAURI_INTERNALS__?.invoke;
 }
 
-export async function pickDirectoryWithTauri(): Promise<string | null> {
+export async function invokeTauriCommand<T>(
+  command: string,
+  args?: Record<string, unknown>,
+): Promise<T | null> {
   if (!isTauriDesktop()) {
     return null;
   }
-  return window.__TAURI_INTERNALS__!.invoke<string | null>("pick_directory");
+  return window.__TAURI_INTERNALS__!.invoke<T>(command, args);
+}
+
+export async function pickDirectoryWithTauri(): Promise<string | null> {
+  return invokeTauriCommand<string | null>("pick_directory");
 }

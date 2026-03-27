@@ -3,13 +3,14 @@
 import React, { ReactNode } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { LayoutGrid, History, ChevronRight, Settings } from "lucide-react";
+import { LayoutGrid, History, ChevronRight, Settings, Palette } from "lucide-react";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 
 const WORKSPACE_CONTEXT_KEY = "workspace_header_context";
 const SETTINGS_CONTEXT_KEY = "settings_header_context";
 const HISTORY_CONTEXT_KEY = "history_header_context";
+const ICONS_CONTEXT_KEY = "icons_header_context";
 const APP_CONTEXT_EVENT = "file-organizer-context-change";
 
 function cn(...inputs: ClassValue[]) {
@@ -44,6 +45,12 @@ function getBaseModuleLabel(pathname: string, searchParams: URLSearchParams) {
       detail: "模型配置",
     };
   }
+  if (pathname === "/icons") {
+    return {
+      title: "图标工坊",
+      detail: "分析文件夹并生成 Windows 图标",
+    };
+  }
   if (pathname.startsWith("/workspace")) {
     const dirParam = searchParams.get("dir");
     const dirName = dirParam
@@ -70,6 +77,13 @@ function getStoredModuleLabel(pathname: string, searchParams: URLSearchParams) {
     return {
       title: "设置",
       detail: stored?.detail || "模型配置",
+    };
+  }
+  if (pathname === "/icons") {
+    const stored = readStoredContext(ICONS_CONTEXT_KEY);
+    return {
+      title: "图标工坊",
+      detail: stored?.detail || "分析文件夹并生成 Windows 图标",
     };
   }
   if (pathname.startsWith("/workspace")) {
@@ -112,6 +126,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   const navItems = [
     { href: "/", icon: LayoutGrid, label: "新建任务" },
+    { href: "/icons", icon: Palette, label: "图标工坊" },
     { href: "/history", icon: History, label: "历史" },
     { href: "/settings", icon: Settings, label: "设置" },
   ];

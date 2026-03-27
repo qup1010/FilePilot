@@ -1,7 +1,8 @@
 __pycache__/
 *.py[cod]
 *$py.class
-前端参考
+FolderPainter
+
 
 # 环境与配置
 .venv/

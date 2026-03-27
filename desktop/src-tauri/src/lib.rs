@@ -1,3 +1,5 @@
+mod desktop_ini;
+mod icon_apply;
 mod backend;
 mod runtime;
 
@@ -8,6 +10,15 @@ use std::sync::Mutex;
 use std::time::Duration;
 
 use tauri::{App, Manager, RunEvent};
+
+use crate::icon_apply::{
+    apply_folder_icon,
+    apply_ready_icons,
+    can_restore_folder_icon,
+    clear_folder_icon,
+    restore_last_folder_icon,
+    restore_ready_icons,
+};
 
 #[tauri::command]
 fn pick_directory() -> Option<String> {
@@ -126,7 +137,15 @@ pub fn run() {
 
     tauri::Builder::default()
         .manage(DesktopState::new(project_root))
-        .invoke_handler(tauri::generate_handler![pick_directory])
+        .invoke_handler(tauri::generate_handler![
+            pick_directory,
+            apply_folder_icon,
+            apply_ready_icons,
+            clear_folder_icon,
+            can_restore_folder_icon,
+            restore_last_folder_icon,
+            restore_ready_icons
+        ])
         .setup(|app| {
             bootstrap_backend(app).map_err(Into::into)
         })

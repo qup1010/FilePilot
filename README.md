@@ -59,3 +59,12 @@ IMAGE_ANALYSIS_MODEL=your_vision_model
 ```bash
 python -m unittest discover -s tests -p "test_*.py"
 ```
+
+## 日志
+
+- 后端基础运行日志始终写入 `logs/backend/runtime.log`
+- `runtime.log` 按天轮转，默认保留 7 份历史文件
+- 设置页里的“详细日志”只控制是否额外写入 `logs/backend/debug.jsonl`
+- `logs/backend/debug.jsonl` 为结构化 JSONL，记录扫描、规划、工具调用和异常调试摘要
+- 现有执行 journal 继续保留在 `output/history/executions`
+- 兼容调试产物 `output/runtime/debug_prompt.json` 仍会继续生成
