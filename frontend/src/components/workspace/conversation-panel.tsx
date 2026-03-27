@@ -4,23 +4,15 @@ import React, { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import {
   AlertTriangle,
-  Archive,
   ArrowRight,
-  Activity,
   Bot,
   Check,
   ChevronDown,
-  ChevronRight,
   Clipboard,
   Copy,
   Cpu,
-  Edit2,
   ExternalLink,
-  Hash,
-  Layers,
-  ListChecks,
   Loader2,
-  RefreshCw,
   Send,
   Sparkles,
   User,
@@ -31,7 +23,6 @@ import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 
 import type {
-  ActivityFeedEntry,
   AssistantRuntimeStatus,
   AssistantMessage,
   ComposerMode,
@@ -61,7 +52,6 @@ export interface ConversationNotice {
 interface ConversationPanelProps {
   messages: AssistantMessage[];
   assistantDraft: string;
-  activityFeed: ActivityFeedEntry[];
   error: string | null;
   composerMode: ComposerMode;
   isBusy: boolean;
@@ -76,8 +66,6 @@ interface ConversationPanelProps {
   unresolvedCount: number;
   notice?: ConversationNotice | null;
 }
-
-const BUSY_STAGES = new Set<SessionStage>(["scanning", "planning", "executing", "rolling_back"]);
 
 interface ResolutionDraft {
   selected_folder: string;
@@ -336,7 +324,6 @@ function UnresolvedChoicesBubble({
 export function ConversationPanel({
   messages,
   assistantDraft,
-  activityFeed,
   error,
   composerMode,
   isBusy,
@@ -354,14 +341,9 @@ export function ConversationPanel({
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const [isPinnedToBottom, setIsPinnedToBottom] = useState(true);
-  const [activityOpen, setActivityOpen] = useState(BUSY_STAGES.has(stage));
   const [resolutionDrafts, setResolutionDrafts] = useState<Record<string, ResolutionDraftMap>>({});
   const [resolutionWarnings, setResolutionWarnings] = useState<Record<string, string | null>>({});
   const [submittingRequestId, setSubmittingRequestId] = useState<string | null>(null);
-
-  useEffect(() => {
-    setActivityOpen(BUSY_STAGES.has(stage));
-  }, [stage]);
 
   useEffect(() => {
     setResolutionDrafts((prev) => {
@@ -405,7 +387,7 @@ export function ConversationPanel({
       top: container.scrollHeight,
       behavior: "smooth",
     });
-  }, [messages, assistantDraft, activityFeed, isPinnedToBottom]);
+  }, [messages, assistantDraft, isPinnedToBottom]);
 
   const handleScroll = () => {
     const container = scrollContainerRef.current;
@@ -517,7 +499,7 @@ export function ConversationPanel({
   return (
     <div className="flex h-full min-h-0 flex-col bg-surface">
       <div ref={scrollContainerRef} onScroll={handleScroll} className="relative min-h-0 flex-1 space-y-5 overflow-y-auto px-5 py-5 scroll-smooth lg:px-6 lg:py-6">
-        {(stage === "idle" || stage === "draft") && messages.length === 0 && activityFeed.length === 0 && !notice && (
+        {(stage === "idle" || stage === "draft") && messages.length === 0 && !notice && (
           <motion.div 
             initial={{ opacity: 0, scale: 0.98 }} 
             animate={{ opacity: 1, scale: 1 }} 
@@ -527,75 +509,36 @@ export function ConversationPanel({
               <Cpu className="w-7 h-7" />
             </div>
             <div className="max-w-[360px] space-y-3">
-              <h3 className="text-[1.1rem] font-black font-headline leading-tight text-on-surface tracking-tight">准备好开始扫描了吗？</h3>
+              <h3 className="text-[1.1rem] font-black font-headline leading-tight text-on-surface tracking-tight">
+                {isBusy ? "正在启动扫描" : "准备好开始扫描了吗？"}
+              </h3>
               <p className="text-ui-body font-medium leading-relaxed text-ui-muted">
-                我会先扫描你的目录，分析现有文件结构，然后再为你提供整理方案。
+                {isBusy
+                  ? "系统正在自动进入扫描阶段，读取目录结构后就会生成第一版整理方案。"
+                  : "我会先扫描你的目录，分析现有文件结构，然后再为你提供整理方案。"}
               </p>
-              <div className="pt-2">
-                <button
-                  onClick={onStartScan}
-                  disabled={isBusy}
-                  className="inline-flex items-center gap-2.5 rounded-[10px] border border-primary/20 bg-primary px-6 py-3 text-[13px] font-semibold text-white transition-colors hover:bg-primary-dim active:scale-[0.96] disabled:opacity-50"
-                >
-                  <Sparkles className="w-4 h-4" /> 开启智能扫描
-                </button>
-              </div>
+              {isBusy ? (
+                <div className="pt-2">
+                  <div className="inline-flex items-center gap-2.5 rounded-[10px] border border-primary/16 bg-primary/8 px-6 py-3 text-[13px] font-semibold text-primary">
+                    <Loader2 className="w-4 h-4 animate-spin" /> 正在自动开始
+                  </div>
+                </div>
+              ) : (
+                <div className="pt-2">
+                  <button
+                    onClick={onStartScan}
+                    disabled={isBusy}
+                    className="inline-flex items-center gap-2.5 rounded-[10px] border border-primary/20 bg-primary px-6 py-3 text-[13px] font-semibold text-white transition-colors hover:bg-primary-dim active:scale-[0.96] disabled:opacity-50"
+                  >
+                    <Sparkles className="w-4 h-4" /> 开启智能扫描
+                  </button>
+                </div>
+              )}
             </div>
           </motion.div>
         )}
 
         {renderNotice}
-
-        {activityFeed.length > 0 && (
-          <div className="group/activity relative">
-            <div 
-              className={cn(
-                "mb-3 flex cursor-pointer items-center gap-3 rounded-[10px] border px-4 py-3 transition-colors",
-                activityOpen ? "border-on-surface/8 bg-surface-container-low" : "border-transparent bg-transparent group-hover/activity:bg-surface-container-low/55"
-              )}
-              onClick={() => setActivityOpen((prev) => !prev)}
-            >
-              <div className={cn(
-                "flex h-7 w-7 items-center justify-center rounded-[8px] transition-colors",
-                activityOpen ? "bg-primary/10 text-primary" : "bg-surface-container text-on-surface-variant/40"
-              )}>
-                {BUSY_STAGES.has(stage) ? <Loader2 className="h-3 w-3 animate-spin" /> : <Activity className="h-3 w-3" />}
-              </div>
-              
-              <div className="flex-1 min-w-0 flex items-center gap-3">
-                <span className="shrink-0 text-[12px] font-medium text-ui-muted">运行轨迹</span>
-                {!activityOpen && activityFeed.length > 0 && (
-                  <p className="flex-1 truncate border-l border-on-surface/6 pl-3 text-[12px] text-on-surface-variant/70">
-                    {activityFeed[activityFeed.length - 1].message}
-                  </p>
-                )}
-              </div>
-
-              {activityOpen ? <ChevronDown className="h-3 w-3 text-on-surface-variant/20" /> : <ChevronRight className="h-3 w-3 text-on-surface-variant/20" />}
-            </div>
-
-            <AnimatePresence initial={false}>
-              {activityOpen ? (
-                <motion.div
-                  initial={{ height: 0, opacity: 0 }}
-                animate={{ height: "auto", opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
-                className="mb-5 overflow-hidden"
-              >
-                  <div className="ml-3 mt-2 space-y-1.5 border-l-2 border-on-surface/6 px-4 pb-2">
-                    {activityFeed.map((entry) => (
-                      <div key={entry.id} className="group/item flex items-center gap-3 py-1 text-[12px] text-ui-muted transition-colors hover:text-on-surface">
-                        <span className="shrink-0 font-mono text-[11px] tabular-nums opacity-55">{entry.time}</span>
-                        <div className={cn("h-1 w-1 rounded-full shrink-0", entry.important ? "bg-primary" : "bg-on-surface/20")} />
-                        <p className="flex-1 truncate tracking-tight">{entry.message}</p>
-                      </div>
-                    ))}
-                  </div>
-                </motion.div>
-              ) : null}
-            </AnimatePresence>
-          </div>
-        )}
 
         <div className="space-y-2">
           {messages.map((message, idx) => {
@@ -735,49 +678,9 @@ export function ConversationPanel({
             </motion.div>
           )}
 
-          {!assistantDraft && isComposerLocked && (
-            <motion.div
-              key="assistant-status-bubble"
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-            className="flex gap-4 mt-8"
-          >
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[8px] border border-on-surface/8 bg-surface-container-lowest text-primary">
-                <Bot className="w-3.5 h-3.5" />
-              </div>
-              <div className="flex-1 rounded-[10px] border border-on-surface/8 bg-surface-container-lowest p-4 text-ui-body leading-relaxed text-on-surface">
-                <div className="flex flex-col gap-3">
-                  <div className="flex items-center gap-3">
-                    <div className="flex items-center gap-1.5">
-                      <motion.div 
-                        animate={{ opacity: [0.2, 1, 0.2] }}
-                        transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
-                        className="w-2 h-2 rounded-full bg-primary"
-                      />
-                      <span className="text-ui-meta font-semibold text-primary/70">思考中</span>
-                    </div>
-                  </div>
-                  
-                  {composerStatus ? (
-                    <div className="space-y-1 animate-in fade-in duration-500">
-                      <p className="text-sm font-bold text-on-surface/80">{composerStatus.label}</p>
-                      {composerStatus.detail && (
-                        <p className="text-[13px] leading-6 text-ui-muted">{composerStatus.detail}</p>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      <div className="h-4 w-3/4 bg-on-surface/[0.03] rounded animate-pulse" />
-                      <div className="h-4 w-1/2 bg-on-surface/[0.02] rounded animate-pulse" />
-                    </div>
-                  )}
-                </div>
-              </div>
-            </motion.div>
-          )}
         </div>
 
-        {!isPinnedToBottom && (messages.length > 0 || assistantDraft || activityFeed.length > 0) && (
+        {!isPinnedToBottom && (messages.length > 0 || assistantDraft) && (
           <button
             type="button"
             onClick={handleJumpToBottom}

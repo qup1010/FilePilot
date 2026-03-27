@@ -2,7 +2,7 @@
 
 import React, { useMemo, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { AlertTriangle, Bot, Layers, Loader2, RefreshCw } from "lucide-react";
+import { AlertTriangle, Bot, Layers, Loader2, MoreHorizontal, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 import { useSession } from "@/lib/use-session";
@@ -17,6 +17,8 @@ import { ConversationPanel, type ConversationNotice } from "./workspace/conversa
 import { PreviewPanel } from "./workspace/preview-panel";
 
 export default function WorkspaceClient() {
+  const APP_CONTEXT_EVENT = "file-organizer-context-change";
+  const WORKSPACE_CONTEXT_KEY = "workspace_header_context";
   const searchParams = useSearchParams();
   const router = useRouter();
   const sessionIdParam = searchParams.get("session_id");
@@ -31,7 +33,6 @@ export default function WorkspaceClient() {
     loading,
     chatMessages,
     assistantDraft,
-    activityFeed,
     assistantRuntime,
     composerStatus,
     chatError,
@@ -56,7 +57,7 @@ export default function WorkspaceClient() {
   const [messageInput, setMessageInput] = useState("");
   const [leftWidth, setLeftWidth] = useState(50);
   const [exitConfirmOpen, setExitConfirmOpen] = useState(false);
-  const [mobileTab, setMobileTab] = useState<"conversation" | "preview">("conversation");
+  const [showExitMenu, setShowExitMenu] = useState(false);
   const [dividerLeft, setDividerLeft] = useState<number | null>(null);
   const containerRef = React.useRef<HTMLDivElement>(null);
   const leftPaneRef = React.useRef<HTMLElement>(null);
@@ -115,12 +116,38 @@ export default function WorkspaceClient() {
   const progressPercent = scanner.total_count > 0 ? (scanner.processed_count / scanner.total_count) * 100 : 0;
   const showConversationPane = !["ready_to_execute", "completed"].includes(stage);
   const effectiveComposerMode = isReadOnly ? "hidden" : composerMode;
-  const preferredMobileTab = useMemo<"conversation" | "preview">(() => {
-    if (isReadOnly || stage === "ready_to_execute" || stage === "completed") {
-      return "preview";
+  const nextStepHint = useMemo(() => {
+    if (isReadOnly && stage !== "completed") {
+      return "当前处于只读查看模式；如需继续整理，请返回首页重新启动或恢复这次任务。";
     }
-    return "conversation";
-  }, [isReadOnly, stage]);
+    if (stage === "idle" || stage === "draft") {
+      return "下一步是开始扫描目录，系统会先建立目录结构和初始分析范围。";
+    }
+    if (stage === "scanning") {
+      return "下一步会自动进入第一版整理方案，无需手动切换页面。";
+    }
+    if (stage === "planning") {
+      return plan.readiness.can_precheck
+        ? "下一步建议运行预检，确认真实文件系统中的目录变化是否可执行。"
+        : "下一步可以继续补充要求、调整条目，直到方案进入可预检状态。";
+    }
+    if (stage === "ready_for_precheck") {
+      return "下一步建议运行预检，确认目录创建和文件移动范围。";
+    }
+    if (stage === "ready_to_execute") {
+      return "下一步可以确认执行，或者返回继续修改整理方案。";
+    }
+    if (stage === "executing") {
+      return "系统正在按预检后的方案落盘执行，完成后会进入结果页。";
+    }
+    if (stage === "completed") {
+      return "下一步可以查看结果、清理空目录，或对最近一次执行进行回退。";
+    }
+    if (stage === "stale" || stage === "interrupted") {
+      return "下一步建议重新扫描，重新同步目录状态后再继续整理。";
+    }
+    return "当前任务正在处理中。";
+  }, [isReadOnly, plan.readiness.can_precheck, stage]);
 
   const handleMouseMove = React.useCallback((event: MouseEvent) => {
     if (!isResizing.current) {
@@ -177,6 +204,7 @@ export default function WorkspaceClient() {
   };
 
   const handleExitWorkbench = () => {
+    setShowExitMenu(false);
     if (isReadOnly || stage === "completed") {
       router.push("/");
       return;
@@ -270,10 +298,6 @@ export default function WorkspaceClient() {
   }, [stage, journal, journalLoading, isBusy, loadJournal]);
 
   React.useEffect(() => {
-    setMobileTab(preferredMobileTab);
-  }, [preferredMobileTab]);
-
-  React.useEffect(() => {
     if (!showConversationPane) {
       setDividerLeft(null);
       return;
@@ -302,6 +326,22 @@ export default function WorkspaceClient() {
     };
   }, [showConversationPane, leftWidth]);
 
+  React.useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    const targetPath = snapshot?.target_dir || dirParam || "";
+    const dirName = targetPath ? targetPath.replace(/[\\/]$/, "").split(/[\\/]/).pop() || "当前任务" : "当前任务";
+    window.localStorage.setItem(
+      WORKSPACE_CONTEXT_KEY,
+      JSON.stringify({
+        dirName,
+        stage: getFriendlyStage(stage),
+      }),
+    );
+    window.dispatchEvent(new Event(APP_CONTEXT_EVENT));
+  }, [APP_CONTEXT_EVENT, WORKSPACE_CONTEXT_KEY, dirParam, snapshot?.target_dir, stage]);
+
   const renderPreviewContent = () => {
     if (stage === "scanning") {
       return <MinimalScanningView scanner={scanner} progressPercent={progressPercent} />;
@@ -309,7 +349,7 @@ export default function WorkspaceClient() {
 
     if (stage === "completed") {
       return (
-        <div className="mx-auto h-full max-w-[980px] overflow-y-auto p-4 lg:p-5 scrollbar-thin">
+        <div className="mx-auto h-full w-full max-w-[1360px] overflow-y-auto p-5 scrollbar-thin">
           <CompletionView
             journal={journal}
             summary={snapshot?.summary || ""}
@@ -336,7 +376,7 @@ export default function WorkspaceClient() {
 
     if (stage === "ready_to_execute") {
       return (
-        <div className="h-full overflow-y-auto p-4 lg:p-5 scrollbar-thin">
+        <div className="mx-auto h-full w-full max-w-[1360px] overflow-y-auto p-5 scrollbar-thin">
           <PrecheckView
             summary={precheck}
             isBusy={isBusy}
@@ -363,17 +403,18 @@ export default function WorkspaceClient() {
             icon={Layers}
             title="整理预览准备中"
             description="先开始扫描，系统会在这里显示整理前后的目录变化。"
-            className="h-[70vh]"
+            className="mx-auto h-[70vh] max-w-[1360px]"
           />
         ) : stage === "stale" || stage === "interrupted" ? (
-          <div className="h-full overflow-y-auto p-4 lg:p-5 scrollbar-thin">
-            <div className="rounded-lg border border-warning/20 bg-warning-container/15 p-6 shadow-sm">
+          <div className="mx-auto h-full w-full max-w-[1360px] overflow-y-auto p-5 scrollbar-thin">
+            <div className="rounded-[14px] border border-warning/20 bg-warning-container/15 p-6 shadow-[0_8px_24px_rgba(37,45,40,0.04)]">
               <div className="flex items-start gap-4">
-                <div className="mt-1 rounded-lg bg-warning/15 p-3 text-warning">
+                <div className="mt-1 rounded-[10px] bg-warning/15 p-3 text-warning">
                   {stage === "interrupted" ? <AlertTriangle className="h-5 w-5" /> : <RefreshCw className="h-5 w-5" />}
                 </div>
                 <div className="space-y-3">
-                  <h3 className="text-lg font-bold text-on-surface">
+                  <p className="text-[12px] font-medium text-warning">状态提醒</p>
+                  <h3 className="text-[1.2rem] font-black tracking-tight text-on-surface">
                     {stage === "interrupted" ? "处理被中断了" : "当前方案已过期"}
                   </h3>
                   <p className="text-sm leading-6 text-on-surface-variant">
@@ -385,16 +426,16 @@ export default function WorkspaceClient() {
                     <button
                       type="button"
                       onClick={() => void refreshPlan()}
-                      className="rounded-lg bg-primary px-4 py-2.5 text-sm font-bold text-white shadow-sm transition-opacity hover:opacity-90"
+                      className="rounded-[10px] bg-primary px-4 py-2.5 text-sm font-bold text-white shadow-sm transition-opacity hover:opacity-90"
                     >
                       重新扫描
                     </button>
                     <button
                       type="button"
                       onClick={handleExitWorkbench}
-                      className="rounded-lg border border-on-surface/10 px-4 py-2.5 text-sm font-bold text-on-surface-variant transition-colors hover:bg-surface-container-low hover:text-on-surface"
+                      className="rounded-[10px] border border-on-surface/10 px-4 py-2.5 text-sm font-bold text-on-surface-variant transition-colors hover:bg-surface-container-low hover:text-on-surface"
                     >
-                      结束这次整理
+                      放弃本次整理
                     </button>
                   </div>
                 </div>
@@ -427,7 +468,6 @@ export default function WorkspaceClient() {
     <ConversationPanel
       messages={chatMessages}
       assistantDraft={assistantDraft}
-      activityFeed={activityFeed}
       error={chatError}
       composerMode={effectiveComposerMode}
       isBusy={isBusy}
@@ -486,16 +526,32 @@ export default function WorkspaceClient() {
               </span>
             ) : null}
           </div>
+          <p className="max-w-[44rem] text-[12px] leading-5 text-on-surface-variant/70">
+            {nextStepHint}
+          </p>
         </div>
       </div>
 
-      <div className="flex items-center gap-3 shrink-0">
+      <div className="relative flex items-center gap-3 shrink-0">
         <button
-          onClick={handleExitWorkbench}
-          className="rounded-[8px] px-3 py-1.5 text-[12px] font-medium text-ui-muted transition-colors hover:bg-error-container/35 hover:text-error"
+          type="button"
+          onClick={() => setShowExitMenu((current) => !current)}
+          className="inline-flex items-center gap-1.5 rounded-[8px] border border-on-surface/8 bg-surface-container-low px-3 py-1.5 text-[12px] font-medium text-on-surface-variant transition-colors hover:border-on-surface/12 hover:text-on-surface"
         >
-          结束会话
+          <MoreHorizontal className="h-3.5 w-3.5" />
+          更多
         </button>
+        {showExitMenu ? (
+          <div className="absolute right-0 top-[calc(100%+8px)] z-50 w-[190px] rounded-[10px] border border-on-surface/8 bg-surface-container-lowest p-1.5 shadow-[0_10px_24px_rgba(36,48,42,0.12)]">
+            <button
+              type="button"
+              onClick={handleExitWorkbench}
+              className="w-full rounded-[8px] px-3 py-2 text-left text-[12px] font-semibold text-error transition-colors hover:bg-error/5"
+            >
+              放弃本次整理
+            </button>
+          </div>
+        ) : null}
       </div>
     </div>
   );
@@ -503,7 +559,7 @@ export default function WorkspaceClient() {
   return (
     <div ref={containerRef} className="flex-1 flex min-h-0 overflow-hidden relative bg-surface">
       <ErrorBoundary fallbackTitle="页面加载出错了" className="flex-1">
-        <div className="hidden min-[1100px]:flex flex-1 min-h-0">
+        <div className="flex flex-1 min-h-0">
           {showConversationPane ? (
             <section
               ref={leftPaneRef}
@@ -553,52 +609,12 @@ export default function WorkspaceClient() {
             <div className="flex-1 min-h-0">{renderPreviewContent()}</div>
           </section>
         </div>
-
-        <div className="flex min-[1100px]:hidden flex-1 min-h-0 flex-col">
-          {showConversationPane ? (
-            <>
-              {conversationHeader}
-              <div className="shrink-0 border-b border-on-surface/8 bg-surface-container-low px-4 py-2.5">
-                <div className="grid grid-cols-2 gap-2 rounded-[10px] border border-on-surface/8 bg-surface-container p-1">
-                  {[
-                    { id: "conversation", label: "对话" },
-                    { id: "preview", label: "预览" },
-                  ].map((tab) => (
-                    <button
-                      key={tab.id}
-                      type="button"
-                      onClick={() => setMobileTab(tab.id as "conversation" | "preview")}
-                      className={cn(
-                        "rounded-[8px] px-4 py-2.5 text-[13px] font-semibold transition-colors",
-                        mobileTab === tab.id
-                          ? "border border-on-surface/8 bg-surface-container-lowest text-on-surface"
-                          : "text-ui-muted",
-                      )}
-                    >
-                      {tab.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </>
-          ) : null}
-
-          <div className="flex-1 min-h-0 overflow-hidden">
-            {showConversationPane && mobileTab === "conversation" ? (
-              conversationPanel
-            ) : (
-              <section className="flex min-h-0 h-full flex-col bg-surface overflow-hidden">
-                <div className="flex-1 min-h-0">{renderPreviewContent()}</div>
-              </section>
-            )}
-          </div>
-        </div>
       </ErrorBoundary>
       <ConfirmDialog
         open={exitConfirmOpen}
-        title="结束当前整理？"
+        title="放弃本次整理？"
         description="确认后会放弃当前会话并返回首页。未完成的整理记录仍会保留在历史档案中。"
-        confirmLabel="结束整理"
+        confirmLabel="放弃整理"
         cancelLabel="继续整理"
         tone="danger"
         loading={loading}

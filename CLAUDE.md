@@ -36,6 +36,12 @@ python -m file_organizer.api
 
 默认监听 `http://127.0.0.1:8765`，并写入运行时文件：`output/runtime/backend.json`。
 
+常用环境变量：
+
+- `FILE_ORGANIZER_API_HOST` / `FILE_ORGANIZER_API_PORT` / `FILE_ORGANIZER_API_BASE_URL`
+- `FILE_ORGANIZER_API_RELOAD=false`（桌面宿主默认关闭 reload，避免 runtime 文件归属漂移）
+- `FILE_ORGANIZER_API_TOKEN=...`（开启后，除 `/api/health` 外的 `/api/*` 请求都需要带 token）
+
 ### 回退最近一次执行
 
 ```bash
@@ -64,6 +70,12 @@ python -m unittest tests.test_api_runtime -v
 python -m unittest tests.test_rollback_service -v
 ```
 
+单个测试方法：
+
+```bash
+python -m unittest tests.test_api_sessions.ApiSessionsTest.test_create_session_returns_snapshot -v
+```
+
 ### 前端工作台
 
 ```bash
@@ -84,6 +96,12 @@ npm run build
 ```bash
 cd frontend
 npm run typecheck
+```
+
+如需直连非默认后端，可设置：
+
+```bash
+NEXT_PUBLIC_API_BASE_URL=http://127.0.0.1:8765
 ```
 
 ### Tauri 桌面壳
@@ -187,6 +205,8 @@ cargo check
 - SSE 事件流 `GET /api/sessions/{session_id}/events`
 - 一些本地工作台工具接口，例如打开目录、选择目录、配置管理、模型连通性测试
 
+如果设置了 `FILE_ORGANIZER_API_TOKEN`，除了 `/api/health` 以外的 `/api/*` 请求都必须通过 `Authorization: Bearer ...`、`x-file-organizer-token` 或 query 参数带 token。
+
 #### Next.js 前端
 
 前端在 `frontend/src`：
@@ -203,21 +223,26 @@ cargo check
 2. `NEXT_PUBLIC_API_BASE_URL`
 3. 默认 `http://127.0.0.1:8765`
 
+前端也会从同一个 runtime 对象读取 `api_token`，用于给 API client 自动补鉴权头。
+
 #### Tauri 桌面壳
 
 Tauri 宿主在 `desktop/src-tauri`：
 
 - 启动时拉起 `python -m file_organizer.api`
+- 为该后端生成独立 `instance_id` 和 API token
 - 等待 `output/runtime/backend.json`
 - 校验 runtime 文件里的 `pid` / `instance_id`
-- 通过注入 `window.__FILE_ORGANIZER_RUNTIME__.base_url` 让前端连接当前后端实例
+- 再请求 `/api/health`，确认 runtime 文件确实属于当前后端实例
+- 通过注入 `window.__FILE_ORGANIZER_RUNTIME__.base_url` 和 `api_token` 让前端连接当前后端实例
 
 所以桌面端联调问题，优先检查：
 
 1. Python API 是否成功启动
 2. `output/runtime/backend.json` 是否生成且实例归属正确
-3. 前端是否正确读取注入的 `base_url`
-4. 非桌面开发场景下是否误用了 `NEXT_PUBLIC_API_BASE_URL` 或默认地址
+3. `/api/health` 返回的 `instance_id` 是否与 runtime 文件一致
+4. 前端是否正确读取注入的 `base_url` / `api_token`
+5. 非桌面开发场景下是否误用了 `NEXT_PUBLIC_API_BASE_URL` 或默认地址
 
 ## 重要约束与共享契约
 
@@ -243,6 +268,7 @@ Tauri 宿主在 `desktop/src-tauri`：
 - session stage 名称
 - SSE event 名称
 - unresolved choices 的 block 结构
+- 前端 `RuntimeConfig` 中的 `base_url` / `api_token`
 
 只改其中一端通常会把工作台打坏。涉及这类改动时，至少同步检查：
 
@@ -250,6 +276,7 @@ Tauri 宿主在 `desktop/src-tauri`：
 - `file_organizer/api/main.py`
 - `frontend/src/types/session.ts`
 - `frontend/src/lib/use-session.ts`
+- `frontend/src/lib/runtime.ts`
 
 ### 运行时发现机制不要随意改
 
@@ -257,6 +284,7 @@ Tauri 宿主在 `desktop/src-tauri`：
 
 - `output/runtime/backend.json`
 - `window.__FILE_ORGANIZER_RUNTIME__.base_url`
+- `window.__FILE_ORGANIZER_RUNTIME__.api_token`
 
 桌面端启动握手不只是“文件存在即可”，还依赖 runtime 文件与当前后端实例的一致性校验；如果你改运行时发现逻辑，桌面启动、前端 API 连接和本地联调都会一起受影响。
 
@@ -323,3 +351,4 @@ cargo check
 - Python 侧当前没有仓库内的独立 lint 配置；不要假设存在 `ruff`、`flake8` 或 `pytest` 工作流。
 - 前端使用 Next.js 15，`frontend/next.config.mjs` 配置为 `output: "export"`。
 - 文件分析依赖 OpenAI 兼容接口；基础配置从项目根 `.env` 和配置管理器读取。图片分析走独立配置，不复用普通文本分析设置。
+- 当前前端不是纯 mock：它已经通过 `src/lib/api.ts` 和 `src/lib/use-session.ts` 对接真实 FastAPI / SSE；如果改 API 返回结构，要按真实跨端联调来回归。

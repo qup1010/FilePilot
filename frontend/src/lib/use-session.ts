@@ -6,7 +6,6 @@ import { createApiClient } from "@/lib/api";
 import { getApiBaseUrl, getApiToken } from "@/lib/runtime";
 import { createSessionEventStream, type SessionEventStream } from "@/lib/sse";
 import type {
-  ActivityFeedEntry,
   AssistantMessage,
   AssistantRuntimeStatus,
   ComposerMode,
@@ -50,32 +49,6 @@ function shouldDisplayMessage(message: AssistantMessage): boolean {
   }
 
   return role === "assistant" || role === "user";
-}
-
-function actionMessageFromEvent(event: SessionEvent): { phase: ActivityFeedEntry["phase"]; message: string; important: boolean } | null {
-  const action = event.action as any;
-  if (!action) {
-    return null;
-  }
-
-  let message = "";
-  if (action?.name === "read_local_file") {
-    message = `读取文件: ${action.args?.filename || "..."}`;
-  } else if (action?.name === "list_local_files") {
-    message = `检索目录: ${action.args?.directory || "."}`;
-  } else if (action?.message) {
-    message = action.message;
-  }
-
-  if (!message) {
-    return null;
-  }
-
-  return {
-    phase: event.event_type.startsWith("scan.") ? "scan" : "plan",
-    message,
-    important: !!action?.name,
-  };
 }
 
 function humanizeActionTarget(value: unknown): string | undefined {
@@ -170,7 +143,6 @@ export function useSession(sessionId: string | null) {
   const [loading, setLoading] = useState(false);
   const [chatError, setChatError] = useState<string | null>(null);
   const [assistantDraft, setAssistantDraft] = useState("");
-  const [activityFeed, setActivityFeed] = useState<ActivityFeedEntry[]>([]);
   const [assistantRuntime, setAssistantRuntime] = useState<AssistantRuntimeStatus | null>(null);
   const [streamStatus, setStreamStatus] = useState<StreamStatus>("disconnected");
   const streamRef = useRef<SessionEventStream | null>(null);
@@ -181,52 +153,10 @@ export function useSession(sessionId: string | null) {
     snapshotRef.current = snapshot;
   }, [snapshot]);
 
-  function resetConversationTransientState(options?: { keepActivityFeed?: boolean }) {
+  function resetConversationTransientState() {
     setAssistantDraft("");
     setAssistantRuntime(null);
     setChatError(null);
-    if (!options?.keepActivityFeed) {
-      setActivityFeed([]);
-    }
-  }
-
-  function appendActivity(entry: Omit<ActivityFeedEntry, "id" | "time">) {
-    setActivityFeed((prev) => [
-      ...prev,
-      {
-        id: createLocalMessageId(`activity-${entry.phase}`),
-        time: nowLabel(),
-        ...entry,
-      },
-    ].slice(-80));
-  }
-
-  function appendStreamingActivity(phase: ActivityFeedEntry["phase"], content: string) {
-    if (!content) {
-      return;
-    }
-    setActivityFeed((prev) => {
-      const last = prev.at(-1);
-      if (last && last.id.startsWith(`stream-${phase}`)) {
-        return [
-          ...prev.slice(0, -1),
-          {
-            ...last,
-            message: `${last.message}${content}`,
-          },
-        ];
-      }
-      return [
-        ...prev,
-        {
-          id: `stream-${phase}-${createLocalMessageId("chunk")}`,
-          phase,
-          time: nowLabel(),
-          message: content,
-          important: false,
-        },
-      ].slice(-80);
-    });
   }
 
   useEffect(() => {
@@ -284,16 +214,11 @@ export function useSession(sessionId: string | null) {
           if (runtime) {
             setAssistantRuntime(runtime);
           }
-          const entry = actionMessageFromEvent(event);
-          if (entry) {
-            appendActivity(entry);
-          }
           return;
         }
 
         if (event.event_type === "scan.ai_typing") {
           setAssistantRuntime(assistantRuntimeFromTyping("scan"));
-          appendStreamingActivity("scan", event.content || "");
           return;
         }
 
@@ -401,7 +326,6 @@ export function useSession(sessionId: string | null) {
     setLoading(true);
     setChatError(null);
     setAssistantDraft("");
-    setActivityFeed([]);
     setAssistantRuntime({
       phase: "plan",
       mode: "waiting",
@@ -453,7 +377,7 @@ export function useSession(sessionId: string | null) {
       return;
     }
     setLoading(true);
-    resetConversationTransientState({ keepActivityFeed: true });
+    resetConversationTransientState();
     setAssistantRuntime({
       phase: "scan",
       mode: "waiting",
@@ -476,7 +400,7 @@ export function useSession(sessionId: string | null) {
       return;
     }
     setLoading(true);
-    resetConversationTransientState({ keepActivityFeed: true });
+    resetConversationTransientState();
     try {
       const response = await api.refreshSession(sessionId);
       setSnapshot(response.session_snapshot);
@@ -526,7 +450,6 @@ export function useSession(sessionId: string | null) {
     setLoading(true);
     setChatError(null);
     setAssistantDraft("");
-    setActivityFeed([]);
     try {
       const response = await api.execute(sessionId, true);
       setSnapshot(response.session_snapshot);
@@ -544,7 +467,6 @@ export function useSession(sessionId: string | null) {
     setLoading(true);
     setChatError(null);
     setAssistantDraft("");
-    setActivityFeed([]);
     try {
       const response = await api.rollback(sessionId, true);
       setSnapshot(response.session_snapshot);
@@ -634,7 +556,6 @@ export function useSession(sessionId: string | null) {
     loading,
     chatMessages,
     assistantDraft,
-    activityFeed,
     assistantRuntime,
     composerStatus,
     chatError,

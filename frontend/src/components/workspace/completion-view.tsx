@@ -42,7 +42,7 @@ export function CompletionView({
 
   if (loading) {
     return (
-      <div className="mx-auto max-w-[980px] animate-pulse space-y-4 py-4">
+      <div className="mx-auto max-w-[1360px] animate-pulse space-y-4 py-5">
         <div className="h-24 rounded-[12px] bg-surface-container-low" />
         <div className="grid gap-3 md:grid-cols-4">
           <div className="h-20 rounded-[10px] bg-surface-container-low" />
@@ -57,7 +57,7 @@ export function CompletionView({
 
   if (!journal) {
     return (
-      <div className="rounded-[12px] border border-on-surface/8 bg-surface-container-lowest p-12 text-center shadow-sm">
+      <div className="rounded-[12px] border border-on-surface/8 bg-surface-container-lowest p-12 text-center shadow-[0_8px_24px_rgba(37,45,40,0.04)]">
         <History className="mx-auto mb-4 h-12 w-12 text-on-surface-variant/20" />
         <p className="text-sm font-medium text-on-surface-variant">这里暂时还没有可显示的结果。</p>
       </div>
@@ -107,7 +107,7 @@ export function CompletionView({
   };
 
   return (
-    <div className="mx-auto max-w-[980px] animate-in fade-in slide-in-from-bottom-4 space-y-4 py-4 duration-500">
+    <div className="mx-auto max-w-[1360px] animate-in fade-in slide-in-from-bottom-4 space-y-5 py-5 duration-500">
       <section className="rounded-[12px] border border-on-surface/8 bg-surface-container-lowest shadow-[0_8px_24px_rgba(37,45,40,0.04)]">
         <div className="border-b border-on-surface/8 bg-surface-container-low px-4 py-3.5 lg:px-5">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
@@ -173,10 +173,11 @@ export function CompletionView({
         </div>
       </section>
 
-      <section className="space-y-3.5">
-        <div className="flex items-end justify-between gap-4">
+      <section className="space-y-4 rounded-[12px] border border-on-surface/8 bg-surface-container-lowest p-5 shadow-[0_8px_24px_rgba(37,45,40,0.04)]">
+        <div className="flex items-end justify-between gap-4 border-b border-on-surface/8 pb-4">
           <div className="space-y-1">
-            <h3 className="text-[15px] font-semibold text-on-surface">目录树前后对比</h3>
+            <p className="text-[12px] font-medium text-ui-muted">结构对比</p>
+            <h3 className="text-[15px] font-black tracking-tight text-on-surface">目录树前后对比</h3>
             <p className="text-[13px] leading-6 text-ui-muted">左侧是整理前的位置，右侧是整理后的实际结果。</p>
           </div>
           <div className="flex items-center gap-1.5 rounded-[10px] border border-on-surface/8 bg-surface-container p-1">
@@ -206,10 +207,10 @@ export function CompletionView({
       {(failedItems.length > 0 || reviewItems.length > 0) ? (
         <section className="grid gap-3 lg:grid-cols-2">
           {failedItems.length > 0 ? (
-            <div className={cn("rounded-[12px] border p-4", journal.failure_count && journal.failure_count > 0 ? "border-error/15 bg-error-container/25" : "border-error/12 bg-error-container/15")}>
+            <div className={cn("rounded-[12px] border p-4 shadow-[0_8px_24px_rgba(37,45,40,0.04)]", journal.failure_count && journal.failure_count > 0 ? "border-error/15 bg-error-container/25" : "border-error/12 bg-error-container/15")}>
               <div className="flex items-center gap-3">
                 <AlertTriangle className="h-5 w-5 text-error" />
-                <h3 className="text-[15px] font-semibold text-on-surface">必须关注的失败项</h3>
+                <h3 className="text-[15px] font-black tracking-tight text-on-surface">必须关注的失败项</h3>
               </div>
               <p className="mt-2 text-[13px] leading-6 text-ui-muted">
                 这些文件通常是因为正在被其他程序占用，或者当前目录没有写入权限。
@@ -228,10 +229,10 @@ export function CompletionView({
           ) : null}
 
           {reviewItems.length > 0 ? (
-            <div className="rounded-[12px] border border-warning/12 bg-warning-container/22 p-4">
+            <div className="rounded-[12px] border border-warning/12 bg-warning-container/22 p-4 shadow-[0_8px_24px_rgba(37,45,40,0.04)]">
               <div className="flex items-center gap-3">
                 <Info className="h-5 w-5 text-warning" />
-                <h3 className="text-[15px] font-semibold text-on-surface">Review 保留项</h3>
+                <h3 className="text-[15px] font-black tracking-tight text-on-surface">Review 保留项</h3>
               </div>
               <p className="mt-2 text-[13px] leading-6 text-ui-muted">
                 这部分不是执行失败，而是按策略先放在 `Review` 中，方便你稍后逐项确认。
@@ -251,7 +252,7 @@ export function CompletionView({
         </section>
       ) : null}
 
-      <section className={cn("rounded-[12px] border border-on-surface/8 bg-surface-container-low px-4 py-3.5", readOnly ? "flex flex-col gap-3" : "flex flex-col gap-3 md:flex-row md:items-center")}>
+      <section className={cn("rounded-[12px] border border-on-surface/8 bg-surface-container-low px-4 py-4 shadow-[0_8px_24px_rgba(37,45,40,0.04)]", readOnly ? "flex flex-col gap-3" : "flex flex-col gap-3 md:flex-row md:items-center")}>
         <button
           type="button"
           onClick={onGoHome}

@@ -1,4 +1,5 @@
 import json
+import logging
 import re
 from collections import Counter, defaultdict
 
@@ -14,6 +15,7 @@ from file_organizer.organize.models import (
 from file_organizer.organize.prompts import build_prompt
 from file_organizer.shared.config import ORGANIZER_MODEL_NAME, RESULT_FILE_PATH, create_openai_client
 from file_organizer.shared.events import emit
+from file_organizer.shared.logging_utils import append_debug_event
 from file_organizer.shared.path_utils import normalize_source_name, split_relative_parts
 
 
@@ -25,6 +27,8 @@ UNRESOLVED_CHOICES_TOOL_NAME = "request_unresolved_choices"
 REPAIR_FINAL_PLAN_TOOL_NAME = "repair_commit_final_plan"
 MODEL_WAIT_MESSAGE = "正在等待模型回复..."
 SYNTHETIC_PLAN_REPLY = "我已按照您的要求做了修改"
+
+logger = logging.getLogger(__name__)
 
 
 def get_scan_content() -> str:
@@ -268,6 +272,14 @@ def _debug_enabled() -> bool:
     return config_manager.get("DEBUG_MODE", False) or os.getenv("DEBUG_MODE") == "True"
 
 
+def _write_planning_debug_event(kind: str, payload: dict | None = None) -> None:
+    append_debug_event(
+        kind=kind,
+        stage="planning",
+        payload=payload or {},
+    )
+
+
 def _stream_enabled() -> bool:
     import os
 
@@ -328,9 +340,21 @@ def _update_debug_log_response(
             "raw_response": raw_response,
         }
         _write_debug_history(debug_log, history)
-        print(f"[DEBUG] Round {len(history)} response recorded.")
+        _write_planning_debug_event(
+            "organizer.response",
+            {
+                "raw_content": raw_content,
+                "display_content": display_content,
+                "tool_calls": tool_calls,
+                "chunks": chunks,
+                "synthetic_content_used": synthetic_content_used,
+                "response_mode": response_mode,
+                "raw_response": raw_response,
+            },
+        )
+        logger.info("organizer.response_recorded round=%s", len(history))
     except Exception:
-        pass
+        logger.exception("organizer.response_record_failed")
 
 
 def chat_one_round(messages: list, event_handler=None, model: str = ORGANIZER_MODEL_NAME, tools=None, tool_choice="auto", return_message=False):
@@ -368,8 +392,17 @@ def chat_one_round(messages: list, event_handler=None, model: str = ORGANIZER_MO
         
         try:
             _write_debug_history(debug_log, history)
-        except Exception as e:
-            print(f"[DEBUG] Failed to write debug log: {e}")
+            _write_planning_debug_event(
+                "organizer.request",
+                {
+                    "round": current_round,
+                    "model": model,
+                    "request": request_messages,
+                    "request_meta": new_entry["request_meta"],
+                },
+            )
+        except Exception:
+            logger.exception("organizer.request_record_failed")
 
     client = create_openai_client()
     
@@ -390,6 +423,21 @@ def chat_one_round(messages: list, event_handler=None, model: str = ORGANIZER_MO
             tool_choice=tool_choice,
             stream=stream_enabled
         )
+    except Exception as exc:
+        logger.exception("organizer.request_failed model=%s stream=%s", model, stream_enabled)
+        _write_planning_debug_event(
+            "organizer.request_failed",
+            {
+                "model": model,
+                "stream": stream_enabled,
+                "request_meta": {
+                    "tool_choice": tool_choice,
+                    "tool_count": len(tools or organizer_tools),
+                },
+                "error": {"type": type(exc).__name__, "message": str(exc)},
+            },
+        )
+        raise
 
     finally:
         emit(event_handler, "model_wait_end")
@@ -1005,6 +1053,13 @@ def run_organizer_cycle(
             assistant_context_messages = [assistant_context_message, *tool_result_messages]
             
             if diff_errors:
+                _write_planning_debug_event(
+                    "plan.diff_failed",
+                    {
+                        "attempt": attempt,
+                        "errors": diff_errors,
+                    },
+                )
                 if attempt < max_retries:
                     err_msg = "增量更新由于包含不存在的文件源而失败:\n" + "\n".join(f"- {e}" for e in diff_errors) + "\n请务必只处理真正的当前层条名称。"
                     llm_messages.extend(assistant_context_messages)
@@ -1096,6 +1151,13 @@ def run_organizer_cycle(
         assistant_context_messages = [assistant_context_message, *tool_result_messages]
         if validation["is_valid"]:
             emit(event_handler, "command_validation_pass", {"attempt": attempt, "details": validation})
+            _write_planning_debug_event(
+                "plan.validation_pass",
+                {
+                    "attempt": attempt,
+                    "validation": validation,
+                },
+            )
             updated_pending = _pending_from_final(final_plan)
             diff_summary = _build_plan_change_summary((current_pending or PendingPlan()).with_derived_directories(), updated_pending)
             return content, {
@@ -1115,6 +1177,13 @@ def run_organizer_cycle(
 
         # 如果最终方案校验失败（例如 AI 忽略了部分文件或生成了错误的 mkdir 路径），则反馈具体原因并递归重试。
         emit(event_handler, "command_validation_fail", {"attempt": attempt, "details": validation})
+        _write_planning_debug_event(
+            "plan.validation_fail",
+            {
+                "attempt": attempt,
+                "validation": validation,
+            },
+        )
         if attempt < max_retries:
             llm_messages.extend(assistant_context_messages)
             llm_messages.append({"role": "user", "content": build_command_retry_message(validation, scan_lines, current_constraints)})
@@ -1125,6 +1194,13 @@ def run_organizer_cycle(
         # 并给 AI 一个极其简短、严厉且唯一的指令，强制其根据当前的 scan_lines 重新生成 FinalPlan。
         emit(event_handler, "command_retry_exhausted", {"attempt": attempt, "details": validation})
         emit(event_handler, "repair_mode_start", {"attempt": attempt, "details": validation})
+        _write_planning_debug_event(
+            "plan.repair_mode_start",
+            {
+                "attempt": attempt,
+                "validation": validation,
+            },
+        )
         repair_message = chat_one_round(
             _build_repair_messages(scan_lines, current_constraints, validation, strategy_instructions),
             event_handler=event_handler,
@@ -1141,6 +1217,13 @@ def run_organizer_cycle(
         repair_validation = validate_final_plan(scan_lines, repaired_plan or FinalPlan())
         if repaired_plan is not None and repair_validation["is_valid"]:
             emit(event_handler, "command_validation_pass", {"attempt": attempt + 1, "details": repair_validation})
+            _write_planning_debug_event(
+                "plan.repair_validation_pass",
+                {
+                    "attempt": attempt + 1,
+                    "validation": repair_validation,
+                },
+            )
             updated_pending = _pending_from_final(repaired_plan)
             diff_summary = _build_plan_change_summary((current_pending or PendingPlan()).with_derived_directories(), updated_pending)
             repair_raw_content = getattr(repair_message, "content", "") or ""
@@ -1184,6 +1267,13 @@ def run_organizer_cycle(
             tool_calls=_serialize_tool_calls(getattr(repair_message, "tool_calls", None)),
             chunks=None,
             synthetic_content_used=repair_synthetic_content_used,
+        )
+        _write_planning_debug_event(
+            "plan.repair_validation_fail",
+            {
+                "attempt": attempt + 1,
+                "validation": repair_validation,
+            },
         )
         return repair_content, {
             "is_valid": False,
@@ -1308,4 +1398,3 @@ organizer_tools = [
 # 兼容旧模块内部辅助函数命名
 _normalize_source_name = normalize_source_name
 _split_relative_parts = split_relative_parts
-

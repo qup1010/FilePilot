@@ -8,8 +8,9 @@ from file_organizer.shared.constants import (
     PROJECT_ROOT,
     DEFAULT_BASE_URL,
     DEFAULT_ANALYSIS_MODEL,
-    DEFAULT_ORGANIZER_MODEL
+    DEFAULT_ORGANIZER_MODEL,
 )
+from file_organizer.shared.logging_utils import BACKEND_LOG_DIR, DEBUG_LOG_PATH, RUNTIME_LOG_PATH
 
 ENV_PATH = PROJECT_ROOT / ".env"
 
@@ -77,20 +78,24 @@ def create_image_analysis_client() -> OpenAI:
     settings = get_image_analysis_settings()
     if not settings["enabled"]:
         raise ValueError("未启用图片分析配置")
+    if not settings["base_url"]:
+        raise ValueError("缺少必要配置: IMAGE_ANALYSIS_BASE_URL")
     if not settings["api_key"]:
         raise ValueError("缺少必要配置: IMAGE_ANALYSIS_API_KEY")
+    if not settings["model"]:
+        raise ValueError("缺少必要配置: IMAGE_ANALYSIS_MODEL")
 
     return OpenAI(
         api_key=settings["api_key"],
-        base_url=settings["base_url"] or DEFAULT_BASE_URL,
+        base_url=settings["base_url"],
         default_headers=_SPOOF_HEADERS,
     )
 
 
 def get_model_names() -> tuple[str, str]:
     return (
-        config_manager.get("OPENAI_ANALYSIS_MODEL", DEFAULT_ANALYSIS_MODEL),
-        config_manager.get("OPENAI_ORGANIZER_MODEL", DEFAULT_ORGANIZER_MODEL)
+        config_manager.get("OPENAI_MODEL", DEFAULT_ANALYSIS_MODEL),
+        config_manager.get("OPENAI_MODEL", DEFAULT_ORGANIZER_MODEL),
     )
 
 ANALYSIS_MODEL_NAME, ORGANIZER_MODEL_NAME = get_model_names()
@@ -108,3 +113,4 @@ OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 HISTORY_DIR.mkdir(parents=True, exist_ok=True)
 EXECUTION_LOG_DIR.mkdir(parents=True, exist_ok=True)
 RUNTIME_DIR.mkdir(parents=True, exist_ok=True)
+BACKEND_LOG_DIR.mkdir(parents=True, exist_ok=True)

@@ -14,6 +14,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from file_organizer.app.session_service import OrganizerSessionService
 from file_organizer.app.session_store import SessionStore
+from file_organizer.shared.logging_utils import setup_backend_logging
 
 logger = logging.getLogger(__name__)
 
@@ -42,11 +43,13 @@ class OpenDirPayload(BaseModel):
     path: str | None = None
 
 
-class ConfigSwitchPayload(BaseModel):
+class PresetSwitchPayload(BaseModel):
+    preset_type: str
     id: str
 
 
-class AddProfilePayload(BaseModel):
+class AddPresetPayload(BaseModel):
+    preset_type: str
     name: str
     copy_profile: bool = Field(default=True, alias="copy")
 
@@ -54,6 +57,10 @@ class AddProfilePayload(BaseModel):
 class LlmTestPayload(BaseModel):
     model_config = ConfigDict(extra="allow")
     test_type: str = "text"
+
+
+def _is_masked_secret(value: Any) -> bool:
+    return isinstance(value, str) and value and (value == "********" or "..." in value)
 
 
 def _error_response(service: OrganizerSessionService, session_id: str | None, error_code: str, status_code: int):
@@ -81,6 +88,7 @@ def _get_request_token(request: Request) -> str:
 
 
 def create_app(service: OrganizerSessionService | None = None) -> FastAPI:
+    setup_backend_logging()
     app = FastAPI(title="File Organizer Desktop API")
     app.state.service = service or OrganizerSessionService(SessionStore(Path("output/sessions")))
     app.add_middleware(
@@ -387,11 +395,7 @@ def create_app(service: OrganizerSessionService | None = None) -> FastAPI:
     @app.get("/api/utils/config")
     def get_config():
         from file_organizer.shared.config_manager import config_manager
-        return {
-            "active_id": config_manager.get_active_id(),
-            "config": config_manager.get_active_config(mask_secrets=True),
-            "profiles": config_manager.list_profiles()
-        }
+        return config_manager.get_config_payload(mask_secrets=True)
 
     @app.post("/api/utils/config")
     def update_config(payload: dict):
@@ -399,22 +403,22 @@ def create_app(service: OrganizerSessionService | None = None) -> FastAPI:
         config_manager.update_active_profile(payload)
         return {"status": "ok"}
 
-    @app.post("/api/utils/config/switch")
-    def switch_config(payload: ConfigSwitchPayload):
+    @app.post("/api/utils/config/presets/switch")
+    def switch_config(payload: PresetSwitchPayload):
         from file_organizer.shared.config_manager import config_manager
-        config_manager.switch_profile(payload.id)
-        return {"status": "ok", "active_id": config_manager.get_active_id()}
+        config_manager.switch_preset(payload.preset_type, payload.id)
+        return {"status": "ok"}
 
-    @app.post("/api/utils/config/profiles")
-    def add_profile(payload: AddProfilePayload):
+    @app.post("/api/utils/config/presets")
+    def add_profile(payload: AddPresetPayload):
         from file_organizer.shared.config_manager import config_manager
-        new_id = config_manager.add_profile(payload.name, copy_from_active=payload.copy_profile)
+        new_id = config_manager.add_preset(payload.preset_type, payload.name, copy_from_active=payload.copy_profile)
         return {"status": "ok", "id": new_id}
 
-    @app.delete("/api/utils/config/profiles/{profile_id}")
-    def delete_profile(profile_id: str):
+    @app.delete("/api/utils/config/presets/{preset_type}/{preset_id}")
+    def delete_profile(preset_type: str, preset_id: str):
         from file_organizer.shared.config_manager import config_manager
-        config_manager.delete_profile(profile_id)
+        config_manager.delete_preset(preset_type, preset_id)
         return {"status": "ok"}
 
     @app.post("/api/utils/test-llm")
@@ -428,19 +432,30 @@ def create_app(service: OrganizerSessionService | None = None) -> FastAPI:
         if test_type == "vision":
             api_key = raw_payload.get("IMAGE_ANALYSIS_API_KEY")
             base_url = raw_payload.get("IMAGE_ANALYSIS_BASE_URL")
-            if api_key and api_key.startswith("sk-") and "..." in api_key:
+            model = raw_payload.get("IMAGE_ANALYSIS_MODEL")
+            if _is_masked_secret(api_key):
                 api_key = config_manager.get("IMAGE_ANALYSIS_API_KEY")
-            if not base_url:
-                base_url = raw_payload.get("OPENAI_BASE_URL")
-            if not api_key:
-                api_key = raw_payload.get("OPENAI_API_KEY")
-                if api_key and api_key.startswith("sk-") and "..." in api_key:
-                    api_key = config_manager.get("OPENAI_API_KEY")
+            if not raw_payload.get("IMAGE_ANALYSIS_ENABLED"):
+                return JSONResponse(
+                    status_code=400,
+                    content={"status": "error", "message": "图片理解未开启"},
+                )
+            if not base_url or not model or not api_key:
+                return JSONResponse(
+                    status_code=400,
+                    content={"status": "error", "message": "图片模型需要完整填写接口地址、模型 ID 和 API 密钥"},
+                )
         else:
             api_key = raw_payload.get("OPENAI_API_KEY")
             base_url = raw_payload.get("OPENAI_BASE_URL")
-            if api_key and api_key.startswith("sk-") and "..." in api_key:
+            model = raw_payload.get("OPENAI_MODEL")
+            if _is_masked_secret(api_key):
                 api_key = config_manager.get("OPENAI_API_KEY")
+            if not base_url or not model or not api_key:
+                return JSONResponse(
+                    status_code=400,
+                    content={"status": "error", "message": "文本模型需要完整填写接口地址、模型 ID 和 API 密钥"},
+                )
 
         try:
             client = OpenAI(api_key=api_key, base_url=base_url)

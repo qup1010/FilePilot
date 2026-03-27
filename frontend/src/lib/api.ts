@@ -65,9 +65,9 @@ export interface ApiClient {
   deleteHistoryEntry(entry_id: string): Promise<{ status: string; entry_id: string; entry_type: string }>;
   getConfig(): Promise<AppConfig>;
   updateConfig(config: Record<string, any>): Promise<{ status: string }>;
-  switchProfile(id: string): Promise<{ status: string; active_id: string }>;
-  addProfile(name: string, copy?: boolean): Promise<{ status: string; id: string }>;
-  deleteProfile(id: string): Promise<{ status: string }>;
+  switchPreset(preset_type: "text" | "vision", id: string): Promise<{ status: string }>;
+  addPreset(preset_type: "text" | "vision", name: string, copy?: boolean): Promise<{ status: string; id: string }>;
+  deletePreset(preset_type: "text" | "vision", id: string): Promise<{ status: string }>;
   testLlm(payload: { test_type: "text" | "vision"; [key: string]: any }): Promise<{ status: string; message: string }>;
 }
 
@@ -224,24 +224,24 @@ export function createApiClient(baseUrl: string, apiToken?: string): ApiClient {
       });
       return parseResponse<{ status: string }>(response);
     },
-    async switchProfile(id) {
-      const response = await fetch(joinUrl(baseUrl, "/api/utils/config/switch"), {
+    async switchPreset(preset_type, id) {
+      const response = await fetch(joinUrl(baseUrl, "/api/utils/config/presets/switch"), {
         method: "POST",
         headers: buildAuthHeaders(apiToken, { "Content-Type": "application/json" }),
-        body: JSON.stringify({ id }),
+        body: JSON.stringify({ preset_type, id }),
       });
-      return parseResponse<{ status: string; active_id: string }>(response);
+      return parseResponse<{ status: string }>(response);
     },
-    async addProfile(name, copy = true) {
-      const response = await fetch(joinUrl(baseUrl, "/api/utils/config/profiles"), {
+    async addPreset(preset_type, name, copy = true) {
+      const response = await fetch(joinUrl(baseUrl, "/api/utils/config/presets"), {
         method: "POST",
         headers: buildAuthHeaders(apiToken, { "Content-Type": "application/json" }),
-        body: JSON.stringify({ name, copy }),
+        body: JSON.stringify({ preset_type, name, copy }),
       });
       return parseResponse<{ status: string; id: string }>(response);
     },
-    async deleteProfile(id) {
-      const response = await fetch(joinUrl(baseUrl, `/api/utils/config/profiles/${id}`), {
+    async deletePreset(preset_type, id) {
+      const response = await fetch(joinUrl(baseUrl, `/api/utils/config/presets/${preset_type}/${id}`), {
         method: "DELETE",
         headers: buildAuthHeaders(apiToken),
       });

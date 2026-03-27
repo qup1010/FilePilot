@@ -1,14 +1,27 @@
 {
-  "active_profile_id": "default",
-  "profiles": {
+  "global_config": {
+    "LAUNCH_DEFAULT_CAUTION_LEVEL": "balanced",
+    "LAUNCH_DEFAULT_NOTE": "",
+    "LAUNCH_SKIP_STRATEGY_PROMPT": false,
+    "IMAGE_ANALYSIS_ENABLED": true,
+    "LAUNCH_DEFAULT_TEMPLATE_ID": "general_downloads",
+    "LAUNCH_DEFAULT_NAMING_STYLE": "zh",
+    "DEBUG_MODE": false
+  },
+  "text_presets": {
     "default": {
       "name": "默认配置",
       "OPENAI_BASE_URL": "https://ai.qaq.al/v1",
-      "OPENAI_MODEL": "gpt-5.2",
-      "IMAGE_ANALYSIS_ENABLED": true,
-      "IMAGE_ANALYSIS_BASE_URL": "https://ai.qaq.al/v1",
-      "IMAGE_ANALYSIS_MODEL": "gpt-5.2",
-      "DEBUG_MODE": false
+      "OPENAI_MODEL": "gpt-5.2"
     }
-  }
+  },
+  "vision_presets": {
+    "default": {
+      "name": "默认图片模型",
+      "IMAGE_ANALYSIS_BASE_URL": "https://ai.qaq.al/v1",
+      "IMAGE_ANALYSIS_MODEL": "gpt-5.2"
+    }
+  },
+  "active_text_preset_id": "default",
+  "active_vision_preset_id": "default"
 }

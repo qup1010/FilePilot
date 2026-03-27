@@ -8,7 +8,7 @@ from unittest import mock
 from file_organizer.shared import config_manager as config_module
 
 
-class ConfigManagerSecretPersistenceTests(unittest.TestCase):
+class ConfigManagerPresetTests(unittest.TestCase):
     def setUp(self):
         self.root = Path("test_temp_config_manager")
         if self.root.exists():
@@ -23,7 +23,7 @@ class ConfigManagerSecretPersistenceTests(unittest.TestCase):
         if self.root.exists():
             shutil.rmtree(self.root)
 
-    def test_sync_from_legacy_env_does_not_persist_secret_values_to_config_json(self):
+    def test_sync_from_legacy_env_does_not_persist_secret_values(self):
         with mock.patch.dict(
             os.environ,
             {
@@ -37,83 +37,53 @@ class ConfigManagerSecretPersistenceTests(unittest.TestCase):
             manager = config_module.ConfigManager()
 
         payload = json.loads(self.config_path.read_text(encoding="utf-8"))
-        profile = payload["profiles"][payload["active_profile_id"]]
+        text_preset = payload["text_presets"]["default"]
+        vision_preset = payload["vision_presets"]["default"]
 
-        self.assertNotIn("OPENAI_API_KEY", profile)
-        self.assertNotIn("IMAGE_ANALYSIS_API_KEY", profile)
-        self.assertEqual(profile["OPENAI_BASE_URL"], "https://example.invalid/v1")
-        self.assertTrue(profile["IMAGE_ANALYSIS_ENABLED"])
+        self.assertNotIn("OPENAI_API_KEY", text_preset)
+        self.assertNotIn("IMAGE_ANALYSIS_API_KEY", vision_preset)
+        self.assertEqual(text_preset["OPENAI_BASE_URL"], "https://example.invalid/v1")
+        self.assertTrue(payload["global_config"]["IMAGE_ANALYSIS_ENABLED"])
         self.assertEqual(manager.get("OPENAI_API_KEY"), "test-openai-secret")
         self.assertEqual(manager.get("IMAGE_ANALYSIS_API_KEY"), "test-image-secret")
 
-    def test_update_active_profile_keeps_secret_in_runtime_but_not_on_disk(self):
+    def test_update_active_profile_updates_active_text_and_vision_presets(self):
         manager = config_module.ConfigManager()
 
         manager.update_active_profile(
             {
-                "OPENAI_API_KEY": "runtime-openai-secret",
-                "IMAGE_ANALYSIS_API_KEY": "runtime-image-secret",
+                "name": "OpenAI 主链路",
                 "OPENAI_BASE_URL": "https://runtime.invalid/v1",
+                "OPENAI_MODEL": "gpt-5.2",
+                "OPENAI_API_KEY": "runtime-openai-secret",
+                "IMAGE_ANALYSIS_NAME": "图片专用",
+                "IMAGE_ANALYSIS_BASE_URL": "https://vision.invalid/v1",
+                "IMAGE_ANALYSIS_MODEL": "gpt-4o",
+                "IMAGE_ANALYSIS_API_KEY": "runtime-image-secret",
                 "DEBUG_MODE": True,
             }
         )
 
         payload = json.loads(self.config_path.read_text(encoding="utf-8"))
-        profile = payload["profiles"][payload["active_profile_id"]]
-
-        self.assertNotIn("OPENAI_API_KEY", profile)
-        self.assertNotIn("IMAGE_ANALYSIS_API_KEY", profile)
-        self.assertEqual(profile["OPENAI_BASE_URL"], "https://runtime.invalid/v1")
-        self.assertTrue(profile["DEBUG_MODE"])
+        self.assertEqual(payload["text_presets"]["default"]["name"], "OpenAI 主链路")
+        self.assertEqual(payload["vision_presets"]["default"]["name"], "图片专用")
+        self.assertEqual(payload["vision_presets"]["default"]["IMAGE_ANALYSIS_NAME"], "图片专用")
+        self.assertEqual(payload["global_config"]["DEBUG_MODE"], True)
         self.assertEqual(manager.get("OPENAI_API_KEY"), "runtime-openai-secret")
         self.assertEqual(manager.get("IMAGE_ANALYSIS_API_KEY"), "runtime-image-secret")
 
-    def test_existing_config_keeps_runtime_secret_from_environment(self):
+    def test_legacy_single_config_is_migrated_to_dual_presets(self):
         self.config_path.write_text(
             json.dumps(
                 {
-                    "active_profile_id": "default",
-                    "profiles": {
-                        "default": {
-                            "name": "默认配置",
-                            "OPENAI_BASE_URL": "https://persisted.invalid/v1",
-                            "OPENAI_MODEL": "persisted-model"
-                        }
-                    },
-                },
-                ensure_ascii=False,
-            ),
-            encoding="utf-8",
-        )
-
-        with mock.patch.dict(
-            os.environ,
-            {
-                "OPENAI_API_KEY": "env-openai-secret",
-                "IMAGE_ANALYSIS_API_KEY": "env-image-secret",
-            },
-            clear=False,
-        ):
-            manager = config_module.ConfigManager()
-
-        active = manager.get_active_config(mask_secrets=False)
-        self.assertEqual(active["OPENAI_API_KEY"], "env-openai-secret")
-        self.assertEqual(active["IMAGE_ANALYSIS_API_KEY"], "env-image-secret")
-        self.assertEqual(active["OPENAI_BASE_URL"], "https://persisted.invalid/v1")
-        self.assertEqual(active["OPENAI_MODEL"], "persisted-model")
-
-    def test_load_from_file_migrates_legacy_openai_analysis_model(self):
-        self.config_path.write_text(
-            json.dumps(
-                {
-                    "active_profile_id": "default",
-                    "profiles": {
-                        "default": {
-                            "name": "默认配置",
-                            "OPENAI_BASE_URL": "https://legacy.invalid/v1",
-                            "OPENAI_ANALYSIS_MODEL": "legacy-analysis-model",
-                        }
-                    },
+                    "config": {
+                        "name": "旧文本",
+                        "OPENAI_BASE_URL": "https://persisted.invalid/v1",
+                        "OPENAI_MODEL": "persisted-model",
+                        "IMAGE_ANALYSIS_NAME": "旧图片",
+                        "IMAGE_ANALYSIS_BASE_URL": "https://vision.invalid/v1",
+                        "IMAGE_ANALYSIS_MODEL": "vision-model",
+                    }
                 },
                 ensure_ascii=False,
             ),
@@ -121,65 +91,103 @@ class ConfigManagerSecretPersistenceTests(unittest.TestCase):
         )
 
         manager = config_module.ConfigManager()
-
-        active = manager.get_active_config(mask_secrets=False)
         payload = json.loads(self.config_path.read_text(encoding="utf-8"))
-        profile = payload["profiles"][payload["active_profile_id"]]
+        active = manager.get_active_config(mask_secrets=False)
 
-        self.assertEqual(active["OPENAI_MODEL"], "legacy-analysis-model")
-        self.assertEqual(profile["OPENAI_MODEL"], "legacy-analysis-model")
-        self.assertNotIn("OPENAI_ANALYSIS_MODEL", profile)
+        self.assertEqual(active["name"], "旧文本")
+        self.assertEqual(active["IMAGE_ANALYSIS_NAME"], "旧图片")
+        self.assertEqual(payload["text_presets"]["default"]["OPENAI_MODEL"], "persisted-model")
+        self.assertEqual(payload["vision_presets"]["default"]["IMAGE_ANALYSIS_MODEL"], "vision-model")
 
-    def test_update_active_profile_ignores_unknown_keys(self):
+    def test_legacy_profiles_file_is_flattened_to_active_dual_presets(self):
+        self.config_path.write_text(
+            json.dumps(
+                {
+                    "active_profile_id": "work",
+                    "profiles": {
+                        "default": {"name": "默认配置", "OPENAI_MODEL": "default-model"},
+                        "work": {
+                            "name": "工作文本",
+                            "OPENAI_MODEL": "work-model",
+                            "IMAGE_ANALYSIS_NAME": "工作图片",
+                            "IMAGE_ANALYSIS_MODEL": "work-vision",
+                            "LAUNCH_DEFAULT_NOTE": "工作目录",
+                        },
+                    },
+                },
+                ensure_ascii=False,
+            ),
+            encoding="utf-8",
+        )
+
         manager = config_module.ConfigManager()
-
-        manager.update_active_profile({
-            "OPENAI_BASE_URL": "https://allowed.invalid/v1",
-            "UNEXPECTED_KEY": "boom",
-        })
-
-        active = manager.get_active_config(mask_secrets=False)
         payload = json.loads(self.config_path.read_text(encoding="utf-8"))
-        profile = payload["profiles"][payload["active_profile_id"]]
+        active = manager.get_active_config(mask_secrets=False)
 
-        self.assertEqual(active["OPENAI_BASE_URL"], "https://allowed.invalid/v1")
-        self.assertNotIn("UNEXPECTED_KEY", active)
-        self.assertNotIn("UNEXPECTED_KEY", profile)
-        self.assertNotIn("UNEXPECTED_KEY", os.environ)
+        self.assertEqual(active["name"], "工作文本")
+        self.assertEqual(active["OPENAI_MODEL"], "work-model")
+        self.assertEqual(active["IMAGE_ANALYSIS_NAME"], "工作图片")
+        self.assertEqual(active["LAUNCH_DEFAULT_NOTE"], "工作目录")
+        self.assertEqual(payload["text_presets"]["default"]["OPENAI_MODEL"], "work-model")
+        self.assertEqual(payload["vision_presets"]["default"]["IMAGE_ANALYSIS_MODEL"], "work-vision")
 
-    def test_update_active_profile_allows_clearing_secret_fields(self):
+    def test_add_switch_delete_text_preset_are_independent(self):
+        manager = config_module.ConfigManager()
+        manager.update_active_profile({"OPENAI_MODEL": "gpt-5.2", "OPENAI_API_KEY": "secret-a"})
+
+        new_id = manager.add_preset("text", "Anthropic 兼容", copy_from_active=True)
+        manager.update_active_profile({"OPENAI_MODEL": "claude-compatible"})
+
+        manager.switch_preset("text", "default")
+        active = manager.get_active_config(mask_secrets=False)
+
+        self.assertEqual(active["OPENAI_MODEL"], "gpt-5.2")
+
+        manager.delete_preset("text", new_id)
+        payload = json.loads(self.config_path.read_text(encoding="utf-8"))
+        self.assertNotIn(new_id, payload["text_presets"])
+
+    def test_add_switch_delete_vision_preset_are_independent(self):
         manager = config_module.ConfigManager()
         manager.update_active_profile(
             {
-                "OPENAI_API_KEY": "runtime-openai-secret",
-                "IMAGE_ANALYSIS_API_KEY": "runtime-image-secret",
+                "IMAGE_ANALYSIS_NAME": "默认图片",
+                "IMAGE_ANALYSIS_BASE_URL": "https://vision-a.invalid/v1",
+                "IMAGE_ANALYSIS_MODEL": "vision-a",
+                "IMAGE_ANALYSIS_API_KEY": "secret-a",
             }
         )
 
-        manager.update_active_profile(
-            {
-                "OPENAI_API_KEY": "",
-                "IMAGE_ANALYSIS_API_KEY": "",
-            }
-        )
+        new_id = manager.add_preset("vision", "Qwen Vision", copy_from_active=True)
+        manager.update_active_profile({"IMAGE_ANALYSIS_NAME": "Qwen Vision", "IMAGE_ANALYSIS_MODEL": "qwen-vl"})
 
+        manager.switch_preset("vision", "default")
         active = manager.get_active_config(mask_secrets=False)
 
-        self.assertEqual(active["OPENAI_API_KEY"], "")
-        self.assertEqual(active["IMAGE_ANALYSIS_API_KEY"], "")
-        self.assertEqual(os.environ.get("OPENAI_API_KEY"), "")
-        self.assertEqual(os.environ.get("IMAGE_ANALYSIS_API_KEY"), "")
+        self.assertEqual(active["IMAGE_ANALYSIS_MODEL"], "vision-a")
 
-    def test_switch_profile_does_not_inherit_previous_profile_runtime_secret(self):
+        manager.delete_preset("vision", new_id)
+        payload = json.loads(self.config_path.read_text(encoding="utf-8"))
+        self.assertNotIn(new_id, payload["vision_presets"])
+
+    def test_default_config_includes_launch_defaults(self):
         manager = config_module.ConfigManager()
-        manager.update_active_profile({"OPENAI_API_KEY": "default-secret"})
-        new_id = manager.add_profile("empty-profile", copy_from_active=False)
-
-        manager.switch_profile(new_id)
-
         active = manager.get_active_config(mask_secrets=False)
-        self.assertEqual(active["OPENAI_API_KEY"], "")
-        self.assertEqual(os.environ.get("OPENAI_API_KEY"), "")
+
+        self.assertEqual(active["LAUNCH_DEFAULT_TEMPLATE_ID"], "general_downloads")
+        self.assertEqual(active["LAUNCH_DEFAULT_NAMING_STYLE"], "zh")
+        self.assertEqual(active["LAUNCH_DEFAULT_CAUTION_LEVEL"], "balanced")
+        self.assertEqual(active["LAUNCH_DEFAULT_NOTE"], "")
+        self.assertFalse(active["LAUNCH_SKIP_STRATEGY_PROMPT"])
+
+    def test_get_config_payload_returns_dual_preset_metadata(self):
+        manager = config_module.ConfigManager()
+        payload = manager.get_config_payload(mask_secrets=True)
+
+        self.assertIn("text_presets", payload)
+        self.assertIn("vision_presets", payload)
+        self.assertEqual(payload["active_text_preset_id"], "default")
+        self.assertEqual(payload["active_vision_preset_id"], "default")
 
 
 if __name__ == "__main__":

@@ -124,7 +124,7 @@ class StructuredOrganizerServiceTests(unittest.TestCase):
             )
 
         self.assertEqual(content, "")
-        self.assertIs(result["pending_plan"], current_plan)
+        self.assertEqual(result["pending_plan"], current_plan)
         self.assertEqual(result["unresolved_request"]["request_id"], "req_1")
         self.assertEqual(result["assistant_message"]["blocks"][0]["type"], "unresolved_choices")
         self.assertEqual(result["assistant_message"]["blocks"][0]["items"][0]["suggested_folders"], ["学习资料", "截图记录"])
@@ -302,9 +302,11 @@ class StructuredOrganizerServiceTests(unittest.TestCase):
             shutil.rmtree(runtime_dir)
         runtime_dir.mkdir(parents=True, exist_ok=True)
         debug_log = runtime_dir / "debug_prompt.json"
+        debug_jsonl = runtime_dir / "backend-debug.jsonl"
         try:
             with mock.patch.object(organizer_service, "create_openai_client", return_value=client), \
                  mock.patch("file_organizer.shared.config.RUNTIME_DIR", runtime_dir), \
+                 mock.patch("file_organizer.shared.logging_utils.DEBUG_LOG_PATH", debug_jsonl), \
                  mock.patch(
                      "file_organizer.shared.config.config_manager.get",
                      side_effect=lambda key, default=None: True if key == "DEBUG_MODE" else default,
@@ -315,6 +317,7 @@ class StructuredOrganizerServiceTests(unittest.TestCase):
                 )
 
             history = json.loads(debug_log.read_text(encoding="utf-8"))
+            debug_lines = [json.loads(line) for line in debug_jsonl.read_text(encoding="utf-8").splitlines() if line.strip()]
         finally:
             if runtime_dir.exists():
                 shutil.rmtree(runtime_dir)
@@ -324,6 +327,8 @@ class StructuredOrganizerServiceTests(unittest.TestCase):
         self.assertFalse(history[-1]["response"]["synthetic_content_used"])
         self.assertEqual(history[-1]["response"]["chunks"][0]["delta_content"], "先说明")
         self.assertEqual(history[-1]["response"]["chunks"][1]["finish_reason"], "tool_calls")
+        self.assertIn("organizer.request", [entry["kind"] for entry in debug_lines])
+        self.assertIn("organizer.response", [entry["kind"] for entry in debug_lines])
 
     def test_chat_one_round_can_disable_stream_and_record_response_mode(self):
         response = SimpleNamespace(
@@ -338,9 +343,11 @@ class StructuredOrganizerServiceTests(unittest.TestCase):
             shutil.rmtree(runtime_dir)
         runtime_dir.mkdir(parents=True, exist_ok=True)
         debug_log = runtime_dir / "debug_prompt.json"
+        debug_jsonl = runtime_dir / "backend-debug.jsonl"
         try:
             with mock.patch.object(organizer_service, "create_openai_client", return_value=client), \
                  mock.patch("file_organizer.shared.config.RUNTIME_DIR", runtime_dir), \
+                 mock.patch("file_organizer.shared.logging_utils.DEBUG_LOG_PATH", debug_jsonl), \
                  mock.patch(
                      "file_organizer.shared.config.config_manager.get",
                      side_effect=lambda key, default=None: True if key == "DEBUG_MODE" else default,
@@ -352,6 +359,7 @@ class StructuredOrganizerServiceTests(unittest.TestCase):
                 )
 
             history = json.loads(debug_log.read_text(encoding="utf-8"))
+            debug_lines = [json.loads(line) for line in debug_jsonl.read_text(encoding="utf-8").splitlines() if line.strip()]
         finally:
             if runtime_dir.exists():
                 shutil.rmtree(runtime_dir)
@@ -360,9 +368,9 @@ class StructuredOrganizerServiceTests(unittest.TestCase):
         self.assertEqual(history[-1]["request_meta"]["stream"], False)
         self.assertEqual(history[-1]["response"]["response_mode"], "non_stream")
         self.assertEqual(history[-1]["response"]["raw_response"]["id"], "resp_123")
+        self.assertIn("organizer.request", [entry["kind"] for entry in debug_lines])
+        self.assertIn("organizer.response", [entry["kind"] for entry in debug_lines])
 
 
 if __name__ == "__main__":
     unittest.main()
-
-
