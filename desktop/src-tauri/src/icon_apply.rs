@@ -7,6 +7,7 @@ use std::process::Command;
 
 use image::ImageFormat;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 
 use crate::desktop_ini;
 
@@ -28,7 +29,8 @@ struct IconBackupManifest {
 #[tauri::command]
 pub fn apply_folder_icon(folder_path: String, image_path: String) -> Result<String, String> {
     ensure_windows()?;
-    apply_folder_icon_impl(&folder_path, &image_path)?;
+    let save_mode = load_configured_save_mode();
+    apply_folder_icon_impl(&folder_path, &image_path, &save_mode)?;
     Ok(format!("已将图标应用到文件夹: {}", folder_path))
 }
 
@@ -140,6 +142,29 @@ fn ensure_windows() -> Result<(), String> {
         Ok(())
     } else {
         Err("文件夹图标应用仅支持 Windows 桌面壳。".to_string())
+    }
+}
+
+fn load_configured_save_mode() -> String {
+    let Some(project_root) = Path::new(env!("CARGO_MANIFEST_DIR")).ancestors().nth(2) else {
+        return "centralized".to_string();
+    };
+
+    let config_path = project_root.join("output").join("icon_workbench").join("config.json");
+    let Ok(raw) = fs::read_to_string(config_path) else {
+        return "centralized".to_string();
+    };
+    let Ok(payload) = serde_json::from_str::<Value>(&raw) else {
+        return "centralized".to_string();
+    };
+    let Some(mode) = payload.get("save_mode").and_then(|value| value.as_str()) else {
+        return "centralized".to_string();
+    };
+
+    match mode.trim().to_ascii_lowercase().as_str() {
+        "in_folder" => "in_folder".to_string(),
+        "centralized" => "centralized".to_string(),
+        _ => "centralized".to_string(),
     }
 }
 

@@ -1,7 +1,6 @@
 use base64::{engine::general_purpose::STANDARD, Engine};
 use once_cell::sync::Lazy;
 use reqwest::{multipart, Client};
-use serde::Deserialize;
 use serde_json::{json, Value};
 use std::fs;
 use std::path::Path;
@@ -64,7 +63,7 @@ impl BgRemovalClient {
 
         let mut request = client.post(&upload_url).multipart(form);
         if let Some(token) = api_token {
-            if (!token.is_empty()) {
+            if !token.is_empty() {
                 request = request.header("Authorization", format!("Bearer {}", token));
             }
         }
