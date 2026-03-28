@@ -41,6 +41,7 @@
   --radius-lg: 8px;
   --radius-xl: 10px;
   --radius-2xl: 12px;
+  --radius-panel: 14px;
 }
 
 @layer base {
@@ -57,6 +58,7 @@
     --primary: #4d6357;
     --primary-dim: #42574c;
     --primary-container: #d9e3db;
+    --primary-rgb: 77 99 87;
 
     --on-surface: #252d28;
     --on-surface-variant: #646a63;
@@ -82,6 +84,7 @@
     --primary: #8fb3d1;
     --primary-dim: #7aa0c0;
     --primary-container: #2d455a;
+    --primary-rgb: 143 179 209;
     
     --on-surface: #e0e0e0;
     --on-surface-variant: #b0b0b0;
@@ -99,8 +102,8 @@
   body {
     @apply bg-surface text-on-surface font-sans antialiased;
     background-image:
-      radial-gradient(circle at top left, rgba(77, 99, 87, 0.045), transparent 34%),
-      linear-gradient(180deg, rgba(255, 255, 255, 0.28), rgba(255, 255, 255, 0));
+      radial-gradient(circle at top left, rgba(77, 99, 87, 0.042), transparent 30%),
+      linear-gradient(180deg, rgba(255, 255, 255, 0.34), rgba(255, 255, 255, 0));
   }
   
   h1, h2, h3, h4 {
@@ -139,6 +142,10 @@
   color: color-mix(in srgb, var(--on-surface-variant) 84%, transparent);
 }
 
+.text-ui-subtle {
+  color: color-mix(in srgb, var(--on-surface-variant) 72%, transparent);
+}
+
 .glass-surface {
   background: color-mix(in srgb, var(--surface-container-lowest) 92%, var(--surface) 8%);
   backdrop-filter: blur(8px);
@@ -146,6 +153,102 @@
 
 .dark .glass-surface {
   background: rgba(0, 0, 0, 0.7);
+}
+
+.ui-page {
+  width: 100%;
+  max-width: 1360px;
+  margin: 0 auto;
+  padding: 16px;
+}
+
+.ui-page-header {
+  border: 1px solid color-mix(in srgb, var(--on-surface) 7%, transparent);
+  background: color-mix(in srgb, var(--surface-container-lowest) 94%, white 6%);
+  border-radius: var(--radius-panel);
+  box-shadow: 0 10px 26px rgba(36, 48, 42, 0.05);
+}
+
+.ui-panel {
+  border: 1px solid color-mix(in srgb, var(--on-surface) 7%, transparent);
+  background: color-mix(in srgb, var(--surface-container-lowest) 96%, white 4%);
+  border-radius: var(--radius-panel);
+  box-shadow: 0 10px 28px rgba(36, 48, 42, 0.05);
+}
+
+.ui-panel-muted {
+  border: 1px solid color-mix(in srgb, var(--on-surface) 6%, transparent);
+  background: color-mix(in srgb, var(--surface-container-low) 70%, var(--surface-container-lowest) 30%);
+  border-radius: 12px;
+}
+
+.ui-panel-elevated {
+  border: 1px solid color-mix(in srgb, var(--on-surface) 8%, transparent);
+  background: color-mix(in srgb, var(--surface-container-lowest) 92%, white 8%);
+  border-radius: var(--radius-panel);
+  box-shadow: 0 18px 44px rgba(36, 48, 42, 0.09);
+}
+
+.ui-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--primary) 16%, transparent);
+  background: color-mix(in srgb, var(--primary) 8%, transparent);
+  color: var(--primary);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.ui-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--on-surface) 8%, transparent);
+  background: color-mix(in srgb, var(--surface-container-lowest) 90%, white 10%);
+  color: color-mix(in srgb, var(--on-surface-variant) 90%, transparent);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.ui-field-shell {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid color-mix(in srgb, var(--on-surface) 8%, transparent);
+  background: color-mix(in srgb, var(--surface-container-lowest) 96%, white 4%);
+  border-radius: 12px;
+  transition: border-color 180ms ease, box-shadow 180ms ease, background-color 180ms ease;
+}
+
+.ui-field-shell:focus-within {
+  border-color: color-mix(in srgb, var(--primary) 28%, transparent);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--primary) 8%, transparent);
+  background: white;
+}
+
+.ui-metric {
+  border: 1px solid color-mix(in srgb, var(--on-surface) 6%, transparent);
+  background: color-mix(in srgb, var(--surface-container-lowest) 97%, white 3%);
+  border-radius: 12px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45);
+}
+
+.ui-dialog-backdrop {
+  background: rgba(20, 24, 22, 0.16);
+  backdrop-filter: blur(8px);
+}
+
+.ui-dialog {
+  border: 1px solid color-mix(in srgb, var(--on-surface) 8%, transparent);
+  background: color-mix(in srgb, var(--surface-container-lowest) 96%, white 4%);
+  border-radius: 14px;
+  box-shadow: 0 24px 68px rgba(20, 24, 22, 0.14);
 }
 
 /* Scrollbar styles for consistent UI */
@@ -160,4 +263,10 @@
   background-color: var(--outline-variant);
   border-radius: 20px;
   opacity: 0.3;
+}
+
+@media (min-width: 640px) {
+  .ui-page {
+    padding: 20px;
+  }
 }

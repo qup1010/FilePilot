@@ -41,6 +41,7 @@ class IconWorkbenchConfig:
     image_model: ModelConfig = field(default_factory=ModelConfig)
     image_size: str = "1024x1024"
     concurrency_limit: int = 1
+    save_mode: str = "centralized"  # "in_folder" | "centralized"
 
     @classmethod
     def from_dict(cls, payload: dict[str, Any] | None) -> "IconWorkbenchConfig":
@@ -56,6 +57,7 @@ class IconWorkbenchConfig:
             image_model=ModelConfig.from_dict(data.get("image_model")),
             image_size=str(data.get("image_size", "1024x1024") or "1024x1024").strip() or "1024x1024",
             concurrency_limit=max(1, min(parsed_limit, 6)),
+            save_mode=str(data.get("save_mode", "centralized") or "centralized").strip().lower() or "centralized",
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -64,6 +66,7 @@ class IconWorkbenchConfig:
             "image_model": self.image_model.to_dict(),
             "image_size": self.image_size,
             "concurrency_limit": self.concurrency_limit,
+            "save_mode": self.save_mode,
         }
 
 
@@ -73,6 +76,7 @@ class IconTemplate:
     name: str
     description: str
     prompt_template: str
+    cover_image: str | None = None
     is_builtin: bool = False
     created_at: str = field(default_factory=utc_now_iso)
     updated_at: str = field(default_factory=utc_now_iso)
@@ -84,6 +88,7 @@ class IconTemplate:
             name=str(payload.get("name", "") or ""),
             description=str(payload.get("description", "") or ""),
             prompt_template=str(payload.get("prompt_template", "") or ""),
+            cover_image=payload.get("cover_image"),
             is_builtin=bool(payload.get("is_builtin", False)),
             created_at=str(payload.get("created_at", "") or utc_now_iso()),
             updated_at=str(payload.get("updated_at", "") or utc_now_iso()),
@@ -95,6 +100,7 @@ class IconTemplate:
             "name": self.name,
             "description": self.description,
             "prompt_template": self.prompt_template,
+            "cover_image": self.cover_image,
             "is_builtin": self.is_builtin,
             "created_at": self.created_at,
             "updated_at": self.updated_at,
@@ -307,7 +313,7 @@ class FolderIconCandidate:
 @dataclass
 class IconWorkbenchSession:
     session_id: str
-    parent_dir: str
+    target_paths: list[str] = field(default_factory=list)
     folders: list[FolderIconCandidate] = field(default_factory=list)
     messages: list[IconWorkbenchChatMessage] = field(default_factory=list)
     pending_actions: list[IconWorkbenchPendingAction] = field(default_factory=list)
@@ -319,7 +325,7 @@ class IconWorkbenchSession:
     def from_dict(cls, payload: dict[str, Any]) -> "IconWorkbenchSession":
         return cls(
             session_id=str(payload.get("session_id", "") or ""),
-            parent_dir=str(payload.get("parent_dir", "") or ""),
+            target_paths=[str(item or "").strip() for item in payload.get("target_paths", []) if str(item or "").strip()],
             folders=[FolderIconCandidate.from_dict(item) for item in payload.get("folders", [])],
             messages=[IconWorkbenchChatMessage.from_dict(item) for item in payload.get("messages", [])],
             pending_actions=[IconWorkbenchPendingAction.from_dict(item) for item in payload.get("pending_actions", [])],
@@ -331,7 +337,7 @@ class IconWorkbenchSession:
     def to_dict(self) -> dict[str, Any]:
         return {
             "session_id": self.session_id,
-            "parent_dir": self.parent_dir,
+            "target_paths": list(self.target_paths),
             "folders": [item.to_dict() for item in self.folders],
             "messages": [item.to_dict() for item in self.messages],
             "pending_actions": [item.to_dict() for item in self.pending_actions],

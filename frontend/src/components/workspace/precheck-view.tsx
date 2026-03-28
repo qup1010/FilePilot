@@ -15,7 +15,7 @@ interface PrecheckViewProps {
   summary: PrecheckSummary | null;
   isBusy: boolean;
   readOnly?: boolean;
-  onExecute: (confirm: boolean) => void;
+  onRequestExecute: () => void;
   onBack: () => void;
 }
 
@@ -25,7 +25,7 @@ function reviewMoveCount(summary: PrecheckSummary) {
   ).length;
 }
 
-export function PrecheckView({ summary, isBusy, readOnly = false, onExecute, onBack }: PrecheckViewProps) {
+export function PrecheckView({ summary, isBusy, readOnly = false, onRequestExecute, onBack }: PrecheckViewProps) {
   const [filter, setFilter] = useState<DirectoryTreeFilter>("all");
 
   if (!summary) {
@@ -240,7 +240,7 @@ export function PrecheckView({ summary, isBusy, readOnly = false, onExecute, onB
             </button>
             <button
               type="button"
-              onClick={() => onExecute(true)}
+              onClick={onRequestExecute}
               disabled={isBusy || hasErrors}
               className="inline-flex flex-1 items-center justify-center gap-3 rounded-[10px] border border-primary/20 bg-primary px-5 py-4 text-[13px] font-semibold text-white transition-colors hover:bg-primary-dim disabled:opacity-30"
             >

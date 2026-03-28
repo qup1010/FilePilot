@@ -535,6 +535,7 @@ class OrganizerSessionService:
             {
                 "role": "user",
                 "content": "\n".join(self._resolution_summary_lines(list(submitted_map.values()))),
+                "visibility": "internal",
             }
         )
         session.messages.append(summary_message)
@@ -694,10 +695,12 @@ class OrganizerSessionService:
         
         if existing_sync_index >= 0:
             session.messages[existing_sync_index]["content"] = diff_content
+            session.messages[existing_sync_index]["visibility"] = "internal"
         else:
             sync_message = self._ensure_message_id({
                 "role": "user",
                 "content": diff_content,
+                "visibility": "internal",
             })
             session.messages.append(sync_message)
 
@@ -1530,10 +1533,23 @@ class OrganizerSessionService:
         return "planning"
 
     def _directory_changed(self, session: OrganizerSession) -> bool:
-        # Simple implementation: compare current visible count with stored count
-        current_count = self._count_visible_entries(Path(session.target_dir))
-        stored_count = (session.scanner_progress or {}).get("processed_count", 0)
-        return abs(current_count - stored_count) > 0 # Threshold for "significant change"
+        target_dir = Path(session.target_dir)
+        try:
+            current_entries = {
+                path.name
+                for path in target_dir.iterdir()
+                if not path.name.startswith(".")
+            } if target_dir.exists() else set()
+        except Exception:
+            return False
+        scanned_entries = {
+            entry["source_relpath"].replace("\\", "/").split("/", 1)[0]
+            for entry in self._scan_entries(session.scan_lines)
+            if entry.get("source_relpath")
+        }
+        if not scanned_entries:
+            return False
+        return current_entries != scanned_entries
 
     def _count_visible_entries(self, path: Path) -> int:
         try:

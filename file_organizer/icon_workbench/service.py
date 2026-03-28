@@ -25,6 +25,8 @@ from file_organizer.icon_workbench.templates import render_prompt_template
 
 
 class IconWorkbenchService:
+    MISSING_TARGET_ERROR = "目标文件夹不存在。"
+
     def __init__(
         self,
         store: IconWorkbenchStore | None = None,
@@ -39,20 +41,21 @@ class IconWorkbenchService:
         self.image_client = image_client or IconWorkbenchImageClient()
         self.chat_agent = chat_agent or IconWorkbenchChatAgent(self.text_client)
 
-    def create_session(self, parent_dir: str) -> dict:
-        normalized_dir = self._normalize_directory(parent_dir)
+    def create_session(self, target_paths: list[str]) -> dict:
+        normalized_paths = self._normalize_target_paths(target_paths)
         session = IconWorkbenchSession(
             session_id=uuid.uuid4().hex,
-            parent_dir=normalized_dir,
+            target_paths=normalized_paths,
+            folders=self._build_folders_for_targets(normalized_paths),
         )
         self._append_session_message(
             session,
             role="assistant",
-            content="图标工坊会话已建立。你可以让我分析选中的文件夹、套用模板、改提示词，或在确认后生成并应用图标。",
+            content="图标工坊会话已建立。你可以继续添加目标文件夹、选择风格，并为这些目标生成和应用图标。",
         )
         self.store.remove_session_assets(session.session_id)
         self.store.save_session(session)
-        return self.scan_session(session.session_id)
+        return self._serialize_session(session)
 
     def get_session(self, session_id: str) -> dict:
         session = self.store.load_session(session_id)
@@ -60,29 +63,42 @@ class IconWorkbenchService:
 
     def scan_session(self, session_id: str) -> dict:
         session = self.store.load_session(session_id)
-        existing_by_path = {item.folder_path.lower(): item for item in session.folders}
-
-        folders: list[FolderIconCandidate] = []
-        for folder_path in self._list_immediate_subfolders(session.parent_dir):
-            existing = existing_by_path.get(folder_path.lower())
-            folder_name = Path(folder_path).name or folder_path
-            if existing:
-                existing.folder_name = folder_name
-                existing.updated_at = utc_now_iso()
-                folders.append(existing)
-                continue
-
-            folders.append(
-                FolderIconCandidate(
-                    folder_id=uuid.uuid4().hex,
-                    folder_path=folder_path,
-                    folder_name=folder_name,
-                )
-            )
-
-        session.folders = folders
+        session.folders = self._build_folders_for_targets(session.target_paths, session.folders)
         session.updated_at = utc_now_iso()
         self.store.save_session(session)
+        return self._serialize_session(session)
+
+    def update_session_targets(self, session_id: str, target_paths: list[str], mode: str = "append") -> dict:
+        session = self.store.load_session(session_id)
+        normalized_mode = str(mode or "append").strip().lower()
+        normalized_paths = self._normalize_target_paths(target_paths, allow_empty=(normalized_mode == "replace"))
+        if normalized_mode not in {"append", "replace"}:
+            raise ValueError("不支持的目标更新模式。")
+
+        current_paths = list(session.target_paths) if normalized_mode == "append" else []
+        next_paths = self._merge_target_paths(current_paths, normalized_paths)
+        removed_ids = self._collect_removed_folder_ids(session, next_paths)
+
+        session.target_paths = next_paths
+        session.folders = self._build_folders_for_targets(next_paths, session.folders)
+        self._prune_pending_actions(session)
+        session.updated_at = utc_now_iso()
+        self.store.save_session(session)
+        for folder_id in removed_ids:
+            self.store.remove_folder_assets(session.session_id, folder_id)
+        return self._serialize_session(session)
+
+    def remove_session_target(self, session_id: str, folder_id: str) -> dict:
+        session = self.store.load_session(session_id)
+        folder = self._get_folder(session, folder_id)
+        removed_path = folder.folder_path.lower()
+
+        session.target_paths = [path for path in session.target_paths if path.lower() != removed_path]
+        session.folders = [item for item in session.folders if item.folder_id != folder_id]
+        self._prune_pending_actions(session)
+        session.updated_at = utc_now_iso()
+        self.store.save_session(session)
+        self.store.remove_folder_assets(session.session_id, folder_id)
         return self._serialize_session(session)
 
     def analyze_folders(self, session_id: str, folder_ids: list[str] | None = None) -> dict:
@@ -511,6 +527,7 @@ class IconWorkbenchService:
 
     def prepare_apply_ready(self, session_id: str, folder_ids: list[str] | None = None) -> dict:
         session = self.store.load_session(session_id)
+        config = self.store.config_store.load()
         targets = self._resolve_target_folders(session, folder_ids)
 
         tasks: list[dict] = []
@@ -763,18 +780,95 @@ class IconWorkbenchService:
     def _normalize_directory(self, path: str) -> str:
         normalized = os.path.abspath(str(path or "").strip())
         if not normalized or not os.path.isdir(normalized):
-            raise ValueError("目标目录不存在。")
+            raise ValueError("目标文件夹不存在。")
         return normalized
 
-    def _list_immediate_subfolders(self, parent_dir: str) -> list[str]:
-        parent = Path(parent_dir)
-        folders = [
-            str(entry.resolve())
-            for entry in parent.iterdir()
-            if entry.is_dir() and not entry.name.startswith(".")
-        ]
-        folders.sort(key=lambda item: Path(item).name.lower())
+    def _normalize_target_paths(self, target_paths: list[str] | None, allow_empty: bool = False) -> list[str]:
+        if not target_paths:
+            if allow_empty:
+                return []
+            raise ValueError("至少选择 1 个目标文件夹。")
+
+        normalized_paths: list[str] = []
+        seen: set[str] = set()
+        for path in target_paths:
+            normalized = self._normalize_directory(path)
+            key = normalized.lower()
+            if key in seen:
+                continue
+            seen.add(key)
+            normalized_paths.append(normalized)
+        return normalized_paths
+
+    def _merge_target_paths(self, current_paths: list[str], incoming_paths: list[str]) -> list[str]:
+        merged: list[str] = []
+        seen: set[str] = set()
+        for path in [*current_paths, *incoming_paths]:
+            normalized = os.path.abspath(str(path or "").strip())
+            if not normalized:
+                continue
+            key = normalized.lower()
+            if key in seen:
+                continue
+            seen.add(key)
+            merged.append(normalized)
+        return merged
+
+    def _build_folders_for_targets(
+        self,
+        target_paths: list[str],
+        existing_folders: list[FolderIconCandidate] | None = None,
+    ) -> list[FolderIconCandidate]:
+        existing_by_path = {
+            os.path.abspath(item.folder_path).lower(): item
+            for item in (existing_folders or [])
+            if item.folder_path
+        }
+        folders: list[FolderIconCandidate] = []
+        for target_path in target_paths:
+            normalized_path = os.path.abspath(str(target_path or "").strip())
+            existing = existing_by_path.get(normalized_path.lower())
+            folder_name = Path(normalized_path).name or normalized_path
+            if existing:
+                existing.folder_path = normalized_path
+                existing.folder_name = folder_name
+                if os.path.isdir(normalized_path):
+                    if existing.last_error == self.MISSING_TARGET_ERROR:
+                        existing.last_error = None
+                else:
+                    existing.last_error = self.MISSING_TARGET_ERROR
+                existing.updated_at = utc_now_iso()
+                folders.append(existing)
+                continue
+
+            folder = FolderIconCandidate(
+                folder_id=uuid.uuid4().hex,
+                folder_path=normalized_path,
+                folder_name=folder_name,
+            )
+            if not os.path.isdir(normalized_path):
+                folder.last_error = self.MISSING_TARGET_ERROR
+            folders.append(folder)
         return folders
+
+    def _collect_removed_folder_ids(self, session: IconWorkbenchSession, next_paths: list[str]) -> list[str]:
+        next_path_set = {os.path.abspath(path).lower() for path in next_paths}
+        return [
+            folder.folder_id
+            for folder in session.folders
+            if os.path.abspath(folder.folder_path).lower() not in next_path_set
+        ]
+
+    def _prune_pending_actions(self, session: IconWorkbenchSession) -> None:
+        available_ids = {folder.folder_id for folder in session.folders}
+        pruned_actions: list[IconWorkbenchPendingAction] = []
+        for action in session.pending_actions:
+            folder_ids = [str(item) for item in action.payload.get("folder_ids", []) if str(item) in available_ids]
+            if not folder_ids:
+                continue
+            action.payload["folder_ids"] = folder_ids
+            pruned_actions.append(action)
+        session.pending_actions = pruned_actions
 
     def _resolve_target_folders(
         self,

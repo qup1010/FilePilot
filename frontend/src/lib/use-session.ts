@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { createApiClient } from "@/lib/api";
 import { getApiBaseUrl, getApiToken } from "@/lib/runtime";
@@ -35,6 +35,11 @@ function shouldDisplayMessage(message: AssistantMessage): boolean {
   const role = String(message.role || "").trim();
   const content = String(message.content || "").trim();
   const hasBlocks = Array.isArray(message.blocks) && message.blocks.length > 0;
+  const visibility = String(message.visibility || "public").trim();
+
+  if (visibility === "internal") {
+    return false;
+  }
 
   if (role === "system" || role === "tool") {
     return false;
@@ -96,14 +101,14 @@ function assistantRuntimeFromAction(event: SessionEvent): AssistantRuntimeStatus
   }
 
   if (action?.message) {
+    const detail = phase === "scan"
+      ? (action.args?.filename ? `正在分析: ${humanizeActionTarget(action.args.filename)}` : "文件较多时，这一步可能持续更久")
+      : "模型正在深度思考并组织整理逻辑";
     return {
       phase,
       mode: "waiting",
       label: action.message,
-      detail:
-        phase === "scan"
-          ? "文件较多时，这一步可能持续更久"
-          : "请稍等，模型正在组织新的整理建议",
+      detail,
     };
   }
 
@@ -144,10 +149,12 @@ export function useSession(sessionId: string | null) {
   const [chatError, setChatError] = useState<string | null>(null);
   const [assistantDraft, setAssistantDraft] = useState("");
   const [assistantRuntime, setAssistantRuntime] = useState<AssistantRuntimeStatus | null>(null);
-  const [streamStatus, setStreamStatus] = useState<StreamStatus>("disconnected");
+  const [streamStatus, setStreamStatus] = useState<StreamStatus>("offline");
   const streamRef = useRef<SessionEventStream | null>(null);
   const snapshotRef = useRef<SessionSnapshot | null>(null);
-  const api = createApiClient(getApiBaseUrl(), getApiToken());
+  const offlineTimerRef = useRef<number | null>(null);
+  const hasConnectedRef = useRef(false);
+  const api = useMemo(() => createApiClient(getApiBaseUrl(), getApiToken()), []);
 
   useEffect(() => {
     snapshotRef.current = snapshot;
@@ -159,12 +166,111 @@ export function useSession(sessionId: string | null) {
     setChatError(null);
   }
 
+  const clearOfflineTimer = useCallback(() => {
+    if (offlineTimerRef.current !== null) {
+      window.clearTimeout(offlineTimerRef.current);
+      offlineTimerRef.current = null;
+    }
+  }, []);
+
+  const scheduleOfflineState = useCallback(() => {
+    clearOfflineTimer();
+    offlineTimerRef.current = window.setTimeout(() => {
+      setStreamStatus((current) => (current === "connected" ? current : "offline"));
+    }, 5000);
+  }, [clearOfflineTimer]);
+
+  const closeStream = useCallback(() => {
+    streamRef.current?.close();
+    streamRef.current = null;
+    hasConnectedRef.current = false;
+  }, []);
+
+  const handleStreamEvent = useCallback((event: SessionEvent) => {
+    clearOfflineTimer();
+    hasConnectedRef.current = true;
+    setStreamStatus("connected");
+
+    if (event.event_type === "scan.started") {
+      setAssistantRuntime({
+        phase: "scan",
+        mode: "waiting",
+        label: "初始化扫描会话",
+        detail: "正在连接后端并准备文件索引...",
+      });
+    }
+
+    if (event.event_type === "scan.action" || event.event_type === "plan.action") {
+      const runtime = assistantRuntimeFromAction(event);
+      if (runtime) {
+        setAssistantRuntime(runtime);
+      }
+      return;
+    }
+
+    if (event.event_type === "scan.ai_typing") {
+      setAssistantRuntime(assistantRuntimeFromTyping("scan"));
+      return;
+    }
+
+    if (event.event_type === "plan.ai_typing") {
+      setAssistantRuntime(assistantRuntimeFromTyping("plan"));
+      setAssistantDraft((prev) => prev + (event.content || ""));
+      return;
+    }
+
+    if (event.session_snapshot) {
+      setSnapshot(event.session_snapshot);
+    }
+
+    if (event.event_type === "session.error" || event.event_type === "session.interrupted") {
+      setAssistantRuntime(null);
+      const snapshotError = event.session_snapshot?.last_error;
+      if (snapshotError) {
+        setChatError(snapshotError);
+      } else if (event.event_type === "session.error") {
+        setChatError("会话处理失败");
+      }
+    } else if (event.event_type === "scan.completed") {
+      setAssistantRuntime((current) => (current?.phase === "scan" ? null : current));
+    } else if (event.event_type === "plan.updated") {
+      setAssistantRuntime((current) => (current?.phase === "plan" ? null : current));
+    } else {
+      setChatError(null);
+    }
+
+    setAssistantDraft("");
+  }, [clearOfflineTimer]);
+
+  const connectStream = useCallback((
+    nextSessionId: string,
+    initialStatus: Extract<StreamStatus, "connecting" | "reconnecting"> = "connecting",
+  ) => {
+    closeStream();
+    setStreamStatus(initialStatus);
+    scheduleOfflineState();
+
+    streamRef.current = createSessionEventStream({
+      baseUrl: getApiBaseUrl(),
+      sessionId: nextSessionId,
+      accessToken: getApiToken(),
+      onEvent: handleStreamEvent,
+      onError: () => {
+        setStreamStatus(hasConnectedRef.current ? "reconnecting" : initialStatus);
+        scheduleOfflineState();
+      },
+    });
+  }, [closeStream, handleStreamEvent, scheduleOfflineState]);
+
   useEffect(() => {
     if (!sessionId) {
+      closeStream();
+      clearOfflineTimer();
       setSnapshot(null);
       setJournal(null);
       setJournalLoading(false);
       setLoading(false);
+      setStreamStatus("offline");
       resetConversationTransientState();
       return;
     }
@@ -174,6 +280,7 @@ export function useSession(sessionId: string | null) {
     setJournal(null);
     setJournalLoading(false);
     resetConversationTransientState();
+    connectStream(sessionId);
 
     api.getSession(sessionId)
       .then((response) => {
@@ -192,75 +299,12 @@ export function useSession(sessionId: string | null) {
         }
       });
 
-    streamRef.current?.close();
-    streamRef.current = createSessionEventStream({
-      baseUrl: getApiBaseUrl(),
-      sessionId,
-      accessToken: getApiToken(),
-      onEvent: (event) => {
-        setStreamStatus("connected");
-
-        if (event.event_type === "scan.started") {
-          setAssistantRuntime({
-            phase: "scan",
-            mode: "waiting",
-            label: "正在准备扫描",
-            detail: "先读取目录结构和基础摘要",
-          });
-        }
-
-        if (event.event_type === "scan.action" || event.event_type === "plan.action") {
-          const runtime = assistantRuntimeFromAction(event);
-          if (runtime) {
-            setAssistantRuntime(runtime);
-          }
-          return;
-        }
-
-        if (event.event_type === "scan.ai_typing") {
-          setAssistantRuntime(assistantRuntimeFromTyping("scan"));
-          return;
-        }
-
-        if (event.event_type === "plan.ai_typing") {
-          setAssistantRuntime(assistantRuntimeFromTyping("plan"));
-          setAssistantDraft((prev) => prev + (event.content || ""));
-          return;
-        }
-
-        if (event.session_snapshot) {
-          setSnapshot(event.session_snapshot);
-        }
-
-        if (event.event_type === "session.error" || event.event_type === "session.interrupted") {
-          setAssistantRuntime(null);
-          const snapshotError = event.session_snapshot?.last_error;
-          if (snapshotError) {
-             setChatError(snapshotError);
-          } else if (event.event_type === "session.error") {
-             setChatError("会话处理失败");
-          }
-        } else if (event.event_type === "scan.completed") {
-          setAssistantRuntime((current) => (current?.phase === "scan" ? null : current));
-        } else if (event.event_type === "plan.updated") {
-          setAssistantRuntime((current) => (current?.phase === "plan" ? null : current));
-        } else {
-          setChatError(null);
-        }
-
-        setAssistantDraft("");
-      },
-      onError: () => {
-        setStreamStatus("connecting");
-      },
-    });
-
     return () => {
       cancelled = true;
-      streamRef.current?.close();
-      streamRef.current = null;
+      closeStream();
+      clearOfflineTimer();
     };
-  }, [sessionId]);
+  }, [api, clearOfflineTimer, closeStream, connectStream, sessionId]);
 
   const stage = snapshot?.stage || "idle";
   const chatMessages = useMemo(
@@ -307,6 +351,18 @@ export function useSession(sessionId: string | null) {
     setSnapshot(response.session_snapshot);
   }
 
+  async function retryStream() {
+    if (!sessionId) {
+      return;
+    }
+    connectStream(sessionId, "connecting");
+    try {
+      await refreshSnapshot();
+    } catch (err) {
+      setChatError(err instanceof Error ? err.message : "重新连接后仍无法同步会话状态。");
+    }
+  }
+
   async function sendMessage(content: string) {
     if (!sessionId) {
       return;
@@ -329,8 +385,8 @@ export function useSession(sessionId: string | null) {
     setAssistantRuntime({
       phase: "plan",
       mode: "waiting",
-      label: "正在等待模型回复",
-      detail: "这一步可能持续数秒到几十秒",
+      label: "AI 思考中",
+      detail: "正在整合当前的目录状态与你的最新要求...",
     });
 
     try {
@@ -358,13 +414,6 @@ export function useSession(sessionId: string | null) {
       const response = await api.resolveUnresolvedChoices(sessionId, payload);
       setSnapshot(response.session_snapshot);
       setAssistantDraft("");
-
-      // 自动发送确认消息给 AI
-      const summary = payload.resolutions.map(r => {
-        return `· 【${r.item_id}】归类至：${r.selected_folder}${r.note ? ` (${r.note})` : ""}`;
-      }).join("\n");
-      
-      await sendMessage(`我已经完成了以下项的归类：\n${summary}\n请根据这些选择更新整理方案。`);
     } catch (err) {
       setChatError(err instanceof Error ? err.message : "没有提交成功，请再试一次。");
     } finally {
@@ -381,8 +430,8 @@ export function useSession(sessionId: string | null) {
     setAssistantRuntime({
       phase: "scan",
       mode: "waiting",
-      label: "正在准备扫描",
-      detail: "先读取目录结构和基础摘要",
+      label: "深度扫描中",
+      detail: "AI 正在逐一识别文件夹特征并建立索引...",
     });
     try {
       const response = await api.scanSession(sessionId);
@@ -443,9 +492,9 @@ export function useSession(sessionId: string | null) {
     }
   }
 
-  async function execute() {
+  async function execute(): Promise<boolean> {
     if (!sessionId) {
-      return;
+      return false;
     }
     setLoading(true);
     setChatError(null);
@@ -453,8 +502,10 @@ export function useSession(sessionId: string | null) {
     try {
       const response = await api.execute(sessionId, true);
       setSnapshot(response.session_snapshot);
+      return true;
     } catch (err) {
       setChatError(err instanceof Error ? err.message : "执行没有成功，请再试一次。");
+      return false;
     } finally {
       setLoading(false);
     }
@@ -563,6 +614,7 @@ export function useSession(sessionId: string | null) {
     composerMode,
     isComposerLocked,
     refreshSnapshot,
+    retryStream,
     sendMessage,
     resolveUnresolvedChoices,
     scan,

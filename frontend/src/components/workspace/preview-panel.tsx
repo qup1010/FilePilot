@@ -22,7 +22,6 @@ import {
   FileArchive,
   FileJson,
   FileBox,
-  FolderPlus,
   Sparkles,
   Check,
 } from "lucide-react";
@@ -48,31 +47,11 @@ const getFileIcon = (filename: string) => {
   return FileText;
 };
 
-function findPlanItemForConflict(plan: PlanSnapshot, rawConflict: string): PlanItem | undefined {
-  const normalized = rawConflict.trim().toLowerCase();
-  const firstToken = rawConflict.match(/^([^\s，,:：]+)/)?.[1]?.toLowerCase();
-  return plan.items.find((item) => {
-    const candidates = [item.item_id, item.display_name, item.source_relpath]
-      .filter(Boolean)
-      .map((value) => value.toLowerCase());
-    return candidates.some((candidate) => {
-      if (candidate === normalized) {
-        return true;
-      }
-      if (firstToken && (candidate === firstToken || candidate.startsWith(firstToken))) {
-        return true;
-      }
-      return normalized.includes(candidate);
-    });
-  });
-}
-
 interface TreeNode {
   name: string;
   path: string;
   items: PlanItem[];
   children: Record<string, TreeNode>;
-  item_id?: string; // 如果该目录本身也是一个 item
   hasUnresolved?: boolean;
   hasReview?: boolean;
 }
@@ -355,26 +334,21 @@ function FolderNode({
               ))}
 
               {/* 文件条目渲染 */}
-              {node.items.map((item) => {
-                const isDirItem = !item.display_name.includes('.') && node.children[item.display_name];
-                if (isDirItem) return null;
-                
-                return (
-                  <FileItem 
-                    key={item.item_id}
-                    item={item}
-                    level={level + 1}
-                    readOnly={readOnly}
-                    editingId={editingId}
-                    editValue={editValue}
-                    setEditingId={setEditingId}
-                    setEditValue={setEditValue}
-                    onEdit={onEdit}
-                    onMoveToReview={onMoveToReview}
-                    handleEditSubmit={handleEditSubmit}
-                  />
-                );
-              })}
+              {node.items.map((item) => (
+                <FileItem 
+                  key={item.item_id}
+                  item={item}
+                  level={level + 1}
+                  readOnly={readOnly}
+                  editingId={editingId}
+                  editValue={editValue}
+                  setEditingId={setEditingId}
+                  setEditValue={setEditValue}
+                  onEdit={onEdit}
+                  onMoveToReview={onMoveToReview}
+                  handleEditSubmit={handleEditSubmit}
+                />
+              ))}
             </div>
           </motion.div>
         )}
@@ -406,8 +380,7 @@ function FileItem({
   onMoveToReview: (id: string) => void;
   handleEditSubmit: (id: string) => void;
 }) {
-  const isFile = item.display_name.includes(".");
-  const Icon = isFile ? getFileIcon(item.display_name) : Folder;
+  const Icon = getFileIcon(item.display_name);
   const isEditing = editingId === item.item_id;
   const isUnresolved = item.status === "unresolved";
   const isReview = item.status === "review";
@@ -427,10 +400,10 @@ function FileItem({
       title={tooltipText || undefined}
     >
       <div className="flex items-center gap-2 text-[13px] text-on-surface-variant/75 transition-colors hover:text-on-surface">
-        <Icon className={cn("h-3.5 w-3.5 shrink-0", !isFile && "text-on-surface/45")} />
+        <Icon className="h-3.5 w-3.5 shrink-0" />
         <div className="flex-1 min-w-0 flex flex-col gap-0.5">
           <div className="flex items-center gap-2">
-            <span className={cn("truncate tracking-tight", !isFile && "font-semibold text-on-surface/80")}>
+            <span className="truncate tracking-tight">
               {item.display_name}
             </span>
             {isUnresolved && (
@@ -521,10 +494,41 @@ export function PreviewPanel({
   const beforeTree = buildSourceTree(plan.items);
   const currentTree = viewMode === "after" ? afterTree : beforeTree;
   const isViewOnly = viewMode === "before" || readOnly;
+  const hasPlanItems = plan.items.length > 0;
+  const hasUnresolvedItems = plan.unresolved_items.length > 0;
+  const canRunPrecheck = plan.readiness.can_precheck;
   const hasTreeContent =
     viewMode === "after"
       ? plan.groups.length > 0 || plan.items.some((item) => Boolean(item.target_relpath))
       : plan.items.length > 0;
+  const precheckButtonLabel = isBusy
+    ? "正在更新中"
+    : canRunPrecheck
+      ? "开始预检"
+      : hasUnresolvedItems
+        ? "先完成待确认项"
+        : hasPlanItems
+          ? "等待方案就绪"
+          : "暂无可预检内容";
+  const precheckNotice = canRunPrecheck
+    ? {
+        tone: "ready" as const,
+        text: "方案已经准备好了，如果你满意，可以直接开始预检。",
+      }
+    : hasUnresolvedItems
+      ? {
+          tone: "warning" as const,
+          text: `仍有 ${plan.unresolved_items.length} 项冲突待处理，请先在左侧对话区完成确认。`,
+        }
+      : hasPlanItems
+        ? {
+            tone: "pending" as const,
+            text: "方案仍在同步中，暂时还不能开始预检。",
+          }
+        : {
+            tone: "pending" as const,
+            text: "当前还没有可预检的整理方案。",
+          };
 
   return (
     <div className="flex flex-col h-full bg-surface overflow-hidden">
@@ -673,35 +677,45 @@ export function PreviewPanel({
       {!readOnly && (
         <div className="shrink-0 border-t border-on-surface/8 bg-surface-container-low px-4 py-3.5 lg:px-5">
           <div className="mb-2.5 flex items-start gap-2.5 px-1">
-            {plan.unresolved_items.length > 0 ? (
-              <div className="flex items-center gap-2 text-[13px] font-medium leading-relaxed text-warning">
-                <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
-                <span>仍有 {plan.unresolved_items.length} 项冲突待处理，请先在左侧对话区完成确认</span>
-              </div>
-            ) : plan.readiness.can_precheck || plan.items.length > 0 ? (
-              <div className="flex items-center gap-2 text-[13px] font-medium leading-relaxed text-primary">
+            <div
+              className={cn(
+                "flex items-center gap-2 text-[13px] font-medium leading-relaxed",
+                precheckNotice.tone === "ready" && "text-primary",
+                precheckNotice.tone === "warning" && "text-warning",
+                precheckNotice.tone === "pending" && "text-ui-muted",
+              )}
+            >
+              {precheckNotice.tone === "ready" ? (
                 <Check className="w-3.5 h-3.5 shrink-0" />
-                <span>方案已经准备好了，如果你满意，可以直接开始预检。</span>
-              </div>
-            ) : null}
+              ) : precheckNotice.tone === "warning" ? (
+                <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+              ) : (
+                <RefreshCw className="w-3.5 h-3.5 shrink-0 opacity-60" />
+              )}
+              <span>{precheckNotice.text}</span>
+            </div>
           </div>
 
           <button
             onClick={onRunPrecheck}
-            disabled={isBusy || (!plan.readiness.can_precheck && plan.unresolved_items.length > 0)}
+            disabled={isBusy || !canRunPrecheck}
             className={cn(
               "flex w-full items-center justify-center gap-3 rounded-[10px] py-3.5 text-[14px] font-semibold transition-colors",
-              (plan.readiness.can_precheck || plan.unresolved_items.length === 0) && !isBusy
+              canRunPrecheck && !isBusy
                 ? "cursor-pointer border border-primary/20 bg-primary text-white hover:bg-primary-dim active:scale-[0.98]" 
                 : "cursor-not-allowed border border-on-surface/8 bg-on-surface/5 text-on-surface-variant/35 opacity-60"
             )}
           >
             {isBusy ? (
               <RefreshCw className="w-4 h-4 animate-spin-slow" />
-            ) : (
+            ) : canRunPrecheck ? (
               <Layers className="w-4 h-4 opacity-70" />
+            ) : hasUnresolvedItems ? (
+              <AlertTriangle className="w-4 h-4" />
+            ) : (
+              <Archive className="w-4 h-4 opacity-70" />
             )}
-            {isBusy ? "正在更新中" : "开始预检"}
+            {precheckButtonLabel}
           </button>
           
           <p className="mt-2.5 text-center text-[12px] text-ui-muted">

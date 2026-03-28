@@ -128,6 +128,21 @@ class OrganizerSessionServiceTests(unittest.TestCase):
         self.assertEqual(resumed.stage, "stale")
         self.assertEqual(resumed.stale_reason, "directory_changed")
 
+    def test_resume_session_marks_stale_when_entry_names_change_but_count_stays_same(self):
+        created = self.service.create_session(str(self.target_dir), resume_if_exists=False)
+        created.session.stage = "planning"
+        created.session.scan_lines = "a.txt | 文档 | A"
+        (self.target_dir / "a.txt").write_text("old", encoding="utf-8")
+        self.store.save(created.session)
+
+        (self.target_dir / "a.txt").unlink()
+        (self.target_dir / "b.txt").write_text("new", encoding="utf-8")
+
+        resumed = self.service.resume_session(created.session.session_id)
+
+        self.assertEqual(resumed.stage, "stale")
+        self.assertEqual(resumed.stale_reason, "directory_changed")
+
     def test_run_precheck_sets_ready_to_execute_for_valid_pending_plan(self):
         (self.target_dir / "a.txt").write_text("hello", encoding="utf-8")
         created = self.service.create_session(str(self.target_dir), resume_if_exists=False)
@@ -495,6 +510,7 @@ class OrganizerSessionServiceTests(unittest.TestCase):
         self.assertEqual(targets["zip"], "Review/zip")
         self.assertEqual(snapshot["messages"][0]["blocks"][0]["status"], "submitted")
         self.assertEqual(snapshot["messages"][1]["role"], "user")
+        self.assertEqual(snapshot["messages"][1]["visibility"], "internal")
         self.assertIn("md -> 学习资料", snapshot["messages"][1]["content"])
 
     def test_resolve_unresolved_choices_with_note_triggers_followup_cycle(self):
@@ -776,6 +792,7 @@ class OrganizerSessionServiceTests(unittest.TestCase):
         self.assertEqual(updated_item["target_relpath"], "Study/md")
         self.assertEqual(result.session_snapshot["plan_snapshot"]["unresolved_items"], [])
         self.assertEqual(result.session_snapshot["plan_snapshot"]["stats"]["unresolved_count"], 0)
+        self.assertEqual(result.session_snapshot["messages"][-1]["visibility"], "internal")
 
     def test_update_item_target_move_to_review_removes_unresolved_item_immediately(self):
         created = self.service.create_session(str(self.target_dir), resume_if_exists=False)

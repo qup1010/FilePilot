@@ -60,7 +60,12 @@ class LlmTestPayload(BaseModel):
 
 
 class IconWorkbenchCreatePayload(BaseModel):
-    parent_dir: str
+    target_paths: list[str] = Field(default_factory=list)
+
+
+class IconWorkbenchTargetUpdatePayload(BaseModel):
+    target_paths: list[str] = Field(default_factory=list)
+    mode: str = "append"
 
 
 class IconWorkbenchFolderBatchPayload(BaseModel):
@@ -453,7 +458,7 @@ def create_app(service: OrganizerSessionService | None = None) -> FastAPI:
     @app.post("/api/icon-workbench/sessions")
     def create_icon_workbench_session(payload: IconWorkbenchCreatePayload):
         try:
-            return app.state.icon_workbench_service.create_session(payload.parent_dir)
+            return app.state.icon_workbench_service.create_session(payload.target_paths)
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc))
 
@@ -472,6 +477,199 @@ def create_app(service: OrganizerSessionService | None = None) -> FastAPI:
             raise HTTPException(status_code=404, detail="ICON_SESSION_NOT_FOUND")
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc))
+
+    @app.post("/api/icon-workbench/sessions/{session_id}/targets")
+    def update_icon_workbench_targets(session_id: str, payload: IconWorkbenchTargetUpdatePayload):
+        try:
+            return app.state.icon_workbench_service.update_session_targets(session_id, payload.target_paths, payload.mode)
+        except FileNotFoundError:
+            raise HTTPException(status_code=404, detail="ICON_SESSION_NOT_FOUND")
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+
+    @app.delete("/api/icon-workbench/sessions/{session_id}/targets/{folder_id}")
+    def remove_icon_workbench_target(session_id: str, folder_id: str):
+        try:
+            return app.state.icon_workbench_service.remove_session_target(session_id, folder_id)
+        except FileNotFoundError:
+            raise HTTPException(status_code=404, detail="ICON_FOLDER_NOT_FOUND")
+
+    @app.post("/api/icon-workbench/sessions/{session_id}/analyze")
+    def analyze_icon_workbench_session(session_id: str, payload: IconWorkbenchFolderBatchPayload):
+        try:
+            return app.state.icon_workbench_service.analyze_folders(session_id, payload.folder_ids)
+        except FileNotFoundError:
+            raise HTTPException(status_code=404, detail="ICON_FOLDER_NOT_FOUND")
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+
+    @app.post("/api/icon-workbench/sessions/{session_id}/generate")
+    def generate_icon_workbench_previews(session_id: str, payload: IconWorkbenchFolderBatchPayload):
+        try:
+            return app.state.icon_workbench_service.generate_previews(session_id, payload.folder_ids)
+        except FileNotFoundError:
+            raise HTTPException(status_code=404, detail="ICON_FOLDER_NOT_FOUND")
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+
+    @app.post("/api/icon-workbench/sessions/{session_id}/folders/{folder_id}/prompt")
+    def update_icon_workbench_prompt(session_id: str, folder_id: str, payload: IconWorkbenchPromptPayload):
+        try:
+            return app.state.icon_workbench_service.update_folder_prompt(session_id, folder_id, payload.prompt)
+        except FileNotFoundError:
+            raise HTTPException(status_code=404, detail="ICON_FOLDER_NOT_FOUND")
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+
+    @app.post("/api/icon-workbench/sessions/{session_id}/folders/{folder_id}/select-version")
+    def select_icon_workbench_version(session_id: str, folder_id: str, payload: IconWorkbenchSelectVersionPayload):
+        try:
+            return app.state.icon_workbench_service.select_version(session_id, folder_id, payload.version_id)
+        except FileNotFoundError:
+            raise HTTPException(status_code=404, detail="ICON_VERSION_NOT_FOUND")
+
+    @app.get("/api/icon-workbench/sessions/{session_id}/folders/{folder_id}/versions/{version_id}/image")
+    def get_icon_workbench_image(session_id: str, folder_id: str, version_id: str):
+        try:
+            path = app.state.icon_workbench_service.get_version_image_path(session_id, folder_id, version_id)
+        except FileNotFoundError:
+            raise HTTPException(status_code=404, detail="ICON_IMAGE_NOT_FOUND")
+        return FileResponse(path)
+
+    @app.get("/api/icon-workbench/config")
+    def get_icon_workbench_config():
+        return app.state.icon_workbench_service.get_config()
+
+    @app.post("/api/icon-workbench/config")
+    def update_icon_workbench_config(payload: dict):
+        return app.state.icon_workbench_service.update_config(payload)
+
+    @app.get("/api/icon-workbench/templates")
+    def list_icon_workbench_templates():
+        return {"templates": app.state.icon_workbench_service.list_templates()}
+
+    @app.post("/api/icon-workbench/templates")
+    def create_icon_workbench_template(payload: IconWorkbenchTemplatePayload):
+        try:
+            template = app.state.icon_workbench_service.create_template(payload.model_dump())
+            return {"template": template}
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+
+    @app.patch("/api/icon-workbench/templates/{template_id}")
+    def update_icon_workbench_template(template_id: str, payload: IconWorkbenchTemplateUpdatePayload):
+        try:
+            template = app.state.icon_workbench_service.update_template(template_id, payload.model_dump(exclude_none=True))
+            return {"template": template}
+        except FileNotFoundError:
+            raise HTTPException(status_code=404, detail="ICON_TEMPLATE_NOT_FOUND")
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+
+    @app.delete("/api/icon-workbench/templates/{template_id}")
+    def delete_icon_workbench_template(template_id: str):
+        try:
+            return app.state.icon_workbench_service.delete_template(template_id)
+        except FileNotFoundError:
+            raise HTTPException(status_code=404, detail="ICON_TEMPLATE_NOT_FOUND")
+
+    @app.post("/api/icon-workbench/sessions/{session_id}/apply-template")
+    def apply_icon_workbench_template(session_id: str, payload: IconWorkbenchApplyTemplatePayload):
+        try:
+            return app.state.icon_workbench_service.apply_template(session_id, payload.template_id, payload.folder_ids)
+        except FileNotFoundError:
+            raise HTTPException(status_code=404, detail="ICON_TEMPLATE_OR_FOLDER_NOT_FOUND")
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+
+    @app.post("/api/icon-workbench/sessions/{session_id}/apply-ready")
+    def prepare_icon_workbench_apply_ready(session_id: str, payload: IconWorkbenchFolderBatchPayload):
+        try:
+            return app.state.icon_workbench_service.prepare_apply_ready(session_id, payload.folder_ids)
+        except FileNotFoundError:
+            raise HTTPException(status_code=404, detail="ICON_FOLDER_NOT_FOUND")
+
+    @app.post("/api/icon-workbench/sessions/{session_id}/messages")
+    def send_icon_workbench_message(session_id: str, payload: IconWorkbenchMessagePayload):
+        try:
+            session = app.state.icon_workbench_service.send_message(
+                session_id,
+                payload.content,
+                selected_folder_ids=payload.selected_folder_ids,
+                active_folder_id=payload.active_folder_id,
+            )
+            return {"session": session}
+        except FileNotFoundError:
+            raise HTTPException(status_code=404, detail="ICON_SESSION_NOT_FOUND")
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+
+    @app.post("/api/icon-workbench/sessions/{session_id}/actions/{action_id}/confirm")
+    def confirm_icon_workbench_action(session_id: str, action_id: str):
+        try:
+            return app.state.icon_workbench_service.confirm_pending_action(session_id, action_id)
+        except FileNotFoundError:
+            raise HTTPException(status_code=404, detail="ICON_ACTION_NOT_FOUND")
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+
+    @app.post("/api/icon-workbench/sessions/{session_id}/actions/{action_id}/dismiss")
+    def dismiss_icon_workbench_action(session_id: str, action_id: str):
+        try:
+            session = app.state.icon_workbench_service.dismiss_pending_action(session_id, action_id)
+            return {"session": session}
+        except FileNotFoundError:
+            raise HTTPException(status_code=404, detail="ICON_ACTION_NOT_FOUND")
+
+    @app.post("/api/icon-workbench/sessions/{session_id}/client-actions/report")
+    def report_icon_workbench_client_action(session_id: str, payload: IconWorkbenchClientActionReportPayload):
+        try:
+            session = app.state.icon_workbench_service.report_client_action(session_id, payload.model_dump())
+            return {"session": session}
+        except FileNotFoundError:
+            raise HTTPException(status_code=404, detail="ICON_SESSION_NOT_FOUND")
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+
+    @app.get("/api/utils/config")
+    def get_config():
+        from file_organizer.shared.config_manager import config_manager
+        return config_manager.get_config_payload(mask_secrets=True)
+
+    @app.post("/api/utils/config")
+    def update_config(payload: dict):
+        from file_organizer.shared.config_manager import config_manager
+        config_manager.update_active_profile(payload)
+        return {"status": "ok"}
+
+    @app.post("/api/utils/config/presets/switch")
+    def switch_config(payload: PresetSwitchPayload):
+        from file_organizer.shared.config_manager import config_manager
+        config_manager.switch_preset(payload.preset_type, payload.id)
+        return {"status": "ok"}
+
+    @app.post("/api/utils/config/presets")
+    def add_profile(payload: AddPresetPayload):
+        from file_organizer.shared.config_manager import config_manager
+        new_id = config_manager.add_preset(payload.preset_type, payload.name, copy_from_active=payload.copy_profile)
+        return {"status": "ok", "id": new_id}
+
+    @app.delete("/api/utils/config/presets/{preset_type}/{preset_id}")
+    def delete_profile(preset_type: str, preset_id: str):
+        from file_organizer.shared.config_manager import config_manager
+        config_manager.delete_preset(preset_type, preset_id)
+        return {"status": "ok"}
+
+    @app.post("/api/utils/test-llm")
+    def test_llm(payload: LlmTestPayload):
+        from openai import OpenAI
+        from file_organizer.shared.config_manager import config_manager
+
+        raw_payload = payload.model_dump()
+        test_type = raw_payload.get("test_type", "text")
+
+        if test_type == "vision":
+            api_key = raw_payload.get("IMAGE_ANALYSIS_API_KEY")
 
     @app.post("/api/icon-workbench/sessions/{session_id}/analyze")
     def analyze_icon_workbench_session(session_id: str, payload: IconWorkbenchFolderBatchPayload):
@@ -663,6 +861,21 @@ def create_app(service: OrganizerSessionService | None = None) -> FastAPI:
                     status_code=400,
                     content={"status": "error", "message": "图片模型需要完整填写接口地址、模型 ID 和 API 密钥"},
                 )
+        elif test_type == "icon_image":
+            api_key = raw_payload.get("ICON_IMAGE_API_KEY")
+            base_url = raw_payload.get("ICON_IMAGE_BASE_URL")
+            model = raw_payload.get("ICON_IMAGE_MODEL")
+            if _is_masked_secret(api_key):
+                try:
+                    actual_config = app.state.icon_workbench_service.get_config()
+                    api_key = actual_config.get("image_model", {}).get("api_key")
+                except Exception:
+                    pass
+            if not base_url or not model or not api_key:
+                return JSONResponse(
+                    status_code=400,
+                    content={"status": "error", "message": "图像生成模型需要完整填写接口地址、模型 ID 和 API 密钥"},
+                )
         else:
             api_key = raw_payload.get("OPENAI_API_KEY")
             base_url = raw_payload.get("OPENAI_BASE_URL")
@@ -678,7 +891,8 @@ def create_app(service: OrganizerSessionService | None = None) -> FastAPI:
         try:
             client = OpenAI(api_key=api_key, base_url=base_url)
             client.models.list()
-            return {"status": "ok", "message": f"{'视觉' if test_type == 'vision' else '文本'}模型链路连通性测试通过"}
+            type_label = "视觉" if test_type == "vision" else ("生图" if test_type == "icon_image" else "文本")
+            return {"status": "ok", "message": f"{type_label}模型链路连通性测试通过"}
         except Exception:
             logger.exception("模型链路连通性测试失败", extra={"test_type": test_type})
             return JSONResponse(

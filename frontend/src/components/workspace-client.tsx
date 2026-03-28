@@ -39,6 +39,7 @@ export default function WorkspaceClient() {
     streamStatus,
     composerMode,
     isComposerLocked,
+    retryStream,
     sendMessage,
     resolveUnresolvedChoices,
     scan,
@@ -57,6 +58,7 @@ export default function WorkspaceClient() {
   const [messageInput, setMessageInput] = useState("");
   const [leftWidth, setLeftWidth] = useState(50);
   const [exitConfirmOpen, setExitConfirmOpen] = useState(false);
+  const [executeConfirmOpen, setExecuteConfirmOpen] = useState(false);
   const [showExitMenu, setShowExitMenu] = useState(false);
   const [dividerLeft, setDividerLeft] = useState<number | null>(null);
   const containerRef = React.useRef<HTMLDivElement>(null);
@@ -114,7 +116,7 @@ export default function WorkspaceClient() {
   const precheck = snapshot?.precheck_summary ?? null;
   const isBusy = ["scanning", "executing", "rolling_back"].includes(stage) || loading;
   const progressPercent = scanner.total_count > 0 ? (scanner.processed_count / scanner.total_count) * 100 : 0;
-  const showConversationPane = !["ready_to_execute", "completed"].includes(stage);
+  const showConversationPane = true;
   const effectiveComposerMode = isReadOnly ? "hidden" : composerMode;
   const nextStepHint = useMemo(() => {
     if (isReadOnly && stage !== "completed") {
@@ -135,13 +137,13 @@ export default function WorkspaceClient() {
       return "下一步建议运行预检，确认目录创建和文件移动范围。";
     }
     if (stage === "ready_to_execute") {
-      return "下一步可以确认执行，或者返回继续修改整理方案。";
+      return "预检已经完成。你可以保留左侧上下文，结合右侧影响范围决定执行或返回修改。";
     }
     if (stage === "executing") {
       return "系统正在按预检后的方案落盘执行，完成后会进入结果页。";
     }
     if (stage === "completed") {
-      return "下一步可以查看结果、清理空目录，或对最近一次执行进行回退。";
+      return "左侧会保留本轮对话记录供你回看，输入已关闭；右侧可以查看结果、处理失败项、清理空目录或执行回退。";
     }
     if (stage === "stale" || stage === "interrupted") {
       return "下一步建议重新扫描，重新同步目录状态后再继续整理。";
@@ -221,7 +223,24 @@ export default function WorkspaceClient() {
     }
   };
 
+
   const statusNotice = useMemo<ConversationNotice | null>(() => {
+    if (streamStatus === "offline") {
+      return {
+        tone: "warning",
+        title: "实时连接已断开",
+        description: stage === "completed"
+          ? "当前页面会保留已同步的对话和结果，输入已关闭。你可以先查看右侧结果，或重新连接以恢复实时状态。"
+          : "当前页面仍可查看已同步内容。点击重新连接后，会恢复实时事件更新并重新同步一次会话状态。",
+        primaryAction: {
+          label: "重新连接",
+          onClick: () => {
+            void retryStream();
+          },
+        },
+      };
+    }
+
     if (isReadOnly && stage !== "completed") {
       return {
         tone: "warning",
@@ -238,7 +257,7 @@ export default function WorkspaceClient() {
       return {
         tone: "info",
         title: "预检已完成",
-        description: "系统已经检查过真实文件系统。你可以先看看右侧的目录变化，再决定是否执行。",
+        description: "系统已经检查过真实文件系统。左侧仍保留本轮对话上下文，方便你结合右侧影响范围再决定是否执行。",
         primaryAction: isReadOnly ? undefined : {
           label: "返回继续修改",
           onClick: () => {
@@ -258,7 +277,7 @@ export default function WorkspaceClient() {
           onClick: () => void refreshPlan(),
         },
         secondaryAction: {
-          label: "结束这次整理",
+          label: "结束本次任务",
           onClick: handleExitWorkbench,
         },
       };
@@ -274,7 +293,7 @@ export default function WorkspaceClient() {
           onClick: () => void refreshPlan(),
         },
         secondaryAction: {
-          label: "结束这次整理",
+          label: "结束本次任务",
           onClick: handleExitWorkbench,
         },
       };
@@ -284,12 +303,14 @@ export default function WorkspaceClient() {
       return {
         tone: "info",
         title: isReadOnly ? "这是之前的整理结果" : "整理完成",
-        description: isReadOnly ? "这里只用于查看结果，不会触发新的操作。" : "右侧会显示这次整理的结果，也可以在这里继续处理后续步骤。",
+        description: isReadOnly
+          ? "左侧保留了当时的对话记录，输入已关闭；右侧可以继续查看这次整理结果。"
+          : "左侧会保留本轮对话记录供你回看，输入已关闭；请在右侧查看结果、失败项、Review 和后续操作。",
       };
     }
 
     return null;
-  }, [isReadOnly, plan.readiness.can_precheck, refreshPlan, returnToPlanning, snapshot?.last_error, stage]);
+  }, [isReadOnly, plan.readiness.can_precheck, refreshPlan, returnToPlanning, retryStream, snapshot?.last_error, stage, streamStatus]);
 
   React.useEffect(() => {
     if (stage === "completed" && !journal && !journalLoading && !isBusy) {
@@ -381,9 +402,9 @@ export default function WorkspaceClient() {
             summary={precheck}
             isBusy={isBusy}
             readOnly={isReadOnly}
-            onExecute={() => {
+            onRequestExecute={() => {
               if (!isReadOnly) {
-                void execute();
+                setExecuteConfirmOpen(true);
               }
             }}
             onBack={() => {
@@ -405,60 +426,58 @@ export default function WorkspaceClient() {
             description="先开始扫描，系统会在这里显示整理前后的目录变化。"
             className="mx-auto h-[70vh] max-w-[1360px]"
           />
-        ) : stage === "stale" || stage === "interrupted" ? (
-          <div className="mx-auto h-full w-full max-w-[1360px] overflow-y-auto p-5 scrollbar-thin">
-            <div className="rounded-[14px] border border-warning/20 bg-warning-container/15 p-6 shadow-[0_8px_24px_rgba(37,45,40,0.04)]">
-              <div className="flex items-start gap-4">
-                <div className="mt-1 rounded-[10px] bg-warning/15 p-3 text-warning">
-                  {stage === "interrupted" ? <AlertTriangle className="h-5 w-5" /> : <RefreshCw className="h-5 w-5" />}
-                </div>
-                <div className="space-y-3">
-                  <p className="text-[12px] font-medium text-warning">状态提醒</p>
-                  <h3 className="text-[1.2rem] font-black tracking-tight text-on-surface">
-                    {stage === "interrupted" ? "处理被中断了" : "当前方案已过期"}
-                  </h3>
-                  <p className="text-sm leading-6 text-on-surface-variant">
-                    {stage === "interrupted"
-                      ? (snapshot?.last_error || "请重新刷新方案，确认目录状态后再继续。")
-                      : "目录内容已经变化，建议先重新扫描后再继续。"}
-                  </p>
-                  <div className="flex flex-wrap gap-3">
-                    <button
-                      type="button"
-                      onClick={() => void refreshPlan()}
-                      className="rounded-[10px] bg-primary px-4 py-2.5 text-sm font-bold text-white shadow-sm transition-opacity hover:opacity-90"
-                    >
-                      重新扫描
-                    </button>
+        ) : (
+          <div className="flex h-full flex-col">
+            {(stage === "stale" || stage === "interrupted") && (
+              <div className="z-10 border-b border-warning/15 bg-warning-container/8 px-4 py-2.5 backdrop-blur-sm">
+                <div className="flex items-center justify-between gap-4">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-7 w-7 items-center justify-center rounded-full bg-warning/15 text-warning">
+                      <AlertTriangle className="h-4 w-4" />
+                    </div>
+                    <p className="text-[13px] font-medium text-on-surface">
+                      {stage === "stale" ? "当前方案已过期，建议重新扫描以同步目录状态。" : "处理被中断，建议重新扫描核心目录。"}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
                     <button
                       type="button"
                       onClick={handleExitWorkbench}
-                      className="rounded-[10px] border border-on-surface/10 px-4 py-2.5 text-sm font-bold text-on-surface-variant transition-colors hover:bg-surface-container-low hover:text-on-surface"
+                      className="rounded-[6px] px-3 py-1.5 text-[12px] font-semibold text-on-surface-variant transition-colors hover:bg-on-surface/5"
                     >
-                      放弃本次整理
+                      稍后再说
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void refreshPlan()}
+                      className="inline-flex items-center gap-1.5 rounded-[8px] bg-warning px-3 py-1.5 text-[12px] font-bold text-white shadow-sm transition-opacity hover:opacity-90"
+                    >
+                      <RefreshCw className="h-3.5 w-3.5" />
+                      立即刷新
                     </button>
                   </div>
                 </div>
               </div>
+            )}
+            <div className="flex-1 overflow-hidden">
+              <PreviewPanel
+                plan={plan}
+                stage={stage}
+                isBusy={isBusy}
+                readOnly={isReadOnly}
+                onRunPrecheck={() => {
+                  if (!isReadOnly) {
+                    void runPrecheck();
+                  }
+                }}
+                onUpdateItem={(id, payload) => {
+                  if (!isReadOnly) {
+                    void updateItem({ item_id: id, ...payload });
+                  }
+                }}
+              />
             </div>
           </div>
-        ) : (
-          <PreviewPanel
-            plan={plan}
-            stage={stage}
-            isBusy={isBusy}
-            readOnly={isReadOnly}
-            onRunPrecheck={() => {
-              if (!isReadOnly) {
-                void runPrecheck();
-              }
-            }}
-            onUpdateItem={(id, payload) => {
-              if (!isReadOnly) {
-                void updateItem({ item_id: id, ...payload });
-              }
-            }}
-          />
         )}
       </ErrorBoundary>
     );
@@ -491,7 +510,7 @@ export default function WorkspaceClient() {
   );
 
   const conversationHeader = (
-    <div className="z-20 flex shrink-0 items-center justify-between gap-3 border-b border-on-surface/8 bg-surface-container-lowest px-4 py-3 lg:h-[68px] lg:px-5 lg:py-3.5">
+    <div className="glass-surface z-20 flex shrink-0 items-center justify-between gap-3 border-b border-on-surface/8 px-4 py-3 lg:h-[68px] lg:px-5 lg:py-3.5">
       <div className="flex min-w-0 items-center gap-3">
         <div className="hidden h-8 w-8 shrink-0 items-center justify-center rounded-[9px] border border-on-surface/8 bg-surface-container text-primary/70 sm:flex">
           <Bot className="h-4.5 w-4.5" />
@@ -519,12 +538,16 @@ export default function WorkspaceClient() {
               <span
                 className={cn(
                   "rounded-[7px] border px-2 py-0.5 font-medium",
-                  streamStatus === "connecting"
-                    ? "border-warning/20 bg-warning-container/20 text-warning"
-                    : "border-on-surface/10 bg-surface-container-low text-ui-muted",
+                  streamStatus === "connecting" && "border-warning/20 bg-warning-container/20 text-warning",
+                  streamStatus === "reconnecting" && "border-warning/20 bg-warning-container/30 text-warning",
+                  streamStatus === "offline" && "border-on-surface/10 bg-surface-container-low text-ui-muted",
                 )}
               >
-                {streamStatus === "connecting" ? "正在连接" : "离线"}
+                {streamStatus === "connecting"
+                  ? "正在连接"
+                  : streamStatus === "reconnecting"
+                    ? "连接中断，重连中"
+                    : "连接已断开"}
               </span>
             ) : null}
           </div>
@@ -548,9 +571,9 @@ export default function WorkspaceClient() {
             <button
               type="button"
               onClick={handleExitWorkbench}
-              className="w-full rounded-[8px] px-3 py-2 text-left text-[12px] font-semibold text-error transition-colors hover:bg-error/5"
+              className="w-full rounded-[8px] px-3 py-2 text-left text-[12px] font-semibold text-on-surface-variant transition-colors hover:bg-on-surface/5"
             >
-              放弃本次整理
+              结束本次任务
             </button>
           </div>
         ) : null}
@@ -559,14 +582,14 @@ export default function WorkspaceClient() {
   );
 
   return (
-    <div ref={containerRef} className="flex-1 flex min-h-0 overflow-hidden relative bg-surface">
+    <div ref={containerRef} className="relative flex min-h-0 flex-1 overflow-hidden bg-surface">
       <ErrorBoundary fallbackTitle="页面加载出错了" className="flex-1">
         <div className="flex flex-1 min-h-0">
           {showConversationPane ? (
             <section
               ref={leftPaneRef}
               style={{ width: `${leftWidth}%` }}
-              className="relative flex min-h-0 h-full min-w-[360px] flex-col"
+              className="relative flex h-full min-h-0 min-w-[360px] flex-col border-r border-on-surface/7 bg-surface-container-lowest"
             >
               {conversationHeader}
               {conversationPanel}
@@ -606,7 +629,7 @@ export default function WorkspaceClient() {
 
           <section
             style={{ width: showConversationPane ? `${100 - leftWidth}%` : "100%" }}
-            className="flex min-h-0 h-full min-w-[320px] flex-col bg-surface overflow-hidden"
+            className="flex h-full min-h-0 min-w-[320px] flex-col overflow-hidden bg-surface-container-low/45"
           >
             <div className="flex-1 min-h-0">{renderPreviewContent()}</div>
           </section>
@@ -614,15 +637,48 @@ export default function WorkspaceClient() {
       </ErrorBoundary>
       <ConfirmDialog
         open={exitConfirmOpen}
-        title="放弃本次整理？"
-        description="确认后会放弃当前会话并返回首页。未完成的整理记录仍会保留在历史档案中。"
-        confirmLabel="放弃整理"
-        cancelLabel="继续整理"
-        tone="danger"
+        title="回到首页？"
+        description="当前的整理进度会自动保存。你之后可以随时从首页点击‘恢复先前任务’并继续。"
+        confirmLabel="确认退出"
+        cancelLabel="留在工作台"
+        tone="primary"
         loading={loading}
         onConfirm={handleConfirmExitWorkbench}
         onCancel={() => setExitConfirmOpen(false)}
       />
+      <ConfirmDialog
+        open={executeConfirmOpen}
+        title="确认执行这次整理？"
+        description="执行后会真实移动本地文件。请在最后确认一次影响范围，避免误触发落盘。"
+        confirmLabel="开始执行"
+        cancelLabel="再看看"
+        tone="primary"
+        loading={loading}
+        onConfirm={async () => {
+          const success = await execute();
+          if (success) {
+            setExecuteConfirmOpen(false);
+          }
+        }}
+        onCancel={() => setExecuteConfirmOpen(false)}
+      >
+        <div className="grid gap-2 text-[13px]">
+          <div className="flex items-center justify-between rounded-[10px] bg-surface-container-low px-3 py-2">
+            <span className="text-ui-muted">本次将移动</span>
+            <span className="font-semibold text-on-surface">{precheck?.move_preview.length ?? 0} 项</span>
+          </div>
+          <div className="flex items-center justify-between rounded-[10px] bg-surface-container-low px-3 py-2">
+            <span className="text-ui-muted">本次将创建目录</span>
+            <span className="font-semibold text-on-surface">{precheck?.mkdir_preview.length ?? 0} 个</span>
+          </div>
+          <div className="flex items-center justify-between rounded-[10px] bg-surface-container-low px-3 py-2">
+            <span className="text-ui-muted">将进入 Review</span>
+            <span className="font-semibold text-on-surface">
+              {precheck?.move_preview.filter((move) => move.target.split(/[\\/]/).some((part) => part.toLowerCase() === "review")).length ?? 0} 项
+            </span>
+          </div>
+        </div>
+      </ConfirmDialog>
     </div>
   );
 }

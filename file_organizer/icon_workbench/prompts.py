@@ -5,7 +5,7 @@ TEXT_ANALYSIS_SYSTEM_PROMPT = """你是 Windows 文件夹图标设计助手。
 返回结构必须是：
 {
   "category": "一句中文分类",
-  "visual_subject": "一个适合做图标主体的名词短语",
+  "visual_subject": "一个适合做图标主体的名词短语，英文",
   "summary": "一句简短中文说明"
 }
 

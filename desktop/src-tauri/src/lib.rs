@@ -2,6 +2,7 @@ mod desktop_ini;
 mod icon_apply;
 mod backend;
 mod runtime;
+mod bg_removal;
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -25,6 +26,16 @@ fn pick_directory() -> Option<String> {
     rfd::FileDialog::new()
         .pick_folder()
         .map(|path| path.to_string_lossy().into_owned())
+}
+
+#[tauri::command]
+fn pick_directories() -> Option<Vec<String>> {
+    rfd::FileDialog::new().pick_folders().map(|paths| {
+        paths
+            .into_iter()
+            .map(|path| path.to_string_lossy().into_owned())
+            .collect()
+    })
 }
 
 struct DesktopState {
@@ -139,12 +150,14 @@ pub fn run() {
         .manage(DesktopState::new(project_root))
         .invoke_handler(tauri::generate_handler![
             pick_directory,
+            pick_directories,
             apply_folder_icon,
             apply_ready_icons,
             clear_folder_icon,
             can_restore_folder_icon,
             restore_last_folder_icon,
-            restore_ready_icons
+            restore_ready_icons,
+            crate::bg_removal::remove_background_for_image
         ])
         .setup(|app| {
             bootstrap_backend(app).map_err(Into::into)

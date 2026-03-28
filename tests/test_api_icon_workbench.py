@@ -1,6 +1,6 @@
-import tempfile
 import unittest
 from pathlib import Path
+from uuid import uuid4
 
 from fastapi.testclient import TestClient
 
@@ -9,8 +9,11 @@ from file_organizer.api.main import create_app
 
 class FakeIconWorkbenchService:
     def __init__(self):
-        self.temp_dir = tempfile.TemporaryDirectory(prefix="icon-api-")
-        self.image_path = Path(self.temp_dir.name) / "preview.png"
+        temp_root = Path.cwd() / "output" / "test-temp"
+        temp_root.mkdir(parents=True, exist_ok=True)
+        self.temp_dir = temp_root / f"icon-api-{uuid4().hex}"
+        self.temp_dir.mkdir(parents=True, exist_ok=True)
+        self.image_path = self.temp_dir / "preview.png"
         self.last_message_payload = None
         self.last_report_payload = None
         self.templates = [
@@ -32,16 +35,37 @@ class FakeIconWorkbenchService:
         )
 
     def close(self):
-        self.temp_dir.cleanup()
+        import shutil
+        shutil.rmtree(self.temp_dir, ignore_errors=True)
 
-    def create_session(self, parent_dir):
-        return {"session_id": "icon-session", "parent_dir": parent_dir, "folders": [], "folder_count": 0, "ready_count": 0}
+    def create_session(self, target_paths):
+        return {"session_id": "icon-session", "target_paths": target_paths, "folders": [], "folder_count": 0, "ready_count": 0}
 
     def get_session(self, session_id):
-        return {"session_id": session_id, "parent_dir": "D:/IconRoot", "folders": [], "folder_count": 0, "ready_count": 0}
+        return {"session_id": session_id, "target_paths": ["D:/Icons/Alpha"], "folders": [], "folder_count": 0, "ready_count": 0}
 
     def scan_session(self, session_id):
         return self.get_session(session_id)
+
+    def update_session_targets(self, session_id, target_paths, mode):
+        return {
+            "session_id": session_id,
+            "target_paths": target_paths,
+            "folders": [],
+            "folder_count": len(target_paths),
+            "ready_count": 0,
+            "mode": mode,
+        }
+
+    def remove_session_target(self, session_id, folder_id):
+        return {
+            "session_id": session_id,
+            "target_paths": [],
+            "folders": [],
+            "folder_count": 0,
+            "ready_count": 0,
+            "removed_folder_id": folder_id,
+        }
 
     def analyze_folders(self, session_id, folder_ids):
         return {"session_id": session_id, "folder_ids": folder_ids, "stage": "analyzed"}
@@ -136,7 +160,7 @@ class FakeIconWorkbenchService:
         }
         return {
             "session_id": session_id,
-            "parent_dir": "D:/IconRoot",
+            "target_paths": ["D:/Icons/Alpha"],
             "folders": [],
             "folder_count": 0,
             "ready_count": 0,
@@ -222,10 +246,24 @@ class ApiIconWorkbenchTests(unittest.TestCase):
         self.fake_service.close()
 
     def test_create_session_route(self):
-        response = self.client.post("/api/icon-workbench/sessions", json={"parent_dir": "D:/Icons"})
+        response = self.client.post("/api/icon-workbench/sessions", json={"target_paths": ["D:/Icons/Alpha", "D:/Icons/Beta"]})
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["session_id"], "icon-session")
+        self.assertEqual(response.json()["target_paths"], ["D:/Icons/Alpha", "D:/Icons/Beta"])
+
+    def test_target_update_routes(self):
+        response = self.client.post(
+            "/api/icon-workbench/sessions/icon-session/targets",
+            json={"target_paths": ["D:/Icons/Gamma"], "mode": "append"},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["mode"], "append")
+        self.assertEqual(response.json()["target_paths"], ["D:/Icons/Gamma"])
+
+        response = self.client.delete("/api/icon-workbench/sessions/icon-session/targets/folder-1")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["removed_folder_id"], "folder-1")
 
     def test_batch_routes_forward_folder_ids(self):
         response = self.client.post(

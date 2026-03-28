@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { AlertTriangle, Info } from "lucide-react";
 
@@ -14,8 +15,10 @@ interface ConfirmDialogProps {
   cancelLabel?: string;
   tone?: "primary" | "danger";
   loading?: boolean;
+  children?: ReactNode;
   onConfirm: () => void | Promise<void>;
-  onCancel: () => void;
+  onCancel?: () => void;
+  onClose?: () => void;
 }
 
 export function ConfirmDialog({
@@ -26,56 +29,68 @@ export function ConfirmDialog({
   cancelLabel = "取消",
   tone = "primary",
   loading = false,
+  children,
   onConfirm,
   onCancel,
+  onClose,
 }: ConfirmDialogProps) {
   const isDanger = tone === "danger";
+
+  const handleCancel = onClose || onCancel || (() => {});
 
   return (
     <AnimatePresence>
       {open ? (
         <div
-          className="fixed inset-0 z-[90] flex items-center justify-center bg-surface/70 p-6 backdrop-blur-md"
+          className="ui-dialog-backdrop fixed inset-0 z-[90] flex items-center justify-center p-6 transition-all"
           onClick={() => {
             if (!loading) {
-              onCancel();
+              handleCancel();
             }
           }}
         >
           <motion.div
-            initial={{ opacity: 0, y: 16, scale: 0.98 }}
+            initial={{ opacity: 0, y: 16, scale: 0.96 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 16, scale: 0.98 }}
-            transition={{ duration: 0.18 }}
-            className="w-full max-w-2xl rounded-xl border border-on-surface/8 bg-white p-8 shadow-[0_24px_80px_rgba(36,48,42,0.18)]"
+            exit={{ opacity: 0, y: 16, scale: 0.96 }}
+            transition={{ duration: 0.24, ease: "easeOut" }}
+            className="ui-dialog w-full max-w-[460px] overflow-hidden"
             onClick={(event) => event.stopPropagation()}
           >
-            <div className="flex items-start gap-5">
-              <div
-                className={cn(
-                  "flex h-12 w-12 shrink-0 items-center justify-center rounded-md border",
-                  isDanger
-                    ? "border-error/12 bg-error-container/20 text-error"
-                    : "border-primary/12 bg-primary/10 text-primary",
-                )}
-              >
-                {isDanger ? <AlertTriangle className="h-5 w-5" /> : <Info className="h-5 w-5" />}
-              </div>
-              <div className="min-w-0 flex-1 space-y-3">
-                <h2 className="text-2xl font-black tracking-tight text-on-surface">{title}</h2>
-                <p className="text-[15px] leading-8 text-on-surface-variant">{description}</p>
+            <div className="px-7 pb-5 pt-7 sm:px-8">
+              <div className="flex items-start gap-4">
+                <div
+                  className={cn(
+                    "flex h-12 w-12 shrink-0 items-center justify-center rounded-[12px] border border-on-surface/6 shadow-[inset_0_1px_0_rgba(255,255,255,0.35)]",
+                    isDanger
+                      ? "bg-error-container/45 text-error"
+                      : "bg-primary/10 text-primary",
+                  )}
+                >
+                  {isDanger ? <AlertTriangle className="h-[20px] w-[20px]" /> : <Info className="h-[20px] w-[20px]" />}
+                </div>
+                <div className="min-w-0 flex-1 space-y-2">
+                  <h2 className="text-[1.1rem] font-black tracking-tight text-on-surface">{title}</h2>
+                  <p className="text-[13.5px] leading-6 text-ui-subtle">{description}</p>
+                  {children ? <div className="pt-2">{children}</div> : null}
+                </div>
               </div>
             </div>
 
-            <div className="mt-8 flex justify-end gap-3">
-              <Button variant="secondary" onClick={onCancel} disabled={loading} className="px-8 py-3.5">
+            <div className="flex gap-3 border-t border-on-surface/6 bg-surface-container-low/45 px-6 py-4">
+              <Button 
+                variant="secondary" 
+                onClick={handleCancel} 
+                disabled={loading} 
+                className="flex-1 bg-white"
+              >
                 {cancelLabel}
               </Button>
               <Button
                 variant={isDanger ? "danger" : "primary"}
                 onClick={() => void onConfirm()}
                 loading={loading}
-                className="px-8 py-3.5"
+                className="flex-1"
               >
                 {confirmLabel}
               </Button>

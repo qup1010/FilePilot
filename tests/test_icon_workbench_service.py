@@ -1,9 +1,10 @@
 import shutil
-import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
+from uuid import uuid4
 
-from file_organizer.icon_workbench.models import IconAnalysisResult, IconPreviewVersion, IconWorkbenchConfig
+from file_organizer.icon_workbench.models import IconAnalysisResult, IconPreviewVersion, IconWorkbenchConfig, ModelConfig
 from file_organizer.icon_workbench.service import IconWorkbenchService
 from file_organizer.icon_workbench.store import IconWorkbenchStore
 
@@ -62,15 +63,30 @@ class StubChatAgent:
 
 class IconWorkbenchServiceTests(unittest.TestCase):
     def setUp(self):
-        self.temp_dir = tempfile.mkdtemp(prefix="icon-workbench-")
-        self.parent_dir = Path(self.temp_dir) / "target"
-        self.parent_dir.mkdir(parents=True, exist_ok=True)
-        (self.parent_dir / "Alpha").mkdir()
-        (self.parent_dir / "Beta").mkdir()
-        (self.parent_dir / "Alpha" / "docs").mkdir()
-        (self.parent_dir / "Alpha" / "docs" / "readme.md").write_text("hello", encoding="utf-8")
-        (self.parent_dir / "Beta" / "src").mkdir()
-        (self.parent_dir / "Beta" / "src" / "main.py").write_text("print('ok')", encoding="utf-8")
+        self.test_root = Path.cwd() / "output" / "test-temp"
+        self.test_root.mkdir(parents=True, exist_ok=True)
+        self.temp_dir = str(self.test_root / f"icon-workbench-{uuid4().hex}")
+        Path(self.temp_dir).mkdir(parents=True, exist_ok=True)
+        self.alpha_dir = Path(self.temp_dir) / "Alpha"
+        self.beta_dir = Path(self.temp_dir) / "Beta"
+        self.gamma_dir = Path(self.temp_dir) / "Gamma"
+        self.alpha_dir.mkdir(parents=True, exist_ok=True)
+        self.beta_dir.mkdir(parents=True, exist_ok=True)
+        self.gamma_dir.mkdir(parents=True, exist_ok=True)
+        (self.alpha_dir / "docs").mkdir()
+        (self.alpha_dir / "docs" / "readme.md").write_text("hello", encoding="utf-8")
+        (self.beta_dir / "src").mkdir()
+        (self.beta_dir / "src" / "main.py").write_text("print('ok')", encoding="utf-8")
+
+        self.text_model_patch = patch(
+            "file_organizer.icon_workbench.config.IconWorkbenchConfigStore._global_text_model",
+            return_value=ModelConfig(
+                base_url="https://text.example/v1",
+                api_key="text-key",
+                model="gpt-text",
+            ),
+        )
+        self.text_model_patch.start()
 
         self.store = IconWorkbenchStore(Path(self.temp_dir) / "output")
         self.store.config_store.save(
@@ -100,17 +116,30 @@ class IconWorkbenchServiceTests(unittest.TestCase):
         )
 
     def tearDown(self):
+        self.text_model_patch.stop()
         shutil.rmtree(self.temp_dir, ignore_errors=True)
 
-    def test_create_session_scans_immediate_subfolders(self):
-        session = self.service.create_session(str(self.parent_dir))
+    def test_create_session_uses_explicit_target_paths(self):
+        session = self.service.create_session([str(self.alpha_dir), str(self.beta_dir)])
 
         self.assertEqual(session["folder_count"], 2)
         self.assertEqual([item["folder_name"] for item in session["folders"]], ["Alpha", "Beta"])
+        self.assertEqual(session["target_paths"], [str(self.alpha_dir), str(self.beta_dir)])
         self.assertEqual(session["messages"][0]["role"], "assistant")
 
+    def test_update_and_remove_session_targets(self):
+        session = self.service.create_session([str(self.alpha_dir)])
+        updated = self.service.update_session_targets(session["session_id"], [str(self.beta_dir), str(self.alpha_dir)], "append")
+
+        self.assertEqual(updated["target_paths"], [str(self.alpha_dir), str(self.beta_dir)])
+        self.assertEqual([item["folder_name"] for item in updated["folders"]], ["Alpha", "Beta"])
+
+        removed = self.service.remove_session_target(session["session_id"], updated["folders"][0]["folder_id"])
+        self.assertEqual(removed["target_paths"], [str(self.beta_dir)])
+        self.assertEqual([item["folder_name"] for item in removed["folders"]], ["Beta"])
+
     def test_analyze_generate_and_select_version_updates_session(self):
-        session = self.service.create_session(str(self.parent_dir))
+        session = self.service.create_session([str(self.alpha_dir), str(self.beta_dir)])
         folder_id = session["folders"][0]["folder_id"]
 
         analyzed = self.service.analyze_folders(session["session_id"], [folder_id])
@@ -147,7 +176,7 @@ class IconWorkbenchServiceTests(unittest.TestCase):
         self.assertEqual(updated["image_model"]["model"], "flux-1")
 
     def test_template_crud_and_apply_template(self):
-        session = self.service.create_session(str(self.parent_dir))
+        session = self.service.create_session([str(self.alpha_dir), str(self.beta_dir)])
         folder_id = session["folders"][0]["folder_id"]
         self.service.analyze_folders(session["session_id"], [folder_id])
 
@@ -189,7 +218,7 @@ class IconWorkbenchServiceTests(unittest.TestCase):
         self.assertFalse(any(item["template_id"] == updated["template_id"] for item in remaining))
 
     def test_prepare_apply_ready_only_returns_ready_versions(self):
-        session = self.service.create_session(str(self.parent_dir))
+        session = self.service.create_session([str(self.alpha_dir), str(self.beta_dir)])
         folder_a = session["folders"][0]["folder_id"]
         folder_b = session["folders"][1]["folder_id"]
 
@@ -219,7 +248,7 @@ class IconWorkbenchServiceTests(unittest.TestCase):
         self.assertEqual(prepared["skipped_items"][0]["message"], "当前版本未就绪")
 
     def test_send_message_auto_executes_low_risk_action(self):
-        session = self.service.create_session(str(self.parent_dir))
+        session = self.service.create_session([str(self.alpha_dir), str(self.beta_dir)])
         folder_id = session["folders"][0]["folder_id"]
         self.chat_agent.queue(
             "我已经先分析当前选中的文件夹。",
@@ -241,7 +270,7 @@ class IconWorkbenchServiceTests(unittest.TestCase):
         self.assertEqual(self.chat_agent.calls[0]["active_folder_id"], folder_id)
 
     def test_send_message_generates_pending_action(self):
-        session = self.service.create_session(str(self.parent_dir))
+        session = self.service.create_session([str(self.alpha_dir), str(self.beta_dir)])
         folder_id = session["folders"][0]["folder_id"]
         self.chat_agent.queue(
             "我已经整理好预览生成任务，等你确认。",
@@ -257,7 +286,7 @@ class IconWorkbenchServiceTests(unittest.TestCase):
         self.assertEqual(updated["messages"][-1]["tool_results"][0]["tool_name"], "generate_previews")
 
     def test_confirm_generate_previews_executes_server_side_action(self):
-        session = self.service.create_session(str(self.parent_dir))
+        session = self.service.create_session([str(self.alpha_dir), str(self.beta_dir)])
         folder_id = session["folders"][0]["folder_id"]
         self.service.analyze_folders(session["session_id"], [folder_id])
         self.chat_agent.queue(
@@ -276,7 +305,7 @@ class IconWorkbenchServiceTests(unittest.TestCase):
         self.assertIn("已按确认生成", confirmed_session["messages"][-1]["content"])
 
     def test_confirm_apply_icons_returns_client_execution(self):
-        session = self.service.create_session(str(self.parent_dir))
+        session = self.service.create_session([str(self.alpha_dir), str(self.beta_dir)])
         folder_id = session["folders"][0]["folder_id"]
         self.service.analyze_folders(session["session_id"], [folder_id])
         self.service.generate_previews(session["session_id"], [folder_id])
@@ -295,7 +324,7 @@ class IconWorkbenchServiceTests(unittest.TestCase):
         self.assertIn("已确认应用图标", confirmed["session"]["messages"][-1]["content"])
 
     def test_dismiss_pending_action_removes_it_and_records_message(self):
-        session = self.service.create_session(str(self.parent_dir))
+        session = self.service.create_session([str(self.alpha_dir), str(self.beta_dir)])
         folder_id = session["folders"][0]["folder_id"]
         self.chat_agent.queue(
             "恢复任务已准备好。",
@@ -311,7 +340,7 @@ class IconWorkbenchServiceTests(unittest.TestCase):
         self.assertIn("已取消待执行操作", dismissed["messages"][-1]["content"])
 
     def test_report_client_action_appends_summary_message(self):
-        session = self.service.create_session(str(self.parent_dir))
+        session = self.service.create_session([str(self.alpha_dir), str(self.beta_dir)])
 
         updated = self.service.report_client_action(
             session["session_id"],

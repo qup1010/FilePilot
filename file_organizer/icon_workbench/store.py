@@ -44,6 +44,11 @@ class IconWorkbenchStore:
         if preview_dir.exists():
             shutil.rmtree(preview_dir)
 
+    def remove_folder_assets(self, session_id: str, folder_id: str) -> None:
+        folder_dir = self.previews_dir / session_id / folder_id
+        if folder_dir.exists():
+            shutil.rmtree(folder_dir)
+
     def load_templates(self) -> list[IconTemplate]:
         if not self.templates_path.exists():
             self.save_user_templates([])

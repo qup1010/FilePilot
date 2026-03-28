@@ -23,7 +23,7 @@ class ConfigManagerPresetTests(unittest.TestCase):
         if self.root.exists():
             shutil.rmtree(self.root)
 
-    def test_sync_from_legacy_env_does_not_persist_secret_values(self):
+    def test_sync_from_legacy_env_persists_secret_values(self):
         with mock.patch.dict(
             os.environ,
             {
@@ -40,8 +40,8 @@ class ConfigManagerPresetTests(unittest.TestCase):
         text_preset = payload["text_presets"]["default"]
         vision_preset = payload["vision_presets"]["default"]
 
-        self.assertNotIn("OPENAI_API_KEY", text_preset)
-        self.assertNotIn("IMAGE_ANALYSIS_API_KEY", vision_preset)
+        self.assertEqual(text_preset["OPENAI_API_KEY"], "test-openai-secret")
+        self.assertEqual(vision_preset["IMAGE_ANALYSIS_API_KEY"], "test-image-secret")
         self.assertEqual(text_preset["OPENAI_BASE_URL"], "https://example.invalid/v1")
         self.assertTrue(payload["global_config"]["IMAGE_ANALYSIS_ENABLED"])
         self.assertEqual(manager.get("OPENAI_API_KEY"), "test-openai-secret")
@@ -68,9 +68,30 @@ class ConfigManagerPresetTests(unittest.TestCase):
         self.assertEqual(payload["text_presets"]["default"]["name"], "OpenAI 主链路")
         self.assertEqual(payload["vision_presets"]["default"]["name"], "图片专用")
         self.assertEqual(payload["vision_presets"]["default"]["IMAGE_ANALYSIS_NAME"], "图片专用")
+        self.assertEqual(payload["text_presets"]["default"]["OPENAI_API_KEY"], "runtime-openai-secret")
+        self.assertEqual(payload["vision_presets"]["default"]["IMAGE_ANALYSIS_API_KEY"], "runtime-image-secret")
         self.assertEqual(payload["global_config"]["DEBUG_MODE"], True)
         self.assertEqual(manager.get("OPENAI_API_KEY"), "runtime-openai-secret")
         self.assertEqual(manager.get("IMAGE_ANALYSIS_API_KEY"), "runtime-image-secret")
+
+    def test_restart_keeps_saved_secret_values(self):
+        manager = config_module.ConfigManager()
+        manager.update_active_profile(
+            {
+                "OPENAI_BASE_URL": "https://persisted.invalid/v1",
+                "OPENAI_MODEL": "gpt-5.2",
+                "OPENAI_API_KEY": "persisted-openai-secret",
+                "IMAGE_ANALYSIS_BASE_URL": "https://vision.invalid/v1",
+                "IMAGE_ANALYSIS_MODEL": "gpt-4o",
+                "IMAGE_ANALYSIS_API_KEY": "persisted-image-secret",
+            }
+        )
+
+        restarted = config_module.ConfigManager()
+        active = restarted.get_active_config(mask_secrets=False)
+
+        self.assertEqual(active["OPENAI_API_KEY"], "persisted-openai-secret")
+        self.assertEqual(active["IMAGE_ANALYSIS_API_KEY"], "persisted-image-secret")
 
     def test_legacy_single_config_is_migrated_to_dual_presets(self):
         self.config_path.write_text(

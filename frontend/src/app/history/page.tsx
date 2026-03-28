@@ -267,8 +267,8 @@ export default function HistoryPage() {
 
   return (
     <div className="flex-1 min-h-0 overflow-hidden bg-surface">
-      <div className="flex h-full min-h-0 flex-col gap-3 p-3 lg:flex-row">
-        <section className="flex min-h-0 w-full flex-col overflow-hidden rounded-[12px] border border-on-surface/6 bg-surface-container lg:w-[396px] lg:min-w-[396px]">
+      <div className="ui-page flex h-full min-h-0 flex-col gap-4 lg:flex-row">
+        <section className="ui-panel flex min-h-0 w-full flex-col overflow-hidden lg:w-[396px] lg:min-w-[396px]">
           <div className="border-b border-on-surface/6 px-4 py-4">
             <div className="space-y-3">
               <div className="space-y-1.5">
@@ -286,7 +286,7 @@ export default function HistoryPage() {
 
               <div className="grid gap-2 sm:grid-cols-3">
                 {historyStats.map((item) => (
-                  <div key={item.label} className="rounded-[9px] border border-on-surface/6 bg-white px-3 py-2.5">
+                  <div key={item.label} className="ui-metric px-3 py-2.5">
                     <div className="text-[12px] text-ui-muted">{item.label}</div>
                     <div className="mt-1 text-[1rem] font-black tabular-nums text-on-surface">{item.value}</div>
                   </div>
@@ -296,14 +296,14 @@ export default function HistoryPage() {
           </div>
 
           <div className="border-b border-on-surface/6 px-4 py-3">
-            <div className="space-y-2.5 rounded-[10px] bg-surface-container-low p-3">
+            <div className="ui-panel-muted space-y-2.5 p-3">
               <div className="relative">
                 <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ui-muted" />
                 <input
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
                   placeholder="搜索目录、状态或记录 ID"
-                  className="w-full rounded-[9px] border border-on-surface/8 bg-white py-2.5 pl-[2.625rem] pr-4 text-[14px] text-on-surface outline-none transition-all placeholder:text-ui-muted focus:border-primary/30 focus:ring-4 focus:ring-primary/5"
+                  className="w-full rounded-[12px] border border-on-surface/8 bg-white py-2.5 pl-[2.625rem] pr-4 text-[14px] text-on-surface outline-none transition-all placeholder:text-ui-muted focus:border-primary/30 focus:ring-4 focus:ring-primary/5"
                 />
               </div>
 
@@ -458,7 +458,7 @@ export default function HistoryPage() {
           </div>
         </section>
 
-        <section className="relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-[12px] border border-on-surface/6 bg-surface-container-lowest">
+        <section className="ui-panel relative flex min-h-0 flex-1 flex-col overflow-hidden">
           <AnimatePresence mode="wait">
             {selectedSessionId && selectedEntry && (isSelectedSession ? sessionDetail : journal) ? (
               <motion.div

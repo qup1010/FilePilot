@@ -48,3 +48,7 @@ export async function invokeTauriCommand<T>(
 export async function pickDirectoryWithTauri(): Promise<string | null> {
   return invokeTauriCommand<string | null>("pick_directory");
 }
+
+export async function pickDirectoriesWithTauri(): Promise<string[] | null> {
+  return invokeTauriCommand<string[] | null>("pick_directories");
+}

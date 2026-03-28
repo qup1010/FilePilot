@@ -9,6 +9,7 @@ export interface IconWorkbenchConfig {
   image_model: IconWorkbenchModelConfig;
   image_size: string;
   concurrency_limit: number;
+  save_mode: "in_folder" | "centralized";
 }
 
 export interface IconTemplate {
@@ -16,6 +17,7 @@ export interface IconTemplate {
   name: string;
   description: string;
   prompt_template: string;
+  cover_image?: string | null;
   is_builtin: boolean;
   created_at: string;
   updated_at: string;
@@ -83,7 +85,7 @@ export interface IconWorkbenchChatMessage {
 
 export interface IconWorkbenchSession {
   session_id: string;
-  parent_dir: string;
+  target_paths: string[];
   folders: FolderIconCandidate[];
   messages: IconWorkbenchChatMessage[];
   pending_actions: IconWorkbenchPendingAction[];
@@ -94,11 +96,17 @@ export interface IconWorkbenchSession {
   ready_count: number;
 }
 
+export interface IconWorkbenchTargetUpdatePayload {
+  target_paths: string[];
+  mode?: "append" | "replace";
+}
+
 export interface ApplyReadyTask {
   folder_id: string;
   folder_name: string;
   folder_path: string;
   image_path: string;
+  save_mode: "in_folder" | "centralized";
 }
 
 export interface RestoreReadyTask {

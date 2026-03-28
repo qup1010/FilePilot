@@ -18,31 +18,21 @@ export function EmptyState({
 }) {
   return (
     <motion.div 
-      initial={{ opacity: 0, scale: 0.98 }}
-      animate={{ opacity: 1, scale: 1 }}
-      className={cn("flex flex-col items-center justify-center text-center p-16 space-y-10", className)}
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      className={cn("flex flex-col items-center justify-center text-center p-12", className)}
     >
-      <div className="relative">
-        <div className="w-20 h-20 rounded-xl bg-white border border-on-surface/[0.04] flex items-center justify-center text-primary/40 shadow-[0_8px_30px_rgba(0,0,0,0.04)] transition-all hover:scale-105 duration-500 group">
-          <Icon className="w-10 h-10 transition-colors group-hover:text-primary/60" />
+      <div className="ui-panel flex w-full max-w-[460px] flex-col items-center gap-5 px-8 py-10">
+        <div className="flex h-[72px] w-[72px] items-center justify-center rounded-[14px] border border-on-surface/6 bg-surface-container-low text-primary/65 shadow-[inset_0_1px_0_rgba(255,255,255,0.45)]">
+          <Icon className="h-9 w-9" />
         </div>
-        <motion.div 
-          animate={{ scale: [1, 1.2, 1], opacity: [0.1, 0.3, 0.1] }}
-          transition={{ duration: 4, repeat: Infinity }}
-          className="absolute -inset-4 bg-primary/5 rounded-full blur-2xl -z-10"
-        />
-      </div>
-      
-      <div className="space-y-4 max-w-[360px]">
-        <h3 className="text-xl font-black font-headline text-on-surface tracking-tighter leading-tight italic uppercase">{title}</h3>
-        <p className="text-[14px] text-on-surface-variant/40 leading-relaxed font-bold tracking-tight">{description}</p>
-      </div>
-      
-      {children && (
-        <div className="pt-2 animate-in fade-in slide-in-from-bottom-3 duration-1000 delay-500 fill-mode-both">
-          {children}
+        <div className="max-w-[360px] space-y-2.5">
+          <h3 className="text-[1.15rem] font-black font-headline tracking-tight text-on-surface">{title}</h3>
+          <p className="text-[14px] leading-6 text-ui-subtle">{description}</p>
         </div>
-      )}
+
+        {children ? <div className="pt-1">{children}</div> : null}
+      </div>
     </motion.div>
   );
 }

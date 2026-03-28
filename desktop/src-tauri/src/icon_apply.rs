@@ -63,6 +63,7 @@ pub struct ApplyIconTask {
     pub folder_name: Option<String>,
     pub folder_path: String,
     pub image_path: String,
+    pub save_mode: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -88,7 +89,8 @@ pub fn apply_ready_icons(tasks: Vec<ApplyIconTask>) -> Result<Vec<ApplyIconResul
     ensure_windows()?;
     let mut results: Vec<ApplyIconResult> = Vec::new();
     for task in tasks {
-        match apply_folder_icon_impl(&task.folder_path, &task.image_path) {
+        let save_mode = task.save_mode.as_deref().unwrap_or("in_folder");
+        match apply_folder_icon_impl(&task.folder_path, &task.image_path, save_mode) {
             Ok(()) => results.push(ApplyIconResult {
                 folder_id: task.folder_id.clone(),
                 folder_name: task.folder_name.clone(),
@@ -141,7 +143,7 @@ fn ensure_windows() -> Result<(), String> {
     }
 }
 
-fn apply_folder_icon_impl(folder_path: &str, image_path: &str) -> Result<(), String> {
+fn apply_folder_icon_impl(folder_path: &str, image_path: &str, save_mode: &str) -> Result<(), String> {
     let folder = Path::new(folder_path);
     let preview = Path::new(image_path);
     if !folder.exists() || !folder.is_dir() {
@@ -152,18 +154,31 @@ fn apply_folder_icon_impl(folder_path: &str, image_path: &str) -> Result<(), Str
     }
 
     backup_current_icon_state(folder)?;
+ 
+    let (icon_path, icon_resource_name) = if save_mode == "centralized" {
+        let managed_dir = managed_icons_dir()?;
+        if !managed_dir.exists() {
+            fs::create_dir_all(&managed_dir).map_err(|e| format!("创建集中图标目录失败: {e}"))?;
+        }
+        let key = folder_backup_key(folder_path);
+        let target = managed_dir.join(format!("{}.ico", key));
+        (target.clone(), target.to_string_lossy().into_owned())
+    } else {
+        (folder.join(ICON_FILE_NAME), ICON_FILE_NAME.to_string())
+    };
 
-    let icon_path = folder.join(ICON_FILE_NAME);
     let ini_path = folder.join("desktop.ini");
-
+ 
     clear_attributes_if_exists(&ini_path)?;
     clear_attributes_if_exists(&icon_path)?;
-
+ 
     let image_bytes = std::fs::read(preview).map_err(|error| format!("读取预览图失败: {error}"))?;
     png_to_ico(&image_bytes, &icon_path)?;
-    desktop_ini::create(folder_path, ICON_FILE_NAME).map_err(|error| format!("写入 desktop.ini 失败: {error}"))?;
-
-    set_hidden_system(&icon_path)?;
+    desktop_ini::create(folder_path, &icon_resource_name).map_err(|error| format!("写入 desktop.ini 失败: {error}"))?;
+ 
+    if save_mode != "centralized" {
+        set_hidden_system(&icon_path)?;
+    }
     set_hidden_system(&ini_path)?;
     set_folder_readonly(folder)?;
     refresh_shell(folder_path);
@@ -371,11 +386,19 @@ fn load_backup_manifest(folder_path: &str) -> Result<(PathBuf, IconBackupManifes
 fn backup_root_dir() -> Result<PathBuf, String> {
     let appdata = std::env::var_os("APPDATA")
         .ok_or_else(|| "未找到 APPDATA，无法创建图标备份。".to_string())?;
-    Ok(PathBuf::from(appdata).join("FileOrganizer").join("icon_backups"))
+    Ok(PathBuf::from(appdata).join("FileOrganizer"))
+}
+
+fn managed_icons_dir() -> Result<PathBuf, String> {
+    Ok(backup_root_dir()?.join("managed_icons"))
+}
+
+fn icon_backups_dir() -> Result<PathBuf, String> {
+    Ok(backup_root_dir()?.join("icon_backups"))
 }
 
 fn folder_backup_dir(folder_path: &str) -> Result<PathBuf, String> {
-    Ok(backup_root_dir()?.join(folder_backup_key(folder_path)))
+    Ok(icon_backups_dir()?.join(folder_backup_key(folder_path)))
 }
 
 fn folder_backup_key(folder_path: &str) -> String {

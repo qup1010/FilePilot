@@ -12,7 +12,7 @@ export type SessionStage =
   | "stale"
   | "interrupted";
 
-export type StreamStatus = "connected" | "connecting" | "disconnected";
+export type StreamStatus = "connecting" | "connected" | "reconnecting" | "offline";
 export type AssistantRuntimePhase = "scan" | "plan";
 export type AssistantRuntimeMode = "waiting" | "tool" | "streaming";
 
@@ -165,6 +165,7 @@ export interface AssistantMessage {
   role: string;
   content: string;
   blocks?: AssistantMessageBlock[];
+  visibility?: "public" | "internal" | string;
 }
 
 export interface ActivityFeedEntry {

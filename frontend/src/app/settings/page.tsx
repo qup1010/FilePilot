@@ -111,7 +111,7 @@ function SettingsSection({
   return (
     <section
       className={cn(
-        "rounded-[12px] border border-on-surface/8 bg-surface-container-lowest p-5 shadow-[0_8px_24px_rgba(36,48,42,0.06)]",
+        "ui-panel p-5",
         disabled && "opacity-55",
       )}
     >
@@ -155,7 +155,7 @@ function InputShell({ icon: Icon, children, className }: InputShellProps) {
   return (
     <div
       className={cn(
-        "group flex items-center gap-2 rounded-[10px] border border-on-surface/8 bg-white px-3 py-2 transition-all focus-within:border-primary focus-within:ring-4 focus-within:ring-primary/5",
+        "ui-field-shell group px-3 py-2",
         className,
       )}
     >
@@ -183,8 +183,8 @@ function StrategyOptionButton({
       type="button"
       onClick={onClick}
       className={cn(
-        "w-full rounded-[10px] border px-4 py-3 text-left transition-colors",
-        active ? "border-primary/20 bg-primary/6" : "border-on-surface/8 bg-surface-container-low hover:border-primary/16",
+        "w-full rounded-[12px] border px-4 py-3 text-left transition-colors",
+        active ? "border-primary/20 bg-primary/6 shadow-[0_8px_18px_rgba(36,48,42,0.04)]" : "border-on-surface/8 bg-surface-container-lowest hover:border-primary/16 hover:bg-white",
       )}
     >
       <p className={cn("text-[14px] font-semibold tracking-tight", active ? "text-primary" : "text-on-surface")}>{label}</p>
@@ -303,16 +303,14 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
   const [testVision, setTestVision] = useState(false);
+  const [testIconImage, setTestIconImage] = useState(false);
 
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [dialog, setDialog] = useState<DialogState | null>(null);
   const [activeCategory, setActiveCategory] = useState<SettingsCategory>("models");
-  const [testResult, setTestResult] = useState<{
-    type: "text" | "vision";
-    status: "success" | "error";
-    message: string;
-  } | null>(null);
+
+  const [testResult, setTestResult] = useState<{ type: string; status: "success" | "error"; message: string } | null>(null);
   const [showKey, setShowKey] = useState(false);
   const [showVisionKey, setShowVisionKey] = useState(false);
   const [showIconImageKey, setShowIconImageKey] = useState(false);
@@ -400,15 +398,20 @@ export default function SettingsPage() {
     }
   };
 
-  const handleTest = async (type: "text" | "vision") => {
+  const handleTest = async (type: "text" | "vision" | "icon_image") => {
     if (type === "text") {
       setTesting(true);
-    } else {
+    } else if (type === "vision") {
       setTestVision(true);
+    } else {
+      setTestIconImage(true);
     }
     setTestResult(null);
     try {
-      const data = await api.testLlm({ ...config, test_type: type });
+      const payload = type === "icon_image" 
+        ? { test_type: "icon_image", ICON_IMAGE_API_KEY: iconConfig?.image_model.api_key, ICON_IMAGE_BASE_URL: iconConfig?.image_model.base_url, ICON_IMAGE_MODEL: iconConfig?.image_model.model }
+        : { ...config, test_type: type };
+      const data = await api.testLlm(payload);
       setTestResult({
         type,
         status: data.status === "ok" ? "success" : "error",
@@ -418,11 +421,12 @@ export default function SettingsPage() {
       setTestResult({
         type,
         status: "error",
-        message: err?.message || "没有连上本地服务",
+        message: err?.message || "连通性测试失败，请检查本地网络或服务端点",
       });
     } finally {
       setTesting(false);
       setTestVision(false);
+      setTestIconImage(false);
     }
   };
 
@@ -523,8 +527,8 @@ export default function SettingsPage() {
   return (
     <div className="flex min-h-0 flex-1 overflow-hidden bg-surface">
       <main className="min-w-0 flex-1 overflow-y-auto bg-surface">
-        <div className="mx-auto flex w-full max-w-[1360px] flex-col gap-5 px-5 py-5">
-          <div className="sticky top-0 z-20 rounded-[12px] border border-on-surface/8 bg-surface-container-lowest/92 px-4 py-3 backdrop-blur-sm shadow-[0_8px_18px_rgba(36,48,42,0.05)]">
+        <div className="ui-page flex flex-col gap-5">
+          <div className="ui-page-header glass-surface sticky top-0 z-20 px-4 py-3">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="min-w-0 space-y-1.5">
                 <div className="flex flex-wrap items-center gap-3">
@@ -535,8 +539,8 @@ export default function SettingsPage() {
                     </span>
                   ) : null}
                 </div>
-                <p className="max-w-[760px] text-[13px] leading-5 text-on-surface-variant/70">
-                  文本模型和图片理解模型仍按预设管理；图标工坊的图像生成模型也统一收进这里，文本分析继续沿用当前文本预设。
+                <p className="max-w-[760px] text-[13px] leading-6 text-on-surface-variant/70">
+                  文本模型和图片理解模型都可以按「预设」保存并快速切换。其中，“图标工坊”会直接复用这里配置的文本能力，但也支持为绘图单独配置图像模型。
                 </p>
               </div>
 
@@ -619,7 +623,7 @@ export default function SettingsPage() {
                   <SettingsSection
                     icon={Cpu}
                     title="文本模型设置"
-                    description="文本模型预设单独管理目录分析和整理对话所用的 Base URL、模型 ID 与 API 密钥；图标工坊的文本分析也直接沿用这里。"
+                    description="集中管理目录分析、整理对话等基础特性所在的模型与密钥，支持配置多套预设方便快捷切换。"
                     actions={
                       <Button
                         onClick={() => void handleTest("text")}
@@ -737,7 +741,19 @@ export default function SettingsPage() {
                   <SettingsSection
                     icon={SettingsIcon}
                     title="图标工坊图像生成"
-                    description="这里专门配置图标工坊生成 PNG 预览时使用的图像模型。文本分析不会在这里单独维护，而是直接复用上面的文本模型设置。"
+                    description="这里专门配置图标工坊用来生成文件夹预览图标的 AI 绘图模型。它在分析目录结构时，会自动复用上面的文本模型。"
+                    actions={
+                      <Button
+                        onClick={() => void handleTest("icon_image")}
+                        disabled={testIconImage || !iconConfig?.image_model.base_url || !iconConfig?.image_model.model || !iconConfig?.image_model.api_key}
+                        loading={testIconImage}
+                        variant="secondary"
+                        size="sm"
+                        className="px-5 py-2.5"
+                      >
+                        测试生图能力
+                      </Button>
+                    }
                   >
                     <div className="rounded-[12px] border border-on-surface/8 bg-surface-container-low px-4 py-4">
                       <div className="grid gap-3 lg:grid-cols-2">
@@ -754,10 +770,28 @@ export default function SettingsPage() {
                           </p>
                         </div>
                       </div>
-                      <div className="mt-3 rounded-[10px] border border-primary/12 bg-primary/6 px-3.5 py-3 text-[12px] leading-6 text-primary/85">
-                        图标工坊分析文件夹时会直接使用当前激活的文本预设；这里只有图像生成链路可单独切换。
+                      <div className="mt-3 rounded-[10px] border border-primary/12 bg-primary/6 px-4 py-3 text-[12px] leading-6 text-primary/85">
+                        图标工坊的「文件夹标签抽取」和「灵感文案生成」将直接使用第一项的文本模型能力。
                       </div>
                     </div>
+
+                    {testResult?.type === "icon_image" ? (
+                      <div
+                        className={cn(
+                          "flex items-center gap-3 rounded-[10px] border px-4 py-3 text-[12px] font-medium",
+                          testResult.status === "success"
+                            ? "border-emerald-500/10 bg-emerald-500/5 text-emerald-700"
+                            : "border-error/10 bg-error/5 text-error",
+                        )}
+                      >
+                        {testResult.status === "success" ? (
+                          <CheckCircle2 className="h-4.5 w-4.5 shrink-0" />
+                        ) : (
+                          <AlertCircle className="h-4.5 w-4.5 shrink-0" />
+                        )}
+                        <p>{testResult.message}</p>
+                      </div>
+                    ) : null}
 
                     <div className="grid gap-4 xl:grid-cols-2">
                       <FieldGroup label="图像生成接口地址" hint="可填 base URL 或完整 images/generations 地址。魔搭兼容端点也走这里。">
@@ -848,8 +882,8 @@ export default function SettingsPage() {
                         </InputShell>
                       </FieldGroup>
 
-                      <FieldGroup label="并发数" hint="当前主要作为保留配置位，最小 1，最大 6。">
-                        <InputShell icon={Layers3}>
+                      <FieldGroup label="并发生成上限">
+                        <InputShell icon={Terminal}>
                           <input
                             type="number"
                             min={1}
@@ -857,17 +891,38 @@ export default function SettingsPage() {
                             value={iconConfig.concurrency_limit}
                             onChange={(event) =>
                               setIconConfig((current) =>
-                                current
+                                (current
                                   ? {
-                                      ...current,
-                                      concurrency_limit: Number(event.target.value) || 1,
-                                    }
-                                  : current,
+                                    ...current,
+                                    concurrency_limit: Number(event.target.value) || 1,
+                                  }
+                                  : current)
                               )
                             }
                             className="w-full bg-transparent py-2 text-sm font-semibold text-on-surface outline-none"
                           />
                         </InputShell>
+                      </FieldGroup>
+
+                      <FieldGroup label="图标保存模式" className="xl:col-span-2">
+                        <div className="grid gap-3 sm:grid-cols-2">
+                          <StrategyOptionButton
+                            active={iconConfig.save_mode === "centralized"}
+                            label="集中存储（推荐）"
+                            description="图标统一保存在应用数据目录，不污染你的文件夹，且支持全局管理。"
+                            onClick={() =>
+                              setIconConfig((current) => (current ? { ...current, save_mode: "centralized" } : current))
+                            }
+                          />
+                          <StrategyOptionButton
+                            active={iconConfig.save_mode === "in_folder"}
+                            label="存放在文件夹内"
+                            description="图标保存在每个文件夹内部。如果你经常移动文件夹到其他电脑，建议使用此项。"
+                            onClick={() =>
+                              setIconConfig((current) => (current ? { ...current, save_mode: "in_folder" } : current))
+                            }
+                          />
+                        </div>
                       </FieldGroup>
                     </div>
                   </SettingsSection>
@@ -875,7 +930,7 @@ export default function SettingsPage() {
                   <SettingsSection
                     icon={Globe}
                     title="图片理解设置"
-                    description="图片理解预设独立切换；打开图片理解开关后，只会使用当前激活的图片预设。"
+                    description="针对包含整理图片需求的额外视觉增强（不适用于普通的系统文件整理）；需要明确打开开关才会生效。"
                     actions={
                       <div className="flex items-center gap-3">
                         {config.IMAGE_ANALYSIS_ENABLED ? (
@@ -921,7 +976,7 @@ export default function SettingsPage() {
                       </div>
                       <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
                         <p className="text-[12px] leading-5 text-on-surface-variant/65">
-                          切换图片预设只会更新图片链路配置；真正生效仍取决于上面的图片理解开关是否开启。
+                          只有当“开关”保持开启状态时，所选的图片预设才会在文件整理分析中发挥作用。
                         </p>
                         <button
                           type="button"
@@ -1029,7 +1084,7 @@ export default function SettingsPage() {
                 <SettingsSection
                   icon={SettingsIcon}
                   title="新任务启动"
-                  description="管理当前默认策略，并决定是否每次启动前先确认一次。"
+                  description="自定义首页的默认选型，免去频繁设置策略模板、命名风格等基础偏好参数的繁琐步骤。"
                 >
                   <div className="grid gap-4 xl:grid-cols-2">
                     <FieldGroup
@@ -1097,7 +1152,7 @@ export default function SettingsPage() {
                       <div className="space-y-1.5">
                         <h3 className="text-[13px] font-semibold tracking-tight text-on-surface">直接用默认值启动</h3>
                         <p className="text-[12px] leading-5 text-on-surface-variant/65">
-                          关闭时，每次新任务仍会先确认本次策略。开启后，首页会直接使用这里保存的默认策略启动。
+                          开启后，点击首页“立刻开始”会直接使用默认策略进入主屏幕，不再弹出确认对话框。
                         </p>
                       </div>
                       <ToggleSwitch
@@ -1109,7 +1164,7 @@ export default function SettingsPage() {
 
                   <div className="rounded-[12px] border border-primary/12 bg-primary/6 px-4 py-3.5">
                     <p className="text-[12px] leading-6 text-primary/85">
-                      当前默认模板：{launchTemplate.label}。如果首页仍保持“先确认策略”模式，弹窗会以这组默认值作为预填起点。
+                      即使不勾选直接启动，首页策略弹窗也会以上方数值作为最优先的预填起点。
                     </p>
                   </div>
                 </SettingsSection>

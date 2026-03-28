@@ -50,6 +50,7 @@ class IconWorkbenchConfigStore:
             image_model=ModelConfig(),
             image_size="1024x1024",
             concurrency_limit=1,
+            save_mode="centralized",
         )
 
     def _global_text_model(self) -> ModelConfig:

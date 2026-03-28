@@ -6,6 +6,7 @@ import type {
   IconWorkbenchConfig,
   IconWorkbenchMessagePayload,
   IconWorkbenchSession,
+  IconWorkbenchTargetUpdatePayload,
 } from "@/types/icon-workbench";
 
 function joinUrl(baseUrl: string, path: string): string {
@@ -29,9 +30,11 @@ async function parseResponse<T>(response: Response): Promise<T> {
 }
 
 export interface IconWorkbenchApiClient {
-  createSession(parent_dir: string): Promise<IconWorkbenchSession>;
+  createSession(target_paths: string[]): Promise<IconWorkbenchSession>;
   getSession(session_id: string): Promise<IconWorkbenchSession>;
   scanSession(session_id: string): Promise<IconWorkbenchSession>;
+  updateTargets(session_id: string, payload: IconWorkbenchTargetUpdatePayload): Promise<IconWorkbenchSession>;
+  removeTarget(session_id: string, folder_id: string): Promise<IconWorkbenchSession>;
   analyzeFolders(session_id: string, folder_ids: string[]): Promise<IconWorkbenchSession>;
   generatePreviews(session_id: string, folder_ids: string[]): Promise<IconWorkbenchSession>;
   updatePrompt(session_id: string, folder_id: string, prompt: string): Promise<IconWorkbenchSession>;
@@ -52,11 +55,11 @@ export interface IconWorkbenchApiClient {
 
 export function createIconWorkbenchApiClient(baseUrl: string, apiToken?: string): IconWorkbenchApiClient {
   return {
-    async createSession(parent_dir) {
+    async createSession(target_paths) {
       const response = await fetch(joinUrl(baseUrl, "/api/icon-workbench/sessions"), {
         method: "POST",
         headers: buildAuthHeaders(apiToken, { "Content-Type": "application/json" }),
-        body: JSON.stringify({ parent_dir }),
+        body: JSON.stringify({ target_paths }),
       });
       return parseResponse<IconWorkbenchSession>(response);
     },
@@ -69,6 +72,21 @@ export function createIconWorkbenchApiClient(baseUrl: string, apiToken?: string)
     async scanSession(session_id) {
       const response = await fetch(joinUrl(baseUrl, `/api/icon-workbench/sessions/${session_id}/scan`), {
         method: "POST",
+        headers: buildAuthHeaders(apiToken),
+      });
+      return parseResponse<IconWorkbenchSession>(response);
+    },
+    async updateTargets(session_id, payload) {
+      const response = await fetch(joinUrl(baseUrl, `/api/icon-workbench/sessions/${session_id}/targets`), {
+        method: "POST",
+        headers: buildAuthHeaders(apiToken, { "Content-Type": "application/json" }),
+        body: JSON.stringify(payload),
+      });
+      return parseResponse<IconWorkbenchSession>(response);
+    },
+    async removeTarget(session_id, folder_id) {
+      const response = await fetch(joinUrl(baseUrl, `/api/icon-workbench/sessions/${session_id}/targets/${folder_id}`), {
+        method: "DELETE",
         headers: buildAuthHeaders(apiToken),
       });
       return parseResponse<IconWorkbenchSession>(response);

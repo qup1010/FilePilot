@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: "primary" | "secondary" | "danger" | "ghost";
-  size?: "sm" | "md" | "lg";
+  size?: "sm" | "md" | "lg" | "icon";
   loading?: boolean;
 }
 
@@ -20,16 +20,17 @@ export function Button({
   ...props 
 }: ButtonProps) {
   const variants = {
-    primary: "border border-primary/20 bg-primary text-white shadow-[0_1px_2px_rgba(37,45,40,0.14)] hover:bg-primary-dim active:scale-95",
-    secondary: "border border-on-surface/8 bg-surface-container-lowest text-on-surface hover:bg-surface-container-low active:scale-95",
-    danger: "border border-error/15 bg-error-container/45 text-error hover:bg-error hover:text-white active:scale-95",
-    ghost: "bg-transparent text-on-surface hover:bg-on-surface/5 active:scale-95"
+    primary: "border border-primary/18 bg-primary text-white shadow-[0_10px_24px_rgba(77,99,87,0.14)] hover:bg-primary-dim hover:shadow-[0_14px_28px_rgba(77,99,87,0.18)]",
+    secondary: "border border-on-surface/8 bg-surface-container-lowest text-on-surface shadow-[0_6px_18px_rgba(36,48,42,0.04)] hover:bg-white hover:border-primary/12",
+    danger: "border border-error/18 bg-error-container/42 text-error shadow-[0_8px_18px_rgba(152,70,67,0.08)] hover:bg-error hover:text-white",
+    ghost: "border border-transparent bg-transparent text-on-surface hover:bg-on-surface/5"
   };
 
   const sizes = {
-    sm: "px-4 py-2 text-[12px] rounded-sm",
-    md: "px-6 py-2.5 text-[14px] rounded-md",
-    lg: "px-10 py-4 text-sm rounded-lg"
+    sm: "h-9 px-4 text-[12px] rounded-[10px]",
+    md: "h-10 px-5 text-[13px] rounded-[12px]",
+    lg: "h-11 px-6 text-[14px] rounded-[14px]",
+    icon: "h-10 w-10 p-0 rounded-[12px]"
   };
 
   return (
@@ -37,7 +38,7 @@ export function Button({
       whileTap={{ scale: 0.97 }}
       disabled={disabled || loading}
       className={cn(
-        "inline-flex items-center justify-center gap-2 font-semibold tracking-[0.01em] transition-colors disabled:pointer-events-none disabled:opacity-50 disabled:grayscale",
+        "inline-flex items-center justify-center gap-2 font-semibold tracking-[0.01em] transition-[transform,background-color,border-color,box-shadow,color] duration-180 disabled:pointer-events-none disabled:opacity-50 disabled:grayscale focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-primary/10",
         variants[variant],
         sizes[size],
         className

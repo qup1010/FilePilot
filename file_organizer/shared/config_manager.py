@@ -283,8 +283,11 @@ class ConfigManager:
     def get_active_config(self, mask_secrets: bool = True) -> dict[str, Any]:
         config = DEFAULT_FLAT_CONFIG.copy()
         config.update(self._global_config)
-        config.update(self._get_text_preset(self._active_text_preset_id))
-        config.update(self._get_vision_preset(self._active_vision_preset_id))
+        text_preset = self._get_text_preset(self._active_text_preset_id)
+        vision_preset = self._get_vision_preset(self._active_vision_preset_id)
+        config.update(text_preset)
+        config.update(vision_preset)
+        config["name"] = text_preset.get("name", DEFAULT_TEXT_PRESET["name"])
         if mask_secrets:
             for key in SECRET_KEYS:
                 config[key] = self._mask_secret(str(config.get(key, "") or ""))
@@ -443,10 +446,24 @@ class ConfigManager:
         raise ValueError("请改用独立的文本或图片预设")
 
     def save(self) -> None:
+        text_presets: dict[str, dict[str, Any]] = {}
+        for preset_id, preset in self._text_presets.items():
+            text_presets[preset_id] = {
+                **self._sanitize_text_preset(preset),
+                **self._text_secret_overrides.get(preset_id, {}),
+            }
+
+        vision_presets: dict[str, dict[str, Any]] = {}
+        for preset_id, preset in self._vision_presets.items():
+            vision_presets[preset_id] = {
+                **self._sanitize_vision_preset(preset),
+                **self._vision_secret_overrides.get(preset_id, {}),
+            }
+
         data = {
             "global_config": self._sanitize_global_config(self._global_config),
-            "text_presets": {preset_id: self._sanitize_text_preset(preset) for preset_id, preset in self._text_presets.items()},
-            "vision_presets": {preset_id: self._sanitize_vision_preset(preset) for preset_id, preset in self._vision_presets.items()},
+            "text_presets": text_presets,
+            "vision_presets": vision_presets,
             "active_text_preset_id": self._active_text_preset_id,
             "active_vision_preset_id": self._active_vision_preset_id,
         }

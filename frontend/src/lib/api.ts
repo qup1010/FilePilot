@@ -68,7 +68,7 @@ export interface ApiClient {
   switchPreset(preset_type: "text" | "vision", id: string): Promise<{ status: string }>;
   addPreset(preset_type: "text" | "vision", name: string, copy?: boolean): Promise<{ status: string; id: string }>;
   deletePreset(preset_type: "text" | "vision", id: string): Promise<{ status: string }>;
-  testLlm(payload: { test_type: "text" | "vision"; [key: string]: any }): Promise<{ status: string; message: string }>;
+  testLlm(payload: { test_type: "text" | "vision" | "icon_image"; [key: string]: any }): Promise<{ status: string; message: string }>;
 }
 
 export function createApiClient(baseUrl: string, apiToken?: string): ApiClient {

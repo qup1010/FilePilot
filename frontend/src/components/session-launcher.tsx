@@ -62,15 +62,11 @@ const DEFAULT_STRATEGY_SUMMARY: SessionStrategySummary = {
 function StrategySummaryChips({ strategy }: { strategy: SessionStrategySummary }) {
   return (
     <div className="flex flex-wrap gap-2">
-      <span className="rounded-[8px] border border-primary/12 bg-primary/8 px-2.5 py-1 text-[12px] font-semibold text-primary">{strategy.template_label}</span>
-      <span className="rounded-[8px] border border-on-surface/8 bg-surface-container-lowest px-2.5 py-1 text-[12px] font-medium text-on-surface-variant">
-        {strategy.naming_style_label}
-      </span>
-      <span className="rounded-[8px] border border-on-surface/8 bg-surface-container-lowest px-2.5 py-1 text-[12px] font-medium text-on-surface-variant">
-        {strategy.caution_level_label}
-      </span>
+      <span className="ui-pill border-primary/12 bg-primary/8 text-primary">{strategy.template_label}</span>
+      <span className="ui-pill">{strategy.naming_style_label}</span>
+      <span className="ui-pill">{strategy.caution_level_label}</span>
       {strategy.note ? (
-        <span className="rounded-[8px] border border-warning/10 bg-warning-container/30 px-2.5 py-1 text-[12px] font-medium text-on-surface-variant">
+        <span className="ui-pill border-warning/12 bg-warning-container/30">
           偏好：{strategy.note}
         </span>
       ) : null}
@@ -134,9 +130,9 @@ function StrategyDialog({
             initial={{ opacity: 0, scale: 0.97, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.97, y: 20 }}
-            className="flex h-[min(84vh,820px)] w-full max-w-[1080px] flex-col overflow-hidden rounded-[14px] border border-on-surface/8 bg-surface-container-lowest shadow-[0_18px_52px_rgba(37,45,40,0.14)]"
+            className="ui-dialog flex h-[min(84vh,820px)] w-full max-w-[1080px] flex-col overflow-hidden"
           >
-            <div className="flex shrink-0 items-start justify-between gap-6 border-b border-on-surface/8 bg-surface-container-low px-5 py-4 lg:px-6">
+            <div className="flex shrink-0 items-start justify-between gap-6 border-b border-on-surface/8 bg-surface-container-low/75 px-5 py-4 lg:px-6">
               <div className="space-y-3">
                 <div className="flex items-center gap-3">
                   <div className="inline-flex items-center gap-2 rounded-[8px] border border-primary/12 bg-primary/8 px-2.5 py-1 text-[12px] font-semibold text-primary">
@@ -159,7 +155,7 @@ function StrategyDialog({
               </div>
 
               <div className="flex items-start gap-3">
-                <div className="hidden rounded-[10px] border border-on-surface/8 bg-surface-container-lowest px-4 py-3 lg:block">
+                <div className="ui-panel-muted hidden px-4 py-3 lg:block">
                   <div className="text-ui-meta text-ui-muted">目标目录</div>
                   <p className="mt-1 max-w-[260px] truncate font-mono text-[12px] font-medium text-on-surface" title={targetDir}>{targetDir}</p>
                 </div>
@@ -183,129 +179,99 @@ function StrategyDialog({
                     initial={{ opacity: 0, x: -10 }}
                     animate={{ opacity: 1, x: 0 }}
                     exit={{ opacity: 0, x: 10 }}
-                    className="grid gap-5 lg:grid-cols-[260px_minmax(0,1fr)]"
+                    className="flex h-full flex-col"
                   >
-                    <div className="space-y-4">
-                      <div className="px-1 text-[12px] font-medium text-ui-muted">可选模板</div>
-                      <div className="space-y-3">
-                        {STRATEGY_TEMPLATES.map((template) => {
-                          const active = strategy.template_id === template.id;
-                          const defaultTag = template.defaultCautionLevel === "conservative" ? "保守" : "平衡";
-                          return (
-                            <button
-                              key={template.id}
-                              type="button"
-                              disabled={loading}
-                              onClick={() => {
-                                onTemplateSelect(template.id);
-                              }}
-                              className={cn(
-                                "group relative w-full overflow-hidden rounded-[12px] border px-4 py-4 text-left transition-colors disabled:opacity-50",
-                                active
-                                  ? "border-primary/20 bg-primary/6 text-on-surface"
-                                  : "border-on-surface/8 bg-surface-container-lowest text-on-surface-variant hover:border-primary/16 hover:bg-white",
-                              )}
-                            >
-                              <div className="mb-2 flex items-start justify-between gap-3">
-                                <div className="min-w-0">
-                                  <p className={cn("text-[14px] font-semibold tracking-tight", active ? "text-primary" : "text-on-surface")}>{template.label}</p>
-                                  <p className="mt-1 line-clamp-2 text-[12px] leading-5 text-ui-muted">{template.applicableScenarios}</p>
-                                </div>
-                                {active && (
-                                   <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-white">
-                                     <CheckCircle2 className="h-3.5 w-3.5" />
-                                   </div>
-                                )}
-                              </div>
-                              <div className="mt-3 flex flex-wrap gap-2">
-                                <span className="rounded-full border border-on-surface/8 bg-surface-container-low px-2.5 py-1 text-[11px] font-medium text-on-surface-variant">
-                                  {template.defaultNamingStyle === "en" ? "英文目录优先" : template.defaultNamingStyle === "minimal" ? "极简目录" : "中文目录优先"}
-                                </span>
-                                <span className="rounded-full border border-on-surface/8 bg-surface-container-low px-2.5 py-1 text-[11px] font-medium text-on-surface-variant">
-                                  {defaultTag}
-                                </span>
-                              </div>
+                    {/* 横排模板卡片 - 一屏可见 */}
+                    <div className="grid grid-cols-5 gap-3">
+                      {STRATEGY_TEMPLATES.map((template) => {
+                        const active = strategy.template_id === template.id;
+                        const defaultTag = template.defaultCautionLevel === "conservative" ? "保守" : "平衡";
+                        return (
+                          <button
+                            key={template.id}
+                            type="button"
+                            disabled={loading}
+                            onClick={() => onTemplateSelect(template.id)}
+                            className={cn(
+                              "group relative flex flex-col rounded-[14px] border px-4 py-4 text-left transition-all duration-200 disabled:opacity-50",
+                              active
+                                ? "border-primary/22 bg-primary/6 shadow-[0_10px_24px_rgba(36,48,42,0.06)]"
+                                : "border-on-surface/8 bg-surface-container-lowest hover:border-primary/16 hover:bg-white hover:shadow-[0_8px_18px_rgba(36,48,42,0.05)]",
+                            )}
+                          >
+                            <div className="mb-2 flex items-center justify-between">
+                              <p className={cn("text-[14px] font-bold tracking-tight", active ? "text-primary" : "text-on-surface")}>{template.label}</p>
                               {active && (
-                                <motion.div 
-                                  layoutId="active-indicator"
-                                  className="absolute bottom-0 left-0 top-0 w-[3px] bg-primary"
-                                />
+                                <div className="flex h-5 w-5 items-center justify-center rounded-full bg-primary text-white">
+                                  <CheckCircle2 className="h-3 w-3" />
+                                </div>
                               )}
-                            </button>
-                          );
-                        })}
-                      </div>
+                            </div>
+                            <p className="line-clamp-2 text-[11.5px] leading-[1.6] text-ui-muted">{template.applicableScenarios}</p>
+                            <div className="mt-auto flex flex-wrap gap-1.5 pt-3">
+                              <span className="rounded-full border border-on-surface/8 bg-surface-container-low px-2 py-0.5 text-[10px] font-medium text-on-surface-variant">
+                                {template.defaultNamingStyle === "en" ? "英文目录" : template.defaultNamingStyle === "minimal" ? "极简" : "中文目录"}
+                              </span>
+                              <span className="rounded-full border border-on-surface/8 bg-surface-container-low px-2 py-0.5 text-[10px] font-medium text-on-surface-variant">
+                                {defaultTag}
+                              </span>
+                            </div>
+                            {active && (
+                              <motion.div
+                                layoutId="active-indicator"
+                                className="absolute bottom-0 left-3 right-3 h-[2.5px] rounded-full bg-primary"
+                              />
+                            )}
+                          </button>
+                        );
+                      })}
                     </div>
 
-                    <div className="space-y-5">
-                      <div className="rounded-[12px] border border-on-surface/8 bg-surface-container-lowest p-5">
-                        <div className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
-                          <div className="space-y-7">
-                            <div className="space-y-3">
-                              <div className="flex flex-wrap items-center gap-2">
-                                <span className="rounded-full border border-primary/12 bg-primary/8 px-3 py-1 text-[12px] font-semibold text-primary">
-                                  当前模板
-                                </span>
-                                <span className="rounded-full border border-on-surface/8 bg-surface-container-low px-3 py-1 text-[12px] font-medium text-on-surface-variant">
-                                  {templateTag}
-                                </span>
-                              </div>
-                              <h3 className="text-[1.32rem] font-black font-headline tracking-tight text-on-surface lg:text-[1.45rem]">{currentTemplate.label}</h3>
-                              <p className="max-w-xl text-[14px] leading-7 text-ui-muted">{currentTemplate.description}</p>
-                            </div>
+                    {/* 选中模板的紧凑详情 */}
+                    <div className="mt-5 grid flex-1 gap-4 lg:grid-cols-[1fr_280px]">
+                      <div className="ui-panel p-5">
+                        <div className="flex flex-wrap items-center gap-2.5">
+                          <span className="rounded-full border border-primary/12 bg-primary/8 px-3 py-1 text-[12px] font-semibold text-primary">{currentTemplate.label}</span>
+                          <span className="rounded-full border border-on-surface/8 bg-surface-container-low px-3 py-1 text-[12px] font-medium text-on-surface-variant">{templateTag}</span>
+                        </div>
+                        <p className="mt-3 text-[13.5px] leading-7 text-ui-muted">{currentTemplate.description}</p>
 
-                            <div className="grid gap-4 lg:grid-cols-2">
-                              <div className="rounded-[10px] border border-on-surface/8 bg-surface-container-low px-5 py-4">
-                                <div className="text-[12px] font-medium text-ui-muted">适用场景</div>
-                                <p className="mt-3 text-[14px] leading-7 text-on-surface">{currentTemplate.applicableScenarios}</p>
-                              </div>
-                              <div className="rounded-[10px] border border-on-surface/8 bg-surface-container-low px-5 py-4">
-                                <div className="text-[12px] font-medium text-ui-muted">预计整理风格</div>
-                                <p className="mt-3 text-[14px] leading-7 text-on-surface">
-                                  会优先按 {currentTemplate.label} 的目录骨架生成第一版整理方案，不会直接移动文件。
-                                </p>
-                              </div>
-                            </div>
-
-                            <div className="grid gap-4 lg:grid-cols-2">
-                              <div className="rounded-[10px] border border-on-surface/8 bg-surface-container-lowest px-4 py-4">
-                                <div className="text-[12px] font-medium text-ui-muted">命名风格</div>
-                                <p className="mt-2 text-[14px] font-semibold text-on-surface">{namingLabel}</p>
-                              </div>
-                              <div className="rounded-[10px] border border-on-surface/8 bg-surface-container-lowest px-4 py-4">
-                                <div className="text-[12px] font-medium text-ui-muted">整理方式</div>
-                                <p className="mt-2 text-[14px] font-semibold text-on-surface">{cautionLabel}</p>
-                              </div>
-                            </div>
+                        <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                          <div className="rounded-[10px] border border-on-surface/6 bg-surface-container-low px-4 py-3">
+                            <div className="text-[10.5px] font-medium uppercase tracking-widest text-ui-muted">适用场景</div>
+                            <p className="mt-1.5 text-[13px] font-semibold leading-6 text-on-surface">{currentTemplate.applicableScenarios}</p>
                           </div>
-
-                          <div className="rounded-[12px] border border-on-surface/8 bg-surface-container-low p-5">
-                            <div className="mb-4 text-[12px] font-medium text-ui-muted">预计目录结构片段</div>
-                            <div className="space-y-3">
-                              {directoryPreview.map((directory, index) => (
-                                <motion.div
-                                  initial={{ opacity: 0, x: 20 }}
-                                  animate={{ opacity: 1, x: 0 }}
-                                  transition={{ delay: index * 0.1 }}
-                                  key={`${strategy.template_id}-${strategy.naming_style}-${directory}`}
-                                  className="flex items-center gap-3 rounded-[10px] border border-on-surface/8 bg-surface-container-lowest px-4 py-3 transition-colors hover:border-primary/16"
-                                >
-                                  <div className="h-2 w-2 rounded-full bg-primary/30" />
-                                  <span className="text-[13px] font-semibold text-on-surface">{directory}</span>
-                                </motion.div>
-                              ))}
-                            </div>
+                          <div className="rounded-[10px] border border-on-surface/6 bg-surface-container-low px-4 py-3">
+                            <div className="text-[10.5px] font-medium uppercase tracking-widest text-ui-muted">命名风格</div>
+                            <p className="mt-1.5 text-[13px] font-semibold text-on-surface">{namingLabel}</p>
+                          </div>
+                          <div className="rounded-[10px] border border-on-surface/6 bg-surface-container-low px-4 py-3">
+                            <div className="text-[10.5px] font-medium uppercase tracking-widest text-ui-muted">整理方式</div>
+                            <p className="mt-1.5 text-[13px] font-semibold text-on-surface">{cautionLabel}</p>
+                          </div>
+                          <div className="rounded-[10px] border border-primary/10 bg-primary/4 px-4 py-3">
+                            <div className="text-[10.5px] font-medium uppercase tracking-widest text-primary/70">安全提示</div>
+                            <p className="mt-1.5 text-[12px] font-medium leading-5 text-primary/80">先出方案再确认，不会直接移动文件</p>
                           </div>
                         </div>
                       </div>
-                      
-                      <div className="flex items-start gap-4 rounded-[12px] border border-primary/12 bg-primary/6 px-5 py-4">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-[10px] bg-surface-container-lowest text-primary">
-                          <AlertTriangle className="h-5 w-5" />
+
+                      <div className="ui-panel-muted p-4">
+                        <div className="mb-3 text-[11px] font-medium uppercase tracking-widest text-ui-muted">预计目录结构</div>
+                        <div className="space-y-2">
+                          {directoryPreview.map((directory, index) => (
+                            <motion.div
+                              initial={{ opacity: 0, x: 12 }}
+                              animate={{ opacity: 1, x: 0 }}
+                              transition={{ delay: index * 0.06 }}
+                              key={`${strategy.template_id}-${strategy.naming_style}-${directory}`}
+                              className="flex items-center gap-2.5 rounded-[8px] border border-on-surface/6 bg-surface-container-lowest px-3 py-2.5 transition-colors hover:border-primary/16"
+                            >
+                              <div className="h-1.5 w-1.5 rounded-full bg-primary/40" />
+                              <span className="text-[12.5px] font-semibold text-on-surface">{directory}</span>
+                            </motion.div>
+                          ))}
                         </div>
-                        <p className="text-[13px] leading-6 text-primary/85">
-                          这一页只是在确定第一版整理方式。真正移动文件前，后面还会进入预检和最终确认。
-                        </p>
                       </div>
                     </div>
                   </motion.div>
@@ -315,92 +281,98 @@ function StrategyDialog({
                     initial={{ opacity: 0, x: 10 }}
                     animate={{ opacity: 1, x: 0 }}
                     exit={{ opacity: 0, x: -10 }}
-                    className="grid gap-5 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]"
+                    className="flex h-full flex-col gap-5"
                   >
-                    <div className="space-y-6">
-                      <div className="rounded-[12px] border border-primary/12 bg-primary/6 px-5 py-4">
-                        <div className="flex flex-wrap items-center gap-2 text-[12px] font-medium text-primary/90">
-                          <span className="rounded-full border border-primary/12 bg-white/70 px-3 py-1">{currentTemplate.label}</span>
-                          <span className="rounded-full border border-primary/12 bg-white/70 px-3 py-1">{namingLabel}</span>
-                          <span className="rounded-full border border-primary/12 bg-white/70 px-3 py-1">{cautionLabel}</span>
-                        </div>
-                        <p className="mt-3 text-[13px] leading-6 text-primary/85">
-                          第二步只是在第一步模板基础上补充你的偏好，不会改变“先扫描、后生成方案、最后确认执行”的主流程。
+                    <div className="ui-panel-muted border-primary/12 bg-primary/5 px-5 py-3.5">
+                      <div className="flex flex-wrap items-center gap-2 text-[12px] font-medium text-primary/90">
+                        <span className="rounded-full border border-primary/12 bg-white/70 px-3 py-1">{currentTemplate.label}</span>
+                        <span className="rounded-full border border-primary/12 bg-white/70 px-3 py-1">{namingLabel}</span>
+                        <span className="rounded-full border border-primary/12 bg-white/70 px-3 py-1">{cautionLabel}</span>
+                        <p className="ml-2 text-[12.5px] leading-6 text-primary/80">
+                          补充你的偏好，完成后即可进入“扫描 → 预检 → 执行”确认流程。
                         </p>
-                      </div>
-
-                      <div className="rounded-[12px] border border-on-surface/8 bg-surface-container-lowest p-5">
-                        <div className="mb-6 flex items-center justify-between">
-                          <span className="text-[12px] font-medium text-ui-muted">目录命名风格</span>
-                        </div>
-                        <div className="grid grid-cols-1 gap-3">
-                          {NAMING_STYLE_OPTIONS.map((option) => {
-                            const active = strategy.naming_style === option.id;
-                            return (
-                              <button
-                                key={option.id}
-                                type="button"
-                                disabled={loading}
-                                onClick={() => onChangeNaming(option.id)}
-                                className={cn(
-                                  "w-full rounded-[10px] border px-4 py-4 text-left transition-colors disabled:opacity-50",
-                                  active ? "border-primary/20 bg-primary/6" : "border-on-surface/8 bg-surface-container-low hover:border-primary/16",
-                                )}
-                              >
-                                <p className={cn("text-[14px] font-semibold tracking-tight", active ? "text-primary" : "text-on-surface")}>{option.label}</p>
-                                <p className="mt-1 text-[13px] leading-6 text-ui-muted">{option.description}</p>
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-
-                      <div className="rounded-[12px] border border-on-surface/8 bg-surface-container-lowest p-5">
-                        <div className="mb-6 flex items-center justify-between">
-                          <span className="text-[12px] font-medium text-ui-muted">整理保守度</span>
-                        </div>
-                        <div className="grid grid-cols-2 gap-4">
-                          {CAUTION_LEVEL_OPTIONS.map((option) => {
-                            const active = strategy.caution_level === option.id;
-                            return (
-                              <button
-                                key={option.id}
-                                type="button"
-                                disabled={loading}
-                                onClick={() => onChangeCaution(option.id)}
-                                className={cn(
-                                  "flex h-full flex-col rounded-[10px] border px-4 py-4 text-left transition-colors disabled:opacity-50",
-                                  active ? "border-primary/20 bg-primary/6" : "border-on-surface/8 bg-surface-container-low hover:border-primary/16",
-                                )}
-                              >
-                                <p className={cn("mb-2 text-[14px] font-semibold tracking-tight", active ? "text-primary" : "text-on-surface")}>{option.label}</p>
-                                <p className="text-[13px] leading-6 text-ui-muted">{option.description}</p>
-                              </button>
-                            );
-                          })}
-                        </div>
                       </div>
                     </div>
 
-                    <div className="space-y-6">
-                      <div className="flex h-full flex-col rounded-[12px] border border-on-surface/8 bg-surface-container-lowest p-5">
-                        <div className="mb-6 flex items-center justify-between px-2">
-                          <span className="text-[12px] font-medium text-ui-muted">补充说明</span>
-                          <span className="text-ui-meta text-ui-muted">可选</span>
+                    <div className="grid grid-cols-1 gap-5 lg:grid-cols-2 min-h-0 flex-1">
+                      <div className="flex flex-col gap-5">
+                        <div className="rounded-[12px] border border-on-surface/8 bg-surface-container-lowest p-4">
+                          <div className="mb-3 flex items-center justify-between">
+                            <span className="text-[11px] font-medium uppercase tracking-widest text-ui-muted">目录命名风格</span>
+                          </div>
+                          <div className="grid grid-cols-3 gap-2.5">
+                            {NAMING_STYLE_OPTIONS.map((option) => {
+                              const active = strategy.naming_style === option.id;
+                              return (
+                                <button
+                                  key={option.id}
+                                  type="button"
+                                  disabled={loading}
+                                  onClick={() => onChangeNaming(option.id)}
+                                  className={cn(
+                                    "flex flex-col rounded-[10px] border px-3 py-3 text-left transition-all duration-200 disabled:opacity-50",
+                                    active ? "border-primary/25 bg-primary/6 shadow-[0_2px_10px_rgba(36,48,42,0.04)]" : "border-on-surface/8 bg-surface-container-low hover:border-primary/16",
+                                  )}
+                                >
+                                  <div className="mb-1.5 flex items-center justify-between w-full">
+                                    <p className={cn("text-[13px] font-bold tracking-tight", active ? "text-primary" : "text-on-surface")}>{option.label}</p>
+                                    {active && <CheckCircle2 className="h-3.5 w-3.5 text-primary" />}
+                                  </div>
+                                  <p className="text-[11px] leading-[1.5] text-ui-muted">{option.description}</p>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        <div className="rounded-[12px] border border-on-surface/8 bg-surface-container-lowest p-4">
+                          <div className="mb-3 flex items-center justify-between">
+                            <span className="text-[11px] font-medium uppercase tracking-widest text-ui-muted">整理方式</span>
+                          </div>
+                          <div className="grid grid-cols-2 gap-3">
+                            {CAUTION_LEVEL_OPTIONS.map((option) => {
+                              const active = strategy.caution_level === option.id;
+                              return (
+                                <button
+                                  key={option.id}
+                                  type="button"
+                                  disabled={loading}
+                                  onClick={() => onChangeCaution(option.id)}
+                                  className={cn(
+                                    "flex flex-col rounded-[10px] border px-3.5 py-3 text-left transition-all duration-200 disabled:opacity-50",
+                                    active ? "border-primary/25 bg-primary/6 shadow-[0_2px_10px_rgba(36,48,42,0.04)]" : "border-on-surface/8 bg-surface-container-low hover:border-primary/16",
+                                  )}
+                                >
+                                  <div className="mb-1.5 flex items-center justify-between w-full">
+                                    <p className={cn("text-[13px] font-bold tracking-tight", active ? "text-primary" : "text-on-surface")}>{option.label}</p>
+                                    {active && <CheckCircle2 className="h-3.5 w-3.5 text-primary" />}
+                                  </div>
+                                  <p className="text-[11px] leading-[1.5] text-ui-muted">{option.description}</p>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-col rounded-[12px] border border-on-surface/8 bg-surface-container-lowest p-4">
+                        <div className="mb-3 flex items-center justify-between">
+                          <span className="text-[11px] font-medium uppercase tracking-widest text-ui-muted">补充说明</span>
+                          <span className="text-[10px] font-semibold text-ui-muted bg-surface-container-low px-2 py-0.5 rounded-full">可选</span>
                         </div>
                         <textarea
                           value={strategy.note}
                           disabled={loading}
                           onChange={(event) => onChangeNote(event.target.value.slice(0, 200))}
                           placeholder="例如：项目文件尽量放在一起；拿不准的先放 Review。"
-                          className="flex-1 w-full resize-none rounded-[10px] border border-on-surface/8 bg-surface-container-low px-4 py-4 text-[14px] leading-7 text-on-surface outline-none transition-all placeholder:text-on-surface-variant/35 focus:border-primary/40 focus:ring-4 focus:ring-primary/5 disabled:opacity-50"
+                          className="flex-1 w-full resize-none rounded-[10px] border border-on-surface/8 bg-surface-container-low px-4 py-3.5 text-[13.5px] leading-relaxed text-on-surface outline-none transition-all placeholder:text-on-surface-variant/35 focus:border-primary/30 focus:bg-white focus:ring-4 focus:ring-primary/5 disabled:opacity-50"
                         />
-                        <div className="mt-5 flex items-start gap-4 rounded-[10px] border border-primary/12 bg-primary/6 p-4">
-                          <div className="flex h-10 w-10 items-center justify-center rounded-[10px] bg-surface-container-lowest text-primary">
-                             <Sparkles className="h-5 w-5" />
+                        <div className="mt-3 flex items-start gap-3 rounded-[8px] border border-primary/10 bg-primary/4 p-3">
+                          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[6px] bg-white text-primary shadow-sm border border-primary/10">
+                             <Sparkles className="h-4 w-4" />
                           </div>
-                          <p className="text-[13px] leading-6 text-primary/85">
-                            这些说明会作为整理偏好一起参考，尤其适合“项目文件放一起”“不确定项先进 Review”这类额外要求。
+                          <p className="text-[11.5px] leading-snug text-primary/85 pt-0.5">
+                            这些说明会作为偏好参考，尤其适合“拿不准的都进 Review”等全局整理边界要求。
                           </p>
                         </div>
                       </div>
@@ -411,7 +383,7 @@ function StrategyDialog({
             </div>
 
             <div className="shrink-0 border-t border-on-surface/8 bg-surface-container-low px-5 py-4 lg:px-6">
-              <div className="flex flex-wrap items-center justify-between gap-4 rounded-[12px] border border-on-surface/8 bg-surface-container-lowest px-4 py-3">
+              <div className="ui-panel-muted flex flex-wrap items-center justify-between gap-4 px-4 py-3">
                 <div className="flex flex-wrap items-center gap-3">
                   <div className="text-[12px] font-medium text-ui-muted">已选配置</div>
                   <div className="flex flex-wrap gap-1.5">
@@ -662,144 +634,138 @@ export function SessionLauncher() {
 
   return (
     <>
-      <div className="mx-auto w-full max-w-4xl py-6 sm:py-8 lg:py-12 xl:py-16">
+      <div className="ui-page">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.45, ease: "easeOut" }}
-          className="mb-6 flex flex-col items-center text-center sm:mb-8 lg:mb-10"
+          transition={{ duration: 0.4, ease: "easeOut" }}
+          className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]"
         >
-          <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-4 py-2 text-[13px] font-black text-primary shadow-sm sm:mb-5 lg:mb-6">
-            <Sparkles className="h-4 w-4" />
-            新建整理任务
-          </div>
-          <h1 className="mb-4 text-3xl font-black font-headline tracking-tight text-on-surface sm:text-4xl lg:mb-5 lg:text-6xl">
-            先选目录，再开始整理
-          </h1>
-          <p className="max-w-3xl text-[15px] font-medium leading-relaxed text-ui-muted sm:text-base lg:text-lg">
-            先扫描目录，再生成整理方案；确认后才会真正移动文件。
-            <br className="hidden sm:block" />
-            支持预检与回退，首页只保留最直接的开始路径。
-          </p>
-        </motion.div>
+          <section className="ui-panel overflow-hidden p-5 sm:p-6">
+            <div className="space-y-5">
+              <div className="space-y-3">
+                <div className="ui-kicker">
+                  <Sparkles className="h-4 w-4" />
+                  新建整理任务
+                </div>
+                <div className="space-y-2">
+                  <h1 className="max-w-3xl text-[2rem] font-black font-headline leading-[1.05] tracking-tight text-on-surface sm:text-[2.3rem] lg:text-[2.85rem]">
+                    先选目录，再开始整理
+                  </h1>
+                  <p className="max-w-2xl text-[14px] leading-7 text-ui-subtle sm:text-[15px]">
+                    首页只负责选择目录、确认默认策略并启动任务。真正的扫描、方案调整、预检和执行，都在后续工作台完成。
+                  </p>
+                </div>
+              </div>
 
-        <div className="space-y-4 sm:space-y-5 lg:space-y-6">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.985 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ delay: 0.12, duration: 0.35 }}
-            className="rounded-[28px] border border-on-surface/10 bg-surface-container-lowest p-4 shadow-[0_20px_50px_rgba(0,0,0,0.06)]"
-          >
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-stretch">
-              <div className="relative flex min-w-0 flex-1 items-center rounded-[22px] border border-on-surface/8 bg-surface-container-low px-2 focus-within:border-primary/30 focus-within:ring-4 focus-within:ring-primary/5">
+              <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-stretch">
+                <div className="ui-field-shell min-h-[64px] px-2.5 py-2">
+                  <Button
+                    variant="ghost"
+                    onClick={handleSelectDir}
+                    disabled={loading}
+                    className="h-11 w-11 rounded-[12px] p-0 text-ui-muted hover:bg-primary/6 hover:text-primary"
+                    title="浏览文件夹"
+                  >
+                    <FolderOpen className="h-5 w-5" />
+                  </Button>
+                  <input
+                    value={targetDir}
+                    onChange={(event) => setTargetDir(event.target.value)}
+                    disabled={loading}
+                    className="h-12 w-full min-w-0 bg-transparent pr-3 text-[15px] font-semibold text-on-surface outline-none placeholder:text-on-surface-variant/32 disabled:opacity-70"
+                    placeholder="粘贴路径或点击左侧图标选择目录..."
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") void handlePrimaryLaunch();
+                    }}
+                  />
+                </div>
                 <Button
-                  variant="ghost"
-                  onClick={handleSelectDir}
-                  disabled={loading}
-                  className="h-12 w-12 rounded-[14px] p-0 text-ui-muted transition-all hover:bg-primary/5 hover:text-primary active:scale-90"
-                  title="浏览文件夹"
+                  variant="primary"
+                  size="lg"
+                  onClick={() => void handlePrimaryLaunch()}
+                  disabled={loading || !targetDir.trim()}
+                  loading={loading}
+                  className="w-full px-6 sm:w-auto"
                 >
-                  <FolderOpen className="h-6 w-6" />
+                  {loading ? "正在准备" : "开始扫描整理"}
+                  {!loading && <ArrowRight className="h-4.5 w-4.5" />}
                 </Button>
-                <input
-                  value={targetDir}
-                  onChange={(event) => setTargetDir(event.target.value)}
-                  disabled={loading}
-                  className="h-16 w-full min-w-0 bg-transparent pr-4 text-[17px] font-bold text-on-surface outline-none placeholder:text-on-surface-variant/25 disabled:opacity-70"
-                  placeholder="粘贴路径或点击左侧图标选择目录..."
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") void handlePrimaryLaunch();
-                  }}
-                />
               </div>
-              <Button
-                variant="primary"
-                onClick={() => void handlePrimaryLaunch()}
-                disabled={loading || !targetDir.trim()}
-                loading={loading}
-                className="h-16 rounded-[20px] px-10 text-[17px] font-black tracking-tight shadow-[0_8px_25px_rgba(var(--primary-rgb),0.3)] transition-all hover:-translate-y-0.5 hover:shadow-[0_12px_30px_rgba(var(--primary-rgb),0.4)] active:translate-y-0.5 active:scale-[0.98]"
-              >
-                {loading ? "正在准备" : "开始扫描整理"}
-                {!loading && <ArrowRight className="ml-2 h-5 w-5" />}
-              </Button>
-            </div>
 
-            <div className="mt-4 rounded-[20px] border border-on-surface/6 bg-surface-container-low px-4 py-4">
-              <div className="space-y-2">
-                {launchPreferencesLoaded ? (
-                  <>
-                    <div className="flex flex-wrap items-center gap-2 text-[13px] font-semibold text-on-surface">
-                      <span className="text-ui-muted">当前预设</span>
-                      <span className="rounded-full border border-primary/12 bg-primary/8 px-3 py-1 text-[12px] font-semibold text-primary">
-                        {currentTemplate.label}
-                      </span>
-                      <span className="rounded-full border border-on-surface/8 bg-surface-container-lowest px-3 py-1 text-[12px] font-medium text-on-surface-variant">
-                        {namingLabel}
-                      </span>
-                      <span className="rounded-full border border-on-surface/8 bg-surface-container-lowest px-3 py-1 text-[12px] font-medium text-on-surface-variant">
-                        {cautionLabel}
-                      </span>
-                    </div>
-                    <p className="text-[13px] leading-6 text-ui-muted">
-                      {launchSkipPrompt
-                        ? "点击开始后，会直接用这组预设创建并扫描新任务。"
-                        : "点击开始后，会先让你确认这次整理策略；弹窗会以这组预设作为起点。"}
-                    </p>
-                  </>
-                ) : (
-                  <>
-                    <div className="flex flex-wrap items-center gap-2 text-[13px] font-semibold text-on-surface">
-                      <span className="text-ui-muted">当前预设</span>
-                      <span className="rounded-full border border-on-surface/8 bg-surface-container-lowest px-3 py-1 text-[12px] font-medium text-on-surface-variant">
-                        正在读取
-                      </span>
-                    </div>
-                    <p className="text-[13px] leading-6 text-ui-muted">正在同步当前配置方案的启动预设。</p>
-                  </>
-                )}
+              <div className="ui-panel-muted px-4 py-4">
+                <div className="space-y-2">
+                  <div className="flex flex-wrap items-center gap-2 text-[13px] font-semibold text-on-surface">
+                    <span className="text-ui-muted">当前预设</span>
+                    {launchPreferencesLoaded ? (
+                      <>
+                        <span className="ui-pill border-primary/12 bg-primary/8 text-primary">{currentTemplate.label}</span>
+                        <span className="ui-pill">{namingLabel}</span>
+                        <span className="ui-pill">{cautionLabel}</span>
+                      </>
+                    ) : (
+                      <span className="ui-pill">正在读取</span>
+                    )}
+                  </div>
+                  <p className="text-[13px] leading-6 text-ui-subtle">
+                    {launchPreferencesLoaded
+                      ? launchSkipPrompt
+                        ? "点击开始后会直接按这组预设创建并扫描新任务。"
+                        : "点击开始后会先打开策略确认窗口，并以这组预设作为默认起点。"
+                      : "正在同步当前配置方案的启动预设。"}
+                  </p>
+                </div>
               </div>
             </div>
-          </motion.div>
+          </section>
 
-          <motion.div
-            initial={{ opacity: 0, y: 8 }}
+          <motion.aside
+            initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2, duration: 0.3 }}
-            className="grid gap-3 sm:grid-cols-3"
+            transition={{ delay: 0.08, duration: 0.32 }}
+            className="space-y-4"
           >
-            <div className="rounded-[18px] border border-on-surface/8 bg-surface-container-lowest px-4 py-4">
-              <div className="mb-2 flex items-center gap-2 text-[13px] font-bold text-on-surface">
-                <FolderOpen className="h-4 w-4 text-primary" />
-                选择目录
+            <section className="ui-panel p-5">
+              <div className="mb-4 flex items-center gap-2 text-[12px] font-semibold text-ui-muted">
+                <ShieldCheck className="h-3.5 w-3.5 text-primary" />
+                启动说明
               </div>
-              <p className="text-[13px] leading-6 text-ui-muted">支持粘贴路径，也可以直接唤起目录选择器。</p>
-            </div>
-            <div className="rounded-[18px] border border-on-surface/8 bg-surface-container-lowest px-4 py-4">
-              <div className="mb-2 flex items-center gap-2 text-[13px] font-bold text-on-surface">
-                <Sparkles className="h-4 w-4 text-primary" />
-                先出方案
+              <div className="space-y-3">
+                <div className="ui-metric px-4 py-3.5">
+                  <div className="mb-1 flex items-center gap-2 text-[13px] font-bold text-on-surface">
+                    <FolderOpen className="h-4 w-4 text-primary" />
+                    选择目录
+                  </div>
+                  <p className="text-[12.5px] leading-6 text-ui-subtle">支持粘贴路径，也可以直接唤起目录选择器。</p>
+                </div>
+                <div className="ui-metric px-4 py-3.5">
+                  <div className="mb-1 flex items-center gap-2 text-[13px] font-bold text-on-surface">
+                    <Sparkles className="h-4 w-4 text-primary" />
+                    先出方案
+                  </div>
+                  <p className="text-[12.5px] leading-6 text-ui-subtle">系统会先扫描并给出整理建议，确认后才进入执行阶段。</p>
+                </div>
+                <div className="ui-metric px-4 py-3.5">
+                  <div className="mb-1 flex items-center gap-2 text-[13px] font-bold text-on-surface">
+                    <ShieldCheck className="h-4 w-4 text-primary" />
+                    预检与回退
+                  </div>
+                  <p className="text-[12.5px] leading-6 text-ui-subtle">执行前会预检，完成后仍支持最近一次回退。</p>
+                </div>
               </div>
-              <p className="text-[13px] leading-6 text-ui-muted">系统会先扫描并给出整理建议，确认后才进入执行阶段。</p>
-            </div>
-            <div className="rounded-[18px] border border-on-surface/8 bg-surface-container-lowest px-4 py-4">
-              <div className="mb-2 flex items-center gap-2 text-[13px] font-bold text-on-surface">
-                <ShieldCheck className="h-4 w-4 text-primary" />
-                预检与回退
-              </div>
-              <p className="text-[13px] leading-6 text-ui-muted">执行前会预检，完成后仍支持最近一次回退。</p>
-            </div>
-          </motion.div>
-        </div>
+            </section>
+          </motion.aside>
+        </motion.div>
 
         <AnimatePresence>
           {error && (
             <motion.div
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="mt-8"
+              exit={{ opacity: 0, scale: 0.98 }}
+              className="mt-4"
             >
-              <div className="flex items-start gap-4 rounded-[20px] border border-error/15 bg-error-container/10 px-5 py-4 text-[14px] font-bold text-error shadow-sm backdrop-blur-sm">
+              <div className="ui-panel flex items-start gap-4 border-error/14 bg-error-container/14 px-5 py-4 text-[14px] font-semibold text-error">
                 <AlertTriangle className="mt-0.5 h-5 w-5 flex-shrink-0" />
                 <p className="leading-relaxed">{error}</p>
               </div>
@@ -828,10 +794,10 @@ export function SessionLauncher() {
               initial={{ opacity: 0, scale: 0.95, y: 10 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 10 }}
-              className="w-full max-w-2xl rounded-[30px] border border-outline-variant/20 bg-surface-container-lowest p-8 shadow-[0_24px_60px_rgba(36,48,42,0.16)]"
+              className="ui-dialog w-full max-w-[760px] p-6 sm:p-7"
             >
               <div className="mb-6 flex items-center gap-4">
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                <div className="flex h-12 w-12 items-center justify-center rounded-[12px] border border-primary/12 bg-primary/10 text-primary">
                   <History className="h-6 w-6" />
                 </div>
                 <div className="space-y-1">
@@ -852,7 +818,7 @@ export function SessionLauncher() {
                 <em>{STAGE_LABELS[resumePrompt.snapshot.stage] || resumePrompt.snapshot.stage}</em>）。
               </p>
 
-              <div className="mb-8 space-y-4 rounded-[28px] border border-on-surface/5 bg-surface-container-low/40 p-6 shadow-inner">
+              <div className="ui-panel-muted mb-6 space-y-4 p-5">
                 <p className="text-ui-section font-semibold text-ui-muted">上一次使用的设置</p>
                 <StrategySummaryChips strategy={resumeStrategy} />
               </div>
@@ -865,7 +831,7 @@ export function SessionLauncher() {
                 >
                   {isCompletedResume ? "查看之前的结果" : "继续上一次整理"}
                 </Button>
-                <div className="rounded-2xl border border-on-surface/5 bg-on-surface/5 px-5 py-4 text-ui-section font-medium leading-relaxed text-ui-muted">
+                <div className="ui-panel-muted px-5 py-4 text-ui-section font-medium leading-relaxed text-ui-muted">
                   {isCompletedResume
                     ? "重新开始会按这次实际提交的策略重新扫描这个目录。"
                     : "重新开始会放弃上一次未完成的状态，并按这次实际提交的策略重新扫描。"}
