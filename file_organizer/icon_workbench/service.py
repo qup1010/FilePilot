@@ -89,7 +89,7 @@ class IconWorkbenchService:
         session = self.store.load_session(session_id)
         config = self.store.config_store.load()
         if not config.text_model.is_configured():
-            raise ValueError("请先在图标工坊设置中填写文本模型接口地址、模型 ID 和 API 密钥。")
+            raise ValueError("请先在全局设置中填写文本模型接口地址、模型 ID 和 API 密钥。")
 
         targets = self._resolve_target_folders(session, folder_ids)
         for folder in targets:
@@ -132,7 +132,7 @@ class IconWorkbenchService:
         session = self.store.load_session(session_id)
         config = self.store.config_store.load()
         if not config.image_model.is_configured():
-            raise ValueError("请先在图标工坊设置中填写图像生成接口地址、模型 ID 和 API 密钥。")
+            raise ValueError("请先在全局设置中填写图标工坊的图像生成接口地址、模型 ID 和 API 密钥。")
 
         targets = self._resolve_target_folders(session, folder_ids)
         for folder in targets:
@@ -223,7 +223,7 @@ class IconWorkbenchService:
 
         config = self.store.config_store.load()
         if not config.text_model.is_configured():
-            raise ValueError("请先在图标工坊设置中填写文本模型接口地址、模型 ID 和 API 密钥。")
+            raise ValueError("请先在全局设置中填写文本模型接口地址、模型 ID 和 API 密钥。")
 
         templates = self.store.load_templates()
         agent_output = self.chat_agent.process_message(

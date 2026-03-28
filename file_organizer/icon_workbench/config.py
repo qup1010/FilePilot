@@ -18,7 +18,9 @@ class IconWorkbenchConfigStore:
             return config
 
         raw = json.loads(self._config_path.read_text(encoding="utf-8"))
-        return IconWorkbenchConfig.from_dict(raw)
+        config = IconWorkbenchConfig.from_dict(raw)
+        config.text_model = self._global_text_model()
+        return config
 
     def save(self, config: IconWorkbenchConfig) -> IconWorkbenchConfig:
         self._config_path.parent.mkdir(parents=True, exist_ok=True)
@@ -32,13 +34,25 @@ class IconWorkbenchConfigStore:
         current = self.load()
         merged = current.to_dict()
         for key, value in payload.items():
-            if key in {"text_model", "image_model"} and isinstance(value, dict):
+            if key == "text_model":
+                continue
+            if key == "image_model" and isinstance(value, dict):
                 merged[key] = {**merged.get(key, {}), **value}
             else:
                 merged[key] = value
-        return self.save(IconWorkbenchConfig.from_dict(merged))
+        next_config = IconWorkbenchConfig.from_dict(merged)
+        next_config.text_model = self._global_text_model()
+        return self.save(next_config)
 
     def _default_config(self) -> IconWorkbenchConfig:
+        return IconWorkbenchConfig(
+            text_model=self._global_text_model(),
+            image_model=ModelConfig(),
+            image_size="1024x1024",
+            concurrency_limit=1,
+        )
+
+    def _global_text_model(self) -> ModelConfig:
         text_model = ModelConfig()
         try:
             from file_organizer.shared.config_manager import config_manager
@@ -51,9 +65,4 @@ class IconWorkbenchConfigStore:
                 api_key=str(config_manager.get("OPENAI_API_KEY", "") or "").strip(),
                 model=str(config_manager.get("OPENAI_MODEL", "") or "").strip(),
             )
-        return IconWorkbenchConfig(
-            text_model=text_model,
-            image_model=ModelConfig(),
-            image_size="1024x1024",
-            concurrency_limit=1,
-        )
+        return text_model

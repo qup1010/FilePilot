@@ -24,6 +24,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { ErrorAlert } from "@/components/ui/error-alert";
 import { createApiClient } from "@/lib/api";
+import { createIconWorkbenchApiClient } from "@/lib/icon-workbench-api";
 import { getApiBaseUrl, getApiToken } from "@/lib/runtime";
 import {
   CAUTION_LEVEL_OPTIONS,
@@ -33,6 +34,7 @@ import {
   STRATEGY_TEMPLATES,
 } from "@/lib/strategy-templates";
 import { cn } from "@/lib/utils";
+import type { IconWorkbenchConfig } from "@/types/icon-workbench";
 
 type PresetType = "text" | "vision";
 type SettingsCategory = "models" | "launch" | "advanced";
@@ -287,8 +289,11 @@ export default function SettingsPage() {
   const APP_CONTEXT_EVENT = "file-organizer-context-change";
   const SETTINGS_CONTEXT_KEY = "settings_header_context";
   const [api] = useState(() => createApiClient(getApiBaseUrl(), getApiToken()));
+  const [iconApi] = useState(() => createIconWorkbenchApiClient(getApiBaseUrl(), getApiToken()));
   const [config, setConfig] = useState<any>(null);
   const [originalConfig, setOriginalConfig] = useState<any>(null);
+  const [iconConfig, setIconConfig] = useState<IconWorkbenchConfig | null>(null);
+  const [originalIconConfig, setOriginalIconConfig] = useState<IconWorkbenchConfig | null>(null);
   const [textPresets, setTextPresets] = useState<PresetItem[]>([]);
   const [visionPresets, setVisionPresets] = useState<PresetItem[]>([]);
   const [activeTextPresetId, setActiveTextPresetId] = useState("default");
@@ -310,18 +315,24 @@ export default function SettingsPage() {
   } | null>(null);
   const [showKey, setShowKey] = useState(false);
   const [showVisionKey, setShowVisionKey] = useState(false);
+  const [showIconImageKey, setShowIconImageKey] = useState(false);
   const [textEditorExpanded, setTextEditorExpanded] = useState(true);
   const [visionEditorExpanded, setVisionEditorExpanded] = useState(true);
 
-  const isDirty = config && originalConfig ? JSON.stringify(config) !== JSON.stringify(originalConfig) : false;
+  const isDirty = Boolean(
+    (config && originalConfig && JSON.stringify(config) !== JSON.stringify(originalConfig))
+      || (iconConfig && originalIconConfig && JSON.stringify(iconConfig) !== JSON.stringify(originalIconConfig)),
+  );
   const launchTemplate = getTemplateMeta(config?.LAUNCH_DEFAULT_TEMPLATE_ID ?? "general_downloads");
 
   const fetchAll = async () => {
     setLoading(true);
     try {
-      const data = await api.getConfig();
+      const [data, nextIconConfig] = await Promise.all([api.getConfig(), iconApi.getConfig()]);
       setConfig(data.config);
       setOriginalConfig(data.config);
+      setIconConfig(nextIconConfig);
+      setOriginalIconConfig(nextIconConfig);
       setTextPresets(data.text_presets);
       setVisionPresets(data.vision_presets);
       setActiveTextPresetId(data.active_text_preset_id);
@@ -370,10 +381,15 @@ export default function SettingsPage() {
   };
 
   const handleSave = async () => {
+    if (!iconConfig) {
+      return;
+    }
     setSaving(true);
     setError(null);
     try {
-      await api.updateConfig(config);
+      const [, savedIconConfig] = await Promise.all([api.updateConfig(config), iconApi.updateConfig(iconConfig)]);
+      setIconConfig(savedIconConfig);
+      setOriginalIconConfig(savedIconConfig);
       setSuccess("设置已保存");
       setOriginalConfig(config);
       setTimeout(() => setSuccess(null), 3000);
@@ -493,7 +509,7 @@ export default function SettingsPage() {
     });
   };
 
-  if (loading || !config) {
+  if (loading || !config || !iconConfig) {
     return (
       <div className="flex flex-1 items-center justify-center bg-surface">
         <div className="flex flex-col items-center gap-5">
@@ -520,7 +536,7 @@ export default function SettingsPage() {
                   ) : null}
                 </div>
                 <p className="max-w-[760px] text-[13px] leading-5 text-on-surface-variant/70">
-                  文本模型和图片理解模型现在分别拥有独立预设；切换其一不会影响另一类模型。
+                  文本模型和图片理解模型仍按预设管理；图标工坊的图像生成模型也统一收进这里，文本分析继续沿用当前文本预设。
                 </p>
               </div>
 
@@ -603,7 +619,7 @@ export default function SettingsPage() {
                   <SettingsSection
                     icon={Cpu}
                     title="文本模型设置"
-                    description="文本模型预设单独管理目录分析和整理对话所用的 Base URL、模型 ID 与 API 密钥。"
+                    description="文本模型预设单独管理目录分析和整理对话所用的 Base URL、模型 ID 与 API 密钥；图标工坊的文本分析也直接沿用这里。"
                     actions={
                       <Button
                         onClick={() => void handleTest("text")}
@@ -716,6 +732,144 @@ export default function SettingsPage() {
                       </FieldGroup>
                     </div>
                     ) : null}
+                  </SettingsSection>
+
+                  <SettingsSection
+                    icon={SettingsIcon}
+                    title="图标工坊图像生成"
+                    description="这里专门配置图标工坊生成 PNG 预览时使用的图像模型。文本分析不会在这里单独维护，而是直接复用上面的文本模型设置。"
+                  >
+                    <div className="rounded-[12px] border border-on-surface/8 bg-surface-container-low px-4 py-4">
+                      <div className="grid gap-3 lg:grid-cols-2">
+                        <div className="space-y-1">
+                          <p className="text-[12px] font-medium text-on-surface-variant/60">当前文本来源</p>
+                          <p className="text-[14px] font-semibold text-on-surface">
+                            {iconConfig.text_model.model || config.OPENAI_MODEL || "未配置文本模型"}
+                          </p>
+                        </div>
+                        <div className="space-y-1">
+                          <p className="text-[12px] font-medium text-on-surface-variant/60">当前图像模型</p>
+                          <p className="text-[14px] font-semibold text-on-surface">
+                            {iconConfig.image_model.model || "未配置图像生成模型"}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="mt-3 rounded-[10px] border border-primary/12 bg-primary/6 px-3.5 py-3 text-[12px] leading-6 text-primary/85">
+                        图标工坊分析文件夹时会直接使用当前激活的文本预设；这里只有图像生成链路可单独切换。
+                      </div>
+                    </div>
+
+                    <div className="grid gap-4 xl:grid-cols-2">
+                      <FieldGroup label="图像生成接口地址" hint="可填 base URL 或完整 images/generations 地址。魔搭兼容端点也走这里。">
+                        <InputShell icon={Globe}>
+                          <input
+                            value={iconConfig.image_model.base_url}
+                            onChange={(event) =>
+                              setIconConfig((current) =>
+                                current
+                                  ? {
+                                      ...current,
+                                      image_model: { ...current.image_model, base_url: event.target.value },
+                                    }
+                                  : current,
+                              )
+                            }
+                            className="w-full bg-transparent py-2 text-sm font-mono font-medium text-on-surface outline-none"
+                            placeholder="https://api.openai.com/v1"
+                          />
+                        </InputShell>
+                      </FieldGroup>
+
+                      <FieldGroup label="图像生成模型 ID">
+                        <InputShell icon={Terminal}>
+                          <input
+                            value={iconConfig.image_model.model}
+                            onChange={(event) =>
+                              setIconConfig((current) =>
+                                current
+                                  ? {
+                                      ...current,
+                                      image_model: { ...current.image_model, model: event.target.value },
+                                    }
+                                  : current,
+                              )
+                            }
+                            className="w-full bg-transparent py-2 text-sm font-semibold text-on-surface outline-none"
+                            placeholder="gpt-image-1"
+                          />
+                        </InputShell>
+                      </FieldGroup>
+
+                      <FieldGroup label="图像生成 API 密钥" className="xl:col-span-2">
+                        <InputShell icon={ShieldCheck}>
+                          <input
+                            type={showIconImageKey ? "text" : "password"}
+                            value={iconConfig.image_model.api_key}
+                            onChange={(event) =>
+                              setIconConfig((current) =>
+                                current
+                                  ? {
+                                      ...current,
+                                      image_model: { ...current.image_model, api_key: event.target.value },
+                                    }
+                                  : current,
+                              )
+                            }
+                            className="w-full bg-transparent py-2 pr-2 text-sm font-mono font-medium text-on-surface outline-none"
+                            placeholder="sk-..."
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowIconImageKey((current) => !current)}
+                            className="rounded-[8px] p-2 text-on-surface-variant/35 transition-colors hover:bg-surface-container-low hover:text-on-surface"
+                          >
+                            {showIconImageKey ? <EyeOff className="h-4.5 w-4.5" /> : <Eye className="h-4.5 w-4.5" />}
+                          </button>
+                        </InputShell>
+                      </FieldGroup>
+
+                      <FieldGroup label="图像尺寸">
+                        <InputShell icon={Layers3}>
+                          <input
+                            value={iconConfig.image_size}
+                            onChange={(event) =>
+                              setIconConfig((current) =>
+                                current
+                                  ? {
+                                      ...current,
+                                      image_size: event.target.value,
+                                    }
+                                  : current,
+                              )
+                            }
+                            className="w-full bg-transparent py-2 text-sm font-semibold text-on-surface outline-none"
+                            placeholder="1024x1024"
+                          />
+                        </InputShell>
+                      </FieldGroup>
+
+                      <FieldGroup label="并发数" hint="当前主要作为保留配置位，最小 1，最大 6。">
+                        <InputShell icon={Layers3}>
+                          <input
+                            type="number"
+                            min={1}
+                            max={6}
+                            value={iconConfig.concurrency_limit}
+                            onChange={(event) =>
+                              setIconConfig((current) =>
+                                current
+                                  ? {
+                                      ...current,
+                                      concurrency_limit: Number(event.target.value) || 1,
+                                    }
+                                  : current,
+                              )
+                            }
+                            className="w-full bg-transparent py-2 text-sm font-semibold text-on-surface outline-none"
+                          />
+                        </InputShell>
+                      </FieldGroup>
+                    </div>
                   </SettingsSection>
 
                   <SettingsSection

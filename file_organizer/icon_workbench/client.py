@@ -2,15 +2,21 @@ from __future__ import annotations
 
 import base64
 import json
+import time
 from pathlib import Path
 from typing import Any
-from urllib import error, parse, request
+from urllib import error, request
 
 from file_organizer.icon_workbench.models import IconAnalysisResult, ModelConfig
 from file_organizer.icon_workbench.prompts import (
     TEXT_ANALYSIS_SYSTEM_PROMPT,
     build_default_icon_prompt,
 )
+
+
+def _is_modelscope_endpoint(base_url: str) -> bool:
+    lowered = base_url.lower()
+    return "modelscope" in lowered or "dashscope" in lowered
 
 
 def _normalize_endpoint(base_url: str, suffix: str) -> str:
@@ -49,24 +55,39 @@ def _extract_json_block(raw_text: str) -> str:
     return text.strip()
 
 
-def _post_json(url: str, payload: dict[str, Any], api_key: str) -> dict[str, Any]:
-    encoded = json.dumps(payload).encode("utf-8")
+def _request_json(
+    url: str,
+    *,
+    method: str,
+    api_key: str,
+    payload: dict[str, Any] | None = None,
+    extra_headers: dict[str, str] | None = None,
+    timeout: float = 120,
+) -> dict[str, Any]:
+    body = None if payload is None else json.dumps(payload).encode("utf-8")
     headers = {
-        "Content-Type": "application/json",
         "Accept": "application/json",
     }
+    if body is not None:
+        headers["Content-Type"] = "application/json"
     if api_key:
         headers["Authorization"] = f"Bearer {api_key}"
+    if extra_headers:
+        headers.update(extra_headers)
 
-    req = request.Request(url=url, data=encoded, headers=headers, method="POST")
+    req = request.Request(url=url, data=body, headers=headers, method=method)
     try:
-        with request.urlopen(req, timeout=120) as response:
+        with request.urlopen(req, timeout=timeout) as response:
             return json.loads(response.read().decode("utf-8"))
     except error.HTTPError as exc:
         body = exc.read().decode("utf-8", errors="replace")
         raise RuntimeError(f"接口请求失败: {exc.code} {body}") from exc
     except error.URLError as exc:
         raise RuntimeError(f"接口连接失败: {exc.reason}") from exc
+
+
+def _post_json(url: str, payload: dict[str, Any], api_key: str) -> dict[str, Any]:
+    return _request_json(url, method="POST", payload=payload, api_key=api_key)
 
 
 class IconWorkbenchTextClient:
@@ -110,34 +131,104 @@ class IconWorkbenchTextClient:
 
 
 class IconWorkbenchImageClient:
-    def generate_png(self, config: ModelConfig, prompt: str, size: str) -> bytes:
-        if not config.is_configured():
-            raise ValueError("图像模型配置不完整")
+    def _build_payload(self, config: ModelConfig, prompt: str, size: str) -> dict[str, Any]:
+        if _is_modelscope_endpoint(config.base_url):
+            return {
+                "model": config.model,
+                "prompt": prompt,
+                "n": 1,
+                "size": size,
+            }
 
-        url = _normalize_endpoint(config.base_url, "/images/generations")
-        payload = {
+        return {
             "model": config.model,
             "prompt": prompt,
             "size": size,
             "n": 1,
             "response_format": "b64_json",
         }
+
+    def _read_remote_image(self, image_url: str) -> bytes:
+        with request.urlopen(image_url.strip(), timeout=120) as response:
+            return response.read()
+
+    def _poll_modelscope_result(self, url: str, api_key: str) -> dict[str, Any]:
+        max_attempts = 24
+        for _ in range(max_attempts):
+            time.sleep(5)
+            response = _request_json(
+                url,
+                method="GET",
+                api_key=api_key,
+                extra_headers={"X-ModelScope-Task-Type": "image_generation"},
+            )
+            status = str(response.get("task_status", "") or "").upper()
+            if status == "SUCCEED":
+                return response
+            if status == "FAILED":
+                raise RuntimeError("ModelScope 任务执行失败")
+            if status in {"PENDING", "RUNNING"}:
+                continue
+        raise RuntimeError("ModelScope 任务超时 (120秒)")
+
+    def _generate_modelscope_png(self, url: str, payload: dict[str, Any], api_key: str) -> bytes:
+        response = _request_json(
+            url,
+            method="POST",
+            payload=payload,
+            api_key=api_key,
+            extra_headers={"X-ModelScope-Async-Mode": "true"},
+        )
+        task_id = str(response.get("task_id", "") or "").strip()
+        if not task_id:
+            return self._extract_image_bytes(response)
+
+        task_base_url = url.rsplit("/images/generations", 1)[0]
+        task_url = f"{task_base_url}/tasks/{task_id}"
+        task_response = self._poll_modelscope_result(task_url, api_key)
+        return self._extract_image_bytes(task_response)
+
+    def _extract_image_bytes(self, response: dict[str, Any]) -> bytes:
+        data = response.get("data")
+        if isinstance(data, list) and data:
+            first = data[0]
+            if isinstance(first, dict):
+                b64_data = first.get("b64_json")
+                if isinstance(b64_data, str) and b64_data.strip():
+                    return base64.b64decode(b64_data)
+
+                image_url = first.get("url")
+                if isinstance(image_url, str) and image_url.strip():
+                    return self._read_remote_image(image_url)
+
+        images = response.get("images")
+        if isinstance(images, list) and images:
+            first = images[0]
+            if isinstance(first, dict):
+                image_url = first.get("url")
+                if isinstance(image_url, str) and image_url.strip():
+                    return self._read_remote_image(image_url)
+            elif isinstance(first, str) and first.strip():
+                return self._read_remote_image(first)
+
+        output_images = response.get("output_images")
+        if isinstance(output_images, list) and output_images:
+            first = output_images[0]
+            if isinstance(first, str) and first.strip():
+                return self._read_remote_image(first)
+
+        raise RuntimeError("图像响应缺少可用图像数据")
+
+    def generate_png(self, config: ModelConfig, prompt: str, size: str) -> bytes:
+        if not config.is_configured():
+            raise ValueError("图像模型配置不完整")
+
+        url = _normalize_endpoint(config.base_url, "/images/generations")
+        payload = self._build_payload(config, prompt, size)
+        if _is_modelscope_endpoint(config.base_url):
+            return self._generate_modelscope_png(url, payload, config.api_key)
         response = _post_json(url, payload, config.api_key)
-        data = response.get("data") or []
-        if not data:
-            raise RuntimeError("图像模型未返回图像")
-
-        first = data[0]
-        b64_data = first.get("b64_json")
-        if isinstance(b64_data, str) and b64_data.strip():
-            return base64.b64decode(b64_data)
-
-        image_url = first.get("url")
-        if isinstance(image_url, str) and image_url.strip():
-            with request.urlopen(image_url.strip(), timeout=120) as response:
-                return response.read()
-
-        raise RuntimeError("图像响应缺少 b64_json 或 url")
+        return self._extract_image_bytes(response)
 
 
 def scan_folder_tree(folder_path: str, max_depth: int = 2) -> list[str]:
