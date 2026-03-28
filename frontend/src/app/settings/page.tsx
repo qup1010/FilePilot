@@ -395,7 +395,7 @@ export default function SettingsPage() {
                         type="button"
                         onClick={() => setActiveCategory(category.id)}
                         className={cn(
-                          "rounded-[12px] border px-4 py-3 text-left transition-colors",
+                          "rounded-[8px] border px-4 py-3 text-left transition-colors",
                           active
                             ? "border-primary/18 bg-primary/7"
                             : "border-on-surface/8 bg-surface-container-lowest hover:border-primary/14",
@@ -446,7 +446,7 @@ export default function SettingsPage() {
                       </Button>
                     }
                   >
-                    <div className="rounded-[12px] border border-on-surface/8 bg-surface-container-low px-4 py-4">
+                    <div className="rounded-[8px] border border-on-surface/8 bg-surface-container-low px-4 py-4">
                       <div className="flex flex-wrap items-center justify-between gap-3">
                         <div className="space-y-1">
                           <p className="text-[12px] font-medium text-on-surface-variant/60">当前激活文本预设</p>
@@ -564,7 +564,7 @@ export default function SettingsPage() {
                       </Button>
                     }
                   >
-                    <div className="rounded-[12px] border border-on-surface/8 bg-surface-container-low px-4 py-4">
+                    <div className="rounded-[8px] border border-on-surface/8 bg-surface-container-low px-4 py-4">
                       <div className="grid gap-3 lg:grid-cols-2">
                         <div className="space-y-1">
                           <p className="text-[12px] font-medium text-on-surface-variant/60">当前文本来源</p>
@@ -770,7 +770,7 @@ export default function SettingsPage() {
                     }
                     disabled={!config.IMAGE_ANALYSIS_ENABLED}
                   >
-                    <div className="rounded-[12px] border border-on-surface/8 bg-surface-container-low px-4 py-4">
+                    <div className="rounded-[8px] border border-on-surface/8 bg-surface-container-low px-4 py-4">
                       <div className="grid gap-3 lg:grid-cols-2">
                         <div className="space-y-1">
                           <p className="text-[12px] font-medium text-on-surface-variant/60">当前图片预设</p>
@@ -956,7 +956,7 @@ export default function SettingsPage() {
                     </FieldGroup>
                   </div>
 
-                  <div className="rounded-[12px] border border-on-surface/8 bg-surface-container-low px-4 py-3.5">
+                  <div className="rounded-[8px] border border-on-surface/8 bg-surface-container-low px-4 py-3.5">
                     <div className="flex items-start justify-between gap-4">
                       <div className="space-y-1.5">
                         <h3 className="text-[13px] font-semibold tracking-tight text-on-surface">直接用默认值启动</h3>
@@ -971,7 +971,7 @@ export default function SettingsPage() {
                     </div>
                   </div>
 
-                  <div className="rounded-[12px] border border-primary/12 bg-primary/6 px-4 py-3.5">
+                  <div className="rounded-[8px] border border-primary/12 bg-primary/6 px-4 py-3.5">
                     <p className="text-[12px] leading-6 text-primary/85">
                       即使不勾选直接启动，首页策略弹窗也会以上方数值作为最优先的预填起点。
                     </p>
@@ -985,7 +985,7 @@ export default function SettingsPage() {
                   title="其他设置"
                   description="保留少量高频开关，不把设置页扩成调试控制台。"
                 >
-                  <div className="rounded-[12px] border border-on-surface/8 bg-surface-container-low px-4 py-3.5">
+                  <div className="rounded-[8px] border border-on-surface/8 bg-surface-container-low px-4 py-3.5">
                     <div className="flex items-start justify-between gap-4">
                       <div className="space-y-1.5">
                         <h3 className="text-[13px] font-semibold tracking-tight text-on-surface">详细日志</h3>
@@ -1025,7 +1025,7 @@ export default function SettingsPage() {
               initial={{ opacity: 0, scale: 0.96, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.96, y: 20 }}
-              className="relative w-full max-w-[440px] rounded-[14px] border border-on-surface/8 bg-white p-6 shadow-[0_20px_48px_rgba(36,48,42,0.14)]"
+              className="relative w-full max-w-[440px] rounded-[8px] border border-on-surface/8 bg-white p-6 shadow-[0_20px_48px_rgba(0,0,0,0.14)]"
             >
               <div className="space-y-4">
                 <div className="space-y-1.5">

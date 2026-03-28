@@ -82,9 +82,9 @@ export function IconWorkbenchFolderCard({
   return (
     <div
       className={cn(
-        "group flex flex-col overflow-hidden rounded-[20px] border transition-all duration-200",
+        "group flex flex-col overflow-hidden rounded-[10px] border transition-all duration-200",
         isExpanded
-          ? "border-primary/20 bg-white shadow-[0_12px_32px_rgba(36,48,42,0.08)]"
+          ? "border-primary/20 bg-white shadow-[0_12px_32px_rgba(0,0,0,0.08)]"
           : "border-on-surface/8 bg-surface-container-low/40 hover:border-primary/14 hover:bg-white",
       )}
     >

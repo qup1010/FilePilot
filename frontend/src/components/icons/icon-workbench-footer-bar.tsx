@@ -40,7 +40,7 @@ export function IconWorkbenchFooterBar({
   return (
     <div className="ui-panel-elevated fixed bottom-5 left-1/2 z-50 flex -translate-x-1/2 items-center gap-5 px-5 py-3 animate-slideUp">
       <div className="flex min-w-[220px] items-center gap-3">
-        <div className="flex h-9 w-9 items-center justify-center rounded-[12px] bg-primary/10 text-primary">
+        <div className="flex h-9 w-9 items-center justify-center rounded-[8px] bg-primary/10 text-primary">
           <FolderDown className="h-4.5 w-4.5" />
         </div>
         <div className="flex flex-col">
@@ -108,7 +108,7 @@ export function IconWorkbenchFooterBar({
 
       <div className="group relative ml-1">
         <Info className="h-4 w-4 cursor-help text-on-surface/22 transition-colors hover:text-on-surface/50" />
-        <div className="pointer-events-none absolute bottom-full left-1/2 mb-2 w-48 -translate-x-1/2 scale-95 rounded-[12px] border border-on-surface/8 bg-surface-container-lowest p-3 text-[11px] font-medium leading-6 text-on-surface opacity-0 shadow-xl transition-all group-hover:scale-100 group-hover:opacity-100">
+        <div className="pointer-events-none absolute bottom-full left-1/2 mb-2 w-48 -translate-x-1/2 scale-95 rounded-[8px] border border-on-surface/8 bg-surface-container-lowest p-3 text-[11px] font-medium leading-6 text-on-surface opacity-0 shadow-xl transition-all group-hover:scale-100 group-hover:opacity-100">
           图标会先生成预览版本，只有点击应用后才会替换系统显示的文件夹图标。
         </div>
       </div>

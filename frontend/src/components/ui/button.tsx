@@ -20,17 +20,17 @@ export function Button({
   ...props 
 }: ButtonProps) {
   const variants = {
-    primary: "border border-primary/18 bg-primary text-white shadow-[0_10px_24px_rgba(77,99,87,0.14)] hover:bg-primary-dim hover:shadow-[0_14px_28px_rgba(77,99,87,0.18)]",
-    secondary: "border border-on-surface/8 bg-surface-container-lowest text-on-surface shadow-[0_6px_18px_rgba(36,48,42,0.04)] hover:bg-white hover:border-primary/12",
-    danger: "border border-error/18 bg-error-container/42 text-error shadow-[0_8px_18px_rgba(152,70,67,0.08)] hover:bg-error hover:text-white",
+    primary: "border border-primary/18 bg-primary text-white shadow-[0_2px_6px_rgba(0,0,0,0.12)] hover:bg-primary-dim hover:shadow-[0_4px_12px_rgba(0,0,0,0.16)]",
+    secondary: "border border-on-surface/8 bg-surface-container-lowest text-on-surface shadow-[0_1px_3px_rgba(0,0,0,0.04)] hover:bg-white hover:border-primary/12",
+    danger: "border border-error/18 bg-error-container/42 text-error shadow-[0_2px_6px_rgba(196,49,75,0.10)] hover:bg-error hover:text-white",
     ghost: "border border-transparent bg-transparent text-on-surface hover:bg-on-surface/5"
   };
 
   const sizes = {
-    sm: "h-9 px-4 text-[12px] rounded-[10px]",
-    md: "h-10 px-5 text-[13px] rounded-[12px]",
-    lg: "h-11 px-6 text-[14px] rounded-[14px]",
-    icon: "h-10 w-10 p-0 rounded-[12px]"
+    sm: "h-9 px-4 text-[12px] rounded-[6px]",
+    md: "h-10 px-5 text-[13px] rounded-[6px]",
+    lg: "h-11 px-6 text-[14px] rounded-[8px]",
+    icon: "h-10 w-10 p-0 rounded-[8px]"
   };
 
   return (

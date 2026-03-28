@@ -552,10 +552,10 @@ export function ConversationPanel({
           <motion.div
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
-            className="rounded-[18px] border border-black/5 bg-[linear-gradient(180deg,rgba(251,249,244,0.96),rgba(246,242,235,0.98))] p-5 shadow-[0_10px_28px_rgba(31,27,20,0.05)]"
+            className="rounded-[10px] border border-black/5 bg-[linear-gradient(180deg,rgba(248,249,250,0.96),rgba(242,244,245,0.98))] p-5 shadow-[0_10px_28px_rgba(0,0,0,0.05)]"
           >
             <div className="flex items-start gap-4">
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[14px] bg-primary text-white shadow-[0_8px_20px_rgba(76,98,88,0.18)]">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[8px] bg-primary text-white shadow-[0_8px_20px_rgba(0,120,212,0.18)]">
                 <Bot className="h-5 w-5" />
               </div>
               <div className="min-w-0 flex-1">
@@ -570,7 +570,7 @@ export function ConversationPanel({
                   我正在逐步读取目录、提取摘要并判断用途。扫描完成后，会自动生成第一版整理建议，不需要你手动切换页面。
                 </p>
 
-                <div className="mt-4 rounded-[16px] border border-black/5 bg-white/70 px-4 py-4">
+                <div className="mt-4 rounded-[8px] border border-black/5 bg-white/70 px-4 py-4">
                   <div className="flex items-center justify-between gap-4">
                     <div>
                       <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-ui-muted">当前处理项</p>
@@ -592,7 +592,7 @@ export function ConversationPanel({
                 </div>
 
                 <div className="mt-4 grid gap-3 lg:grid-cols-[1.2fr_0.8fr]">
-                  <div className="rounded-[16px] border border-black/5 bg-white/62 px-4 py-4">
+                  <div className="rounded-[8px] border border-black/5 bg-white/62 px-4 py-4">
                     <div className="flex items-center gap-2">
                       <div className="flex gap-1.5 text-primary/65">
                         <motion.span
@@ -620,12 +620,12 @@ export function ConversationPanel({
                     </div>
                   </div>
 
-                  <div className="rounded-[16px] border border-black/5 bg-white/62 px-4 py-4">
+                  <div className="rounded-[8px] border border-black/5 bg-white/62 px-4 py-4">
                     <p className="text-[12px] font-semibold text-on-surface">刚处理过的文件</p>
                     {scanningItems.length > 0 ? (
                       <div className="mt-3 space-y-2">
                         {scanningItems.map((item) => (
-                          <div key={item.item_id} className="rounded-[12px] bg-black/[0.03] px-3 py-2.5">
+                          <div key={item.item_id} className="rounded-[8px] bg-black/[0.03] px-3 py-2.5">
                             <p className="truncate text-[12px] font-semibold text-on-surface">{item.display_name}</p>
                             <p className="mt-1 truncate text-[11px] text-ui-muted">{item.source_relpath}</p>
                           </div>
@@ -859,7 +859,7 @@ export function ConversationPanel({
 
           {composerMode === "editable" ? (
             <div className={cn(
-              "relative flex items-end rounded-[12px] border px-3 pb-1.5 pt-1.5 transition-all duration-300",
+              "relative flex items-end rounded-[8px] border px-3 pb-1.5 pt-1.5 transition-all duration-300",
               isComposerLocked 
                 ? "cursor-not-allowed border-on-surface/[0.06] bg-on-surface/[0.02] grayscale-[0.2]" 
                 : "border-on-surface/[0.08] bg-surface-container-lowest focus-within:border-primary/30 focus-within:ring-4 focus-within:ring-primary/[0.015]"
@@ -888,7 +888,7 @@ export function ConversationPanel({
                 className={cn(
                   "mb-1.5 mr-1.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] transition-all active:scale-90",
                   messageInput.trim() && !isComposerLocked
-                    ? "bg-primary text-white shadow-[0_4px_12px_rgba(76,98,88,0.16)]"
+                    ? "bg-primary text-white shadow-[0_4px_12px_rgba(0,120,212,0.16)]"
                     : "text-on-surface-variant/20 bg-on-surface/[0.03]"
                 )}
               >

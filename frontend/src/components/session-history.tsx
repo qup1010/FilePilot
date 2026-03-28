@@ -46,7 +46,7 @@ export function SessionHistory({ maxItems }: { maxItems?: number }) {
   };
 
   return (
-    <div className="flex min-h-0 flex-col space-y-3 overflow-hidden rounded-[12px] border border-on-surface/8 bg-surface-container-lowest p-4 shadow-[0_6px_18px_rgba(37,45,40,0.04)] min-[1680px]:h-full">
+    <div className="flex min-h-0 flex-col space-y-3 overflow-hidden rounded-[8px] border border-on-surface/8 bg-surface-container-lowest p-4 shadow-[0_6px_18px_rgba(0,0,0,0.04)] min-[1680px]:h-full">
       <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
         <div className="flex flex-col gap-1.5">
           <h3 className="flex items-center gap-2.5 text-[15px] font-black text-on-surface">

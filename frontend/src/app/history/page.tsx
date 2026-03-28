@@ -243,7 +243,7 @@ export default function HistoryPage() {
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
                   placeholder="搜索目录、状态或记录 ID"
-                  className="w-full rounded-[12px] border border-on-surface/8 bg-white py-2.5 pl-[2.625rem] pr-4 text-[14px] text-on-surface outline-none transition-all placeholder:text-ui-muted focus:border-primary/30 focus:ring-4 focus:ring-primary/5"
+                  className="w-full rounded-[8px] border border-on-surface/8 bg-white py-2.5 pl-[2.625rem] pr-4 text-[14px] text-on-surface outline-none transition-all placeholder:text-ui-muted focus:border-primary/30 focus:ring-4 focus:ring-primary/5"
                 />
               </div>
 
@@ -281,7 +281,7 @@ export default function HistoryPage() {
           <div className="flex-1 overflow-y-auto px-4 py-4 scrollbar-thin">
             {loading ? (
               <div className="flex h-full min-h-[16rem] flex-col items-center justify-center gap-4">
-                <div className="flex h-14 w-14 items-center justify-center rounded-[12px] border border-on-surface/6 bg-white text-primary">
+                <div className="flex h-14 w-14 items-center justify-center rounded-[8px] border border-on-surface/6 bg-white text-primary">
                   <Activity className="h-6 w-6 animate-spin" />
                 </div>
                 <p className="text-ui-body font-medium text-ui-muted">正在载入历史记录...</p>
@@ -310,7 +310,7 @@ export default function HistoryPage() {
                       className={cn(
                         "group relative overflow-hidden rounded-[10px] border transition-all cursor-pointer",
                         active
-                          ? "border-primary/22 bg-primary/[0.045] shadow-[inset_0_0_0_1px_rgba(76,98,88,0.08),0_6px_16px_rgba(37,45,40,0.05)]"
+                          ? "border-primary/22 bg-primary/[0.045] shadow-[inset_0_0_0_1px_rgba(0,0,0,0.08),0_6px_16px_rgba(0,0,0,0.05)]"
                           : "border-on-surface/6 bg-white hover:border-primary/15 hover:bg-surface-container-lowest",
                       )}
                     >
@@ -452,7 +452,7 @@ export default function HistoryPage() {
                 <div className="flex-1 overflow-y-auto bg-surface-container-low px-4 py-4 scrollbar-thin lg:px-5 lg:py-5">
                   {journalLoading ? (
                     <div className="flex min-h-[20rem] flex-col items-center justify-center gap-4">
-                      <div className="flex h-14 w-14 items-center justify-center rounded-[12px] border border-on-surface/6 bg-white text-primary">
+                      <div className="flex h-14 w-14 items-center justify-center rounded-[8px] border border-on-surface/6 bg-white text-primary">
                         <Activity className="h-6 w-6 animate-spin" />
                       </div>
                       <p className="text-ui-body text-ui-muted">正在载入详细内容...</p>

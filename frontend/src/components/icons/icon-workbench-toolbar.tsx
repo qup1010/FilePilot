@@ -70,7 +70,7 @@ export function IconWorkbenchToolbar({
       <div className="flex items-center gap-2">
         <button
           onClick={onOpenStylePanel}
-          className="group flex items-center gap-2 rounded-[12px] border border-on-surface/7 bg-surface-container-lowest px-3.5 py-2 transition-all hover:border-primary/18 hover:bg-white hover:shadow-[0_8px_18px_rgba(36,48,42,0.05)] active:scale-95"
+          className="group flex items-center gap-2 rounded-[8px] border border-on-surface/7 bg-surface-container-lowest px-3.5 py-2 transition-all hover:border-primary/18 hover:bg-white hover:shadow-[0_8px_18px_rgba(0,0,0,0.05)] active:scale-95"
         >
           <div className="flex h-8 w-8 items-center justify-center rounded-[10px] bg-primary/10 text-primary transition-colors group-hover:bg-primary group-hover:text-white">
             <Sparkles className="h-3.5 w-3.5" />

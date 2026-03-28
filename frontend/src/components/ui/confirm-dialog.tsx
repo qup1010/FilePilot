@@ -61,7 +61,7 @@ export function ConfirmDialog({
               <div className="flex items-start gap-4">
                 <div
                   className={cn(
-                    "flex h-12 w-12 shrink-0 items-center justify-center rounded-[12px] border border-on-surface/6 shadow-[inset_0_1px_0_rgba(255,255,255,0.35)]",
+                    "flex h-12 w-12 shrink-0 items-center justify-center rounded-[8px] border border-on-surface/6 shadow-[inset_0_1px_0_rgba(255,255,255,0.35)]",
                     isDanger
                       ? "bg-error-container/45 text-error"
                       : "bg-primary/10 text-primary",

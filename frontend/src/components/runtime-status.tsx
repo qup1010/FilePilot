@@ -21,7 +21,7 @@ export function RuntimeStatus() {
   }, []);
 
   return (
-    <details className="group rounded-[12px] border border-on-surface/8 bg-surface-container-lowest shadow-[0_4px_14px_rgba(37,45,40,0.03)]">
+    <details className="group rounded-[8px] border border-on-surface/8 bg-surface-container-lowest shadow-[0_4px_14px_rgba(0,0,0,0.03)]">
       <summary className="flex list-none cursor-pointer items-center justify-between gap-3 px-4 py-3 select-none">
         <div className="flex items-center gap-3">
           <div className="flex h-8 w-8 items-center justify-center rounded-[9px] border border-on-surface/8 bg-surface-container text-primary">

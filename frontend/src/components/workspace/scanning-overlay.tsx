@@ -181,14 +181,14 @@ export function ScanningOverlay({ scanner, progressPercent, onAbort, aborting = 
       <motion.div
         initial={{ opacity: 0, y: 18 }}
         animate={{ opacity: 1, y: 0 }}
-        className="flex h-full min-h-[720px] w-full max-w-[1480px] flex-col overflow-hidden rounded-[16px] border border-black/5 bg-surface-container-lowest shadow-[0_12px_32px_rgba(24,26,31,0.05)]"
+        className="flex h-full min-h-[720px] w-full max-w-[1480px] flex-col overflow-hidden rounded-[8px] border border-black/5 bg-surface-container-lowest shadow-[0_12px_32px_rgba(24,26,31,0.05)]"
       >
         <div className="border-b border-black/5 bg-surface-container-low px-5 py-4 lg:px-6">
           <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
             <div className="flex items-start gap-4">
               <div
                 className={cn(
-                  "flex h-11 w-11 shrink-0 items-center justify-center rounded-[12px] border",
+                  "flex h-11 w-11 shrink-0 items-center justify-center rounded-[8px] border",
                   meta.tone === "error"
                     ? "border-error/15 bg-error/8 text-error"
                     : meta.tone === "success"
@@ -209,21 +209,21 @@ export function ScanningOverlay({ scanner, progressPercent, onAbort, aborting = 
             </div>
 
             <div className="grid gap-3 sm:grid-cols-3 xl:min-w-[430px]">
-              <div className="rounded-[12px] border border-black/5 bg-surface px-4 py-3">
+              <div className="rounded-[8px] border border-black/5 bg-surface px-4 py-3">
                 <div className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.14em] text-ui-muted">
                   <Clock3 className="h-3.5 w-3.5" />
                   扫描进度
                 </div>
                 <p className="mt-3 text-[1.55rem] font-black tabular-nums text-on-surface">{clampedPercent}%</p>
               </div>
-              <div className="rounded-[12px] border border-black/5 bg-surface px-4 py-3">
+              <div className="rounded-[8px] border border-black/5 bg-surface px-4 py-3">
                 <div className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.14em] text-ui-muted">
                   <Layers3 className="h-3.5 w-3.5" />
                   条目统计
                 </div>
                 <p className="mt-3 text-[1.2rem] font-black tabular-nums text-on-surface">{completionText}</p>
               </div>
-              <div className="rounded-[12px] border border-black/5 bg-surface px-4 py-3">
+              <div className="rounded-[8px] border border-black/5 bg-surface px-4 py-3">
                 <div className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.14em] text-ui-muted">
                   <FolderTree className="h-3.5 w-3.5" />
                   批次状态
@@ -257,7 +257,7 @@ export function ScanningOverlay({ scanner, progressPercent, onAbort, aborting = 
 
         <div className="grid min-h-0 flex-1 gap-0 xl:grid-cols-[minmax(0,1fr)_300px]">
           <div className="min-h-0 border-b border-black/5 px-5 py-5 xl:border-b-0 xl:border-r lg:px-6">
-            <div className="rounded-[16px] border border-black/5 bg-surface px-4 py-4">
+            <div className="rounded-[8px] border border-black/5 bg-surface px-4 py-4">
               <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-ui-muted">当前处理项</p>
               <p className="mt-3 break-all text-[15px] font-semibold leading-7 text-on-surface">{currentItem}</p>
               <p className="mt-2 text-[12px] leading-6 text-ui-muted">{meta.helper}</p>
@@ -280,7 +280,7 @@ export function ScanningOverlay({ scanner, progressPercent, onAbort, aborting = 
                       initial={{ opacity: 0, y: 8 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: index * 0.04 }}
-                      className="rounded-[14px] border border-black/5 bg-surface px-4 py-3.5"
+                      className="rounded-[8px] border border-black/5 bg-surface px-4 py-3.5"
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
@@ -301,7 +301,7 @@ export function ScanningOverlay({ scanner, progressPercent, onAbort, aborting = 
                   ))}
                 </div>
               ) : (
-                <div className="mt-4 flex min-h-[220px] items-center justify-center rounded-[16px] border border-dashed border-black/8 bg-surface-container-low/45">
+                <div className="mt-4 flex min-h-[220px] items-center justify-center rounded-[8px] border border-dashed border-black/8 bg-surface-container-low/45">
                   <div className="text-center">
                     <Loader2 className="mx-auto h-7 w-7 animate-spin text-primary/35" />
                     <p className="mt-3 text-[14px] font-semibold text-on-surface">正在等待首批扫描结果</p>
@@ -351,7 +351,7 @@ export function ScanningOverlay({ scanner, progressPercent, onAbort, aborting = 
             </div>
 
             <div className="mt-6 space-y-3">
-              <div className="rounded-[14px] border border-black/5 bg-surface px-4 py-4">
+              <div className="rounded-[8px] border border-black/5 bg-surface px-4 py-4">
                 <div className="flex items-center gap-2 text-[12px] font-medium text-ui-muted">
                   <ImageIcon className="h-3.5 w-3.5 text-primary" />
                   复杂文件
@@ -360,7 +360,7 @@ export function ScanningOverlay({ scanner, progressPercent, onAbort, aborting = 
                   图片、扫描件、压缩包和大文件会拖长扫描时间，因为系统需要补充摘要和用途判断。
                 </p>
               </div>
-              <div className="rounded-[14px] border border-black/5 bg-surface px-4 py-4">
+              <div className="rounded-[8px] border border-black/5 bg-surface px-4 py-4">
                 <div className="flex items-center gap-2 text-[12px] font-medium text-ui-muted">
                   <CheckCircle2 className="h-3.5 w-3.5 text-primary" />
                   安全边界

@@ -1,9 +1,8 @@
 @import "tailwindcss";
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Manrope:wght@700;800&display=swap');
 
 @theme {
-  --font-sans: "Inter", "PingFang SC", "Microsoft YaHei", ui-sans-serif, system-ui, sans-serif;
-  --font-headline: "Manrope", sans-serif;
+  --font-sans: "Segoe UI Variable", "Segoe UI", -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  --font-headline: var(--font-sans);
   
   --color-surface: var(--surface);
   --color-surface-container: var(--surface-container);
@@ -36,41 +35,41 @@
 
   /* Architectural Radius Scale */
   --radius-xs: 2px;
-  --radius-sm: 4px;
-  --radius-md: 6px;
-  --radius-lg: 8px;
-  --radius-xl: 10px;
-  --radius-2xl: 12px;
-  --radius-panel: 14px;
+  --radius-sm: 3px;
+  --radius-md: 4px;
+  --radius-lg: 6px;
+  --radius-xl: 8px;
+  --radius-2xl: 8px;
+  --radius-panel: 8px;
 }
 
 @layer base {
   :root {
     color-scheme: light;
 
-    --surface: #f3f1eb;
-    --surface-container: #e6e1d7;
-    --surface-container-low: #ede8de;
-    --surface-container-high: #ddd7cc;
-    --surface-container-highest: #cfc8bb;
-    --surface-container-lowest: #fbfaf6;
+    --surface: #f8f9fa;
+    --surface-container: #eef0f2;
+    --surface-container-low: #f2f4f5;
+    --surface-container-high: #e4e7ea;
+    --surface-container-highest: #d8dce0;
+    --surface-container-lowest: #ffffff;
 
-    --primary: #4d6357;
-    --primary-dim: #42574c;
-    --primary-container: #d9e3db;
-    --primary-rgb: 77 99 87;
+    --primary: #0078d4;
+    --primary-dim: #106ebe;
+    --primary-container: #d7ebff;
+    --primary-rgb: 0 120 212;
 
-    --on-surface: #252d28;
-    --on-surface-variant: #646a63;
+    --on-surface: #1a1c1e;
+    --on-surface-variant: #5c6166;
 
-    --outline: #88847b;
-    --outline-variant: #c6c0b5;
+    --outline: #8b9198;
+    --outline-variant: #c4c8cd;
 
-    --error: #984643;
-    --error-container: #efd5d1;
+    --error: #c4314b;
+    --error-container: #fce4e8;
 
-    --warning: #866126;
-    --warning-container: #f0e4bf;
+    --warning: #9a6700;
+    --warning-container: #fef3cd;
   }
 
   .dark {
@@ -81,10 +80,10 @@
     --surface-container-highest: #383838;
     --surface-container-lowest: #000000;
     
-    --primary: #8fb3d1;
-    --primary-dim: #7aa0c0;
-    --primary-container: #2d455a;
-    --primary-rgb: 143 179 209;
+    --primary: #5caade;
+    --primary-dim: #4a96cc;
+    --primary-container: #1a3a52;
+    --primary-rgb: 92 170 222;
     
     --on-surface: #e0e0e0;
     --on-surface-variant: #b0b0b0;
@@ -92,7 +91,7 @@
     --outline: #888888;
     --outline-variant: #555555;
     
-    --error: #cf6679;
+    --error: #e5566b;
     --error-container: #93000a;
     
     --warning: #ffb74d;
@@ -101,9 +100,6 @@
 
   body {
     @apply bg-surface text-on-surface font-sans antialiased;
-    background-image:
-      radial-gradient(circle at top left, rgba(77, 99, 87, 0.042), transparent 30%),
-      linear-gradient(180deg, rgba(255, 255, 255, 0.34), rgba(255, 255, 255, 0));
   }
   
   h1, h2, h3, h4 {
@@ -166,14 +162,14 @@
   border: 1px solid color-mix(in srgb, var(--on-surface) 7%, transparent);
   background: color-mix(in srgb, var(--surface-container-lowest) 94%, white 6%);
   border-radius: var(--radius-panel);
-  box-shadow: 0 10px 26px rgba(36, 48, 42, 0.05);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
 }
 
 .ui-panel {
   border: 1px solid color-mix(in srgb, var(--on-surface) 7%, transparent);
   background: color-mix(in srgb, var(--surface-container-lowest) 96%, white 4%);
   border-radius: var(--radius-panel);
-  box-shadow: 0 10px 28px rgba(36, 48, 42, 0.05);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05), 0 1px 2px rgba(0, 0, 0, 0.03);
 }
 
 .ui-panel-muted {
@@ -186,7 +182,7 @@
   border: 1px solid color-mix(in srgb, var(--on-surface) 8%, transparent);
   background: color-mix(in srgb, var(--surface-container-lowest) 92%, white 8%);
   border-radius: var(--radius-panel);
-  box-shadow: 0 18px 44px rgba(36, 48, 42, 0.09);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08), 0 1px 3px rgba(0, 0, 0, 0.04);
 }
 
 .ui-kicker {
@@ -240,15 +236,15 @@
 }
 
 .ui-dialog-backdrop {
-  background: rgba(20, 24, 22, 0.16);
+  background: rgba(0, 0, 0, 0.24);
   backdrop-filter: blur(8px);
 }
 
 .ui-dialog {
   border: 1px solid color-mix(in srgb, var(--on-surface) 8%, transparent);
   background: color-mix(in srgb, var(--surface-container-lowest) 96%, white 4%);
-  border-radius: 14px;
-  box-shadow: 0 24px 68px rgba(20, 24, 22, 0.14);
+  border-radius: 8px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.14), 0 2px 6px rgba(0, 0, 0, 0.06);
 }
 
 /* Scrollbar styles for consistent UI */

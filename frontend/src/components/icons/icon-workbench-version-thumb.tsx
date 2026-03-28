@@ -51,7 +51,7 @@ export function IconWorkbenchVersionThumb({
       className={cn(
         "group relative flex w-[140px] shrink-0 cursor-pointer flex-col gap-2 rounded-xl border p-2.5 transition-all active:scale-95",
         isSelected
-          ? "border-primary/20 bg-primary/8 shadow-[0_8px_20px_rgba(36,48,42,0.06)]"
+          ? "border-primary/20 bg-primary/8 shadow-[0_8px_20px_rgba(0,0,0,0.06)]"
           : "border-on-surface/8 bg-surface-container-low hover:border-primary/14",
       )}
     >

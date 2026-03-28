@@ -116,8 +116,8 @@ export function StrategyOptionButton({
       type="button"
       onClick={onClick}
       className={cn(
-        "w-full rounded-[12px] border px-4 py-3 text-left transition-colors",
-        active ? "border-primary/20 bg-primary/6 shadow-[0_8px_18px_rgba(36,48,42,0.04)]" : "border-on-surface/8 bg-surface-container-lowest hover:border-primary/16 hover:bg-white",
+        "w-full rounded-[8px] border px-4 py-3 text-left transition-colors",
+        active ? "border-primary/20 bg-primary/6 shadow-[0_8px_18px_rgba(0,0,0,0.04)]" : "border-on-surface/8 bg-surface-container-lowest hover:border-primary/16 hover:bg-white",
       )}
     >
       <p className={cn("text-[14px] font-semibold tracking-tight", active ? "text-primary" : "text-on-surface")}>{label}</p>

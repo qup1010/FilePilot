@@ -63,7 +63,7 @@ export function PrecheckView({ summary, isBusy, readOnly = false, onRequestExecu
 
   return (
     <div className="mx-auto max-w-[1360px] space-y-5 py-5">
-      <section className="rounded-[12px] border border-on-surface/8 bg-surface-container-lowest shadow-[0_8px_24px_rgba(37,45,40,0.04)]">
+      <section className="rounded-[8px] border border-on-surface/8 bg-surface-container-lowest shadow-[0_8px_24px_rgba(0,0,0,0.04)]">
         <div className="border-b border-on-surface/8 bg-surface-container-low px-5 py-4 lg:px-6">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div className="space-y-2">
@@ -136,7 +136,7 @@ export function PrecheckView({ summary, isBusy, readOnly = false, onRequestExecu
         </div>
       </section>
 
-      <section className="space-y-4 rounded-[12px] border border-on-surface/8 bg-surface-container-lowest p-5 shadow-[0_8px_24px_rgba(37,45,40,0.04)]">
+      <section className="space-y-4 rounded-[8px] border border-on-surface/8 bg-surface-container-lowest p-5 shadow-[0_8px_24px_rgba(0,0,0,0.04)]">
         <div className="flex flex-col gap-3 border-b border-on-surface/8 pb-4 lg:flex-row lg:items-end lg:justify-between">
           <div className="space-y-1">
             <p className="text-[12px] font-medium text-ui-muted">结构对比</p>
@@ -167,7 +167,7 @@ export function PrecheckView({ summary, isBusy, readOnly = false, onRequestExecu
       </section>
 
       {(hasErrors || hasWarnings || reviewCount > 0) ? (
-        <section className="space-y-3 rounded-[12px] border border-on-surface/8 bg-surface-container-low p-5 shadow-[0_8px_24px_rgba(37,45,40,0.04)]">
+        <section className="space-y-3 rounded-[8px] border border-on-surface/8 bg-surface-container-low p-5 shadow-[0_8px_24px_rgba(0,0,0,0.04)]">
           <div className="flex items-center gap-3">
             <ShieldAlert className="h-5 w-5 text-on-surface/40" />
             <h3 className="text-[15px] font-black tracking-tight text-on-surface">预检结果</h3>
@@ -207,7 +207,7 @@ export function PrecheckView({ summary, isBusy, readOnly = false, onRequestExecu
         </section>
       ) : null}
 
-      <section className="rounded-[12px] border border-primary/12 bg-primary/6 p-5 shadow-[0_8px_24px_rgba(37,45,40,0.04)]">
+      <section className="rounded-[8px] border border-primary/12 bg-primary/6 p-5 shadow-[0_8px_24px_rgba(0,0,0,0.04)]">
         <div className="flex items-start gap-4">
           <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[10px] bg-primary text-white">
             <ListChecks className="h-5 w-5" />

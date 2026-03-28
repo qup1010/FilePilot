@@ -130,7 +130,7 @@ export function IconWorkbenchTemplateDrawer({
                         key={t.template_id}
                         onClick={() => onSelectTemplate(t.template_id)}
                         className={cn(
-                          "relative group overflow-hidden rounded-[14px] border transition-all text-left flex flex-col",
+                          "relative group overflow-hidden rounded-[8px] border transition-all text-left flex flex-col",
                           t.template_id === selectedTemplate?.template_id
                             ? "border-primary/30 ring-1 ring-primary/20 shadow-md bg-primary/4"
                             : "border-on-surface/8 hover:border-primary/20 bg-white hover:shadow-sm"
@@ -158,7 +158,7 @@ export function IconWorkbenchTemplateDrawer({
                     ))}
                     <button
                       onClick={() => onSelectTemplate("")}
-                      className="flex flex-col items-center justify-center gap-2 rounded-[14px] border border-dashed border-primary/20 bg-white text-primary text-[13px] font-bold hover:bg-primary/4 transition-colors min-h-[90px]"
+                      className="flex flex-col items-center justify-center gap-2 rounded-[8px] border border-dashed border-primary/20 bg-white text-primary text-[13px] font-bold hover:bg-primary/4 transition-colors min-h-[90px]"
                     >
                       <Plus className="h-3.5 w-3.5" />
                       创建新风格

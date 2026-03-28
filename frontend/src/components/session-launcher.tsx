@@ -206,10 +206,10 @@ function StrategyDialog({
                             disabled={loading}
                             onClick={() => onTemplateSelect(template.id)}
                             className={cn(
-                              "group relative flex flex-col rounded-[14px] border px-4 py-4 text-left transition-all duration-200 disabled:opacity-50",
+                              "group relative flex flex-col rounded-[8px] border px-4 py-4 text-left transition-all duration-200 disabled:opacity-50",
                               active
-                                ? "border-primary/22 bg-primary/6 shadow-[0_10px_24px_rgba(36,48,42,0.06)]"
-                                : "border-on-surface/8 bg-surface-container-lowest hover:border-primary/16 hover:bg-white hover:shadow-[0_8px_18px_rgba(36,48,42,0.05)]",
+                                ? "border-primary/22 bg-primary/6 shadow-[0_10px_24px_rgba(0,0,0,0.06)]"
+                                : "border-on-surface/8 bg-surface-container-lowest hover:border-primary/16 hover:bg-white hover:shadow-[0_8px_18px_rgba(0,0,0,0.05)]",
                             )}
                           >
                             <div className="mb-2 flex items-center justify-between">
@@ -309,7 +309,7 @@ function StrategyDialog({
 
                     <div className="grid grid-cols-1 gap-5 lg:grid-cols-2 min-h-0 flex-1">
                       <div className="flex flex-col gap-5">
-                        <div className="rounded-[12px] border border-on-surface/8 bg-surface-container-lowest p-4">
+                        <div className="rounded-[8px] border border-on-surface/8 bg-surface-container-lowest p-4">
                           <div className="mb-3 flex items-center justify-between">
                             <span className="text-[11px] font-medium uppercase tracking-widest text-ui-muted">目录命名风格</span>
                           </div>
@@ -324,7 +324,7 @@ function StrategyDialog({
                                   onClick={() => onChangeNaming(option.id)}
                                   className={cn(
                                     "flex flex-col rounded-[10px] border px-3 py-3 text-left transition-all duration-200 disabled:opacity-50",
-                                    active ? "border-primary/25 bg-primary/6 shadow-[0_2px_10px_rgba(36,48,42,0.04)]" : "border-on-surface/8 bg-surface-container-low hover:border-primary/16",
+                                    active ? "border-primary/25 bg-primary/6 shadow-[0_2px_10px_rgba(0,0,0,0.04)]" : "border-on-surface/8 bg-surface-container-low hover:border-primary/16",
                                   )}
                                 >
                                   <div className="mb-1.5 flex items-center justify-between w-full">
@@ -338,7 +338,7 @@ function StrategyDialog({
                           </div>
                         </div>
 
-                        <div className="rounded-[12px] border border-on-surface/8 bg-surface-container-lowest p-4">
+                        <div className="rounded-[8px] border border-on-surface/8 bg-surface-container-lowest p-4">
                           <div className="mb-3 flex items-center justify-between">
                             <span className="text-[11px] font-medium uppercase tracking-widest text-ui-muted">整理方式</span>
                           </div>
@@ -353,7 +353,7 @@ function StrategyDialog({
                                   onClick={() => onChangeCaution(option.id)}
                                   className={cn(
                                     "flex flex-col rounded-[10px] border px-3.5 py-3 text-left transition-all duration-200 disabled:opacity-50",
-                                    active ? "border-primary/25 bg-primary/6 shadow-[0_2px_10px_rgba(36,48,42,0.04)]" : "border-on-surface/8 bg-surface-container-low hover:border-primary/16",
+                                    active ? "border-primary/25 bg-primary/6 shadow-[0_2px_10px_rgba(0,0,0,0.04)]" : "border-on-surface/8 bg-surface-container-low hover:border-primary/16",
                                   )}
                                 >
                                   <div className="mb-1.5 flex items-center justify-between w-full">
@@ -368,7 +368,7 @@ function StrategyDialog({
                         </div>
                       </div>
 
-                      <div className="flex flex-col rounded-[12px] border border-on-surface/8 bg-surface-container-lowest p-4">
+                      <div className="flex flex-col rounded-[8px] border border-on-surface/8 bg-surface-container-lowest p-4">
                         <div className="mb-3 flex items-center justify-between">
                           <span className="text-[11px] font-medium uppercase tracking-widest text-ui-muted">补充说明</span>
                           <span className="text-[10px] font-semibold text-ui-muted bg-surface-container-low px-2 py-0.5 rounded-full">可选</span>
@@ -677,7 +677,7 @@ export function SessionLauncher() {
                     variant="ghost"
                     onClick={handleSelectDir}
                     disabled={loading}
-                    className="h-11 w-11 rounded-[12px] p-0 text-ui-muted hover:bg-primary/6 hover:text-primary"
+                    className="h-11 w-11 rounded-[8px] p-0 text-ui-muted hover:bg-primary/6 hover:text-primary"
                     title="浏览文件夹"
                   >
                     <FolderOpen className="h-5 w-5" />
@@ -810,7 +810,7 @@ export function SessionLauncher() {
               className="ui-dialog w-full max-w-[760px] p-6 sm:p-7"
             >
               <div className="mb-6 flex items-center gap-4">
-                <div className="flex h-12 w-12 items-center justify-center rounded-[12px] border border-primary/12 bg-primary/10 text-primary">
+                <div className="flex h-12 w-12 items-center justify-center rounded-[8px] border border-primary/12 bg-primary/10 text-primary">
                   <History className="h-6 w-6" />
                 </div>
                 <div className="space-y-1">

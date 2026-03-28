@@ -75,7 +75,7 @@ export function IconWorkbenchFolderList({
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder="搜索目标文件夹..."
-            className="w-full rounded-[12px] border border-on-surface/8 bg-surface-container-low/50 py-2.5 pl-10 pr-4 text-[14px] outline-none transition-all focus:border-primary/20 focus:bg-white focus:ring-4 focus:ring-primary/4"
+            className="w-full rounded-[8px] border border-on-surface/8 bg-surface-container-low/50 py-2.5 pl-10 pr-4 text-[14px] outline-none transition-all focus:border-primary/20 focus:bg-white focus:ring-4 focus:ring-primary/4"
           />
         </div>
       </div>
@@ -83,7 +83,7 @@ export function IconWorkbenchFolderList({
       <div className="flex-1 overflow-y-auto px-6 py-4 scrollbar-thin">
         {!hasSelectedStyle && folders.length > 0 && (
           <div className="ui-panel mb-6 flex animate-in fade-in slide-in-from-top-2 duration-500 flex-col items-center gap-4 p-6 text-center">
-            <div className="flex h-12 w-12 items-center justify-center rounded-[12px] bg-primary/10 text-primary">
+            <div className="flex h-12 w-12 items-center justify-center rounded-[8px] bg-primary/10 text-primary">
               <Search className="h-6 w-6" />
             </div>
             <div className="max-w-[320px] space-y-2">
@@ -96,7 +96,7 @@ export function IconWorkbenchFolderList({
         )}
 
         {filteredFolders.length === 0 ? (
-          <div className="flex h-[200px] items-center justify-center rounded-[14px] border border-dashed border-on-surface/10 bg-surface-container-lowest/70">
+          <div className="flex h-[200px] items-center justify-center rounded-[8px] border border-dashed border-on-surface/10 bg-surface-container-lowest/70">
             <p className="text-[13px] text-ui-muted">{folders.length === 0 ? "当前还没有目标文件夹" : "没有找到匹配的目标文件夹"}</p>
           </div>
         ) : (

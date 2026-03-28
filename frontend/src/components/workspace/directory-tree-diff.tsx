@@ -292,7 +292,7 @@ function DirectoryTreePanel({ column, filter = "all" }: { column: DirectoryTreeC
   };
 
   return (
-    <div className="rounded-[12px] border border-on-surface/8 bg-surface-container-lowest p-5 shadow-sm">
+    <div className="rounded-[8px] border border-on-surface/8 bg-surface-container-lowest p-5 shadow-sm">
       <div className="border-b border-on-surface/6 pb-4">
         <h3 className="text-[14px] font-semibold text-on-surface">{column.title}</h3>
         <p className="mt-1 text-[12px] leading-6 text-on-surface-variant">{column.subtitle}</p>

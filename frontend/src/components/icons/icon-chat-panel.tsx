@@ -37,12 +37,12 @@ interface IconChatPanelProps {
 
 function messageBubbleClass(role: string) {
   if (role === "user") {
-    return "ml-8 bg-primary text-white shadow-[0_18px_40px_rgba(77,99,87,0.18)]";
+    return "ml-8 bg-primary text-white shadow-[0_18px_40px_rgba(0,120,212,0.18)]";
   }
   if (role === "system") {
     return "mx-auto max-w-[88%] border-warning/18 bg-warning-container/28 text-on-surface";
   }
-  return "mr-8 border-on-surface/8 bg-white text-on-surface shadow-[0_18px_40px_rgba(36,48,42,0.06)]";
+  return "mr-8 border-on-surface/8 bg-white text-on-surface shadow-[0_18px_40px_rgba(0,0,0,0.06)]";
 }
 
 function roleIcon(role: string) {
@@ -67,7 +67,7 @@ function MessageBubble({ message }: { message: IconWorkbenchChatMessage }) {
       exit={{ opacity: 0, y: -8 }}
       className={cn("flex", isUser ? "justify-end" : "justify-start")}
     >
-      <div className={cn("w-full max-w-[92%] rounded-[22px] border px-4 py-4", messageBubbleClass(message.role))}>
+      <div className={cn("w-full max-w-[92%] rounded-[10px] border px-4 py-4", messageBubbleClass(message.role))}>
         <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em]">
           <span
             className={cn(
@@ -99,7 +99,7 @@ function MessageBubble({ message }: { message: IconWorkbenchChatMessage }) {
               <div
                 key={`${message.message_id}-${result.tool_name}-${index}`}
                 className={cn(
-                  "rounded-[14px] border px-3 py-2.5 text-[12px] leading-6",
+                  "rounded-[8px] border px-3 py-2.5 text-[12px] leading-6",
                   result.success
                     ? isUser
                       ? "border-white/16 bg-white/10 text-white/92"
@@ -144,7 +144,7 @@ function PendingActionCard({
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -10 }}
-      className="rounded-[20px] border border-warning/16 bg-[linear-gradient(180deg,rgba(244,184,78,0.12),rgba(255,255,255,0.96))] p-4 shadow-[0_18px_44px_rgba(36,48,42,0.06)]"
+      className="rounded-[10px] border border-warning/16 bg-[linear-gradient(180deg,rgba(244,184,78,0.12),rgba(255,255,255,0.96))] p-4 shadow-[0_18px_44px_rgba(0,0,0,0.06)]"
     >
       <div className="flex items-start justify-between gap-3">
         <div className="space-y-2">
@@ -161,7 +161,7 @@ function PendingActionCard({
       </div>
 
       {blocked ? (
-        <div className="mt-3 rounded-[14px] border border-error/14 bg-error-container/30 px-3 py-2 text-[12px] text-error">
+        <div className="mt-3 rounded-[8px] border border-error/14 bg-error-container/30 px-3 py-2 text-[12px] text-error">
           当前为浏览器模式，这个动作需要桌面壳执行。
         </div>
       ) : null}
@@ -212,10 +212,10 @@ export function IconChatPanel({
   const pendingActions = session?.pending_actions || [];
 
   return (
-    <aside className="flex min-h-0 w-full shrink-0 flex-col border-b border-on-surface/8 bg-[linear-gradient(180deg,rgba(246,248,244,0.96),rgba(237,241,236,0.9))] xl:max-w-[380px] xl:border-b-0 xl:border-r">
+    <aside className="flex min-h-0 w-full shrink-0 flex-col border-b border-on-surface/8 bg-[linear-gradient(180deg,rgba(248,249,250,0.96),rgba(242,244,245,0.92))] xl:max-w-[380px] xl:border-b-0 xl:border-r">
       <div className="border-b border-on-surface/8 px-4 py-4">
         <div className="flex items-center gap-3">
-          <div className="flex h-11 w-11 items-center justify-center rounded-[15px] border border-primary/12 bg-primary/10 text-primary shadow-[0_14px_32px_rgba(77,99,87,0.12)]">
+          <div className="flex h-11 w-11 items-center justify-center rounded-[8px] border border-primary/12 bg-primary/10 text-primary shadow-[0_14px_32px_rgba(0,120,212,0.12)]">
             <Bot className="h-5 w-5" />
           </div>
           <div className="min-w-0">
@@ -224,11 +224,11 @@ export function IconChatPanel({
           </div>
         </div>
         <div className="mt-4 grid grid-cols-2 gap-2 text-[12px] text-ui-muted">
-          <div className="rounded-[14px] border border-on-surface/8 bg-white/78 px-3 py-2.5">
+          <div className="rounded-[8px] border border-on-surface/8 bg-white/78 px-3 py-2.5">
             <p className="text-[11px] uppercase tracking-[0.18em]">选中</p>
             <p className="mt-1 text-[15px] font-bold tracking-tight text-on-surface">{selectedCount} 个文件夹</p>
           </div>
-          <div className="rounded-[14px] border border-on-surface/8 bg-white/78 px-3 py-2.5">
+          <div className="rounded-[8px] border border-on-surface/8 bg-white/78 px-3 py-2.5">
             <p className="text-[11px] uppercase tracking-[0.18em]">当前焦点</p>
             <p className="mt-1 truncate text-[15px] font-bold tracking-tight text-on-surface">{activeFolderName || "未选择"}</p>
           </div>
@@ -237,7 +237,7 @@ export function IconChatPanel({
 
       <div ref={scrollContainerRef} className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-4 scrollbar-thin">
         {!session ? (
-          <div className="rounded-[24px] border border-on-surface/8 bg-white/84 p-5 shadow-[0_18px_48px_rgba(36,48,42,0.06)]">
+          <div className="rounded-[10px] border border-on-surface/8 bg-white/84 p-5 shadow-[0_18px_48px_rgba(0,0,0,0.06)]">
             <p className="text-[12px] font-semibold uppercase tracking-[0.18em] text-primary/70">准备开始</p>
             <p className="mt-3 text-[14px] leading-7 text-on-surface">
               先在右侧选择父目录。建立图标工坊会话后，这里可以直接让 agent 分析、套模板、生成预览，或在确认后执行应用与恢复。
@@ -277,7 +277,7 @@ export function IconChatPanel({
       </div>
 
       <div className="border-t border-on-surface/8 px-4 py-4">
-        <div className="rounded-[22px] border border-on-surface/8 bg-white/88 p-3 shadow-[0_16px_40px_rgba(36,48,42,0.06)]">
+        <div className="rounded-[10px] border border-on-surface/8 bg-white/88 p-3 shadow-[0_16px_40px_rgba(0,0,0,0.06)]">
           <textarea
             value={messageInput}
             onChange={(event) => onMessageInputChange(event.target.value)}

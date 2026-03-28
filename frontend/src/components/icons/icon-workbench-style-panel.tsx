@@ -63,7 +63,7 @@ export function IconWorkbenchStylePanel({
       {/* 顶部标题栏 */}
       <div className="glass-surface flex items-center justify-between border-b border-on-surface/8 px-6 py-4">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-[12px] border border-primary/12 bg-primary/10 text-primary">
+          <div className="flex h-10 w-10 items-center justify-center rounded-[8px] border border-primary/12 bg-primary/10 text-primary">
             <Palette className="h-5 w-5" />
           </div>
           <div>
@@ -73,7 +73,7 @@ export function IconWorkbenchStylePanel({
         </div>
         <button
           onClick={onClose}
-          className="flex h-10 w-10 items-center justify-center rounded-[12px] hover:bg-on-surface/4 text-ui-muted transition-colors"
+          className="flex h-10 w-10 items-center justify-center rounded-[8px] hover:bg-on-surface/4 text-ui-muted transition-colors"
         >
           <X className="h-5 w-5" />
         </button>
@@ -86,7 +86,7 @@ export function IconWorkbenchStylePanel({
               选择完成后面板会自动关闭，你可以直接回到工作台，为当前目标文件夹继续生成图标。
             </div>
             {selectedTemplate ? (
-              <div className="flex flex-wrap items-center justify-between gap-3 rounded-[12px] border border-on-surface/8 bg-surface-container-lowest px-4 py-3">
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-[8px] border border-on-surface/8 bg-surface-container-lowest px-4 py-3">
                 <div className="min-w-0">
                   <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-ui-muted">当前已选风格</p>
                   <p className="mt-1 truncate text-[14px] font-semibold text-on-surface">{selectedTemplate.name}</p>
@@ -111,7 +111,7 @@ export function IconWorkbenchStylePanel({
                 value={query}
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => setQuery(e.target.value)}
                 placeholder="搜索风格名称或描述..."
-                className="w-full h-11 rounded-[12px] border border-on-surface/10 bg-white py-0 pl-12 pr-4 text-[14px] outline-none transition-all focus:border-primary/20 focus:ring-4 focus:ring-primary/4"
+                className="w-full h-11 rounded-[8px] border border-on-surface/10 bg-white py-0 pl-12 pr-4 text-[14px] outline-none transition-all focus:border-primary/20 focus:ring-4 focus:ring-primary/4"
               />
             </div>
             <div className="relative flex items-center min-w-[280px]">
@@ -120,7 +120,7 @@ export function IconWorkbenchStylePanel({
                 value={bgApiToken}
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => onBgApiTokenChange(e.target.value)}
                 placeholder="HF Token (用于极速抠图, 选填)"
-                className="w-full h-11 rounded-[12px] border border-on-surface/10 bg-surface-container-lowest py-0 px-4 text-[13px] outline-none transition-all focus:border-primary/20 focus:bg-white focus:ring-4 focus:ring-primary/4 placeholder:text-12px"
+                className="w-full h-11 rounded-[8px] border border-on-surface/10 bg-surface-container-lowest py-0 px-4 text-[13px] outline-none transition-all focus:border-primary/20 focus:bg-white focus:ring-4 focus:ring-primary/4 placeholder:text-12px"
               />
             </div>
           </div>
@@ -140,13 +140,13 @@ export function IconWorkbenchStylePanel({
                   onClose();
                 }}
                 className={cn(
-                  "group relative flex flex-col rounded-[14px] border p-4 text-left transition-all duration-300 active:scale-[0.98]",
+                  "group relative flex flex-col rounded-[8px] border p-4 text-left transition-all duration-300 active:scale-[0.98]",
                   isSelected
-                    ? "border-primary/24 bg-primary/5 shadow-[0_16px_34px_rgba(36,48,42,0.08)] ring-1 ring-primary/18"
-                    : "border-on-surface/8 bg-surface-container-lowest hover:border-primary/18 hover:bg-white hover:shadow-[0_12px_26px_rgba(36,48,42,0.06)]",
+                    ? "border-primary/24 bg-primary/5 shadow-[0_16px_34px_rgba(0,0,0,0.08)] ring-1 ring-primary/18"
+                    : "border-on-surface/8 bg-surface-container-lowest hover:border-primary/18 hover:bg-white hover:shadow-[0_12px_26px_rgba(0,0,0,0.06)]",
                 )}
               >
-                <div className="relative mb-4 aspect-square w-full overflow-hidden rounded-[12px] border border-on-surface/6 bg-surface-container-lowest">
+                <div className="relative mb-4 aspect-square w-full overflow-hidden rounded-[8px] border border-on-surface/6 bg-surface-container-lowest">
                   {template.cover_image ? (
                     <img
                       src={template.cover_image}

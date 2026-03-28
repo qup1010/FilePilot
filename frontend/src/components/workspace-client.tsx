@@ -517,22 +517,22 @@ export default function WorkspaceClient() {
           <div className="mt-3 h-3 w-56 rounded bg-surface-container-low" />
         </div>
         <div className="flex-1 space-y-4 px-5 py-5">
-          <div className="h-24 rounded-[12px] bg-surface-container-low" />
-          <div className="h-24 rounded-[12px] bg-surface-container-low" />
-          <div className="h-24 rounded-[12px] bg-surface-container-low" />
+          <div className="h-24 rounded-[8px] bg-surface-container-low" />
+          <div className="h-24 rounded-[8px] bg-surface-container-low" />
+          <div className="h-24 rounded-[8px] bg-surface-container-low" />
         </div>
         <div className="border-t border-on-surface/6 px-5 py-4">
-          <div className="h-14 rounded-[12px] bg-surface-container-low" />
+          <div className="h-14 rounded-[8px] bg-surface-container-low" />
         </div>
       </section>
       <section
         style={{ width: `${100 - DEFAULT_LEFT_WIDTH}%` }}
         className="flex min-h-0 min-w-[320px] flex-col bg-surface-container-low/45 p-5"
       >
-        <div className="h-28 rounded-[12px] bg-surface-container-low" />
+        <div className="h-28 rounded-[8px] bg-surface-container-low" />
         <div className="mt-4 grid flex-1 gap-4 md:grid-cols-2">
-          <div className="rounded-[12px] bg-surface-container-low" />
-          <div className="rounded-[12px] bg-surface-container-low" />
+          <div className="rounded-[8px] bg-surface-container-low" />
+          <div className="rounded-[8px] bg-surface-container-low" />
         </div>
       </section>
     </div>
@@ -622,7 +622,7 @@ export default function WorkspaceClient() {
           更多
         </button>
         {showExitMenu ? (
-          <div className="absolute right-0 top-[calc(100%+8px)] z-50 w-[190px] rounded-[10px] border border-on-surface/8 bg-surface-container-lowest p-1.5 shadow-[0_10px_24px_rgba(36,48,42,0.12)]">
+          <div className="absolute right-0 top-[calc(100%+8px)] z-50 w-[190px] rounded-[10px] border border-on-surface/8 bg-surface-container-lowest p-1.5 shadow-[0_10px_24px_rgba(0,0,0,0.12)]">
             <button
               type="button"
               onClick={handleExitWorkbench}
@@ -665,7 +665,7 @@ export default function WorkspaceClient() {
                 className={cn(
                   "w-[1px] h-full transition-all duration-300",
                   isResizingState
-                    ? "bg-primary/35 shadow-[0_0_12px_rgba(77,99,87,0.2)] scale-x-[1.5]"
+                    ? "bg-primary/35 shadow-[0_0_12px_rgba(0,120,212,0.18)] scale-x-[1.5]"
                     : "bg-on-surface/[0.06] group-hover:bg-primary/18",
                 )}
               />
@@ -673,7 +673,7 @@ export default function WorkspaceClient() {
                 className={cn(
                   "absolute top-1/2 flex h-9 w-5 -translate-y-1/2 flex-col items-center justify-center gap-0.5 rounded-[8px] border border-on-surface/8 bg-surface-container-lowest transition-all duration-200",
                   isResizingState
-                    ? "scale-110 border-primary/20 opacity-100 shadow-[0_4px_10px_rgba(37,45,40,0.08)]"
+                    ? "scale-110 border-primary/20 opacity-100 shadow-[0_4px_10px_rgba(0,0,0,0.08)]"
                     : "opacity-0 group-hover:opacity-100 scale-100",
                 )}
               >
