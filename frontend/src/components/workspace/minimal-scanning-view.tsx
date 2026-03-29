@@ -21,7 +21,7 @@ interface MinimalScanningViewProps {
 }
 
 export function MinimalScanningView({ scanner, progressPercent, onAbort, aborting = false }: MinimalScanningViewProps) {
-  const currentItem = scanner.current_item || "读取目录中...";
+  const currentItem = scanner.current_item || "正在读取目录...";
   const recentItems = scanner.recent_analysis_items || [];
 
   return (
@@ -39,11 +39,11 @@ export function MinimalScanningView({ scanner, progressPercent, onAbort, abortin
                 <Search className="h-3.5 w-3.5" />
               </div>
               <h2 className="text-[14px] font-bold tracking-tight text-on-surface">
-                目录扫描中
+                正在扫描目录
               </h2>
             </div>
             <p className="text-[12px] text-ui-muted">
-              正在提取文件特征，完成后自动进入方案生成。
+              正在读取目录结构和文件特征，完成后会自动进入方案整理。
             </p>
           </div>
 
@@ -78,7 +78,7 @@ export function MinimalScanningView({ scanner, progressPercent, onAbort, abortin
                 <div className="flex items-center gap-2">
                   <Activity className="h-3.5 w-3.5 text-primary" />
                   <h3 className="text-[12px] font-bold text-on-surface">
-                    {scanner.message || "正在提取特征"}
+                    {scanner.message || "正在分析文件特征"}
                   </h3>
                 </div>
               </div>
@@ -106,7 +106,7 @@ export function MinimalScanningView({ scanner, progressPercent, onAbort, abortin
                 {[
                   { label: "模式", value: "全量扫描" },
                   { label: "线程", value: scanner.batch_count ? `${scanner.batch_count} 并行` : "标准" },
-                  { label: "阶段", value: "分类方案" },
+                  { label: "阶段", value: "生成方案" },
                 ].map((stat, idx) => (
                   <div key={idx} className="border-l border-on-surface/10 pl-3 py-0.5">
                     <p className="text-[10px] text-ui-muted uppercase tracking-tight">{stat.label}</p>
@@ -154,7 +154,7 @@ export function MinimalScanningView({ scanner, progressPercent, onAbort, abortin
                     ))
                   ) : (
                     <div className="flex h-full items-center justify-center text-ui-muted opacity-30 py-8">
-                      <p className="text-[11px]">等待扫描结果...</p>
+                  <p className="text-[11px]">正在等待扫描结果...</p>
                     </div>
                   )}
                 </AnimatePresence>
@@ -177,7 +177,7 @@ export function MinimalScanningView({ scanner, progressPercent, onAbort, abortin
                 </div>
 
                 <div className="rounded-[4px] border border-on-surface/6 bg-surface-container-lowest p-3 text-[11px] text-ui-muted">
-                  扫描完成后可直接查看建议方案。
+                  扫描完成后可直接查看第一版整理方案。
                 </div>
               </div>
             </div>

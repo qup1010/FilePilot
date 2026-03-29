@@ -1,6 +1,13 @@
 ﻿# file-organizer-test
 
-本项目是一个本地文件整理 CLI 原型，当前主链路已经可运行：
+本项目是一个本地文件整理应用，当前同时包含：
+
+- CLI 主流程
+- FastAPI 本地 API
+- Next.js 本地工作台前端
+- Tauri 桌面壳
+
+当前主链路已经可运行：
 
 `扫描目录 -> AI 分析 -> 整理对话 -> 执行预检 -> YES 确认执行 -> 写入执行日志 -> 支持最近一次回退`
 
@@ -13,10 +20,37 @@
 - 若未确认项当前默认落在 `Review/`，执行前可按默认策略自动收口；否则必须继续确认。
 - 真正落盘前仍需输入大写 `YES`。
 
-## 运行方式
+## 运行入口
+
+CLI 主流程：
 
 ```bash
 python -m file_organizer
+```
+
+启动本地 API：
+
+```bash
+python -m file_organizer.api
+```
+
+- 默认地址：`http://127.0.0.1:8765`
+- API 进程会写入运行时文件：`output/runtime/backend.json`
+
+前端开发：
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Tauri 桌面壳：
+
+```bash
+cd desktop
+npm install
+npm run tauri:dev
 ```
 
 回退最近一次执行：
@@ -33,9 +67,13 @@ file_organizer/
   organize/    整理对话、增量计划、最终计划校验
   execution/   执行计划、执行日志、执行报告
   rollback/    回退计划、回退预检、回退执行
+  app/         桌面工作台会话服务
+  api/         FastAPI 本地 API 与运行时发现
   cli/         终端展示与事件输出
   shared/      配置、路径工具、history/journal 公共存储
   workflows/   主流程编排与入口逻辑
+frontend/      Next.js 工作台前端
+desktop/       Tauri 宿主
 ```
 
 ## 文件读取能力
@@ -63,6 +101,13 @@ IMAGE_ANALYSIS_MODEL=your_vision_model
 
 ```bash
 python -m unittest discover -s tests -p "test_*.py"
+```
+
+前端类型检查：
+
+```bash
+cd frontend
+npm run typecheck
 ```
 
 ## 日志

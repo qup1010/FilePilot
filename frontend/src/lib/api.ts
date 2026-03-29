@@ -67,7 +67,7 @@ export interface ApiClient {
   getConfigSecrets(keys: string[]): Promise<Record<string, string>>;
   updateConfig(config: Record<string, any>): Promise<{ status: string }>;
   switchPreset(preset_type: "text" | "vision", id: string): Promise<{ status: string }>;
-  addPreset(preset_type: "text" | "vision", name: string, copy?: boolean): Promise<{ status: string; id: string }>;
+  addPreset(preset_type: "text" | "vision", name: string, copy?: boolean, config?: Record<string, any>): Promise<{ status: string; id: string }>;
   deletePreset(preset_type: "text" | "vision", id: string): Promise<{ status: string }>;
   testLlm(payload: { test_type: "text" | "vision" | "icon_image"; [key: string]: any }): Promise<{ status: string; message: string }>;
 }
@@ -242,11 +242,11 @@ export function createApiClient(baseUrl: string, apiToken?: string): ApiClient {
       });
       return parseResponse<{ status: string }>(response);
     },
-    async addPreset(preset_type, name, copy = true) {
+    async addPreset(preset_type, name, copy = true, config) {
       const response = await fetch(joinUrl(baseUrl, "/api/utils/config/presets"), {
         method: "POST",
         headers: buildAuthHeaders(apiToken, { "Content-Type": "application/json" }),
-        body: JSON.stringify({ preset_type, name, copy }),
+        body: JSON.stringify({ preset_type, name, copy, config }),
       });
       return parseResponse<{ status: string; id: string }>(response);
     },

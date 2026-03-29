@@ -52,6 +52,7 @@ class AddPresetPayload(BaseModel):
     preset_type: str
     name: str
     copy_profile: bool = Field(default=True, alias="copy")
+    config: dict[str, Any] | None = None
 
 
 class LlmTestPayload(BaseModel):
@@ -651,7 +652,12 @@ def create_app(service: OrganizerSessionService | None = None) -> FastAPI:
     @app.post("/api/utils/config/presets")
     def add_profile(payload: AddPresetPayload):
         from file_organizer.shared.config_manager import config_manager
-        new_id = config_manager.add_preset(payload.preset_type, payload.name, copy_from_active=payload.copy_profile)
+        new_id = config_manager.add_preset(
+            payload.preset_type,
+            payload.name,
+            copy_from_active=payload.copy_profile,
+            config_patch=payload.config,
+        )
         return {"status": "ok", "id": new_id}
 
     @app.delete("/api/utils/config/presets/{preset_type}/{preset_id}")
@@ -677,12 +683,12 @@ def create_app(service: OrganizerSessionService | None = None) -> FastAPI:
             if not raw_payload.get("IMAGE_ANALYSIS_ENABLED"):
                 return JSONResponse(
                     status_code=400,
-                    content={"status": "error", "message": "图片理解未开启"},
+                    content={"status": "error", "message": "图片理解尚未启用，请先打开开关。"},
                 )
             if not base_url or not model or not api_key:
                 return JSONResponse(
                     status_code=400,
-                    content={"status": "error", "message": "图片模型需要完整填写接口地址、模型 ID 和 API 密钥"},
+                    content={"status": "error", "message": "图片模型配置不完整，请补全接口地址、模型 ID 和 API 密钥。"},
                 )
         elif test_type == "icon_image":
             api_key = raw_payload.get("ICON_IMAGE_API_KEY")
@@ -697,7 +703,7 @@ def create_app(service: OrganizerSessionService | None = None) -> FastAPI:
             if not base_url or not model or not api_key:
                 return JSONResponse(
                     status_code=400,
-                    content={"status": "error", "message": "图像生成模型需要完整填写接口地址、模型 ID 和 API 密钥"},
+                    content={"status": "error", "message": "图像生成模型配置不完整，请补全接口地址、模型 ID 和 API 密钥。"},
                 )
         else:
             api_key = raw_payload.get("OPENAI_API_KEY")
@@ -708,19 +714,19 @@ def create_app(service: OrganizerSessionService | None = None) -> FastAPI:
             if not base_url or not model or not api_key:
                 return JSONResponse(
                     status_code=400,
-                    content={"status": "error", "message": "文本模型需要完整填写接口地址、模型 ID 和 API 密钥"},
+                    content={"status": "error", "message": "文本模型配置不完整，请补全接口地址、模型 ID 和 API 密钥。"},
                 )
 
         try:
             client = OpenAI(api_key=api_key, base_url=base_url)
             client.models.list()
-            type_label = "视觉" if test_type == "vision" else ("生图" if test_type == "icon_image" else "文本")
-            return {"status": "ok", "message": f"{type_label}模型链路连通性测试通过"}
+            type_label = "图片理解" if test_type == "vision" else ("图像生成" if test_type == "icon_image" else "文本模型")
+            return {"status": "ok", "message": f"{type_label}连接测试已通过。"}
         except Exception:
             logger.exception("模型链路连通性测试失败", extra={"test_type": test_type})
             return JSONResponse(
                 status_code=400,
-                content={"status": "error", "message": "模型链路连通性测试失败"}
+                content={"status": "error", "message": "连接测试失败，请检查接口地址、模型 ID、API 密钥和网络状态。"}
             )
 
     return app

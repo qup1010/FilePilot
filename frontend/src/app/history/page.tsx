@@ -364,7 +364,7 @@ export default function HistoryPage() {
 
                         <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 text-[12px]">
                           <div className="min-w-0">
-                            <span className="text-ui-muted">当前状态</span>
+                            <span className="text-ui-muted">状态</span>
                             <span className="ml-2 font-semibold text-on-surface">{getEntrySummary(entry)}</span>
                           </div>
                           <div className={cn(
@@ -435,7 +435,7 @@ export default function HistoryPage() {
                           "h-2 w-2 rounded-full",
                           isSelectedSession ? "bg-primary" : journal?.status === "rolled_back" ? "bg-on-surface/45" : "bg-emerald-600",
                         )} />
-                        {isSelectedSession ? getFriendlyStage(sessionDetail?.stage) : journal?.status === "rolled_back" ? "回退完成" : "执行结果"}
+                        {isSelectedSession ? getFriendlyStage(sessionDetail?.stage) : journal?.status === "rolled_back" ? "回退已完成" : "执行结果"}
                       </div>
 
                       {!isSelectedSession && journal?.status === "completed" ? (
@@ -462,7 +462,7 @@ export default function HistoryPage() {
                         <div className="rounded-[12px] border border-on-surface/6 bg-white p-4 shadow-[0_10px_24px_rgba(0,0,0,0.03)]">
                           <div className="flex items-start justify-between gap-4">
                             <div>
-                              <p className="text-ui-meta text-ui-muted">当前阶段</p>
+                              <p className="text-ui-meta text-ui-muted">当前状态</p>
                               <h3 className="mt-2.5 text-[1.55rem] font-black font-headline tracking-tight text-on-surface">
                                 {getFriendlyStage(sessionDetail?.stage)}
                               </h3>
@@ -503,18 +503,18 @@ export default function HistoryPage() {
 
                           {sessionDetail?.last_error ? (
                             <div className="rounded-[9px] border border-warning/15 bg-warning-container/15 px-4 py-3 text-[13px] font-semibold leading-relaxed text-warning">
-                              最近错误：{sessionDetail.last_error}
+                              最近一次错误：{sessionDetail.last_error}
                             </div>
                           ) : null}
 
                           <div className="flex flex-wrap gap-3">
                             <Button variant="primary" onClick={() => handleOpenSession(false)} className="px-7 py-3">
                               <PlayCircle className="h-4 w-4" />
-                              继续整理
+                              继续处理
                             </Button>
                             <Button variant="secondary" onClick={() => handleOpenSession(true)} className="px-7 py-3">
                               <Eye className="h-4 w-4" />
-                              只读查看
+                              只读打开
                             </Button>
                           </div>
                         </div>
@@ -533,7 +533,7 @@ export default function HistoryPage() {
                               <Undo2 className="h-5 w-5" />
                             </div>
                             <div>
-                              <h3 className="text-[1.05rem] font-black tracking-tight text-on-surface">回退完成</h3>
+                              <h3 className="text-[1.05rem] font-black tracking-tight text-on-surface">回退已完成</h3>
                               <p className="mt-2 text-ui-body text-ui-muted">
                                 这次移动过的内容已经按原路径放回，受影响的 {journal?.item_count || 0} 项内容已完成恢复。
                               </p>

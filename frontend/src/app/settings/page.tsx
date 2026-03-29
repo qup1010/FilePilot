@@ -36,7 +36,7 @@ import type { IconWorkbenchConfig } from "@/types/icon-workbench";
 import {
   FieldGroup,
   InputShell,
-  PresetManager,
+  PresetSelector,
   SettingsSection,
   StrategyOptionButton,
   ToggleSwitch,
@@ -349,10 +349,25 @@ export default function SettingsPage() {
   };
 
   const handleAddPreset = (presetType: PresetType) => {
+    const presetConfig =
+      presetType === "text"
+        ? {
+            name: config?.name,
+            OPENAI_BASE_URL: config?.OPENAI_BASE_URL,
+            OPENAI_MODEL: config?.OPENAI_MODEL,
+            OPENAI_API_KEY: config?.OPENAI_API_KEY,
+          }
+        : {
+            IMAGE_ANALYSIS_NAME: config?.IMAGE_ANALYSIS_NAME,
+            IMAGE_ANALYSIS_BASE_URL: config?.IMAGE_ANALYSIS_BASE_URL,
+            IMAGE_ANALYSIS_MODEL: config?.IMAGE_ANALYSIS_MODEL,
+            IMAGE_ANALYSIS_API_KEY: config?.IMAGE_ANALYSIS_API_KEY,
+          };
+
     setDialog({
       type: "prompt",
       title: `新建${presetType === "text" ? "文本" : "图片"}预设`,
-      message: "输入一个便于识别的预设名称。",
+      message: "输入一个便于识别的预设名称。将按当前编辑中的字段保存为新预设。",
       value: presetType === "text" ? "新的文本预设" : "新的图片预设",
       onConfirm: async (value) => {
         const name = String(value || "").trim();
@@ -363,7 +378,7 @@ export default function SettingsPage() {
         setLoading(true);
         setError(null);
         try {
-          await api.addPreset(presetType, name, true);
+          await api.addPreset(presetType, name, true, presetConfig);
           await fetchAll();
           setSuccess(`${presetType === "text" ? "文本" : "图片"}预设已创建`);
           setTimeout(() => setSuccess(null), 3000);
@@ -418,7 +433,7 @@ export default function SettingsPage() {
                 <div className="flex flex-wrap items-center gap-3">
                   <div className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-ui-muted">
                     <SettingsIcon className="h-3.5 w-3.5" />
-                    Model Console
+                    设置工作台
                   </div>
                   {isDirty ? (
                     <span className="rounded-[8px] border border-warning/10 bg-warning-container/20 px-2.5 py-1 text-[12px] font-medium text-warning">
@@ -428,7 +443,7 @@ export default function SettingsPage() {
                 </div>
                 <h1 className="text-[1.35rem] font-black tracking-tight text-on-surface">设置与偏好</h1>
                 <p className="max-w-[760px] text-[13px] leading-6 text-on-surface-variant/70">
-                  集中管理文本模型、图片理解、启动默认值和少量运行开关。保存后，当前激活预设会直接影响后续整理任务。
+                  统一管理文本模型、图片理解、启动默认值和少量运行开关。保存后，当前激活预设会直接影响后续整理任务。
                 </p>
               </div>
 
@@ -453,19 +468,19 @@ export default function SettingsPage() {
                   variant={isDirty ? "primary" : "secondary"}
                   className="px-6 py-3 text-sm"
                 >
-                  {saving ? "保存中" : "保存更改"}
+                  {saving ? "正在保存" : "保存更改"}
                 </Button>
               </div>
             </div>
 
             <div className="grid gap-2 px-4 py-3 text-[12px] text-ui-muted md:grid-cols-3">
-              <div className="rounded-[8px] border border-on-surface/6 bg-surface px-3 py-2.5">文本模型与图片理解分开管理</div>
-              <div className="rounded-[8px] border border-on-surface/6 bg-surface px-3 py-2.5">支持预设切换、测试与保存</div>
-              <div className="rounded-[8px] border border-on-surface/6 bg-surface px-3 py-2.5">`Ctrl/Cmd + Shift + S` 可快速保存</div>
+              <div className="rounded-[8px] border border-on-surface/6 bg-surface px-3 py-2.5">文本模型与图片理解分别管理</div>
+              <div className="rounded-[8px] border border-on-surface/6 bg-surface px-3 py-2.5">支持切换预设、连接测试与保存</div>
+              <div className="rounded-[8px] border border-on-surface/6 bg-surface px-3 py-2.5">支持 `Ctrl/Cmd + Shift + S` 快速保存</div>
             </div>
           </div>
 
-          {error ? <ErrorAlert title="设置操作失败" message={error} /> : null}
+          {error ? <ErrorAlert title="设置更新失败" message={error} /> : null}
 
           <div className="grid gap-5 grid-cols-[256px_minmax(0,1fr)]">
             <aside className="sticky top-[126px] h-fit space-y-3">
@@ -517,7 +532,7 @@ export default function SettingsPage() {
                   <SettingsSection
                     icon={Cpu}
                     title="文本模型设置"
-                    description="集中管理目录分析、整理对话等基础特性所在的模型与密钥，支持配置多套预设方便快捷切换。"
+                    description="统一管理目录分析、方案调整等核心能力使用的文本模型，并支持维护多套预设。"
                     actions={
                       <Button
                         onClick={() => void handleTest("text")}
@@ -527,29 +542,33 @@ export default function SettingsPage() {
                         size="sm"
                         className="px-5 py-2.5"
                       >
-                        测试文本能力
+                        测试连接
                       </Button>
                     }
                   >
-                    <div className="rounded-[10px] border border-on-surface/8 bg-surface px-4 py-4 shadow-[0_10px_24px_rgba(0,0,0,0.03)]">
-                      <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="rounded-[12px] border border-on-surface/8 bg-surface px-4 py-4 shadow-[0_10px_24px_rgba(0,0,0,0.03)]">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
                         <div className="space-y-1">
-                          <p className="text-[12px] font-medium text-on-surface-variant/60">当前激活文本预设</p>
-                          <p className="text-[14px] font-semibold text-on-surface">{textPresets.find((preset) => preset.id === activeTextPresetId)?.name || "默认文本模型"}</p>
+                          <p className="text-[14px] font-semibold tracking-tight text-on-surface">
+                            当前使用 {textPresets.find((preset) => preset.id === activeTextPresetId)?.name || "默认文本模型"}
+                          </p>
+                          <p className="text-[12px] leading-5 text-on-surface-variant/65">
+                            先选择要编辑的文本预设，再修改下方接口地址、模型和密钥。
+                          </p>
                         </div>
                         <button
                           type="button"
                           onClick={() => setTextEditorExpanded((current) => !current)}
-                          className="inline-flex items-center gap-2 rounded-[8px] border border-on-surface/8 bg-surface-container-lowest px-3 py-1.5 text-[12px] font-medium text-on-surface-variant transition-colors hover:text-on-surface"
+                          className="inline-flex items-center gap-2 rounded-[10px] border border-on-surface/8 bg-surface-container-lowest px-3 py-2 text-[12px] font-medium text-on-surface-variant transition-colors hover:text-on-surface"
                         >
-                          {textEditorExpanded ? "收起编辑区" : "展开编辑区"}
+                          {textEditorExpanded ? "收起字段" : "展开字段"}
                           <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", textEditorExpanded && "rotate-180")} />
                         </button>
                       </div>
                     </div>
 
-                    <PresetManager
-                      title="文本预设"
+                    <PresetSelector
+                      label="文本预设"
                       presets={textPresets}
                       activeId={activeTextPresetId}
                       onSwitch={(id) => handleSwitchPreset("text", id)}
@@ -635,7 +654,7 @@ export default function SettingsPage() {
                   <SettingsSection
                     icon={SettingsIcon}
                     title="图标工坊图像生成"
-                    description="这里专门配置图标工坊用来生成文件夹预览图标的 AI 绘图模型。它在分析目录结构时，会自动复用上面的文本模型。"
+                    description="这里配置图标工坊生成文件夹预览图标所需的图像模型。目录分析阶段会继续复用上面的文本模型。"
                     actions={
                       <Button
                         onClick={() => void handleTest("icon_image")}
@@ -645,7 +664,7 @@ export default function SettingsPage() {
                         size="sm"
                         className="px-5 py-2.5"
                       >
-                        测试生图能力
+                        测试生图连接
                       </Button>
                     }
                   >
@@ -665,7 +684,7 @@ export default function SettingsPage() {
                         </div>
                       </div>
                       <div className="mt-3 rounded-[10px] border border-primary/12 bg-primary/6 px-4 py-3 text-[12px] leading-6 text-primary/85">
-                        图标工坊的「文件夹标签抽取」和「灵感文案生成」将直接使用第一项的文本模型能力。
+                        图标工坊中的“文件夹标签抽取”和“提示词生成”会直接复用上面的文本模型。
                       </div>
                     </div>
 
@@ -824,7 +843,7 @@ export default function SettingsPage() {
                   <SettingsSection
                     icon={Globe}
                     title="图片理解设置"
-                    description="针对包含整理图片需求的额外视觉增强（不适用于普通的系统文件整理）；需要明确打开开关才会生效。"
+                    description="针对包含图片内容的整理场景提供额外分析能力。只有在打开开关后，相关配置才会生效。"
                     actions={
                       <div className="flex items-center gap-3">
                         {config.IMAGE_ANALYSIS_ENABLED ? (
@@ -841,11 +860,11 @@ export default function SettingsPage() {
                             size="sm"
                             className="px-5 py-2.5"
                           >
-                            测试图片能力
+                            测试连接
                           </Button>
                         ) : null}
                         <div className="flex items-center gap-3 rounded-[10px] border border-on-surface/8 bg-surface-container-low px-3 py-2">
-                          <span className="text-[12px] font-medium text-on-surface-variant/55">开关</span>
+                          <span className="text-[12px] font-medium text-on-surface-variant/55">启用</span>
                           <ToggleSwitch
                             checked={Boolean(config.IMAGE_ANALYSIS_ENABLED)}
                             onClick={() => handleChange("IMAGE_ANALYSIS_ENABLED", !config.IMAGE_ANALYSIS_ENABLED)}
@@ -855,11 +874,15 @@ export default function SettingsPage() {
                     }
                     disabled={!config.IMAGE_ANALYSIS_ENABLED}
                   >
-                    <div className="rounded-[10px] border border-on-surface/8 bg-surface px-4 py-4 shadow-[0_10px_24px_rgba(0,0,0,0.03)]">
+                    <div className="rounded-[12px] border border-on-surface/8 bg-surface px-4 py-4 shadow-[0_10px_24px_rgba(0,0,0,0.03)]">
                       <div className="grid gap-3 lg:grid-cols-2">
                         <div className="space-y-1">
-                          <p className="text-[12px] font-medium text-on-surface-variant/60">当前图片预设</p>
-                          <p className="text-[14px] font-semibold text-on-surface">{visionPresets.find((preset) => preset.id === activeVisionPresetId)?.name || "默认图片模型"}</p>
+                          <p className="text-[14px] font-semibold tracking-tight text-on-surface">
+                            当前使用 {visionPresets.find((preset) => preset.id === activeVisionPresetId)?.name || "默认图片模型"}
+                          </p>
+                          <p className="text-[12px] leading-5 text-on-surface-variant/65">
+                            启用图片理解后，可以切换或保存多套图片分析模型预设。
+                          </p>
                         </div>
                         <div className="space-y-1">
                           <p className="text-[12px] font-medium text-on-surface-variant/60">图片理解</p>
@@ -870,26 +893,27 @@ export default function SettingsPage() {
                       </div>
                       <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
                         <p className="text-[12px] leading-5 text-on-surface-variant/65">
-                          只有当“开关”保持开启状态时，所选的图片预设才会在文件整理分析中发挥作用。
+                          只有在启用状态下，所选图片预设才会参与文件整理分析。
                         </p>
                         <button
                           type="button"
                           onClick={() => setVisionEditorExpanded((current) => !current)}
-                          className="inline-flex items-center gap-2 rounded-[8px] border border-on-surface/8 bg-surface-container-lowest px-3 py-1.5 text-[12px] font-medium text-on-surface-variant transition-colors hover:text-on-surface"
+                          className="inline-flex items-center gap-2 rounded-[10px] border border-on-surface/8 bg-surface-container-lowest px-3 py-2 text-[12px] font-medium text-on-surface-variant transition-colors hover:text-on-surface"
                         >
-                          {visionEditorExpanded ? "收起编辑区" : "展开编辑区"}
+                          {visionEditorExpanded ? "收起字段" : "展开字段"}
                           <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", visionEditorExpanded && "rotate-180")} />
                         </button>
                       </div>
                     </div>
 
-                    <PresetManager
-                      title="图片预设"
+                    <PresetSelector
+                      label="图片预设"
                       presets={visionPresets}
                       activeId={activeVisionPresetId}
                       onSwitch={(id) => handleSwitchPreset("vision", id)}
                       onAdd={() => handleAddPreset("vision")}
                       onDelete={(preset) => handleDeletePreset("vision", preset)}
+                      disabled={!config.IMAGE_ANALYSIS_ENABLED}
                     />
 
                     {testResult?.type === "vision" ? (

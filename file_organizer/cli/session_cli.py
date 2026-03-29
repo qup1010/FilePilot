@@ -55,18 +55,18 @@ def run_session_pipeline(
     if not target_dir:
         return
     if not path_exists(target_dir):
-        cli.error(f"'{target_dir}' 不是一个有效目录。", title="输入错误")
+        cli.error(f"'{target_dir}' 不是有效目录。", title="输入错误")
         return
 
     create_result = service.create_session(target_dir, resume_if_exists=True)
     if create_result.mode == "resume_available":
         session = service.resume_session(create_result.restorable_session.session_id)
-        cli.info("已恢复上次未完成的整理会话。", title="继续整理")
+        cli.info("已恢复上次未完成的任务。", title="继续处理")
     else:
         session = create_result.session
 
     if not session.scan_lines or session.stage in {"draft", "stale", "interrupted"}:
-        cli.stage("执行目录扫描分析", style="blue")
+        cli.stage("开始扫描目录", style="blue")
         service.start_scan(
             session.session_id,
             scan_runner=lambda path: analysis_service.run_analysis_cycle(path, event_handler=scanner_ui_handler),
@@ -77,21 +77,21 @@ def run_session_pipeline(
         snapshot = service.get_snapshot(session.session_id)
         assistant_message = snapshot.get("assistant_message") or {}
         if assistant_message.get("content"):
-            cli.info(assistant_message["content"], title="AI 助手")
+            cli.info(assistant_message["content"], title="整理建议")
 
         if snapshot["stage"] == "completed":
             report = snapshot.get("execution_report") or {}
             cli.success(
                 f"整理已完成：成功 {report.get('success_count', 0)} 项，失败 {report.get('failure_count', 0)} 项。",
-                title="执行完成",
+                title="执行已完成",
             )
             break
 
-        prompt = "请输入整理意见 (quit 退出)"
+        prompt = "请输入调整意见 (quit 退出)"
         if snapshot["stage"] in {"ready_for_precheck", "planning"}:
-            prompt = "可继续输入整理意见；输入 执行 进入预检 (quit 退出)"
+            prompt = "可继续输入调整意见；输入 执行 进入预检 (quit 退出)"
         if snapshot["stage"] in {"stale", "interrupted"}:
-            prompt = "当前计划需要刷新后再继续，请输入意见或 quit 退出"
+            prompt = "当前方案需要刷新后再继续，请输入意见或 quit 退出"
 
         user_text = _prompt_text(cli, "prompt_feedback", prompt, input_func=input_func).strip()
         if not user_text:
@@ -106,7 +106,7 @@ def run_session_pipeline(
                 confirm_text = _prompt_text(
                     cli,
                     "prompt_confirmation",
-                    "输入 YES 执行当前整理方案",
+                    "输入 YES 执行当前方案",
                     input_func=input_func,
                 ).strip()
                 if confirm_text == "YES":
@@ -115,7 +115,7 @@ def run_session_pipeline(
                 if _is_exit_reply(confirm_text):
                     break
             else:
-                cli.warning("预检未通过，请继续调整。", title="预检失败")
+                cli.warning("预检未通过，请先调整方案后再执行。", title="预检失败")
             continue
 
         service.submit_user_intent(session.session_id, user_text)

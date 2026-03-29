@@ -1,6 +1,6 @@
 # Frontend Workbench
 
-这是 File Organizer 桌面 MVP 的前端骨架，基于 Next.js + React，先把页面结构、`session_snapshot` 类型、统一 API client 和 SSE client 预留出来。
+这是 File Organizer 桌面工作台前端，基于 Next.js + React，负责承接会话启动、扫描、方案调整、预检、执行结果与回退等主要桌面整理流程。
 
 ## 桌面体验优先
 
@@ -13,11 +13,12 @@
 
 ## 当前状态
 
-- 已有 `Home`、`Workspace`、`Precheck`、`Completed` 四个基础路由。
+- 已有首页启动台、工作区、历史页、设置页等主要工作台路由。
 - 前端会优先读取 `window.__FILE_ORGANIZER_RUNTIME__.base_url`，没有时回退到 `NEXT_PUBLIC_API_BASE_URL`，最后才用本地默认值。
-- API client 已按计划里的 `/api/sessions/*` 端点命名。
-- SSE client 已按 `GET /api/sessions/{session_id}/events` 约定封装。
-- 现在仍然使用 mock `session_snapshot`，还没有真正接 Python 后端或 Tauri 宿主。
+- API client 已接入本地 `/api/sessions/*` 端点。
+- SSE client 已按 `GET /api/sessions/{session_id}/events` 接入会话事件流。
+- 当前前端已围绕真实 `session_snapshot`、扫描进度、预检结果和执行结果进行状态渲染，不再只是骨架或 mock 页面。
+- 在桌面模式下，Tauri 会负责拉起后端并向前端注入运行时地址。
 
 ## 运行
 
@@ -35,14 +36,16 @@ npm run dev
 npm run typecheck
 ```
 
-## Tauri 接线约定
+## 运行时发现与 Tauri 接线约定
 
-未来 Tauri 只需要向页面注入一个全局对象：
+Tauri 或其他宿主只需要向页面注入一个全局对象：
 
 ```ts
 window.__FILE_ORGANIZER_RUNTIME__ = {
-  base_url: "http://127.0.0.1:8765",
+ base_url: "http://127.0.0.1:8765",
 };
 ```
 
-这个骨架不会猜测端口，也不会直接解析后端 stdout。
+前端不会猜测端口，也不会直接解析后端 stdout。
+
+当桌面壳注入运行时地址时，前端会优先使用该地址；未注入时才回退到环境变量或本地默认值。

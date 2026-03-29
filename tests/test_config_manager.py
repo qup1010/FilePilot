@@ -191,6 +191,59 @@ class ConfigManagerPresetTests(unittest.TestCase):
         payload = json.loads(self.config_path.read_text(encoding="utf-8"))
         self.assertNotIn(new_id, payload["vision_presets"])
 
+    def test_add_text_preset_uses_current_edit_values_when_patch_provided(self):
+        manager = config_module.ConfigManager()
+        manager.update_active_profile({"OPENAI_MODEL": "gpt-5.2", "OPENAI_API_KEY": "secret-a"})
+
+        new_id = manager.add_preset(
+            "text",
+            "OpenAI 备用",
+            copy_from_active=True,
+            config_patch={
+                "OPENAI_BASE_URL": "https://backup.invalid/v1",
+                "OPENAI_MODEL": "gpt-5.4",
+                "OPENAI_API_KEY": "secret-b",
+            },
+        )
+
+        manager.switch_preset("text", new_id)
+        active = manager.get_active_config(mask_secrets=False)
+
+        self.assertEqual(active["name"], "OpenAI 备用")
+        self.assertEqual(active["OPENAI_BASE_URL"], "https://backup.invalid/v1")
+        self.assertEqual(active["OPENAI_MODEL"], "gpt-5.4")
+        self.assertEqual(active["OPENAI_API_KEY"], "secret-b")
+
+    def test_add_vision_preset_keeps_existing_secret_when_patch_secret_is_masked(self):
+        manager = config_module.ConfigManager()
+        manager.update_active_profile(
+            {
+                "IMAGE_ANALYSIS_NAME": "默认图片",
+                "IMAGE_ANALYSIS_BASE_URL": "https://vision-a.invalid/v1",
+                "IMAGE_ANALYSIS_MODEL": "vision-a",
+                "IMAGE_ANALYSIS_API_KEY": "secret-a",
+            }
+        )
+
+        new_id = manager.add_preset(
+            "vision",
+            "Vision 备用",
+            copy_from_active=True,
+            config_patch={
+                "IMAGE_ANALYSIS_BASE_URL": "https://vision-b.invalid/v1",
+                "IMAGE_ANALYSIS_MODEL": "vision-b",
+                "IMAGE_ANALYSIS_API_KEY": "sk-abcd...wxyz",
+            },
+        )
+
+        manager.switch_preset("vision", new_id)
+        active = manager.get_active_config(mask_secrets=False)
+
+        self.assertEqual(active["IMAGE_ANALYSIS_NAME"], "Vision 备用")
+        self.assertEqual(active["IMAGE_ANALYSIS_BASE_URL"], "https://vision-b.invalid/v1")
+        self.assertEqual(active["IMAGE_ANALYSIS_MODEL"], "vision-b")
+        self.assertEqual(active["IMAGE_ANALYSIS_API_KEY"], "secret-a")
+
     def test_default_config_includes_launch_defaults(self):
         manager = config_module.ConfigManager()
         active = manager.get_active_config(mask_secrets=False)

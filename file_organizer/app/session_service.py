@@ -1031,7 +1031,7 @@ class OrganizerSessionService:
             "status": "running",
             "processed_count": 0,
             "total_count": self._count_visible_entries(target_dir),
-            "current_item": "正在准备扫描",
+            "current_item": "正在准备扫描任务",
             "recent_analysis_items": [],
             "completed_batches": 0,
             "message": "正在读取目录结构",
@@ -1074,7 +1074,7 @@ class OrganizerSessionService:
         if event_type == "model_wait_start":
             set_field("message", data.get("message") or "正在分析目录内容")
             if not progress.get("current_item"):
-                set_field("current_item", "正在等待模型回复")
+                set_field("current_item", "正在等待模型响应")
         elif event_type == "tool_start":
             args = data.get("args") or {}
             tool_name = data.get("name") or ""
@@ -1097,7 +1097,7 @@ class OrganizerSessionService:
             if target_name:
                 set_field("current_item", target_name)
                 # 实时追加到最近分析项列表中，用于前端“正在看什么”的可视化
-                if target_name not in {"当前目录", "正在准备扫描"}:
+                if target_name not in {"当前目录", "正在准备扫描任务"}:
                     recent = list(progress.get("recent_analysis_items") or [])
                     # 避免重复添加同一个正在处理的项目
                     if not any(item.get("display_name") == target_name for item in recent):
@@ -1105,20 +1105,20 @@ class OrganizerSessionService:
                             "item_id": target_name,
                             "display_name": target_name,
                             "source_relpath": target_name,
-                            "suggested_purpose": "分析中...",
-                            "summary": "读取内容中"
+                            "suggested_purpose": "分析中",
+                            "summary": "正在读取内容"
                         })
                         set_field("recent_analysis_items", recent[:8]) # 保留最近 8 条
 
             set_field("message", message)
 
-            if target_name and target_name not in {"当前目录", "正在准备扫描"} and target_name not in seen_entries:
+            if target_name and target_name not in {"当前目录", "正在准备扫描任务"} and target_name not in seen_entries:
                 seen_entries.add(target_name)
                 set_field("processed_count", min(total_count, len(seen_entries)) if total_count else len(seen_entries))
         elif event_type == "ai_streaming_start":
-            set_field("message", "准备整理结果")
+            set_field("message", "正在汇总扫描结果")
         elif event_type == "ai_chunk":
-            set_field("message", "正在输出扫描分析结论")
+            set_field("message", "正在输出扫描结论")
         elif event_type == "validation_fail":
             set_field("message", "扫描结果需要修正，正在重新校验")
         elif event_type == "validation_pass" or event_type == "batch_progress":
@@ -1148,7 +1148,7 @@ class OrganizerSessionService:
                 set_field("recent_analysis_items", updated_recent[:10])
 
             if event_type == "validation_pass":
-                set_field("message", "分析已完成")
+                set_field("message", "扫描分析已完成")
                 if total_count > 1:
                     set_field("processed_count", max(int(progress.get("processed_count") or 0), total_count - 1))
             else:
@@ -1156,14 +1156,14 @@ class OrganizerSessionService:
                 set_field("batch_count", data.get("total_batches"))
                 set_field("completed_batches", data.get("completed_batches"))
                 if data.get("status") == "failed":
-                    set_field("message", "批次重试中")
+                    set_field("message", "当前批次正在重试")
                 else:
-                    set_field("message", f"进度: {data.get('completed_batches')}/{data.get('total_batches')}")
+                    set_field("message", f"已完成 {data.get('completed_batches')}/{data.get('total_batches')} 个批次")
         
         elif event_type == "cycle_start" and int(data.get("attempt") or 1) > 1:
             attempt = int(data.get("attempt") or 1)
             max_attempts = int(data.get("max_attempts") or attempt)
-            set_field("message", f"正在进行第 {attempt}/{max_attempts} 轮校验修正")
+            set_field("message", f"正在进行第 {attempt}/{max_attempts} 轮校验")
 
         if changed:
             session.scanner_progress = progress
@@ -1190,9 +1190,9 @@ class OrganizerSessionService:
         }
         if existing_progress.get("batch_count"):
             session.scanner_progress["completed_batches"] = existing_progress.get("batch_count")
-            session.scanner_progress["message"] = f"已完成 {existing_progress.get('batch_count')}/{existing_progress.get('batch_count')} 批并行分析"
+            session.scanner_progress["message"] = f"已完成 {existing_progress.get('batch_count')}/{existing_progress.get('batch_count')} 个并行批次"
         else:
-            session.scanner_progress["message"] = "已完成单线程扫描分析"
+            session.scanner_progress["message"] = "扫描分析已完成"
         session.stage = "planning"
         
         # Initialize messages if empty

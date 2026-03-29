@@ -86,8 +86,8 @@ function assistantRuntimeFromAction(event: SessionEvent): AssistantRuntimeStatus
     return {
       phase,
       mode: "tool",
-      label: phase === "scan" ? "正在读取文件内容" : "正在读取补充证据",
-      detail: humanizeActionTarget(action.args?.filename) || "文件内容读取中",
+      label: phase === "scan" ? "正在读取文件内容" : "正在补充文件证据",
+      detail: humanizeActionTarget(action.args?.filename) || "正在读取文件内容",
     };
   }
 
@@ -95,15 +95,15 @@ function assistantRuntimeFromAction(event: SessionEvent): AssistantRuntimeStatus
     return {
       phase,
       mode: "tool",
-      label: phase === "scan" ? "正在查看目录结构" : "正在检查目录上下文",
+      label: phase === "scan" ? "正在读取目录结构" : "正在检查目录上下文",
       detail: humanizeActionTarget(action.args?.directory) || "当前目录",
     };
   }
 
   if (action?.message) {
     const detail = phase === "scan"
-      ? (action.args?.filename ? `正在分析: ${humanizeActionTarget(action.args.filename)}` : "文件较多时，这一步可能持续更久")
-      : "模型正在深度思考并组织整理逻辑";
+      ? (action.args?.filename ? `正在分析 ${humanizeActionTarget(action.args.filename)}` : "文件较多时，这一步可能耗时更久")
+      : "正在整理目录结构与最新要求";
     return {
       phase,
       mode: "waiting",
@@ -120,14 +120,14 @@ function assistantRuntimeFromTyping(phase: "scan" | "plan"): AssistantRuntimeSta
     ? {
         phase,
         mode: "streaming",
-        label: "扫描模型正在输出分析结果",
+        label: "正在输出扫描结果",
         detail: "正在整理本轮扫描结论",
       }
     : {
         phase,
         mode: "streaming",
-        label: "正在生成整理回复",
-        detail: "回复内容会持续追加到对话区",
+        label: "正在生成整理建议",
+        detail: "内容会持续更新到对话区",
       };
 }
 
@@ -320,8 +320,8 @@ export function useSession(sessionId: string | null) {
       return {
         phase: "plan",
         mode: "waiting",
-        label: "正在处理当前请求",
-        detail: "请稍等，完成后会自动恢复输入",
+        label: "正在处理当前调整",
+        detail: "完成后会自动恢复输入",
       };
     }
     return null;
@@ -359,7 +359,7 @@ export function useSession(sessionId: string | null) {
     try {
       await refreshSnapshot();
     } catch (err) {
-      setChatError(err instanceof Error ? err.message : "重新连接后仍无法同步会话状态。");
+      setChatError(err instanceof Error ? err.message : "重新连接后仍无法同步当前任务。");
     }
   }
 
@@ -385,8 +385,8 @@ export function useSession(sessionId: string | null) {
     setAssistantRuntime({
       phase: "plan",
       mode: "waiting",
-      label: "AI 思考中",
-      detail: "正在整合当前的目录状态与你的最新要求...",
+      label: "正在整理新的调整意见",
+      detail: "正在结合目录状态与最新要求更新方案",
     });
 
     try {
@@ -398,7 +398,7 @@ export function useSession(sessionId: string | null) {
         setSnapshot(previousSnapshot);
       }
       setAssistantRuntime(null);
-      setChatError(err instanceof Error ? err.message : "发送消息失败");
+      setChatError(err instanceof Error ? err.message : "发送调整意见失败，请重试。");
     } finally {
       setLoading(false);
     }
@@ -415,7 +415,7 @@ export function useSession(sessionId: string | null) {
       setSnapshot(response.session_snapshot);
       setAssistantDraft("");
     } catch (err) {
-      setChatError(err instanceof Error ? err.message : "没有提交成功，请再试一次。");
+      setChatError(err instanceof Error ? err.message : "提交待确认项失败，请重试。");
     } finally {
       setLoading(false);
     }
@@ -430,15 +430,15 @@ export function useSession(sessionId: string | null) {
     setAssistantRuntime({
       phase: "scan",
       mode: "waiting",
-      label: "深度扫描中",
-      detail: "AI 正在逐一识别文件夹特征并建立索引...",
+      label: "正在建立扫描任务",
+      detail: "正在读取目录结构并建立文件索引",
     });
     try {
       const response = await api.scanSession(sessionId);
       setSnapshot(response.session_snapshot);
     } catch (err) {
       setAssistantRuntime(null);
-      setChatError(err instanceof Error ? err.message : "没有开始扫描，请再试一次。");
+      setChatError(err instanceof Error ? err.message : "启动扫描失败，请重试。");
     } finally {
       setLoading(false);
     }
@@ -454,7 +454,7 @@ export function useSession(sessionId: string | null) {
       const response = await api.refreshSession(sessionId);
       setSnapshot(response.session_snapshot);
     } catch (err) {
-      setChatError(err instanceof Error ? err.message : "没有刷新成功，请再试一次。");
+      setChatError(err instanceof Error ? err.message : "刷新当前任务失败，请重试。");
     } finally {
       setLoading(false);
     }
@@ -470,7 +470,7 @@ export function useSession(sessionId: string | null) {
       const response = await api.runPrecheck(sessionId);
       setSnapshot(response.session_snapshot);
     } catch (err) {
-      setChatError(err instanceof Error ? err.message : "预检没有成功，请再试一次。");
+      setChatError(err instanceof Error ? err.message : "运行预检失败，请重试。");
     } finally {
       setLoading(false);
     }
@@ -486,7 +486,7 @@ export function useSession(sessionId: string | null) {
       const response = await api.returnToPlanning(sessionId);
       setSnapshot(response.session_snapshot);
     } catch (err) {
-      setChatError(err instanceof Error ? err.message : "没有返回成功，请再试一次。");
+      setChatError(err instanceof Error ? err.message : "返回方案阶段失败，请重试。");
     } finally {
       setLoading(false);
     }
@@ -504,7 +504,7 @@ export function useSession(sessionId: string | null) {
       setSnapshot(response.session_snapshot);
       return true;
     } catch (err) {
-      setChatError(err instanceof Error ? err.message : "执行没有成功，请再试一次。");
+      setChatError(err instanceof Error ? err.message : "执行整理失败，请重试。");
       return false;
     } finally {
       setLoading(false);
@@ -522,7 +522,7 @@ export function useSession(sessionId: string | null) {
       const response = await api.rollback(sessionId, true);
       setSnapshot(response.session_snapshot);
     } catch (err) {
-      setChatError(err instanceof Error ? err.message : "回退没有成功，请再试一次。");
+      setChatError(err instanceof Error ? err.message : "执行回退失败，请重试。");
     } finally {
       setLoading(false);
     }
@@ -538,7 +538,7 @@ export function useSession(sessionId: string | null) {
       const response = await api.cleanupEmptyDirs(sessionId);
       setSnapshot(response.session_snapshot);
     } catch (err) {
-      setChatError(err instanceof Error ? err.message : "没有清理成功，请再试一次。");
+      setChatError(err instanceof Error ? err.message : "清理空目录失败，请重试。");
     } finally {
       setLoading(false);
     }
@@ -554,7 +554,7 @@ export function useSession(sessionId: string | null) {
       resetConversationTransientState();
       return true;
     } catch (err) {
-      setChatError(err instanceof Error ? err.message : "没有结束成功，请再试一次。");
+      setChatError(err instanceof Error ? err.message : "结束当前任务失败，请重试。");
       return false;
     } finally {
       setLoading(false);
@@ -565,7 +565,7 @@ export function useSession(sessionId: string | null) {
     try {
       await api.openDir(path);
     } catch {
-      setChatError("现在还不能打开这个文件夹。");
+      setChatError("暂时无法打开该目录。");
     }
   }
 
@@ -577,7 +577,7 @@ export function useSession(sessionId: string | null) {
       setJournalLoading(true);
       setJournal(await api.getJournal(sessionId));
     } catch (err) {
-      setChatError(err instanceof Error ? err.message : "读取 journal 失败");
+      setChatError(err instanceof Error ? err.message : "读取执行记录失败。");
     } finally {
       setJournalLoading(false);
     }
@@ -593,7 +593,7 @@ export function useSession(sessionId: string | null) {
       const response = await api.updateItem(sessionId, payload);
       setSnapshot(response.session_snapshot);
     } catch (err) {
-      setChatError(err instanceof Error ? err.message : "调整项目失败");
+      setChatError(err instanceof Error ? err.message : "更新条目去向失败，请重试。");
     } finally {
       setLoading(false);
     }

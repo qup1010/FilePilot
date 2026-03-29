@@ -33,10 +33,10 @@ class ConsoleUiTests(unittest.TestCase):
         console.status.return_value = status_handle
         cli = CLI(console=console)
 
-        cli.start_waiting("正在等待模型回复…")
+        cli.start_waiting("正在等待模型响应...")
         cli.stop_waiting()
 
-        console.status.assert_called_once_with("[bold cyan]正在等待模型回复…[/]", spinner="dots", spinner_style="cyan")
+        console.status.assert_called_once_with("[bold cyan]正在等待模型响应...[/]", spinner="dots", spinner_style="cyan")
         status_handle.start.assert_called_once_with()
         status_handle.stop.assert_called_once_with()
 
@@ -55,12 +55,12 @@ class ConsoleUiTests(unittest.TestCase):
         cli.show_pending_plan(plan, focus="summary", summary="请先确认目录结构")
 
         output = buffer.getvalue()
-        self.assertIn("当前待定计划", output)
+        self.assertIn("当前整理方案", output)
         self.assertIn("计划概览", output)
         self.assertIn("目标目录分组", output)
         self.assertIn("待确认问题", output)
         self.assertIn("Review", output)
-        self.assertIn("如无异议", output)
+        self.assertIn("若无异议", output)
         self.assertNotIn("目录列表", output)
 
     def test_show_execution_preview_renders_summary_and_rows(self):
@@ -129,7 +129,7 @@ class ConsoleUiTests(unittest.TestCase):
         cli.show_execution_report(report, base_dir)
 
         output = buffer.getvalue()
-        self.assertIn("执行完成", output)
+        self.assertIn("执行已完成", output)
         self.assertIn("成功", output)
 
     def test_show_rollback_report_renders_summary_and_status(self):
@@ -160,4 +160,3 @@ class ConsoleUiTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

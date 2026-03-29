@@ -71,7 +71,7 @@ export function IconWorkbenchFolderList({
             <div className="max-w-[320px] space-y-2">
               <p className="text-[17px] font-black tracking-tight text-on-surface">选择一个图标风格</p>
               <p className="text-[13px] leading-relaxed text-ui-muted">
-                你已经选择了目标文件夹，现在需要点击顶部的<b>“选择风格”</b>或下方的风格面板，AI 才能为你生成图标。
+                你已经选择了目标文件夹。先点击顶部的<b>“选择风格”</b>或下方的风格面板，再开始生成图标。
               </p>
             </div>
           </div>

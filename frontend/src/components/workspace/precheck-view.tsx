@@ -73,7 +73,7 @@ export function PrecheckView({ summary, isBusy, readOnly = false, onRequestExecu
               </div>
               <h2 className="text-[1.35rem] font-black tracking-tight text-on-surface lg:text-[1.6rem]">{statusTitle}</h2>
               <p className="max-w-3xl text-[14px] leading-7 text-ui-muted">
-                {statusDescription} 这一页只帮你确认真实影响范围，现在还不会真正移动文件。
+                {statusDescription} 这一页用于确认实际影响范围，现在还不会真正移动文件。
               </p>
             </div>
 
@@ -112,7 +112,7 @@ export function PrecheckView({ summary, isBusy, readOnly = false, onRequestExecu
             <div className="border-b border-on-surface/8 px-5 py-4 sm:col-span-2 xl:col-span-1 xl:border-b-0">
               <p className="text-[12px] font-medium text-warning">进入 Review 的条目</p>
               <p className="mt-2 text-[1.8rem] font-black tracking-tight text-on-surface">{reviewCount}</p>
-              <p className="mt-2 text-[12px] leading-6 text-ui-muted">这些条目会先进 `Review`，不会丢失，后续仍可继续整理。</p>
+              <p className="mt-2 text-[12px] leading-6 text-ui-muted">这些条目会先进入 `Review`，后续仍可继续整理或重新归类。</p>
             </div>
           </div>
 
@@ -199,7 +199,7 @@ export function PrecheckView({ summary, isBusy, readOnly = false, onRequestExecu
               <div>
                 <p className="text-[14px] font-semibold text-on-surface">Review 提醒</p>
                 <p className="mt-1 text-[13px] leading-6 text-ui-muted">
-                  这次有 {reviewCount} 项会先进入 `Review`。这些内容不会丢失，之后仍可继续整理或重新归类。
+                  这次有 {reviewCount} 项会先进入 `Review`。这些条目会先保留在待确认区域，之后仍可继续整理或重新归类。
                 </p>
               </div>
             </div>

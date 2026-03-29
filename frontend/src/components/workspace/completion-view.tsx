@@ -82,7 +82,7 @@ export function CompletionView({
 
   const afterTree = {
     title: "整理后目录树",
-    subtitle: "执行完成后的目标目录结构，成功、失败与 Review 会在树中直接标出。",
+    subtitle: "执行后的目标目录结构。成功、失败与 Review 会在树中直接标出。",
     leafEntries: moveItems
       .filter((item): item is typeof item & { target: string } => Boolean(item.target))
       .map<DirectoryTreeLeafEntry>((item) => ({
@@ -117,10 +117,10 @@ export function CompletionView({
                 {isPartial ? "本次整理已完成，但有少量问题" : "本次整理已完成"}
               </div>
               <h2 className="text-[1.15rem] font-black tracking-tight text-on-surface lg:text-[1.3rem]">
-                {isPartial ? "先检查失败项和保留项" : "整理结果已经生成"}
+                {isPartial ? "请先检查失败项和保留项" : "整理已完成"}
               </h2>
               <p className="max-w-3xl text-[13px] leading-6 text-ui-muted">
-                {summary || "文件已经按照当前方案整理好了。你可以先查看目录对比，再决定是否打开目录、清理空目录或回退。"}
+                {summary || "文件已按当前方案完成整理。你可以先查看目录对比，再决定是否打开目录、清理空目录或回退。"}
               </p>
             </div>
 

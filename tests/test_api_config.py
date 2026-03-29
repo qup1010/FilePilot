@@ -42,12 +42,22 @@ class ApiConfigTests(unittest.TestCase):
         with mock.patch("file_organizer.shared.config_manager.config_manager.add_preset", return_value="new-id") as add_mock:
             response = self.client.post(
                 "/api/utils/config/presets",
-                json={"preset_type": "vision", "name": "Qwen Vision", "copy": True},
+                json={
+                    "preset_type": "vision",
+                    "name": "Qwen Vision",
+                    "copy": True,
+                    "config": {"IMAGE_ANALYSIS_MODEL": "qwen-vl-max"},
+                },
             )
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["id"], "new-id")
-        add_mock.assert_called_once_with("vision", "Qwen Vision", copy_from_active=True)
+        add_mock.assert_called_once_with(
+            "vision",
+            "Qwen Vision",
+            copy_from_active=True,
+            config_patch={"IMAGE_ANALYSIS_MODEL": "qwen-vl-max"},
+        )
 
     def test_get_config_secrets_returns_requested_secret_values(self):
         with mock.patch(
@@ -70,7 +80,7 @@ class ApiConfigTests(unittest.TestCase):
         )
 
         self.assertEqual(response.status_code, 400)
-        self.assertEqual(response.json()["message"], "文本模型需要完整填写接口地址、模型 ID 和 API 密钥")
+        self.assertEqual(response.json()["message"], "文本模型配置不完整，请补全接口地址、模型 ID 和 API 密钥。")
 
     def test_test_llm_rejects_incomplete_vision_config_without_fallback(self):
         response = self.client.post(
@@ -87,7 +97,7 @@ class ApiConfigTests(unittest.TestCase):
         )
 
         self.assertEqual(response.status_code, 400)
-        self.assertEqual(response.json()["message"], "图片模型需要完整填写接口地址、模型 ID 和 API 密钥")
+        self.assertEqual(response.json()["message"], "图片模型配置不完整，请补全接口地址、模型 ID 和 API 密钥。")
 
     def test_test_llm_uses_stored_secret_only_when_frontend_explicitly_requests_it(self):
         mock_client = mock.Mock()

@@ -2,7 +2,7 @@
 
 import React, { useMemo, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { AlertTriangle, Bot, Layers, Loader2, MoreHorizontal, RefreshCw } from "lucide-react";
+import { AlertTriangle, FolderTree, Layers, Loader2, MoreHorizontal, RefreshCw } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 
@@ -127,37 +127,42 @@ export default function WorkspaceClient() {
   const progressPercent = scanner.total_count > 0 ? (scanner.processed_count / scanner.total_count) * 100 : 0;
   const showConversationPane = true;
   const effectiveComposerMode = isReadOnly ? "hidden" : composerMode;
+  const targetPath = snapshot?.target_dir || dirParam || "";
+  const targetDirName = useMemo(
+    () => targetPath.replace(/[\\/]$/, "").split(/[\\/]/).pop() || "当前任务",
+    [targetPath],
+  );
   const nextStepHint = useMemo(() => {
     if (isReadOnly && stage !== "completed") {
-      return "当前处于只读查看模式；如需继续整理，请返回首页重新启动或恢复这次任务。";
+      return "当前为只读查看模式。如需继续整理，请返回首页重新启动或恢复任务。";
     }
     if (stage === "idle" || stage === "draft") {
-      return "下一步是开始扫描目录，系统会先建立目录结构和初始分析范围。";
+      return "下一步请先开始扫描。系统会读取目录结构并建立初始分析范围。";
     }
     if (stage === "scanning") {
-      return "下一步会自动进入第一版整理方案，无需手动切换页面。";
+      return "扫描完成后会自动进入第一版整理方案，无需手动切换页面。";
     }
     if (stage === "planning") {
       return plan.readiness.can_precheck
-        ? "下一步建议运行预检，确认真实文件系统中的目录变化是否可执行。"
-        : "下一步可以继续补充要求、调整条目，直到方案进入可预检状态。";
+        ? "下一步建议运行预检，确认目录创建和文件移动是否可以执行。"
+        : "可以继续补充要求或调整条目，直到方案进入可预检状态。";
     }
     if (stage === "ready_for_precheck") {
       return "下一步建议运行预检，确认目录创建和文件移动范围。";
     }
     if (stage === "ready_to_execute") {
-      return "预检已经完成。你可以保留左侧上下文，结合右侧影响范围决定执行或返回修改。";
+      return "预检已完成。请结合右侧影响范围决定执行或返回修改。";
     }
     if (stage === "executing") {
-      return "系统正在按预检后的方案落盘执行，完成后会进入结果页。";
+      return "系统正在按预检后的方案执行文件变更，完成后会进入结果页。";
     }
     if (stage === "completed") {
-      return "左侧会保留本轮对话记录供你回看，输入已关闭；右侧可以查看结果、处理失败项、清理空目录或执行回退。";
+      return "左侧会保留本轮记录供你回看；右侧可查看结果、处理失败项、清理空目录或执行回退。";
     }
     if (stage === "stale" || stage === "interrupted") {
-      return "下一步建议重新扫描，重新同步目录状态后再继续整理。";
+      return "建议先重新扫描，确认目录状态后再继续整理。";
     }
-    return "当前任务正在处理中。";
+    return "当前任务正在继续推进。";
   }, [isReadOnly, plan.readiness.can_precheck, stage]);
 
   const handleMouseMove = React.useCallback((event: MouseEvent) => {
@@ -247,8 +252,8 @@ export default function WorkspaceClient() {
         tone: "warning",
         title: "实时连接已断开",
         description: stage === "completed"
-          ? "当前页面会保留已同步的对话和结果，输入已关闭。你可以先查看右侧结果，或重新连接以恢复实时状态。"
-          : "当前页面仍可查看已同步内容。点击重新连接后，会恢复实时事件更新并重新同步一次会话状态。",
+          ? "当前页面会保留已同步的记录和结果，输入已关闭。你可以先查看右侧结果，或重新连接恢复实时状态。"
+          : "当前页面仍可查看已同步内容。重新连接后，会恢复实时事件更新并重新同步当前任务。",
         primaryAction: {
           label: "重新连接",
           onClick: () => {
@@ -262,7 +267,7 @@ export default function WorkspaceClient() {
       return {
         tone: "warning",
         title: "这是只读模式",
-        description: "你现在可以查看之前的方案和记录，但不会继续修改、预检或执行。如需继续整理，请回到首页重新选择。",
+        description: "当前只能查看之前的方案和记录，不能继续修改、预检或执行。如需继续整理，请返回首页重新选择。",
       };
     }
 
@@ -274,7 +279,7 @@ export default function WorkspaceClient() {
       return {
         tone: "info",
         title: "预检已完成",
-        description: "系统已经检查过真实文件系统。左侧仍保留本轮对话上下文，方便你结合右侧影响范围再决定是否执行。",
+        description: "系统已经检查过真实文件系统。请结合右侧影响范围，决定是否执行或返回修改。",
         primaryAction: isReadOnly ? undefined : {
           label: "返回继续修改",
           onClick: () => {
@@ -288,7 +293,7 @@ export default function WorkspaceClient() {
       return {
         tone: "warning",
         title: "当前方案已过期",
-        description: "目录内容已经变化，建议先重新扫描，再继续整理。",
+        description: "目录内容已发生变化。建议先重新扫描，再继续整理。",
         primaryAction: {
           label: "重新扫描",
           onClick: () => void refreshPlan(),
@@ -303,8 +308,8 @@ export default function WorkspaceClient() {
     if (stage === "interrupted") {
       return {
         tone: "danger",
-        title: "处理被中断了",
-        description: snapshot?.last_error || "可以重新扫描一次，确认目录状态后再继续。",
+        title: "任务已中断",
+        description: snapshot?.last_error || "建议重新扫描一次，确认目录状态后再继续。",
         primaryAction: {
           label: "重新扫描",
           onClick: () => void refreshPlan(),
@@ -321,8 +326,8 @@ export default function WorkspaceClient() {
         tone: "info",
         title: isReadOnly ? "这是之前的整理结果" : "整理完成",
         description: isReadOnly
-          ? "左侧保留了当时的对话记录，输入已关闭；右侧可以继续查看这次整理结果。"
-          : "左侧会保留本轮对话记录供你回看，输入已关闭；请在右侧查看结果、失败项、Review 和后续操作。",
+          ? "左侧保留了当时的记录，输入已关闭；右侧可以继续查看这次整理结果。"
+          : "左侧会保留本轮记录供你回看，输入已关闭；请在右侧查看结果、失败项、Review 和后续操作。",
       };
     }
 
@@ -581,34 +586,35 @@ export default function WorkspaceClient() {
   );
 
   const conversationHeader = (
-    <div className="z-20 flex shrink-0 items-center justify-between gap-3 border-b border-on-surface/8 bg-surface px-4 py-3 lg:h-[66px] lg:px-5 lg:py-3.5">
-      <div className="flex min-w-0 items-center gap-3">
-        <div className="hidden h-8 w-8 shrink-0 items-center justify-center rounded-[9px] border border-on-surface/8 bg-surface-container-low text-primary/70 sm:flex">
-          <Bot className="h-4.5 w-4.5" />
+    <div className="z-20 flex shrink-0 items-start justify-between gap-3 border-b border-on-surface/8 bg-surface px-4 py-3.5 lg:px-5 lg:py-4">
+      <div className="flex min-w-0 items-start gap-3">
+        <div className="hidden h-10 w-10 shrink-0 items-center justify-center rounded-[12px] border border-primary/10 bg-primary/[0.05] text-primary/75 shadow-[inset_0_1px_0_rgba(255,255,255,0.45)] sm:flex">
+          <FolderTree className="h-4.5 w-4.5" />
         </div>
-        <div className="flex min-w-0 flex-col gap-1">
-          <div className="flex min-w-0 items-center gap-2.5">
-            <h2 className="truncate text-[15px] font-black tracking-tight text-on-surface lg:text-[1rem]">
-              {getFriendlyStage(stage)}
+        <div className="flex min-w-0 flex-col gap-2">
+          <div className="flex min-w-0 flex-wrap items-center gap-2.5">
+            <h2 className="truncate text-[18px] font-black tracking-tight text-on-surface lg:text-[1.1rem]">
+              {targetDirName}
             </h2>
             <span className="whitespace-nowrap rounded-[8px] border border-primary/12 bg-primary/8 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-primary/85">
               Stage
             </span>
           </div>
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px]">
-            <p className="max-w-[32rem] truncate text-ui-muted">
-              {snapshot?.target_dir || dirParam || "..."}
-            </p>
+          <div className="flex flex-wrap items-center gap-2 text-[12px]">
+            <span className="inline-flex items-center gap-1.5 rounded-[8px] border border-on-surface/8 bg-surface-container-low px-2.5 py-1 font-semibold text-on-surface-variant">
+              <span className="h-1.5 w-1.5 rounded-full bg-warning/80" />
+              {getFriendlyStage(stage)}
+            </span>
             {assistantRuntime ? (
-              <span className="inline-flex items-center gap-1.5 rounded-[7px] bg-primary/6 px-2 py-0.5 text-primary/75">
-                <Loader2 className="h-3 w-3 animate-spin-slow" />
+              <span className="inline-flex items-center gap-1.5 rounded-[8px] border border-primary/10 bg-primary/6 px-2.5 py-1 font-medium text-primary/75">
+                <Loader2 className="h-3.5 w-3.5 animate-spin-slow" />
                 {assistantRuntime.label}
               </span>
             ) : null}
             {streamStatus !== "connected" ? (
               <span
                 className={cn(
-                  "rounded-[7px] border px-2 py-0.5 font-medium",
+                  "rounded-[8px] border px-2.5 py-1 font-medium",
                   streamStatus === "connecting" && "border-warning/20 bg-warning-container/20 text-warning",
                   streamStatus === "reconnecting" && "border-warning/20 bg-warning-container/30 text-warning",
                   streamStatus === "offline" && "border-on-surface/10 bg-surface-container-low text-ui-muted",
@@ -622,7 +628,13 @@ export default function WorkspaceClient() {
               </span>
             ) : null}
           </div>
-          <p className="max-w-[44rem] text-[12px] leading-5 text-on-surface-variant/70">
+          <div className="flex min-w-0 items-center gap-2 rounded-[10px] border border-on-surface/7 bg-surface-container-low/72 px-3 py-2 text-[12px]">
+            <FolderTree className="h-3.5 w-3.5 shrink-0 text-primary/70" />
+            <p className="truncate font-medium text-ui-muted">
+              {targetPath || "..."}
+            </p>
+          </div>
+          <p className="max-w-[44rem] text-[12px] leading-5 text-on-surface-variant/68">
             {nextStepHint}
           </p>
         </div>

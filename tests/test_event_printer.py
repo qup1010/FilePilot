@@ -21,10 +21,10 @@ class EventPrinterTests(unittest.TestCase):
             stop_waiting=lambda: calls.append(("stop", None)),
         )
 
-        scanner_ui_handler("model_wait_start", {"message": "正在等待模型回复…"}, cli=cli)
+        scanner_ui_handler("model_wait_start", {"message": "正在等待模型响应..."}, cli=cli)
         scanner_ui_handler("model_wait_end", {}, cli=cli)
 
-        self.assertEqual(calls, [("start", "正在等待模型回复…"), ("stop", None)])
+        self.assertEqual(calls, [("start", "正在等待模型响应..."), ("stop", None)])
 
     def test_stream_sections_render_reasoning_and_answer_labels_once(self):
         cli, buffer = self.build_cli()
@@ -62,4 +62,3 @@ class EventPrinterTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

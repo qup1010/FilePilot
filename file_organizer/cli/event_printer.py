@@ -4,7 +4,7 @@
 def scanner_ui_handler(event_type, data, cli=default_cli):
     """处理扫描过程中的各种反馈。"""
     if event_type == "model_wait_start":
-        cli.start_waiting(data.get("message", "模型回复中..."))
+        cli.start_waiting(data.get("message", "正在等待模型响应..."))
     elif event_type == "model_wait_end":
         cli.stop_waiting()
     elif event_type == "cycle_start":
@@ -35,7 +35,7 @@ def scanner_ui_handler(event_type, data, cli=default_cli):
             items.append(f"非法行: {details['invalid_lines']}")
         cli.show_list("校验详情", items, style="yellow")
     elif event_type == "retry_exhausted":
-        cli.error("重试次数耗尽，本次分析未保存。", title="扫描失败")
+        cli.error("已达到重试上限，本次扫描结果未保存。", title="扫描失败")
     elif event_type == "command_validation_pass":
         cli.success(f"第 {data['attempt']} 次命令流校验通过", title="命令流校验")
     elif event_type == "command_validation_fail":
@@ -59,7 +59,6 @@ def scanner_ui_handler(event_type, data, cli=default_cli):
                 items.append(f"{label}: {details[key]}")
         cli.show_list("校验详情", items, style="yellow")
     elif event_type == "command_retry_exhausted":
-        cli.error("命令流自动重试已耗尽，即将进入修复模式。", title="命令流失败")
+        cli.error("已达到重试上限，正在进入修复模式。", title="命令流失败")
     elif event_type == "repair_mode_start":
-        cli.warning("已进入修复模式，将根据权威分析结构重新生成最终计划。", title="修复模式")
-
+        cli.warning("已进入修复模式，将根据当前分析结构重新生成最终计划。", title="修复模式")

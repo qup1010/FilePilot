@@ -396,11 +396,28 @@ class ConfigManager:
         self._apply_to_env()
         self.save()
 
-    def add_preset(self, preset_type: str, name: str, copy_from_active: bool = True) -> str:
+    def add_preset(
+        self,
+        preset_type: str,
+        name: str,
+        copy_from_active: bool = True,
+        config_patch: dict[str, Any] | None = None,
+    ) -> str:
         preset_id = str(uuid.uuid4())[:8]
+        patch = config_patch or {}
         if preset_type == TEXT_PRESET_TYPE:
             preset = self._get_text_preset(self._active_text_preset_id) if copy_from_active else DEFAULT_TEXT_PRESET.copy()
             preset["name"] = name
+            if patch:
+                if "OPENAI_BASE_URL" in patch:
+                    preset["OPENAI_BASE_URL"] = patch.get("OPENAI_BASE_URL", DEFAULT_TEXT_PRESET["OPENAI_BASE_URL"])
+                if "OPENAI_MODEL" in patch:
+                    preset["OPENAI_MODEL"] = patch.get("OPENAI_MODEL", DEFAULT_TEXT_PRESET["OPENAI_MODEL"])
+                secret_value = patch.get("OPENAI_API_KEY")
+                if secret_value == "":
+                    preset["OPENAI_API_KEY"] = ""
+                elif secret_value and not self._is_masked_secret(secret_value):
+                    preset["OPENAI_API_KEY"] = str(secret_value)
             self._text_presets[preset_id] = self._sanitize_text_preset(preset)
             self._text_secret_overrides[preset_id] = {
                 key: value for key, value in self._extract_text_secrets(preset).items() if value
@@ -410,6 +427,16 @@ class ConfigManager:
             preset = self._get_vision_preset(self._active_vision_preset_id) if copy_from_active else DEFAULT_VISION_PRESET.copy()
             preset["name"] = name
             preset["IMAGE_ANALYSIS_NAME"] = name
+            if patch:
+                if "IMAGE_ANALYSIS_BASE_URL" in patch:
+                    preset["IMAGE_ANALYSIS_BASE_URL"] = patch.get("IMAGE_ANALYSIS_BASE_URL", DEFAULT_VISION_PRESET["IMAGE_ANALYSIS_BASE_URL"])
+                if "IMAGE_ANALYSIS_MODEL" in patch:
+                    preset["IMAGE_ANALYSIS_MODEL"] = patch.get("IMAGE_ANALYSIS_MODEL", DEFAULT_VISION_PRESET["IMAGE_ANALYSIS_MODEL"])
+                secret_value = patch.get("IMAGE_ANALYSIS_API_KEY")
+                if secret_value == "":
+                    preset["IMAGE_ANALYSIS_API_KEY"] = ""
+                elif secret_value and not self._is_masked_secret(secret_value):
+                    preset["IMAGE_ANALYSIS_API_KEY"] = str(secret_value)
             self._vision_presets[preset_id] = self._sanitize_vision_preset(preset)
             self._vision_secret_overrides[preset_id] = {
                 key: value for key, value in self._extract_vision_secrets(preset).items() if value

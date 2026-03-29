@@ -10,6 +10,7 @@ import {
   FolderOpen,
   History,
   Layers3,
+  Loader2,
   ShieldCheck,
   Sparkles,
   X,
@@ -71,6 +72,78 @@ function StrategySummaryChips({ strategy }: { strategy: SessionStrategySummary }
         </span>
       ) : null}
     </div>
+  );
+}
+
+function LaunchTransitionOverlay({ open, targetDir }: { open: boolean; targetDir: string }) {
+  const folderName = targetDir.replace(/[\\/]$/, "").split(/[\\/]/).pop() || "当前目录";
+
+  return (
+    <AnimatePresence>
+      {open ? (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="pointer-events-none fixed inset-0 z-[120] flex items-center justify-center bg-[radial-gradient(circle_at_top,rgba(10,132,255,0.12),transparent_42%),rgba(244,247,250,0.82)] px-6 backdrop-blur-md"
+        >
+          <motion.div
+            initial={{ opacity: 0, y: 18, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 10, scale: 0.98 }}
+            transition={{ duration: 0.24, ease: [0.16, 1, 0.3, 1] }}
+            className="w-full max-w-[420px] overflow-hidden rounded-[18px] border border-on-surface/8 bg-surface/92 p-6 shadow-[0_24px_80px_rgba(15,23,42,0.16)]"
+          >
+            <div className="flex items-start gap-4">
+              <div className="relative flex h-14 w-14 shrink-0 items-center justify-center rounded-[16px] border border-primary/16 bg-primary/8 text-primary">
+                <motion.div
+                  animate={{ rotate: 360 }}
+                  transition={{ duration: 1.8, repeat: Infinity, ease: "linear" }}
+                >
+                  <Loader2 className="h-6 w-6" />
+                </motion.div>
+                <motion.span
+                  animate={{ scale: [1, 1.3, 1], opacity: [0.22, 0.08, 0.22] }}
+                  transition={{ duration: 1.6, repeat: Infinity, ease: "easeInOut" }}
+                  className="absolute inset-0 rounded-[16px] border border-primary/20"
+                />
+              </div>
+
+              <div className="min-w-0 flex-1">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-primary/72">
+                  正在进入扫描工作区
+                </p>
+                <h3 className="mt-2 text-[22px] font-black tracking-tight text-on-surface">
+                  正在建立扫描任务
+                </h3>
+                <p className="mt-2 text-[13px] leading-6 text-on-surface-variant/78">
+                  已确认目录，正在初始化扫描任务并同步工作区状态。
+                </p>
+
+                <div className="mt-4 rounded-[12px] border border-on-surface/8 bg-surface-container-low/70 px-4 py-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="truncate text-[13px] font-semibold text-on-surface">{folderName}</span>
+                    <span className="shrink-0 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary">
+                      即将扫描
+                    </span>
+                  </div>
+                  <div className="mt-3 flex gap-1.5">
+                    {[0, 1, 2].map((index) => (
+                      <motion.span
+                        key={index}
+                        animate={{ opacity: [0.28, 1, 0.28], y: [0, -2, 0] }}
+                        transition={{ duration: 0.9, repeat: Infinity, delay: index * 0.14, ease: "easeInOut" }}
+                        className="h-1.5 w-1.5 rounded-full bg-primary"
+                      />
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        </motion.div>
+      ) : null}
+    </AnimatePresence>
   );
 }
 
@@ -150,7 +223,7 @@ function StrategyDialog({
                 <div className="flex items-center gap-3">
                   <div className="inline-flex items-center gap-2 rounded-[8px] border border-primary/12 bg-primary/8 px-2.5 py-1 text-[12px] font-semibold text-primary">
                     <Layers3 className="h-3.5 w-3.5" />
-                    Launch Setup
+                    启动配置
                   </div>
                   <div className="flex items-center gap-2">
                     <div className={cn("h-1.5 w-7 rounded-full transition-all duration-300", step === 1 ? "bg-primary" : "bg-primary/12")} />
@@ -198,7 +271,7 @@ function StrategyDialog({
                     <div className="grid gap-3 lg:grid-cols-[300px_minmax(0,1fr)]">
                       <div className="rounded-[10px] border border-on-surface/8 bg-surface p-2">
                         <div className="mb-2 px-2 py-1">
-                          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-ui-muted">Templates</p>
+                          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-ui-muted">整理模板</p>
                         </div>
                         <div className="space-y-1.5">
                       {STRATEGY_TEMPLATES.map((template) => {
@@ -308,7 +381,7 @@ function StrategyDialog({
                         <span className="rounded-full border border-primary/12 bg-white/70 px-3 py-1">{namingLabel}</span>
                         <span className="rounded-full border border-primary/12 bg-white/70 px-3 py-1">{cautionLabel}</span>
                         <p className="ml-2 text-[12.5px] leading-6 text-primary/80">
-                          补充你的偏好，完成后即可进入“扫描 → 预检 → 执行”确认流程。
+                          补充本轮偏好后，即可进入“扫描 → 预检 → 执行确认”流程。
                         </p>
                       </div>
                     </div>
@@ -391,7 +464,7 @@ function StrategyDialog({
                              <Sparkles className="h-4 w-4" />
                           </div>
                           <p className="text-[11.5px] leading-snug text-primary/85 pt-0.5">
-                            这些说明会作为偏好参考，尤其适合“拿不准的都进 Review”等全局整理边界要求。
+                            这些说明会作为本轮偏好参考，适合补充“拿不准的先放 Review”之类的整体规则。
                           </p>
                         </div>
                       </div>
@@ -404,7 +477,7 @@ function StrategyDialog({
             <div className="shrink-0 border-t border-on-surface/8 bg-surface-container-low px-5 py-4 lg:px-6">
               <div className="ui-panel-muted flex flex-wrap items-center justify-between gap-4 px-4 py-3">
                 <div className="flex flex-wrap items-center gap-3">
-                  <div className="text-[12px] font-medium text-ui-muted">已选配置</div>
+                  <div className="text-[12px] font-medium text-ui-muted">当前选择</div>
                   <div className="flex flex-wrap gap-1.5">
                     <span className="rounded-full border border-primary/12 bg-primary/8 px-3 py-1 text-[12px] font-semibold text-primary">{currentTemplate.label}</span>
                     {step === 2 && (
@@ -451,7 +524,7 @@ function StrategyDialog({
                         loading={loading}
                         className="px-7 py-3"
                       >
-                        {loading ? "处理中" : "确认并开始扫描"}
+                        {loading ? "正在启动扫描" : "确认并开始扫描"}
                       </Button>
                     </>
                   )}
@@ -476,6 +549,7 @@ export function SessionLauncher() {
   const [launchPreferencesLoaded, setLaunchPreferencesLoaded] = useState(false);
   const [effectiveLaunchStrategy, setEffectiveLaunchStrategy] = useState<SessionStrategySelection>(DEFAULT_STRATEGY_SELECTION);
   const [loading, setLoading] = useState(false);
+  const [launchTransitionOpen, setLaunchTransitionOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [resumePrompt, setResumePrompt] = useState<{ sessionId: string; snapshot: SessionSnapshot } | null>(null);
 
@@ -569,12 +643,14 @@ export function SessionLauncher() {
   async function launchWithStrategy(strategy: SessionStrategySelection) {
     if (!targetDir.trim()) return;
     setLoading(true);
+    setLaunchTransitionOpen(true);
     setError(null);
     setEffectiveLaunchStrategy(strategy);
     try {
       const api = createApiClient(apiBaseUrl, getApiToken());
       const response = await createSessionAndStartScan(api, targetDir, true, strategy);
       if (response.mode === "resume_available" && response.restorable_session?.session_id) {
+        setLaunchTransitionOpen(false);
         setResumePrompt({
           sessionId: response.restorable_session.session_id,
           snapshot: response.restorable_session,
@@ -587,6 +663,7 @@ export function SessionLauncher() {
       setStrategyDialogOpen(false);
       router.push(`/workspace?session_id=${response.session_id}&dir=${encodeURIComponent(targetDir)}`);
     } catch (err: any) {
+      setLaunchTransitionOpen(false);
       if (err.message && err.message.toLowerCase().includes("failed to fetch")) {
         setError(`现在连不上本地服务，请确认它是否已经启动（${apiBaseUrl}）。`);
       } else {
@@ -610,6 +687,7 @@ export function SessionLauncher() {
   async function handleStartFresh() {
     if (!resumePrompt) return;
     setLoading(true);
+    setLaunchTransitionOpen(true);
     setError(null);
     try {
       const api = createApiClient(apiBaseUrl, getApiToken());
@@ -626,6 +704,7 @@ export function SessionLauncher() {
       }
       router.push(`/workspace?session_id=${response.session_id}&dir=${encodeURIComponent(targetDir)}`);
     } catch (err: any) {
+      setLaunchTransitionOpen(false);
       if (err.message && err.message.toLowerCase().includes("failed to fetch")) {
         setError(`现在连不上本地服务，请确认它是否已经启动（${apiBaseUrl}）。`);
       } else {
@@ -638,6 +717,7 @@ export function SessionLauncher() {
 
   function handleCancelResume() {
     setResumePrompt(null);
+    setLaunchTransitionOpen(false);
     setLoading(false);
   }
 
@@ -653,6 +733,7 @@ export function SessionLauncher() {
 
   return (
     <>
+      <LaunchTransitionOverlay open={launchTransitionOpen} targetDir={targetDir} />
       <div className="mx-auto flex min-h-full w-full max-w-[1220px] items-center px-4 py-6 sm:px-6 lg:px-8">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -798,15 +879,15 @@ export function SessionLauncher() {
                   </h2>
                   <p className="text-ui-body font-medium text-ui-muted">
                     {isCompletedResume
-                      ? "你可以先看看之前的结果，也可以按这次的预设重新开始"
-                      : "你可以继续上一次，或者按这次的预设重新开始"}
+                      ? "你可以先查看之前的结果，也可以按这次的预设重新开始"
+                      : "你可以继续上一次任务，或者按这次的预设重新开始"}
                   </p>
                 </div>
               </div>
 
               <p className="mb-5 text-sm leading-relaxed text-on-surface-variant">
                 检测到这个目录（<strong>{targetDir.split(/[\\/]/).pop()}</strong>）
-                {isCompletedResume ? "之前已经整理过一次" : "之前还有一条未完成的记录"}（当前阶段：
+                {isCompletedResume ? "之前已经整理过一次" : "之前还有一条未完成的记录"}（当前状态：
                 <em>{STAGE_LABELS[resumePrompt.snapshot.stage] || resumePrompt.snapshot.stage}</em>）。
               </p>
 
@@ -841,7 +922,7 @@ export function SessionLauncher() {
                     onClick={handleReadOnlyView}
                     className="py-3.5"
                   >
-                    只读查看
+                    只读打开
                   </Button>
                   <Button
                     variant="ghost"

@@ -53,10 +53,10 @@ export function SessionHistory({ maxItems }: { maxItems?: number }) {
             <div className="flex h-6 w-6 items-center justify-center rounded-[8px] bg-primary/10">
               <HistoryIcon className="h-3.5 w-3.5 text-primary" />
             </div>
-            最近的整理记录
+            最近记录
           </h3>
           <p className="text-[12px] font-medium text-ui-muted">
-            最近的会话、结果和回退记录
+            最近的任务、执行结果和回退记录
           </p>
         </div>
         {history.length > 0 && (
@@ -78,14 +78,14 @@ export function SessionHistory({ maxItems }: { maxItems?: number }) {
             <input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="搜索目录、状态或记录 ID"
+              placeholder="搜索目录、状态或记录编号"
               className="w-full rounded-[9px] border border-on-surface/8 bg-surface-container-lowest py-2.5 pl-[2.625rem] pr-3 text-[14px] text-on-surface outline-none transition-all placeholder:text-ui-muted focus:border-primary/30 focus:ring-4 focus:ring-primary/5"
             />
           </div>
           <div className="space-y-2">
             <div className="inline-flex items-center gap-2 rounded-[8px] bg-surface-container-lowest px-2.5 py-1.5 text-[12px] font-medium text-ui-muted">
               <Filter className="h-3.5 w-3.5" />
-              快速筛选
+              筛选
             </div>
             <div className="grid grid-cols-2 gap-2">
               {[
@@ -117,8 +117,8 @@ export function SessionHistory({ maxItems }: { maxItems?: number }) {
         {history.length === 0 ? (
           <EmptyState
             icon={HistoryIcon}
-            title="暂无整理记录"
-            description="当你完成第一次目录整理后，相关的会话和执行日志会出现在这里。"
+            title="还没有记录"
+            description="完成第一次目录整理后，相关任务、执行结果和回退记录会出现在这里。"
             className="h-full py-12"
           />
         ) : (
@@ -129,7 +129,7 @@ export function SessionHistory({ maxItems }: { maxItems?: number }) {
             const isSession = isHistorySessionEntry(item);
             const dirName = getHistoryEntryName(item);
             
-            const actionLabel = isSession ? "继续查看" : getFriendlyStatus(item.status);
+            const actionLabel = isSession ? "查看任务" : "查看结果";
             const statusLabel = isSession ? getFriendlyStage(item.status) : getFriendlyStatus(item.status);
             const hasFailures = (item.failure_count || 0) > 0;
 
@@ -188,7 +188,7 @@ export function SessionHistory({ maxItems }: { maxItems?: number }) {
                           requestDelete(item.execution_id);
                         }}
                         className="rounded-[8px] border border-on-surface/8 bg-surface-container-lowest p-1.5 text-ui-muted transition-colors hover:border-error/20 hover:text-error"
-                        title="删除记录"
+                        title="删除这条记录"
                       >
                         <Trash2 className="h-3.5 w-3.5" />
                       </button>
@@ -220,7 +220,7 @@ export function SessionHistory({ maxItems }: { maxItems?: number }) {
           })}
           {filteredHistory.length === 0 ? (
             <div className="rounded-[10px] border border-dashed border-on-surface/10 bg-surface-container-low/35 px-4 py-8 text-center">
-              <p className="text-[14px] font-medium text-ui-muted">没有匹配的记录，试试换个关键词或筛选条件。</p>
+              <p className="text-[14px] font-medium text-ui-muted">没有找到匹配的记录，请调整关键词或筛选条件。</p>
             </div>
           ) : null}
           </div>
@@ -228,8 +228,8 @@ export function SessionHistory({ maxItems }: { maxItems?: number }) {
       </div>
       <ConfirmDialog
         open={Boolean(pendingDeleteId)}
-        title="删除这条历史记录？"
-        description="删除后，这条会话或执行记录将不会再出现在历史列表中，操作无法撤销。"
+        title="删除这条记录？"
+        description="删除后，这条任务或执行记录将不再出现在历史列表中，操作无法撤销。"
         confirmLabel="确认删除"
         cancelLabel="取消"
         tone="danger"

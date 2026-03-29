@@ -371,12 +371,12 @@ export function createDemoSessionSnapshot(stage: SessionStage): SessionSnapshot 
     stage,
     summary:
       stage === "completed"
-        ? "整理已经执行完成，可查看 journal 或回退。"
+        ? "整理已完成，可查看执行记录或执行回退。"
         : stage === "ready_to_execute"
-          ? "预检已通过，等待用户确认执行。"
+          ? "预检已通过，等待确认执行。"
           : stage === "scanning"
-            ? "正在分析目录内容，并持续更新最近理解结果。"
-        : "当前是桌面工作台骨架，后续会接入真实 session_snapshot。",
+            ? "正在分析目录内容，并持续更新最近的扫描结果。"
+        : "当前为工作台示例数据，后续会接入真实 session_snapshot。",
     strategy: {
       template_id: "general_downloads",
       template_label: "通用下载",
@@ -399,21 +399,21 @@ export function createDemoSessionSnapshot(stage: SessionStage): SessionSnapshot 
       current_item: stage === "scanning" ? "project-notes.docx" : null,
       batch_count: stage === "scanning" ? 3 : undefined,
       completed_batches: stage === "scanning" ? 1 : undefined,
-      message: stage === "scanning" ? "文件较多，已拆分为 3 个批次并行分析" : undefined,
+      message: stage === "scanning" ? "文件较多，已拆分为 3 个批次并行扫描" : undefined,
       recent_analysis_items: [
         {
           item_id: "notes.md",
           display_name: "notes.md",
           source_relpath: "notes.md",
           suggested_purpose: "学习资料",
-          summary: "内容像课程笔记，建议归到 Study。",
+          summary: "内容接近课程笔记，建议归到 Study。",
         },
         {
           item_id: "report.pdf",
           display_name: "report.pdf",
           source_relpath: "report.pdf",
           suggested_purpose: "工作文档",
-          summary: "是项目汇报文档，适合放在 Docs。",
+          summary: "属于项目汇报文档，适合放在 Docs。",
         },
       ],
     },
@@ -492,7 +492,7 @@ export function createDemoSessionSnapshot(stage: SessionStage): SessionSnapshot 
           ? ["execute", "abandon", "view_journal"]
           : ["submit_intent", "update_item", "precheck", "abandon"],
     messages: [
-      { id: "msg-demo-welcome", role: "assistant", content: "你好！我是你的文件整理助手。我已经完成了初步扫描。" }
+      { id: "msg-demo-welcome", role: "assistant", content: "初步扫描已完成，当前已生成第一版整理建议。" }
     ],
     updated_at: now,
     stale_reason: stage === "stale" ? "directory_changed" : null,

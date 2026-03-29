@@ -56,7 +56,7 @@ function getStatusMeta(scanner: ScannerProgress, progressPercent: number) {
     description: scanner.message || "系统正在读取文件内容并判断用途。",
     stageLabel: progressPercent < 30 ? "目录读取" : progressPercent < 70 ? "摘要分析" : "用途识别",
     tone: "progress" as const,
-    helper: "AI 正在对每一个文件进行深度语义理解，请稍候。",
+    helper: "系统正在逐项分析文件内容和用途，请稍候。",
   };
 }
 
@@ -64,7 +64,7 @@ function getItemSummary(item: RecentAnalysisItem) {
   if (item.summary) {
     return item.summary.length > 50 ? `${item.summary.slice(0, 50)}...` : item.summary;
   }
-  return "正在等待分析摘要...";
+  return "正在生成摘要...";
 }
 
 function getPhaseIndex(status: ScannerProgress["status"], progressPercent: number) {
@@ -80,7 +80,7 @@ export function ScanningOverlay({ scanner, progressPercent, onAbort, aborting = 
   const meta = getStatusMeta(scanner, progressPercent);
   const clampedPercent = Math.max(0, Math.min(100, Math.round(progressPercent)));
   const recentItems = [...(scanner.recent_analysis_items || [])].slice(-5).reverse();
-  const currentItem = scanner.current_item || recentItems[0]?.display_name || "正在初始化扫描引擎...";
+  const currentItem = scanner.current_item || recentItems[0]?.display_name || "正在准备扫描任务...";
   const phaseIndex = getPhaseIndex(scanner.status, clampedPercent);
 
   const phases = [
@@ -155,7 +155,7 @@ export function ScanningOverlay({ scanner, progressPercent, onAbort, aborting = 
               <div className="relative z-10">
                 <div className="flex items-center gap-2 mb-3">
                   <span className="flex h-2 w-2 rounded-full bg-primary animate-ping" />
-                  <span className="text-[11px] font-black uppercase tracking-[0.2em] text-primary">AI 正在阅读</span>
+                  <span className="text-[11px] font-black uppercase tracking-[0.2em] text-primary">正在分析当前文件</span>
                 </div>
                 <div className="flex items-start gap-4">
                   <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-[10px] bg-white shadow-md ring-1 ring-black/[0.05]">
@@ -180,7 +180,7 @@ export function ScanningOverlay({ scanner, progressPercent, onAbort, aborting = 
               <div className="flex items-center justify-between border-b border-black/[0.05] pb-3">
                 <div className="flex items-center gap-2">
                   <Activity className="h-4 w-4 text-primary" />
-                  <span className="text-[12px] font-black uppercase tracking-widest text-on-surface">分析实时流 (ANALYSIS STREAM)</span>
+                  <span className="text-[12px] font-black uppercase tracking-widest text-on-surface">实时分析记录</span>
                 </div>
                 <span className="text-[11px] font-bold text-emerald-500 animate-pulse">● LIVE</span>
               </div>
@@ -221,7 +221,7 @@ export function ScanningOverlay({ scanner, progressPercent, onAbort, aborting = 
                   <div className="flex h-full items-center justify-center py-20">
                     <div className="text-center">
                       <Loader2 className="mx-auto h-8 w-8 animate-spin text-primary/30" />
-                      <p className="mt-4 text-[13px] font-black text-on-surface/40 uppercase tracking-widest">正在接入 AI 分析管道...</p>
+                      <p className="mt-4 text-[13px] font-black text-on-surface/40 uppercase tracking-widest">正在准备分析流程...</p>
                     </div>
                   </div>
                 )}

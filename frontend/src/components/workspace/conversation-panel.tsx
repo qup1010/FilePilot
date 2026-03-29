@@ -518,12 +518,12 @@ export function ConversationPanel({
             </div>
             <div className="max-w-[360px] space-y-3">
               <h3 className="text-[1.1rem] font-black font-headline leading-tight text-on-surface tracking-tight">
-                {isBusy ? "正在启动扫描" : "准备好开始扫描了吗？"}
+                {isBusy ? "正在启动扫描" : "开始扫描以生成初始方案"}
               </h3>
               <p className="text-ui-body font-medium leading-relaxed text-ui-muted">
                 {isBusy
-                  ? "系统正在自动进入扫描阶段，读取目录结构后就会生成第一版整理方案。"
-                  : "我会先扫描你的目录，分析现有文件结构，然后再为你提供整理方案。"}
+                  ? "系统正在进入扫描阶段，读取目录结构后会生成第一版整理方案。"
+                  : "先扫描当前目录并分析文件结构，再生成第一版整理方案。"}
               </p>
               {isBusy ? (
                 <div className="pt-2">
@@ -538,7 +538,7 @@ export function ConversationPanel({
                     disabled={isBusy}
                     className="inline-flex items-center gap-2.5 rounded-[10px] border border-primary/20 bg-primary px-6 py-3 text-[13px] font-semibold text-white transition-colors hover:bg-primary-dim active:scale-[0.96] disabled:opacity-50"
                   >
-                    <Sparkles className="w-4 h-4" /> 开启智能扫描
+                    <Sparkles className="w-4 h-4" /> 开始扫描
                   </button>
                 </div>
               )}
@@ -562,7 +562,7 @@ export function ConversationPanel({
                     <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary/40 opacity-75"></span>
                     <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-primary/60"></span>
                   </span>
-                  思考中
+                  扫描进行中
                 </div>
               </div>
               <div className="flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-[13px] font-black tabular-nums text-primary">
@@ -695,7 +695,7 @@ export function ConversationPanel({
                       className="w-1.5 h-1.5 bg-current rounded-full" 
                     />
                   </div>
-                  <span className="ml-1 text-[12px] font-medium">AI 正在整理回复...</span>
+                  <span className="ml-1 text-[12px] font-medium">正在整理回复...</span>
                 </div>
                 <div className="relative">
                   <MarkdownProse content={assistantDraft} />
@@ -802,7 +802,7 @@ export function ConversationPanel({
                   "min-h-[44px] w-full resize-none border-none bg-transparent px-4 py-3 text-[14px] text-on-surface outline-none scrollbar-none transition-opacity placeholder:text-on-surface-variant/35",
                   isComposerLocked && "opacity-40 select-none overflow-hidden"
                 )}
-                placeholder={isComposerLocked ? (composerStatus?.label || "AI 正在思考中...") : "说说你的整理想法，或告诉我哪里想调整..."}
+                placeholder={isComposerLocked ? (composerStatus?.label || "正在处理当前调整...") : "输入调整意见，或说明你希望修改的地方..."}
                 value={messageInput}
                 disabled={isComposerLocked}
                 onChange={(event) => setMessageInput(event.target.value)}

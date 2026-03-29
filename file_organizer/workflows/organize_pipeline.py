@@ -204,7 +204,7 @@ def run_organize_chat(
     user_constraints: list[str] = []
     last_diff_summary: list[str] = []
     skip_model_round = False
-    cli.panel("整理决策会话", "AI 将为您分析文件并给出整理建议，您可以输入意见或继续讨论。", style="blue")
+    cli.panel("整理调整会话", "系统会根据扫描结果生成整理建议，你可以继续补充要求或调整方案。", style="blue")
 
     while True:
         try:
@@ -371,4 +371,3 @@ def run_pipeline(
             )
     except Exception as exc:
         cli.error(f"工作流崩溃: {exc}", title="运行失败")
-

@@ -83,7 +83,7 @@ export function IconWorkbenchFooterBar({
                   className="h-9 shrink-0 rounded-[6px] border-none bg-transparent px-4 text-[13px] font-bold text-on-surface hover:bg-white/80 transition-all disabled:opacity-30 whitespace-nowrap shadow-none"
                 >
                   {isRemovingBgBatch ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <span className="text-[14px] leading-none mb-0.5">✂</span>}
-                  <span className="ml-1.5">{isRemovingBgBatch ? "抠图中..." : "一键抠图"}</span>
+                  <span className="ml-1.5">{isRemovingBgBatch ? "正在去背..." : "批量去背"}</span>
                 </Button>
 
                 <div className="h-4 w-px bg-on-surface/5" />
@@ -99,7 +99,7 @@ export function IconWorkbenchFooterBar({
                   className="h-9 shrink-0 rounded-[6px] border-none bg-transparent px-4 text-[13px] font-bold text-on-surface hover:bg-white/80 transition-all disabled:opacity-30 whitespace-nowrap shadow-none"
                 >
                   {isApplying ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
-                  <span className="ml-1.5">{isApplying ? "应用中..." : "一键应用"}</span>
+                  <span className="ml-1.5">{isApplying ? "正在应用..." : "批量应用"}</span>
                 </Button>
               </div>
             </div>
@@ -108,17 +108,17 @@ export function IconWorkbenchFooterBar({
               isGenerating || isRemovingBgBatch || isApplying ? "animate-pulse text-primary" : 
               generateBlockedReason ? "text-error/70" : "text-ui-muted"
             )}>
-              {isGenerating ? "正在解析路径并提交生成引擎..." :
-               isRemovingBgBatch ? "正在执行边缘识别抠图算法..." :
-               isApplying ? "正在批量覆盖系统配置文件..." :
-               generateBlockedReason || "预览确认后可一键替换系统显示的图标。"}
+              {isGenerating ? "正在整理目标目录并提交生成任务..." :
+               isRemovingBgBatch ? "正在处理选中图标的背景..." :
+               isApplying ? "正在批量写入图标配置..." :
+               generateBlockedReason || "确认预览后可批量替换目标文件夹的显示图标。"}
             </p>
           </div>
 
           <div className="group relative ml-1">
             <Info className="h-4 w-4 cursor-help text-on-surface/25 transition-colors hover:text-on-surface/50" />
             <div className="pointer-events-none absolute bottom-full left-1/2 mb-3 w-52 -translate-x-1/2 scale-95 rounded-[10px] border border-white/40 bg-white/95 p-4 text-[11px] font-medium leading-relaxed text-on-surface opacity-0 shadow-2xl backdrop-blur-md transition-all group-hover:scale-100 group-hover:opacity-100 italic">
-              生成的是预览版本，点击“应用”后你的电脑文件夹才会替换图标。
+              生成结果先作为预览保留，点击“批量应用”后才会写入目标文件夹的图标配置。
             </div>
           </div>
         </div>

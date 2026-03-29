@@ -65,13 +65,13 @@ class CLI:
 
     def show_app_header(self, project_root: Path, analysis_model: str, organizer_model: str) -> None:
         self.panel(
-            "AI 文件一键整理系统",
-            f"项目根目录: {project_root}\n模型 (分析/整理): {analysis_model} / {organizer_model}",
+            "文件整理工作台",
+            f"项目根目录: {project_root}\n当前模型 (分析 / 调整): {analysis_model} / {organizer_model}",
             style="blue",
         )
 
     def show_saved_result(self, result_path: Path) -> None:
-        self.success(f"数据已提取至 {result_path}", title="扫描完成")
+        self.success(f"扫描结果已写入 {result_path}", title="扫描已完成")
 
     def _display_group_name(self, path: Path, base_dir: Path) -> str:
         display = relative_display(path, base_dir)
@@ -129,11 +129,11 @@ class CLI:
         target_by_source = {move.source: move.target for move in plan.moves}
         target = target_by_source.get(item, f"Review/{item}")
         if target.startswith("Review/"):
-            return f"{item}：当前默认归入 Review，如无异议可直接继续。"
-        return f"{item}：当前暂归入 {self._pending_group_name(target)}，如需更精确分类请直接说明。"
+            return f"{item}：当前默认归入 Review。若无异议，可继续下一步。"
+        return f"{item}：当前暂归入 {self._pending_group_name(target)}。如需更精确的分类，请直接说明。"
 
     def show_pending_plan(self, plan: PendingPlan, *, focus: str = "summary", summary: str = "") -> None:
-        self.panel("当前待定计划", summary or plan.summary or "请先查看整理摘要", style="blue")
+        self.panel("当前整理方案", summary or plan.summary or "请先查看整理摘要。", style="blue")
         self.show_summary(
             "计划概览",
             [("目录数", str(len(plan.directories))), ("移动数", str(len(plan.moves))), ("待确认", str(len(plan.unresolved_items)))],
@@ -235,7 +235,7 @@ class CLI:
         summary_message = f"成功 {report.success_count} 项"
         if report.failure_count:
             summary_message += f"，失败 {report.failure_count} 项"
-        self.show_completion_banner("执行完成", summary_message, style=style)
+        self.show_completion_banner("执行已完成", summary_message, style=style)
         self.show_summary(
             "执行摘要",
             [("成功", str(report.success_count)), ("失败", str(report.failure_count))],
@@ -298,7 +298,7 @@ class CLI:
         summary_message = f"成功回退 {report.success_count} 项"
         if report.failure_count:
             summary_message += f"，失败 {report.failure_count} 项"
-        self.show_completion_banner("回退完成", summary_message, style=style)
+        self.show_completion_banner("回退已完成", summary_message, style=style)
         self.show_summary(
             "回退摘要",
             [("成功", str(report.success_count)), ("失败", str(report.failure_count))],
@@ -329,18 +329,18 @@ class CLI:
         return input_func(message)
 
     def prompt_path(self, message: str, *, input_func=input) -> str:
-        self.info("示例: D:/Users/YourName/Documents 或 D:/Workspace/Inbox", title="目录输入")
+        self.info("示例: D:/Users/YourName/Documents 或 D:/Workspace/Inbox", title="输入目录")
         return self.prompt(message, input_func=input_func)
 
     def prompt_confirmation(self, message: str, *, input_func=input) -> str:
-        self.warning(f"仅当确认无误时输入 YES。\n{message}", title="执行确认")
+        self.warning(f"仅在确认无误后输入 YES。\n{message}", title="确认执行")
         return self.prompt(message, input_func=input_func)
 
     def prompt_feedback(self, message: str, *, input_func=input) -> str:
-        self.info(f"可直接输入修改意见；输入 quit 或 exit 可退出。\n{message}", title="继续调整")
+        self.info(f"可直接输入调整意见；输入 quit 或 exit 可退出。\n{message}", title="继续调整")
         return self.prompt(message, input_func=input_func)
 
-    def start_waiting(self, message: str = "模型回复中...") -> None:
+    def start_waiting(self, message: str = "正在等待模型响应...") -> None:
         self.stop_waiting()
         self._status = self.console.status(f"[bold cyan]{message}[/]", spinner="dots", spinner_style="cyan")
         self._status.start()
