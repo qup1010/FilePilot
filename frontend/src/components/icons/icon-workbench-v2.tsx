@@ -30,6 +30,13 @@ import { useIconTemplates } from "./use-icon-templates";
 
 const APP_CONTEXT_EVENT = "file-organizer-context-change";
 const ICONS_CONTEXT_KEY = "icons_header_context";
+const ICONS_WORKSPACE_STATE_KEY = "icons_workspace_state";
+
+interface PersistedIconsWorkspaceState {
+  sessionId: string;
+  selectedTemplateId: string;
+  expandedFolderId: string | null;
+}
 
 type GuideActionKind = "target" | "style" | "generate";
 function IconWorkbenchGuideBar({
@@ -91,6 +98,7 @@ export default function IconWorkbenchV2() {
   const [restoreConfirmOpen, setRestoreConfirmOpen] = useState(false);
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
   const [folderToRestore, setFolderToRestore] = useState<FolderIconCandidate | null>(null);
+  const [restoringSession, setRestoringSession] = useState(true);
   const {
     templates,
     templatesLoading,
@@ -162,6 +170,75 @@ export default function IconWorkbenchV2() {
       return nextSession.folders.find((folder) => folder.folder_id === current.folder_id) || null;
     });
   }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    const raw = window.localStorage.getItem(ICONS_WORKSPACE_STATE_KEY);
+    if (!raw) {
+      setRestoringSession(false);
+      return;
+    }
+
+    let parsed: PersistedIconsWorkspaceState | null = null;
+    try {
+      parsed = JSON.parse(raw) as PersistedIconsWorkspaceState;
+    } catch {
+      window.localStorage.removeItem(ICONS_WORKSPACE_STATE_KEY);
+      setRestoringSession(false);
+      return;
+    }
+
+    if (!parsed?.sessionId) {
+      window.localStorage.removeItem(ICONS_WORKSPACE_STATE_KEY);
+      setRestoringSession(false);
+      return;
+    }
+
+    if (parsed.selectedTemplateId) {
+      setSelectedTemplateId(parsed.selectedTemplateId);
+    }
+    setExpandedFolderId(parsed.expandedFolderId || null);
+
+    let cancelled = false;
+    iconApi.getSession(parsed.sessionId)
+      .then((nextSession) => {
+        if (!cancelled) {
+          applySession(nextSession);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          window.localStorage.removeItem(ICONS_WORKSPACE_STATE_KEY);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setRestoringSession(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [applySession, iconApi, setSelectedTemplateId]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    if (!session) {
+      window.localStorage.removeItem(ICONS_WORKSPACE_STATE_KEY);
+      return;
+    }
+    const payload: PersistedIconsWorkspaceState = {
+      sessionId: session.session_id,
+      selectedTemplateId,
+      expandedFolderId,
+    };
+    window.localStorage.setItem(ICONS_WORKSPACE_STATE_KEY, JSON.stringify(payload));
+  }, [expandedFolderId, selectedTemplateId, session]);
 
   const topStatusText = useMemo(() => {
     if (!hasTargets) {
@@ -332,6 +409,7 @@ export default function IconWorkbenchV2() {
     try {
       const nextSession = await iconApi.updateTargets(session.session_id, { target_paths: [], mode: "replace" });
       applySession(nextSession);
+      setSelectedTemplateId("");
       setResetConfirmOpen(false);
       setNotice("已清空所有目标文件夹。");
     } catch (err) {
@@ -467,6 +545,17 @@ export default function IconWorkbenchV2() {
         <div className="flex flex-col items-center gap-4">
           <LoaderCircle className="h-10 w-10 animate-spin text-primary/40" />
           <p className="text-[14px] font-bold text-on-surface">初始化图标工坊...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (restoringSession) {
+    return (
+      <div className="flex flex-1 items-center justify-center bg-surface">
+        <div className="flex flex-col items-center gap-4">
+          <LoaderCircle className="h-10 w-10 animate-spin text-primary/40" />
+          <p className="text-[14px] font-bold text-on-surface">正在恢复图标工坊状态...</p>
         </div>
       </div>
     );

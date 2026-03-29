@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type Dispatch, type SetStateAction } from "react";
+import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import {
   AlertCircle,
   CheckCircle2,
@@ -88,6 +88,7 @@ const SETTINGS_CATEGORIES: Array<{
 export default function SettingsPage() {
   const APP_CONTEXT_EVENT = "file-organizer-context-change";
   const SETTINGS_CONTEXT_KEY = "settings_header_context";
+  const SETTINGS_SCROLL_KEY = "settings_scroll_top";
   const [api] = useState(() => createApiClient(getApiBaseUrl(), getApiToken()));
   const [iconApi] = useState(() => createIconWorkbenchApiClient(getApiBaseUrl(), getApiToken()));
   const [config, setConfig] = useState<any>(null);
@@ -116,6 +117,7 @@ export default function SettingsPage() {
   const [showIconImageKey, setShowIconImageKey] = useState(false);
   const [textEditorExpanded, setTextEditorExpanded] = useState(true);
   const [visionEditorExpanded, setVisionEditorExpanded] = useState(true);
+  const pendingScrollRestoreRef = useRef<number | null>(null);
 
   const isDirty = Boolean(
     (config && originalConfig && JSON.stringify(config) !== JSON.stringify(originalConfig))
@@ -145,6 +147,47 @@ export default function SettingsPage() {
   useEffect(() => {
     void fetchAll();
   }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    const savedScrollTop = window.localStorage.getItem(SETTINGS_SCROLL_KEY);
+    if (!savedScrollTop) {
+      return;
+    }
+    const nextTop = Number(savedScrollTop);
+    if (!Number.isFinite(nextTop)) {
+      return;
+    }
+    requestAnimationFrame(() => {
+      window.scrollTo({ top: nextTop });
+    });
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    const handleScroll = () => {
+      window.localStorage.setItem(SETTINGS_SCROLL_KEY, String(window.scrollY));
+    };
+    handleScroll();
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || loading || pendingScrollRestoreRef.current === null) {
+      return;
+    }
+    const nextTop = pendingScrollRestoreRef.current;
+    pendingScrollRestoreRef.current = null;
+    requestAnimationFrame(() => {
+      window.scrollTo({ top: nextTop });
+      window.localStorage.setItem(SETTINGS_SCROLL_KEY, String(nextTop));
+    });
+  }, [loading]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -316,6 +359,10 @@ export default function SettingsPage() {
 
   const performSwitchPreset = async (presetType: PresetType, id: string) => {
     setDialog(null);
+    if (typeof window !== "undefined") {
+      pendingScrollRestoreRef.current = window.scrollY;
+      window.localStorage.setItem(SETTINGS_SCROLL_KEY, String(window.scrollY));
+    }
     setLoading(true);
     setError(null);
     try {
