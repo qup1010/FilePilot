@@ -565,18 +565,18 @@ export default function WorkspaceClient() {
   );
 
   const conversationHeader = (
-    <div className="glass-surface z-20 flex shrink-0 items-center justify-between gap-3 border-b border-on-surface/8 px-4 py-3 lg:h-[68px] lg:px-5 lg:py-3.5">
+    <div className="z-20 flex shrink-0 items-center justify-between gap-3 border-b border-on-surface/8 bg-surface px-4 py-3 lg:h-[66px] lg:px-5 lg:py-3.5">
       <div className="flex min-w-0 items-center gap-3">
-        <div className="hidden h-8 w-8 shrink-0 items-center justify-center rounded-[9px] border border-on-surface/8 bg-surface-container text-primary/70 sm:flex">
+        <div className="hidden h-8 w-8 shrink-0 items-center justify-center rounded-[9px] border border-on-surface/8 bg-surface-container-low text-primary/70 sm:flex">
           <Bot className="h-4.5 w-4.5" />
         </div>
         <div className="flex min-w-0 flex-col gap-1">
           <div className="flex min-w-0 items-center gap-2.5">
-            <h2 className="truncate text-[15px] font-black text-on-surface lg:text-[1rem]">
+            <h2 className="truncate text-[15px] font-black tracking-tight text-on-surface lg:text-[1rem]">
               {getFriendlyStage(stage)}
             </h2>
-            <span className="whitespace-nowrap rounded-[8px] border border-primary/12 bg-primary/8 px-2 py-0.5 text-[12px] font-semibold text-primary/85">
-              当前阶段
+            <span className="whitespace-nowrap rounded-[8px] border border-primary/12 bg-primary/8 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-primary/85">
+              Stage
             </span>
           </div>
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px]">
@@ -640,12 +640,12 @@ export default function WorkspaceClient() {
     <div ref={containerRef} className="relative flex min-h-0 flex-1 overflow-hidden bg-surface">
       <ErrorBoundary fallbackTitle="页面加载出错了" className="flex-1">
         {layoutReady ? (
-          <div className="flex flex-1 min-h-0">
+          <div className="flex flex-1 min-h-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.45),rgba(255,255,255,0))]">
           {showConversationPane ? (
             <section
               ref={leftPaneRef}
               style={{ width: `${leftWidth}%` }}
-              className="relative flex h-full min-h-0 min-w-[360px] flex-col border-r border-on-surface/7 bg-surface-container-lowest"
+              className="relative flex h-full min-h-0 min-w-[360px] flex-col border-r border-on-surface/6 bg-surface-container-lowest"
             >
               {conversationHeader}
               {conversationPanel}
@@ -657,7 +657,7 @@ export default function WorkspaceClient() {
               onMouseDown={handleStartResizing}
               className={cn(
                 "absolute top-0 bottom-0 w-2.5 z-40 transition-colors cursor-col-resize flex items-center justify-center select-none group",
-                isResizingState ? "bg-transparent" : "hover:bg-primary/[0.025]",
+                isResizingState ? "bg-transparent" : "hover:bg-primary/[0.018]",
               )}
               style={{ left: dividerLeft !== null ? `${dividerLeft - 1.25}px` : `calc(${leftWidth}% - 1.25px)` }}
             >
@@ -685,7 +685,7 @@ export default function WorkspaceClient() {
 
           <section
             style={{ width: showConversationPane ? `${100 - leftWidth}%` : "100%" }}
-            className="flex h-full min-h-0 min-w-[320px] flex-col overflow-hidden bg-surface-container-low/45"
+            className="flex h-full min-h-0 min-w-[320px] flex-col overflow-hidden bg-[linear-gradient(180deg,rgba(248,249,250,0.82),rgba(242,244,245,0.55))]"
           >
             <div className="flex-1 min-h-0">{renderPreviewContent()}</div>
           </section>

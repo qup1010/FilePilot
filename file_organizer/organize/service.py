@@ -2,6 +2,8 @@ import json
 import logging
 import re
 from collections import Counter, defaultdict
+from types import SimpleNamespace
+from typing import Any
 
 from file_organizer.organize.models import (
     FinalPlan,
@@ -92,6 +94,96 @@ def _serialize_tool_call_delta(tool_call_delta) -> dict:
             "arguments": getattr(function, "arguments", None),
         },
     }
+
+
+def _extract_message_text(message_content: Any) -> str:
+    if isinstance(message_content, str):
+        return message_content.strip()
+    if isinstance(message_content, list):
+        parts: list[str] = []
+        for item in message_content:
+            if isinstance(item, dict) and item.get("type") == "text":
+                text = str(item.get("text", "") or "").strip()
+                if text:
+                    parts.append(text)
+        return "\n".join(parts).strip()
+    return ""
+
+
+def _normalize_tool_calls(tool_calls: Any) -> list[dict]:
+    normalized: list[dict] = []
+    for tool_call in tool_calls or []:
+        if hasattr(tool_call, "function") or isinstance(tool_call, dict):
+            normalized.append(_serialize_tool_call(tool_call))
+    return normalized
+
+
+def _normalize_non_stream_response(response: Any) -> tuple[SimpleNamespace, Any]:
+    if hasattr(response, "choices"):
+        choices = getattr(response, "choices", None) or []
+        if not choices:
+            raise ValueError("模型响应缺少 choices")
+        choice = choices[0]
+        message = getattr(choice, "message", None)
+        if message is None:
+            raise ValueError("模型响应缺少 message")
+        raw_response = None
+        if hasattr(response, "model_dump"):
+            try:
+                raw_response = response.model_dump()
+            except Exception:
+                raw_response = None
+        return (
+            SimpleNamespace(
+                content=_extract_message_text(getattr(message, "content", "")),
+                tool_calls=_normalize_tool_calls(getattr(message, "tool_calls", None)),
+                finish_reason=getattr(choice, "finish_reason", None),
+            ),
+            raw_response,
+        )
+
+    if isinstance(response, str):
+        text = response.strip()
+        if text and text[0] in "[{":
+            try:
+                return _normalize_non_stream_response(json.loads(text))
+            except json.JSONDecodeError:
+                pass
+        return (
+            SimpleNamespace(content=text, tool_calls=[], finish_reason=None),
+            text,
+        )
+
+    if isinstance(response, dict):
+        choices = response.get("choices") or []
+        if not choices:
+            raise ValueError("模型响应缺少 choices")
+        choice = choices[0]
+        message = choice.get("message") or {}
+        return (
+            SimpleNamespace(
+                content=_extract_message_text(message.get("content", "")),
+                tool_calls=_normalize_tool_calls(message.get("tool_calls")),
+                finish_reason=choice.get("finish_reason"),
+            ),
+            response,
+        )
+
+    if hasattr(response, "model_dump"):
+        try:
+            return _normalize_non_stream_response(response.model_dump())
+        except Exception:
+            pass
+
+    raise TypeError(f"不支持的模型响应类型: {type(response).__name__}")
+
+
+def _is_stream_like_response(response: Any) -> bool:
+    if hasattr(response, "choices"):
+        return False
+    if isinstance(response, (str, bytes, bytearray, dict)):
+        return False
+    return hasattr(response, "__iter__")
 
 
 def _build_assistant_message(content: str, tool_calls=None, blocks: list[dict] | None = None) -> dict:
@@ -443,58 +535,68 @@ def chat_one_round(messages: list, event_handler=None, model: str = ORGANIZER_MO
         emit(event_handler, "model_wait_end")
 
     emit(event_handler, "ai_streaming_start")
-    if hasattr(stream, "choices"):
-        choice = stream.choices[0]
-        message = choice.message
-        if hasattr(stream, "model_dump"):
-            try:
-                raw_response = stream.model_dump()
-            except Exception:
-                raw_response = None
+    if not _is_stream_like_response(stream):
+        message, raw_response = _normalize_non_stream_response(stream)
         full_content = getattr(message, "content", "") or ""
+        full_tool_calls_raw.extend(_normalize_tool_calls(getattr(message, "tool_calls", None)))
         if full_content:
             emit(event_handler, "ai_chunk", {"content": full_content})
-        for tool_call in getattr(message, "tool_calls", None) or []:
-            full_tool_calls_raw.append(_serialize_tool_call(tool_call))
+        response_mode = "non_stream"
         chunk_records.append({
             "delta_content": full_content or None,
             "delta_tool_calls": full_tool_calls_raw or None,
-            "finish_reason": getattr(choice, "finish_reason", None),
+            "finish_reason": getattr(message, "finish_reason", None),
         })
     else:
         # 收集流式输出
         for chunk in stream:
-            if not chunk.choices:
+            if isinstance(chunk, dict):
+                choices = chunk.get("choices") or []
+            else:
+                choices = getattr(chunk, "choices", None) or []
+            if not choices:
                 continue
-            choice = chunk.choices[0]
-            delta = choice.delta
+            choice = choices[0]
+            delta = getattr(choice, "delta", None)
+            if delta is None and isinstance(choice, dict):
+                delta = choice.get("delta") or {}
             chunk_records.append({
-                "delta_content": getattr(delta, "content", None),
+                "delta_content": (getattr(delta, "content", None) if not isinstance(delta, dict) else delta.get("content")),
                 "delta_tool_calls": [
                     _serialize_tool_call_delta(tc_delta)
-                    for tc_delta in (getattr(delta, "tool_calls", None) or [])
+                    for tc_delta in (
+                        (getattr(delta, "tool_calls", None) if not isinstance(delta, dict) else delta.get("tool_calls")) or []
+                    )
                 ] or None,
-                "finish_reason": getattr(choice, "finish_reason", None),
+                "finish_reason": getattr(choice, "finish_reason", None) if not isinstance(choice, dict) else choice.get("finish_reason"),
             })
             
             # 文本部分
-            if getattr(delta, "content", None):
-                full_content += delta.content
-                emit(event_handler, "ai_chunk", {"content": delta.content})
+            delta_content = getattr(delta, "content", None) if not isinstance(delta, dict) else delta.get("content")
+            if delta_content:
+                full_content += delta_content
+                emit(event_handler, "ai_chunk", {"content": delta_content})
             
             # 工具调用部分
-            if getattr(delta, "tool_calls", None):
-                for tc_delta in delta.tool_calls:
-                    idx = tc_delta.index
+            delta_tool_calls = getattr(delta, "tool_calls", None) if not isinstance(delta, dict) else delta.get("tool_calls")
+            if delta_tool_calls:
+                for tc_delta in delta_tool_calls:
+                    idx = getattr(tc_delta, "index", None) if not isinstance(tc_delta, dict) else tc_delta.get("index")
+                    if idx is None:
+                        continue
                     while len(full_tool_calls_raw) <= idx:
                         full_tool_calls_raw.append({"id": None, "type": "function", "function": {"name": "", "arguments": ""}})
                     
-                    if tc_delta.id:
-                        full_tool_calls_raw[idx]["id"] = tc_delta.id
-                    if tc_delta.function.name:
-                        full_tool_calls_raw[idx]["function"]["name"] += tc_delta.function.name
-                    if tc_delta.function.arguments:
-                        full_tool_calls_raw[idx]["function"]["arguments"] += tc_delta.function.arguments
+                    tc_id = getattr(tc_delta, "id", None) if not isinstance(tc_delta, dict) else tc_delta.get("id")
+                    tc_function = getattr(tc_delta, "function", None) if not isinstance(tc_delta, dict) else (tc_delta.get("function") or {})
+                    tc_name = getattr(tc_function, "name", None) if not isinstance(tc_function, dict) else tc_function.get("name")
+                    tc_arguments = getattr(tc_function, "arguments", None) if not isinstance(tc_function, dict) else tc_function.get("arguments")
+                    if tc_id:
+                        full_tool_calls_raw[idx]["id"] = tc_id
+                    if tc_name:
+                        full_tool_calls_raw[idx]["function"]["name"] += tc_name
+                    if tc_arguments:
+                        full_tool_calls_raw[idx]["function"]["arguments"] += tc_arguments
 
     emit(event_handler, "ai_streaming_end", {"full_content": full_content})
 
@@ -509,7 +611,6 @@ def chat_one_round(messages: list, event_handler=None, model: str = ORGANIZER_MO
     )
 
     # 构造兼容的 Message 对象供后续解析
-    from types import SimpleNamespace
     tool_calls = []
     for tc in full_tool_calls_raw:
         if tc["function"]["name"]:

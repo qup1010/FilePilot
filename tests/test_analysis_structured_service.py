@@ -140,6 +140,94 @@ class StructuredAnalysisServiceTests(unittest.TestCase):
         self.assertIn("model_wait_end", events)
         self.assertLess(events.index("model_wait_start"), events.index("model_wait_end"))
 
+    def test_run_analysis_cycle_serializes_tool_call_messages_before_retrying(self):
+        first_response = SimpleNamespace(
+            choices=[
+                SimpleNamespace(
+                    message=SimpleNamespace(
+                        content="",
+                        tool_calls=[
+                            SimpleNamespace(
+                                id="call_1",
+                                type="function",
+                                function=SimpleNamespace(
+                                    name="list_local_files",
+                                    arguments='{"directory": ".", "max_depth": 0}',
+                                ),
+                            )
+                        ],
+                    )
+                )
+            ]
+        )
+        second_response = SimpleNamespace(
+            choices=[
+                SimpleNamespace(
+                    message=SimpleNamespace(
+                        content="",
+                        tool_calls=[
+                            SimpleNamespace(
+                                id="call_2",
+                                type="function",
+                                function=SimpleNamespace(
+                                    name=analysis_service.SUBMIT_ANALYSIS_TOOL_NAME,
+                                    arguments='{"items": [{"entry_name": "合同.pdf", "suggested_purpose": "财务/合同", "summary": "付款协议"}, {"entry_name": "Screenshots", "suggested_purpose": "截图记录", "summary": "软件报错截图"}]}',
+                                ),
+                            )
+                        ],
+                    )
+                )
+            ]
+        )
+        create_mock = mock.Mock(side_effect=[first_response, second_response])
+        client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create_mock)))
+
+        with mock.patch.object(analysis_service, "get_client", return_value=client), mock.patch.object(
+            analysis_service, "list_local_files", return_value="示例文件列表"
+        ), mock.patch.object(analysis_service, "_dispatch_tool_call", return_value="目录列表"):
+            rendered = analysis_service.run_analysis_cycle(self.base_dir)
+
+        self.assertIn("合同.pdf | 财务/合同 | 付款协议", rendered)
+        self.assertEqual(create_mock.call_count, 2)
+        second_messages = create_mock.call_args_list[1].kwargs["messages"]
+        analysis_service.json.dumps(second_messages, ensure_ascii=False)
+        self.assertEqual(second_messages[2]["role"], "assistant")
+        self.assertEqual(second_messages[2]["tool_calls"][0]["function"]["name"], "list_local_files")
+
+    def test_run_analysis_cycle_accepts_plain_text_string_response(self):
+        response = (
+            "<output>\n"
+            "合同.pdf | 财务/合同 | 付款协议\n"
+            "Screenshots | 截图记录 | 软件报错截图\n"
+            "</output>"
+        )
+        client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=mock.Mock(return_value=response))))
+
+        with mock.patch.object(analysis_service, "get_client", return_value=client), mock.patch.object(
+            analysis_service, "list_local_files", return_value="示例文件列表"
+        ):
+            rendered = analysis_service.run_analysis_cycle(self.base_dir)
+
+        self.assertIn("合同.pdf | 财务/合同 | 付款协议", rendered)
+        self.assertIn("Screenshots | 截图记录 | 软件报错截图", rendered)
+
+    def test_run_analysis_cycle_accepts_json_string_response(self):
+        response = (
+            '{"choices":[{"message":{"content":"<output>\\n'
+            '合同.pdf | 财务/合同 | 付款协议\\n'
+            'Screenshots | 截图记录 | 软件报错截图\\n'
+            '</output>"}}]}'
+        )
+        client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=mock.Mock(return_value=response))))
+
+        with mock.patch.object(analysis_service, "get_client", return_value=client), mock.patch.object(
+            analysis_service, "list_local_files", return_value="示例文件列表"
+        ):
+            rendered = analysis_service.run_analysis_cycle(self.base_dir)
+
+        self.assertIn("合同.pdf | 财务/合同 | 付款协议", rendered)
+        self.assertIn("Screenshots | 截图记录 | 软件报错截图", rendered)
+
     def test_validate_analysis_returns_duplicates_key_for_missing_output(self):
         validation = analysis_service.validate_analysis("", self.base_dir)
 

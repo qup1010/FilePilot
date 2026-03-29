@@ -1,8 +1,11 @@
 ﻿from __future__ import annotations
 
 import base64
+import json
 import mimetypes
 from pathlib import Path
+from types import SimpleNamespace
+from typing import Any
 
 from file_organizer.shared.config import create_image_analysis_client, get_image_analysis_settings
 
@@ -31,6 +34,41 @@ def _extract_message_text(message_content) -> str:
     return ""
 
 
+def _coerce_response_message(response: Any):
+    if hasattr(response, "choices"):
+        choices = getattr(response, "choices", None) or []
+        if not choices:
+            raise ValueError("图片分析响应缺少 choices")
+        message = getattr(choices[0], "message", None)
+        if message is None:
+            raise ValueError("图片分析响应缺少 message")
+        return SimpleNamespace(content=_extract_message_text(getattr(message, "content", "")))
+
+    if isinstance(response, str):
+        text = response.strip()
+        if text and text[0] in "[{":
+            try:
+                return _coerce_response_message(json.loads(text))
+            except json.JSONDecodeError:
+                pass
+        return SimpleNamespace(content=text)
+
+    if isinstance(response, dict):
+        choices = response.get("choices") or []
+        if not choices:
+            raise ValueError("图片分析响应缺少 choices")
+        message = choices[0].get("message") or {}
+        return SimpleNamespace(content=_extract_message_text(message.get("content", "")))
+
+    if hasattr(response, "model_dump"):
+        try:
+            return _coerce_response_message(response.model_dump())
+        except Exception:
+            pass
+
+    raise TypeError(f"不支持的图片分析响应类型: {type(response).__name__}")
+
+
 def describe_image(path: str | Path) -> str:
     image_path = Path(path)
     settings = get_image_analysis_settings()
@@ -52,7 +90,7 @@ def describe_image(path: str | Path) -> str:
                 },
             ],
         )
-        message = response.choices[0].message
+        message = _coerce_response_message(response)
         summary = _extract_message_text(getattr(message, "content", ""))
         if not summary:
             return "图片分析失败: 图片分析响应为空。"

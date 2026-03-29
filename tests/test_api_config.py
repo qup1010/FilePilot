@@ -49,6 +49,20 @@ class ApiConfigTests(unittest.TestCase):
         self.assertEqual(response.json()["id"], "new-id")
         add_mock.assert_called_once_with("vision", "Qwen Vision", copy_from_active=True)
 
+    def test_get_config_secrets_returns_requested_secret_values(self):
+        with mock.patch(
+            "file_organizer.shared.config_manager.config_manager.get_secret_values",
+            return_value={"OPENAI_API_KEY": "sk-live-secret"},
+        ) as secrets_mock:
+            response = self.client.post(
+                "/api/utils/config/secrets",
+                json={"keys": ["OPENAI_API_KEY"]},
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["secrets"], {"OPENAI_API_KEY": "sk-live-secret"})
+        secrets_mock.assert_called_once_with(["OPENAI_API_KEY"])
+
     def test_test_llm_rejects_incomplete_text_config(self):
         response = self.client.post(
             "/api/utils/test-llm",
@@ -75,9 +89,9 @@ class ApiConfigTests(unittest.TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertEqual(response.json()["message"], "图片模型需要完整填写接口地址、模型 ID 和 API 密钥")
 
-    def test_test_llm_uses_masked_secret_from_config_manager(self):
+    def test_test_llm_uses_stored_secret_only_when_frontend_explicitly_requests_it(self):
         mock_client = mock.Mock()
-        mock_client.models.list.return_value = []
+        mock_client.chat.completions.create.return_value = mock.Mock()
 
         with mock.patch("openai.OpenAI", return_value=mock_client) as openai_mock, mock.patch(
             "file_organizer.shared.config_manager.config_manager.get",
@@ -90,12 +104,34 @@ class ApiConfigTests(unittest.TestCase):
                     "OPENAI_BASE_URL": "https://text.example/v1",
                     "OPENAI_MODEL": "gpt-5.2",
                     "OPENAI_API_KEY": "sk-abcd...wxyz",
+                    "OPENAI_API_KEY_USE_STORED": True,
                 },
             )
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["status"], "ok")
         openai_mock.assert_called_once_with(api_key="persisted-secret", base_url="https://text.example/v1")
+        mock_client.chat.completions.create.assert_called_once_with(
+            model="gpt-5.2",
+            messages=[{"role": "user", "content": "ping"}],
+            max_tokens=1,
+        )
+
+    def test_test_llm_rejects_masked_secret_without_explicit_reuse_flag(self):
+        with mock.patch("file_organizer.shared.config_manager.config_manager.get") as get_mock:
+            response = self.client.post(
+                "/api/utils/test-llm",
+                json={
+                    "test_type": "text",
+                    "OPENAI_BASE_URL": "https://text.example/v1",
+                    "OPENAI_MODEL": "gpt-5.2",
+                    "OPENAI_API_KEY": "sk-abcd...wxyz",
+                },
+            )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("脱敏展示值", response.json()["message"])
+        get_mock.assert_not_called()
 
     def test_create_app_does_not_register_duplicate_api_routes(self):
         route_counts = Counter(

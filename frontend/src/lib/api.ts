@@ -64,6 +64,7 @@ export interface ApiClient {
   getHistory(): Promise<HistoryItem[]>;
   deleteHistoryEntry(entry_id: string): Promise<{ status: string; entry_id: string; entry_type: string }>;
   getConfig(): Promise<AppConfig>;
+  getConfigSecrets(keys: string[]): Promise<Record<string, string>>;
   updateConfig(config: Record<string, any>): Promise<{ status: string }>;
   switchPreset(preset_type: "text" | "vision", id: string): Promise<{ status: string }>;
   addPreset(preset_type: "text" | "vision", name: string, copy?: boolean): Promise<{ status: string; id: string }>;
@@ -215,6 +216,15 @@ export function createApiClient(baseUrl: string, apiToken?: string): ApiClient {
         headers: buildAuthHeaders(apiToken),
       });
       return parseResponse<AppConfig>(response);
+    },
+    async getConfigSecrets(keys) {
+      const response = await fetch(joinUrl(baseUrl, "/api/utils/config/secrets"), {
+        method: "POST",
+        headers: buildAuthHeaders(apiToken, { "Content-Type": "application/json" }),
+        body: JSON.stringify({ keys }),
+      });
+      const payload = await parseResponse<{ secrets: Record<string, string> }>(response);
+      return payload.secrets;
     },
     async updateConfig(config) {
       const response = await fetch(joinUrl(baseUrl, "/api/utils/config"), {

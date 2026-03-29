@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type Dispatch, type SetStateAction } from "react";
 import {
   AlertCircle,
   CheckCircle2,
@@ -45,6 +45,11 @@ import {
 
 type PresetType = "text" | "vision";
 type SettingsCategory = "models" | "launch" | "advanced";
+type ConfigSecretKey = "OPENAI_API_KEY" | "IMAGE_ANALYSIS_API_KEY";
+
+function isMaskedSecret(value: unknown): boolean {
+  return typeof value === "string" && Boolean(value) && (value === "********" || value.includes("..."));
+}
 
 interface DialogState {
   type: "prompt" | "confirm";
@@ -176,6 +181,44 @@ export default function SettingsPage() {
     setTestResult(null);
   };
 
+  const revealConfigSecret = async (key: ConfigSecretKey) => {
+    try {
+      const currentValue = config?.[key];
+      const originalValue = originalConfig?.[key];
+      const shouldLoadStoredSecret = isMaskedSecret(currentValue) && currentValue === originalValue;
+
+      if (!shouldLoadStoredSecret) {
+        return true;
+      }
+
+      const secrets = await api.getConfigSecrets([key]);
+      const nextValue = secrets[key] ?? "";
+
+      setConfig((prev: any) => ({ ...prev, [key]: nextValue }));
+      setOriginalConfig((prev: any) => ({ ...prev, [key]: nextValue }));
+      return true;
+    } catch (err: any) {
+      setError(err?.message || "读取已保存的 API 密钥失败");
+      return false;
+    }
+  };
+
+  const handleToggleConfigSecret = async (
+    show: boolean,
+    setShow: Dispatch<SetStateAction<boolean>>,
+    key: ConfigSecretKey,
+  ) => {
+    if (show) {
+      setShow(false);
+      return;
+    }
+
+    const revealed = await revealConfigSecret(key);
+    if (revealed) {
+      setShow(true);
+    }
+  };
+
   const handleLaunchTemplateChange = (templateId: string) => {
     const suggested = getSuggestedSelection(templateId as any);
     setConfig((prev: any) => ({
@@ -207,6 +250,35 @@ export default function SettingsPage() {
     }
   }
 
+  const buildTextTestPayload = () => ({
+    ...config,
+    test_type: "text" as const,
+    OPENAI_API_KEY_USE_STORED: Boolean(
+      isMaskedSecret(config?.OPENAI_API_KEY)
+      && config?.OPENAI_API_KEY === originalConfig?.OPENAI_API_KEY,
+    ),
+  });
+
+  const buildVisionTestPayload = () => ({
+    ...config,
+    test_type: "vision" as const,
+    IMAGE_ANALYSIS_API_KEY_USE_STORED: Boolean(
+      isMaskedSecret(config?.IMAGE_ANALYSIS_API_KEY)
+      && config?.IMAGE_ANALYSIS_API_KEY === originalConfig?.IMAGE_ANALYSIS_API_KEY,
+    ),
+  });
+
+  const buildIconImageTestPayload = () => ({
+    test_type: "icon_image" as const,
+    ICON_IMAGE_API_KEY: iconConfig?.image_model.api_key,
+    ICON_IMAGE_BASE_URL: iconConfig?.image_model.base_url,
+    ICON_IMAGE_MODEL: iconConfig?.image_model.model,
+    ICON_IMAGE_API_KEY_USE_STORED: Boolean(
+      isMaskedSecret(iconConfig?.image_model.api_key)
+      && iconConfig?.image_model.api_key === originalIconConfig?.image_model.api_key,
+    ),
+  });
+
   const handleTest = async (type: "text" | "vision" | "icon_image") => {
     if (type === "text") {
       setTesting(true);
@@ -217,9 +289,12 @@ export default function SettingsPage() {
     }
     setTestResult(null);
     try {
-      const payload = type === "icon_image" 
-        ? { test_type: "icon_image", ICON_IMAGE_API_KEY: iconConfig?.image_model.api_key, ICON_IMAGE_BASE_URL: iconConfig?.image_model.base_url, ICON_IMAGE_MODEL: iconConfig?.image_model.model }
-        : { ...config, test_type: type };
+      const payload =
+        type === "icon_image"
+          ? buildIconImageTestPayload()
+          : type === "vision"
+            ? buildVisionTestPayload()
+            : buildTextTestPayload();
       const data = await api.testLlm(payload);
       setTestResult({
         type,
@@ -536,7 +611,7 @@ export default function SettingsPage() {
                           />
                           <button
                             type="button"
-                            onClick={() => setShowKey((current) => !current)}
+                            onClick={() => void handleToggleConfigSecret(showKey, setShowKey, "OPENAI_API_KEY")}
                             className="rounded-[8px] p-2 text-on-surface-variant/35 transition-colors hover:bg-surface-container-low hover:text-on-surface"
                           >
                             {showKey ? <EyeOff className="h-4.5 w-4.5" /> : <Eye className="h-4.5 w-4.5" />}
@@ -876,7 +951,7 @@ export default function SettingsPage() {
                           />
                           <button
                             type="button"
-                            onClick={() => setShowVisionKey((current) => !current)}
+                            onClick={() => void handleToggleConfigSecret(showVisionKey, setShowVisionKey, "IMAGE_ANALYSIS_API_KEY")}
                             className="rounded-[8px] p-2 text-on-surface-variant/35 transition-colors hover:bg-surface-container-low hover:text-on-surface"
                           >
                             {showVisionKey ? <EyeOff className="h-4.5 w-4.5" /> : <Eye className="h-4.5 w-4.5" />}

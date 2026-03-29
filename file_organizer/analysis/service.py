@@ -4,6 +4,7 @@ import re
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
+from types import SimpleNamespace
 
 from file_organizer.analysis.file_reader import list_local_files, read_local_file
 from file_organizer.analysis.models import AnalysisItem
@@ -204,6 +205,106 @@ def _extract_submitted_analysis(tool_calls) -> list[AnalysisItem] | None:
     return None
 
 
+def _normalize_tool_calls(tool_calls) -> list[SimpleNamespace]:
+    normalized = []
+    for tool_call in tool_calls or []:
+        if isinstance(tool_call, dict):
+            function = tool_call.get("function") or {}
+            normalized.append(
+                SimpleNamespace(
+                    id=tool_call.get("id"),
+                    type=tool_call.get("type", "function"),
+                    function=SimpleNamespace(
+                        name=function.get("name", ""),
+                        arguments=function.get("arguments", "") or "",
+                    ),
+                )
+            )
+            continue
+
+        function = getattr(tool_call, "function", None)
+        if function is None:
+            continue
+        normalized.append(
+            SimpleNamespace(
+                id=getattr(tool_call, "id", None),
+                type=getattr(tool_call, "type", "function"),
+                function=SimpleNamespace(
+                    name=getattr(function, "name", ""),
+                    arguments=getattr(function, "arguments", "") or "",
+                ),
+            )
+        )
+    return normalized
+
+
+def _coerce_response_message(response):
+    if hasattr(response, "choices"):
+        choices = getattr(response, "choices", None) or []
+        if not choices:
+            raise ValueError("模型响应缺少 choices")
+        message = getattr(choices[0], "message", None)
+        if message is None:
+            raise ValueError("模型响应缺少 message")
+        return SimpleNamespace(
+            content=getattr(message, "content", "") or "",
+            tool_calls=_normalize_tool_calls(getattr(message, "tool_calls", None)),
+        )
+
+    if isinstance(response, str):
+        text = response.strip()
+        if text and text[0] in "[{":
+            try:
+                return _coerce_response_message(json.loads(text))
+            except json.JSONDecodeError:
+                pass
+        return SimpleNamespace(content=text, tool_calls=[])
+
+    if isinstance(response, dict):
+        choices = response.get("choices") or []
+        if not choices:
+            raise ValueError("模型响应缺少 choices")
+        message = choices[0].get("message") or {}
+        return SimpleNamespace(
+            content=message.get("content", "") or "",
+            tool_calls=_normalize_tool_calls(message.get("tool_calls")),
+        )
+
+    if hasattr(response, "model_dump"):
+        try:
+            return _coerce_response_message(response.model_dump())
+        except Exception:
+            pass
+
+    raise TypeError(f"不支持的模型响应类型: {type(response).__name__}")
+
+
+def _serialize_assistant_message(message) -> dict:
+    tool_calls_payload = []
+    for tool_call in getattr(message, "tool_calls", None) or []:
+        function = getattr(tool_call, "function", None)
+        if function is None:
+            continue
+        tool_calls_payload.append(
+            {
+                "id": getattr(tool_call, "id", None),
+                "type": getattr(tool_call, "type", "function"),
+                "function": {
+                    "name": getattr(function, "name", ""),
+                    "arguments": getattr(function, "arguments", "") or "",
+                },
+            }
+        )
+
+    payload = {
+        "role": "assistant",
+        "content": getattr(message, "content", "") or "",
+    }
+    if tool_calls_payload:
+        payload["tool_calls"] = tool_calls_payload
+    return payload
+
+
 def _emit_text_response(content: str, event_handler=None) -> None:
     if not content:
         return
@@ -316,7 +417,7 @@ def _run_analysis_worker(
                 response = client.chat.completions.create(model=model, messages=curr_messages, tools=tools, tool_choice="auto")
             finally:
                 emit(event_handler, "model_wait_end")
-            msg = response.choices[0].message
+            msg = _coerce_response_message(response)
             submitted_items = _extract_submitted_analysis(getattr(msg, "tool_calls", None))
             if submitted_items is not None:
                 normalized_items, invalid_lines = _normalize_analysis_items(submitted_items, target_dir)
@@ -339,7 +440,7 @@ def _run_analysis_worker(
                     check["is_valid"] = False
                 break
 
-            curr_messages.append(msg)
+            curr_messages.append(_serialize_assistant_message(msg))
             for tool_call in msg.tool_calls:
                 name = tool_call.function.name
                 if name == SUBMIT_ANALYSIS_TOOL_NAME:

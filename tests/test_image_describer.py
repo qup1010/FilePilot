@@ -99,6 +99,48 @@ class ImageDescriberTests(unittest.TestCase):
         self.assertIn("图片分析失败", result)
         self.assertIn("model does not support vision", result)
 
+    def test_describe_image_accepts_plain_text_string_response(self):
+        mock_client = mock.Mock()
+        mock_client.chat.completions.create.return_value = "这是一张聊天截图，主要在讨论付款和交付时间。"
+
+        with mock.patch(
+            "file_organizer.analysis.image_describer.get_image_analysis_settings",
+            return_value={
+                "enabled": True,
+                "base_url": "https://vision.example/v1",
+                "api_key": "secret",
+                "model": "vision-1",
+            },
+        ), mock.patch(
+            "file_organizer.analysis.image_describer.create_image_analysis_client",
+            return_value=mock_client,
+        ):
+            result = describe_image(self.image_path)
+
+        self.assertEqual(result, "这是一张聊天截图，主要在讨论付款和交付时间。")
+
+    def test_describe_image_accepts_json_string_response(self):
+        mock_client = mock.Mock()
+        mock_client.chat.completions.create.return_value = (
+            '{"choices":[{"message":{"content":"这是一张聊天截图，主要在讨论付款和交付时间。"}}]}'
+        )
+
+        with mock.patch(
+            "file_organizer.analysis.image_describer.get_image_analysis_settings",
+            return_value={
+                "enabled": True,
+                "base_url": "https://vision.example/v1",
+                "api_key": "secret",
+                "model": "vision-1",
+            },
+        ), mock.patch(
+            "file_organizer.analysis.image_describer.create_image_analysis_client",
+            return_value=mock_client,
+        ):
+            result = describe_image(self.image_path)
+
+        self.assertEqual(result, "这是一张聊天截图，主要在讨论付款和交付时间。")
+
 
 if __name__ == "__main__":
     unittest.main()

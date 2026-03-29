@@ -140,20 +140,28 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-surface text-on-surface font-sans">
-      <header className="z-50 grid h-[54px] shrink-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center border-b border-on-surface/8 bg-surface-container-lowest px-2 sm:px-4">
-        <div className="flex shrink-0 items-center gap-2 border-r border-on-surface/6 pr-3 lg:pr-4">
-          <Link href="/" className="flex items-center gap-2.5">
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[9px] border border-on-surface/8 bg-surface-container text-[0.92rem] font-black text-on-surface transition-transform active:scale-95">
-              F
+      <header className="z-50 grid h-[60px] shrink-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center border-b border-on-surface/7 bg-surface-container-lowest/96 px-3 backdrop-blur sm:px-4">
+        <div className="flex shrink-0 items-center gap-3 pr-3 lg:pr-5">
+          <Link href="/" className="flex items-center gap-3">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] border border-on-surface/8 bg-surface text-[0.92rem] font-black text-primary transition-transform active:scale-95">
+              FO
             </div>
-            <p className="hidden md:block truncate text-[14px] font-black tracking-tight text-on-surface">File Organizer</p>
+            <div className="hidden min-w-0 md:block">
+              <p className="truncate text-[13px] font-black uppercase tracking-[0.16em] text-primary/70">Desktop Console</p>
+              <p className="truncate text-[14px] font-black tracking-tight text-on-surface">File Organizer</p>
+            </div>
           </Link>
         </div>
 
-        <div className="flex min-w-0 items-center gap-1.5 px-3 lg:gap-2.5">
-          <p className="truncate text-[13px] font-bold text-on-surface sm:text-[14px]">{moduleCopy.title}</p>
-          <ChevronRight className="hidden sm:block h-3.5 w-3.5 text-on-surface/25" />
-          <p className="hidden truncate text-[12px] text-ui-muted sm:block">{moduleCopy.detail}</p>
+        <div className="flex min-w-0 items-center gap-2 border-l border-r border-on-surface/6 px-3 lg:px-5">
+          <div className="min-w-0">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-ui-muted">Current Module</p>
+            <div className="mt-0.5 flex min-w-0 items-center gap-2">
+              <p className="truncate text-[14px] font-black tracking-tight text-on-surface sm:text-[15px]">{moduleCopy.title}</p>
+              <ChevronRight className="hidden h-3.5 w-3.5 shrink-0 text-on-surface/20 sm:block" />
+              <p className="hidden truncate text-[12px] text-ui-muted sm:block">{moduleCopy.detail}</p>
+            </div>
+          </div>
         </div>
 
         <div className="flex items-center justify-end gap-1.5 sm:gap-2">
@@ -165,8 +173,8 @@ export function AppShell({ children }: { children: ReactNode }) {
                   key={item.href}
                   href={item.href}
                   className={cn(
-                    "inline-flex items-center gap-2 rounded-[8px] px-2 py-1.5 text-[12px] font-bold transition-all sm:px-3",
-                    isActive ? "bg-white text-on-surface shadow-sm" : "text-ui-muted hover:text-on-surface",
+                    "inline-flex items-center gap-2 rounded-[8px] px-2.5 py-1.5 text-[12px] font-bold transition-all sm:px-3.5",
+                    isActive ? "bg-surface text-on-surface shadow-[inset_0_0_0_1px_rgba(0,0,0,0.04)]" : "text-ui-muted hover:text-on-surface",
                   )}
                 >
                   <item.icon className={cn("h-4 w-4", isActive ? "text-primary" : "text-current")} />

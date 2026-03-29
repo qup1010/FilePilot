@@ -1,0 +1,740 @@
+2026-03-28 10:19:19 [INFO] __main__: backend.starting host=127.0.0.1 port=8765 reload=False runtime_log=D:\3_Projects\Active\file-organizer-GUI-\logs\backend\runtime.log
+2026-03-28 10:19:20 [INFO] uvicorn.error: Started server process [37544]
+2026-03-28 10:19:20 [INFO] uvicorn.error: Waiting for application startup.
+2026-03-28 10:19:20 [INFO] uvicorn.error: Application startup complete.
+2026-03-28 10:19:20 [INFO] uvicorn.error: Uvicorn running on http://127.0.0.1:8765 (Press CTRL+C to quit)
+2026-03-28 11:20:56 [INFO] __main__: backend.starting host=127.0.0.1 port=8765 reload=False runtime_log=D:\3_Projects\Active\file-organizer-GUI-\logs\backend\runtime.log
+2026-03-28 11:20:56 [INFO] uvicorn.error: Started server process [32836]
+2026-03-28 11:20:56 [INFO] uvicorn.error: Waiting for application startup.
+2026-03-28 11:20:56 [INFO] uvicorn.error: Application startup complete.
+2026-03-28 11:20:56 [INFO] uvicorn.error: Uvicorn running on http://127.0.0.1:8765 (Press CTRL+C to quit)
+2026-03-28 11:21:03 [INFO] __main__: backend.starting host=127.0.0.1 port=8765 reload=False runtime_log=D:\3_Projects\Active\file-organizer-GUI-\logs\backend\runtime.log
+2026-03-28 11:21:03 [INFO] uvicorn.error: Started server process [6000]
+2026-03-28 11:21:03 [INFO] uvicorn.error: Waiting for application startup.
+2026-03-28 11:21:03 [INFO] uvicorn.error: Application startup complete.
+2026-03-28 11:21:03 [INFO] uvicorn.error: Uvicorn running on http://127.0.0.1:8765 (Press CTRL+C to quit)
+2026-03-28 11:49:24 [INFO] __main__: backend.starting host=127.0.0.1 port=8765 reload=False runtime_log=D:\3_Projects\Active\file-organizer-GUI-\logs\backend\runtime.log
+2026-03-28 11:49:24 [INFO] uvicorn.error: Started server process [40452]
+2026-03-28 11:49:24 [INFO] uvicorn.error: Waiting for application startup.
+2026-03-28 11:49:24 [INFO] uvicorn.error: Application startup complete.
+2026-03-28 11:49:24 [INFO] uvicorn.error: Uvicorn running on http://127.0.0.1:8765 (Press CTRL+C to quit)
+2026-03-28 12:10:38 [INFO] __main__: backend.starting host=127.0.0.1 port=8765 reload=False runtime_log=D:\3_Projects\Active\file-organizer-GUI-\logs\backend\runtime.log
+2026-03-28 12:10:38 [INFO] uvicorn.error: Started server process [6308]
+2026-03-28 12:10:38 [INFO] uvicorn.error: Waiting for application startup.
+2026-03-28 12:10:38 [INFO] uvicorn.error: Application startup complete.
+2026-03-28 12:10:38 [INFO] uvicorn.error: Uvicorn running on http://127.0.0.1:8765 (Press CTRL+C to quit)
+2026-03-28 12:37:29 [INFO] __main__: backend.starting host=127.0.0.1 port=8765 reload=False runtime_log=D:\3_Projects\Active\file-organizer-GUI-\logs\backend\runtime.log
+2026-03-28 12:37:29 [INFO] uvicorn.error: Started server process [228]
+2026-03-28 12:37:29 [INFO] uvicorn.error: Waiting for application startup.
+2026-03-28 12:37:29 [INFO] uvicorn.error: Application startup complete.
+2026-03-28 12:37:29 [INFO] uvicorn.error: Uvicorn running on http://127.0.0.1:8765 (Press CTRL+C to quit)
+2026-03-28 13:05:37 [INFO] __main__: backend.starting host=127.0.0.1 port=8765 reload=False runtime_log=D:\3_Projects\Active\file-organizer-GUI-\logs\backend\runtime.log
+2026-03-28 13:05:38 [INFO] uvicorn.error: Started server process [39092]
+2026-03-28 13:05:38 [INFO] uvicorn.error: Waiting for application startup.
+2026-03-28 13:05:38 [INFO] uvicorn.error: Application startup complete.
+2026-03-28 13:05:38 [INFO] uvicorn.error: Uvicorn running on http://127.0.0.1:8765 (Press CTRL+C to quit)
+2026-03-28 13:14:24 [INFO] httpx: HTTP Request: POST http://testserver/api/icon-workbench/sessions/icon-session/apply-template "HTTP/1.1 200 OK"
+2026-03-28 13:14:24 [INFO] httpx: HTTP Request: POST http://testserver/api/icon-workbench/sessions/icon-session/apply-ready "HTTP/1.1 200 OK"
+2026-03-28 13:14:24 [INFO] httpx: HTTP Request: POST http://testserver/api/icon-workbench/sessions/icon-session/analyze "HTTP/1.1 200 OK"
+2026-03-28 13:14:24 [INFO] httpx: HTTP Request: POST http://testserver/api/icon-workbench/sessions/icon-session/generate "HTTP/1.1 200 OK"
+2026-03-28 13:14:24 [INFO] httpx: HTTP Request: POST http://testserver/api/icon-workbench/sessions/icon-session/actions/action-1/confirm "HTTP/1.1 200 OK"
+2026-03-28 13:14:24 [INFO] httpx: HTTP Request: POST http://testserver/api/icon-workbench/sessions/icon-session/actions/action-1/dismiss "HTTP/1.1 200 OK"
+2026-03-28 13:14:24 [INFO] httpx: HTTP Request: POST http://testserver/api/icon-workbench/sessions/icon-session/client-actions/report "HTTP/1.1 200 OK"
+2026-03-28 13:14:24 [INFO] httpx: HTTP Request: POST http://testserver/api/icon-workbench/sessions "HTTP/1.1 200 OK"
+2026-03-28 13:14:24 [INFO] httpx: HTTP Request: GET http://testserver/api/icon-workbench/sessions/icon-session/folders/folder-1/versions/version-1/image "HTTP/1.1 200 OK"
+2026-03-28 13:14:24 [INFO] httpx: HTTP Request: POST http://testserver/api/icon-workbench/sessions/icon-session/messages "HTTP/1.1 200 OK"
+2026-03-28 13:14:24 [INFO] httpx: HTTP Request: POST http://testserver/api/icon-workbench/sessions/icon-session/folders/folder-1/prompt "HTTP/1.1 200 OK"
+2026-03-28 13:14:24 [INFO] httpx: HTTP Request: POST http://testserver/api/icon-workbench/sessions/icon-session/folders/folder-1/select-version "HTTP/1.1 200 OK"
+2026-03-28 13:14:24 [INFO] httpx: HTTP Request: GET http://testserver/api/icon-workbench/config "HTTP/1.1 200 OK"
+2026-03-28 13:14:24 [INFO] httpx: HTTP Request: POST http://testserver/api/icon-workbench/config "HTTP/1.1 200 OK"
+2026-03-28 13:14:25 [INFO] httpx: HTTP Request: POST http://testserver/api/icon-workbench/sessions/icon-session/targets "HTTP/1.1 200 OK"
+2026-03-28 13:14:25 [INFO] httpx: HTTP Request: DELETE http://testserver/api/icon-workbench/sessions/icon-session/targets/folder-1 "HTTP/1.1 200 OK"
+2026-03-28 13:14:25 [INFO] httpx: HTTP Request: GET http://testserver/api/icon-workbench/templates "HTTP/1.1 200 OK"
+2026-03-28 13:14:25 [INFO] httpx: HTTP Request: POST http://testserver/api/icon-workbench/templates "HTTP/1.1 200 OK"
+2026-03-28 13:14:25 [INFO] httpx: HTTP Request: PATCH http://testserver/api/icon-workbench/templates/user-template-1 "HTTP/1.1 200 OK"
+2026-03-28 13:14:25 [INFO] httpx: HTTP Request: DELETE http://testserver/api/icon-workbench/templates/user-template-1 "HTTP/1.1 200 OK"
+2026-03-28 13:15:20 [INFO] httpx: HTTP Request: POST http://testserver/api/icon-workbench/sessions/icon-session/apply-template "HTTP/1.1 200 OK"
+2026-03-28 13:15:20 [INFO] httpx: HTTP Request: POST http://testserver/api/icon-workbench/sessions/icon-session/apply-ready "HTTP/1.1 200 OK"
+2026-03-28 13:15:20 [INFO] httpx: HTTP Request: POST http://testserver/api/icon-workbench/sessions/icon-session/analyze "HTTP/1.1 200 OK"
+2026-03-28 13:15:20 [INFO] httpx: HTTP Request: POST http://testserver/api/icon-workbench/sessions/icon-session/generate "HTTP/1.1 200 OK"
+2026-03-28 13:15:20 [INFO] httpx: HTTP Request: POST http://testserver/api/icon-workbench/sessions/icon-session/actions/action-1/confirm "HTTP/1.1 200 OK"
+2026-03-28 13:15:20 [INFO] httpx: HTTP Request: POST http://testserver/api/icon-workbench/sessions/icon-session/actions/action-1/dismiss "HTTP/1.1 200 OK"
+2026-03-28 13:15:20 [INFO] httpx: HTTP Request: POST http://testserver/api/icon-workbench/sessions/icon-session/client-actions/report "HTTP/1.1 200 OK"
+2026-03-28 13:15:20 [INFO] httpx: HTTP Request: POST http://testserver/api/icon-workbench/sessions "HTTP/1.1 200 OK"
+2026-03-28 13:15:20 [INFO] httpx: HTTP Request: GET http://testserver/api/icon-workbench/sessions/icon-session/folders/folder-1/versions/version-1/image "HTTP/1.1 200 OK"
+2026-03-28 13:15:20 [INFO] httpx: HTTP Request: POST http://testserver/api/icon-workbench/sessions/icon-session/messages "HTTP/1.1 200 OK"
+2026-03-28 13:15:20 [INFO] httpx: HTTP Request: POST http://testserver/api/icon-workbench/sessions/icon-session/folders/folder-1/prompt "HTTP/1.1 200 OK"
+2026-03-28 13:15:20 [INFO] httpx: HTTP Request: POST http://testserver/api/icon-workbench/sessions/icon-session/folders/folder-1/select-version "HTTP/1.1 200 OK"
+2026-03-28 13:15:20 [INFO] httpx: HTTP Request: GET http://testserver/api/icon-workbench/config "HTTP/1.1 200 OK"
+2026-03-28 13:15:20 [INFO] httpx: HTTP Request: POST http://testserver/api/icon-workbench/config "HTTP/1.1 200 OK"
+2026-03-28 13:15:20 [INFO] httpx: HTTP Request: POST http://testserver/api/icon-workbench/sessions/icon-session/targets "HTTP/1.1 200 OK"
+2026-03-28 13:15:20 [INFO] httpx: HTTP Request: DELETE http://testserver/api/icon-workbench/sessions/icon-session/targets/folder-1 "HTTP/1.1 200 OK"
+2026-03-28 13:15:20 [INFO] httpx: HTTP Request: GET http://testserver/api/icon-workbench/templates "HTTP/1.1 200 OK"
+2026-03-28 13:15:20 [INFO] httpx: HTTP Request: POST http://testserver/api/icon-workbench/templates "HTTP/1.1 200 OK"
+2026-03-28 13:15:20 [INFO] httpx: HTTP Request: PATCH http://testserver/api/icon-workbench/templates/user-template-1 "HTTP/1.1 200 OK"
+2026-03-28 13:15:20 [INFO] httpx: HTTP Request: DELETE http://testserver/api/icon-workbench/templates/user-template-1 "HTTP/1.1 200 OK"
+2026-03-28 14:35:32 [INFO] __main__: backend.starting host=127.0.0.1 port=8765 reload=False runtime_log=D:\3_Projects\Active\file-organizer-GUI-\logs\backend\runtime.log
+2026-03-28 14:35:33 [INFO] uvicorn.error: Started server process [2640]
+2026-03-28 14:35:33 [INFO] uvicorn.error: Waiting for application startup.
+2026-03-28 14:35:33 [INFO] uvicorn.error: Application startup complete.
+2026-03-28 14:35:33 [INFO] uvicorn.error: Uvicorn running on http://127.0.0.1:8765 (Press CTRL+C to quit)
+2026-03-28 14:45:00 [INFO] __main__: backend.starting host=127.0.0.1 port=8765 reload=False runtime_log=D:\3_Projects\Active\file-organizer-GUI-\logs\backend\runtime.log
+2026-03-28 14:45:00 [INFO] uvicorn.error: Started server process [36100]
+2026-03-28 14:45:00 [INFO] uvicorn.error: Waiting for application startup.
+2026-03-28 14:45:00 [INFO] uvicorn.error: Application startup complete.
+2026-03-28 14:45:00 [INFO] uvicorn.error: Uvicorn running on http://127.0.0.1:8765 (Press CTRL+C to quit)
+2026-03-28 14:54:49 [INFO] __main__: backend.starting host=127.0.0.1 port=8765 reload=False runtime_log=D:\3_Projects\Active\file-organizer-GUI-\logs\backend\runtime.log
+2026-03-28 14:54:49 [INFO] uvicorn.error: Started server process [41100]
+2026-03-28 14:54:49 [INFO] uvicorn.error: Waiting for application startup.
+2026-03-28 14:54:49 [INFO] uvicorn.error: Application startup complete.
+2026-03-28 14:54:49 [INFO] uvicorn.error: Uvicorn running on http://127.0.0.1:8765 (Press CTRL+C to quit)
+2026-03-28 15:11:36 [INFO] __main__: backend.starting host=127.0.0.1 port=8765 reload=False runtime_log=D:\3_Projects\Active\file-organizer-GUI-\logs\backend\runtime.log
+2026-03-28 15:11:37 [INFO] uvicorn.error: Started server process [4832]
+2026-03-28 15:11:37 [INFO] uvicorn.error: Waiting for application startup.
+2026-03-28 15:11:37 [INFO] uvicorn.error: Application startup complete.
+2026-03-28 15:11:37 [INFO] uvicorn.error: Uvicorn running on http://127.0.0.1:8765 (Press CTRL+C to quit)
+2026-03-28 15:15:38 [INFO] file_organizer.app.session_service: session.created session_id=1696d31b52ea4dc2add6736364f741c3 target_dir=d:/5_downloads/downloads/123 - 副本/项目资料 stage=draft summary={"moves": 0, "unresolved": 0, "strategy": {"template_id": "general_downloads", "naming_style": "zh", "caution_level": "conservative", "note": ""}}
+2026-03-28 15:15:38 [INFO] file_organizer.app.session_service: scan.started session_id=1696d31b52ea4dc2add6736364f741c3 target_dir=d:/5_downloads/downloads/123 - 副本/项目资料 stage=scanning summary={"moves": 0, "unresolved": 0}
+2026-03-28 15:15:43 [INFO] httpx: HTTP Request: POST https://ai.qaq.al/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-28 15:15:47 [INFO] httpx: HTTP Request: POST https://ai.qaq.al/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-28 15:15:47 [INFO] file_organizer.app.session_service: scan.completed session_id=1696d31b52ea4dc2add6736364f741c3 target_dir=d:/5_downloads/downloads/123 - 副本/项目资料 stage=planning summary={"moves": 0, "unresolved": 0, "entry_count": 3, "auto_plan_pending": true}
+2026-03-28 15:15:47 [INFO] file_organizer.app.session_service: plan.auto_started session_id=1696d31b52ea4dc2add6736364f741c3 target_dir=d:/5_downloads/downloads/123 - 副本/项目资料 stage=planning summary={"moves": 0, "unresolved": 0}
+2026-03-28 15:15:49 [INFO] httpx: HTTP Request: POST https://ai.qaq.al/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-28 15:15:55 [INFO] file_organizer.app.session_service: plan.auto_completed session_id=1696d31b52ea4dc2add6736364f741c3 target_dir=d:/5_downloads/downloads/123 - 副本/项目资料 stage=ready_for_precheck summary={"moves": 3, "unresolved": 0, "summary": "已分类 3 项，调整 3 项，仍剩 0 项待定"}
+2026-03-28 15:32:07 [INFO] file_organizer.app.session_service: session.resume_available session_id=1696d31b52ea4dc2add6736364f741c3 target_dir=d:/5_downloads/downloads/123 - 副本/项目资料 stage=ready_for_precheck summary={"moves": 3, "unresolved": 0, "existing_session_id": "1696d31b52ea4dc2add6736364f741c3"}
+2026-03-28 15:32:09 [INFO] file_organizer.app.session_service: session.abandoned session_id=1696d31b52ea4dc2add6736364f741c3 target_dir=d:/5_downloads/downloads/123 - 副本/项目资料 stage=abandoned summary={"moves": 3, "unresolved": 0}
+2026-03-28 15:32:09 [INFO] file_organizer.app.session_service: session.created session_id=80fff8e98ea84df5af59ecf7a38d15ad target_dir=d:/5_downloads/downloads/123 - 副本/项目资料 stage=draft summary={"moves": 0, "unresolved": 0, "strategy": {"template_id": "general_downloads", "naming_style": "zh", "caution_level": "balanced", "note": ""}}
+2026-03-28 15:32:09 [INFO] file_organizer.app.session_service: scan.started session_id=80fff8e98ea84df5af59ecf7a38d15ad target_dir=d:/5_downloads/downloads/123 - 副本/项目资料 stage=scanning summary={"moves": 0, "unresolved": 0}
+2026-03-28 15:32:14 [INFO] httpx: HTTP Request: POST https://ai.qaq.al/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-28 15:32:18 [INFO] httpx: HTTP Request: POST https://ai.qaq.al/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-28 15:32:18 [INFO] file_organizer.app.session_service: scan.completed session_id=80fff8e98ea84df5af59ecf7a38d15ad target_dir=d:/5_downloads/downloads/123 - 副本/项目资料 stage=planning summary={"moves": 0, "unresolved": 0, "entry_count": 3, "auto_plan_pending": true}
+2026-03-28 15:32:18 [INFO] file_organizer.app.session_service: plan.auto_started session_id=80fff8e98ea84df5af59ecf7a38d15ad target_dir=d:/5_downloads/downloads/123 - 副本/项目资料 stage=planning summary={"moves": 0, "unresolved": 0}
+2026-03-28 15:32:20 [INFO] httpx: HTTP Request: POST https://ai.qaq.al/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-28 15:32:40 [INFO] file_organizer.app.session_service: plan.auto_completed session_id=80fff8e98ea84df5af59ecf7a38d15ad target_dir=d:/5_downloads/downloads/123 - 副本/项目资料 stage=ready_for_precheck summary={"moves": 3, "unresolved": 0, "summary": "已分类 3 项，调整 1 项，仍剩 0 项待定"}
+2026-03-28 15:44:00 [INFO] file_organizer.app.session_service: session.abandoned session_id=80fff8e98ea84df5af59ecf7a38d15ad target_dir=d:/5_downloads/downloads/123 - 副本/项目资料 stage=abandoned summary={"moves": 3, "unresolved": 0}
+2026-03-28 15:44:09 [INFO] file_organizer.app.session_service: session.created session_id=151d178241fa4873b04e0ad32b044371 target_dir=d:/5_downloads/downloads/123 - 副本/项目资料 stage=draft summary={"moves": 0, "unresolved": 0, "strategy": {"template_id": "general_downloads", "naming_style": "zh", "caution_level": "balanced", "note": ""}}
+2026-03-28 15:44:09 [INFO] file_organizer.app.session_service: scan.started session_id=151d178241fa4873b04e0ad32b044371 target_dir=d:/5_downloads/downloads/123 - 副本/项目资料 stage=scanning summary={"moves": 0, "unresolved": 0}
+2026-03-28 15:44:16 [INFO] httpx: HTTP Request: POST https://ai.qaq.al/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-28 15:44:22 [INFO] httpx: HTTP Request: POST https://ai.qaq.al/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-28 15:44:22 [INFO] file_organizer.app.session_service: scan.completed session_id=151d178241fa4873b04e0ad32b044371 target_dir=d:/5_downloads/downloads/123 - 副本/项目资料 stage=planning summary={"moves": 0, "unresolved": 0, "entry_count": 3, "auto_plan_pending": true}
+2026-03-28 15:44:22 [INFO] file_organizer.app.session_service: plan.auto_started session_id=151d178241fa4873b04e0ad32b044371 target_dir=d:/5_downloads/downloads/123 - 副本/项目资料 stage=planning summary={"moves": 0, "unresolved": 0}
+2026-03-28 15:44:24 [INFO] httpx: HTTP Request: POST https://ai.qaq.al/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-28 15:44:31 [INFO] file_organizer.app.session_service: plan.auto_completed session_id=151d178241fa4873b04e0ad32b044371 target_dir=d:/5_downloads/downloads/123 - 副本/项目资料 stage=ready_for_precheck summary={"moves": 3, "unresolved": 0, "summary": "已分类 3 项，调整 1 项，仍剩 0 项待定"}
+2026-03-28 17:19:35 [INFO] file_organizer.app.session_service: session.created session_id=8870691dc0b04296a07d1ab8f7f8f1f4 target_dir=d:/3_projects/active/file-organizer-gui-/test_temp_api/inbox stage=draft summary={"moves": 0, "unresolved": 0, "strategy": {"template_id": "general_downloads", "naming_style": "zh", "caution_level": "balanced", "note": ""}}
+2026-03-28 17:19:35 [INFO] httpx: HTTP Request: POST http://testserver/api/sessions "HTTP/1.1 200 OK"
+2026-03-28 17:19:35 [INFO] httpx: HTTP Request: POST http://testserver/api/sessions/8870691dc0b04296a07d1ab8f7f8f1f4/cleanup-empty-dirs "HTTP/1.1 200 OK"
+2026-03-28 17:19:35 [INFO] httpx: HTTP Request: OPTIONS http://testserver/api/sessions "HTTP/1.1 200 OK"
+2026-03-28 17:19:35 [INFO] httpx: HTTP Request: DELETE http://testserver/api/history/exec-delete-1 "HTTP/1.1 200 OK"
+2026-03-28 17:19:35 [INFO] file_organizer.app.session_service: session.created session_id=5ebbfe03aed74a8eb28608bd449940bf target_dir=d:/3_projects/active/file-organizer-gui-/test_temp_api/inbox stage=draft summary={"moves": 0, "unresolved": 0, "strategy": {"template_id": "general_downloads", "naming_style": "zh", "caution_level": "balanced", "note": ""}}
+2026-03-28 17:19:35 [INFO] httpx: HTTP Request: POST http://testserver/api/sessions "HTTP/1.1 200 OK"
+2026-03-28 17:19:35 [INFO] httpx: HTTP Request: DELETE http://testserver/api/history/5ebbfe03aed74a8eb28608bd449940bf "HTTP/1.1 200 OK"
+2026-03-28 17:19:35 [INFO] file_organizer.app.session_service: session.created session_id=c3739769972548ce832aa23fc51e57e0 target_dir=d:/3_projects/active/file-organizer-gui-/test_temp_api/inbox stage=draft summary={"moves": 0, "unresolved": 0, "strategy": {"template_id": "general_downloads", "naming_style": "zh", "caution_level": "balanced", "note": ""}}
+2026-03-28 17:19:35 [INFO] httpx: HTTP Request: POST http://testserver/api/sessions "HTTP/1.1 200 OK"
+2026-03-28 17:19:35 [INFO] httpx: HTTP Request: GET http://testserver/api/sessions/c3739769972548ce832aa23fc51e57e0/events "HTTP/1.1 200 OK"
+2026-03-28 17:19:35 [INFO] file_organizer.app.session_service: session.created session_id=b82e888c772547c3b3aeecca94643d2c target_dir=d:/3_projects/active/file-organizer-gui-/test_temp_api/inbox stage=draft summary={"moves": 0, "unresolved": 0, "strategy": {"template_id": "general_downloads", "naming_style": "zh", "caution_level": "balanced", "note": ""}}
+2026-03-28 17:19:35 [INFO] httpx: HTTP Request: POST http://testserver/api/sessions "HTTP/1.1 200 OK"
+2026-03-28 17:19:35 [INFO] httpx: HTTP Request: GET http://testserver/api/sessions/b82e888c772547c3b3aeecca94643d2c "HTTP/1.1 200 OK"
+2026-03-28 17:19:35 [INFO] httpx: HTTP Request: GET http://testserver/api/health "HTTP/1.1 200 OK"
+2026-03-28 17:19:35 [INFO] httpx: HTTP Request: GET http://testserver/api/health "HTTP/1.1 200 OK"
+2026-03-28 17:19:35 [INFO] file_organizer.app.session_service: session.created session_id=4f7313ad9fce43c1bdf55294dd6ff638 target_dir=d:/3_projects/active/file-organizer-gui-/test_temp_api/inbox stage=draft summary={"moves": 0, "unresolved": 0, "strategy": {"template_id": "general_downloads", "naming_style": "zh", "caution_level": "balanced", "note": ""}}
+2026-03-28 17:19:35 [INFO] httpx: HTTP Request: POST http://testserver/api/sessions "HTTP/1.1 200 OK"
+2026-03-28 17:19:35 [INFO] file_organizer.app.session_service: session.interrupted session_id=4f7313ad9fce43c1bdf55294dd6ff638 target_dir=d:/3_projects/active/file-organizer-gui-/test_temp_api/inbox stage=interrupted summary={"moves": 0, "unresolved": 0, "interrupted_during": "scanning"}
+2026-03-28 17:19:35 [INFO] httpx: HTTP Request: GET http://testserver/api/history "HTTP/1.1 200 OK"
+2026-03-28 17:19:35 [INFO] file_organizer.app.session_service: session.created session_id=e45fb2f668724108a27371284e62760e target_dir=d:/3_projects/active/file-organizer-gui-/test_temp_api/inbox stage=draft summary={"moves": 0, "unresolved": 0, "strategy": {"template_id": "general_downloads", "naming_style": "zh", "caution_level": "balanced", "note": ""}}
+2026-03-28 17:19:35 [INFO] httpx: HTTP Request: POST http://testserver/api/sessions "HTTP/1.1 200 OK"
+2026-03-28 17:19:35 [INFO] file_organizer.app.session_service: execution.started session_id=e45fb2f668724108a27371284e62760e target_dir=d:/3_projects/active/file-organizer-gui-/test_temp_api/inbox stage=executing summary={"moves": 1, "unresolved": 0}
+2026-03-28 17:19:35 [INFO] file_organizer.app.session_service: execution.completed session_id=e45fb2f668724108a27371284e62760e target_dir=d:/3_projects/active/file-organizer-gui-/test_temp_api/inbox stage=completed summary={"moves": 1, "unresolved": 0, "execution_id": "266d831d5d8d449c9284c699f6ab30fe", "success_count": 2, "failure_count": 0}
+2026-03-28 17:19:35 [INFO] httpx: HTTP Request: GET http://testserver/api/sessions/e45fb2f668724108a27371284e62760e/journal "HTTP/1.1 200 OK"
+2026-03-28 17:19:35 [INFO] file_organizer.app.session_service: session.created session_id=9984dea7f8a24e759771ccd6e11dde1a target_dir=d:/3_projects/active/file-organizer-gui-/test_temp_api/inbox stage=draft summary={"moves": 0, "unresolved": 0, "strategy": {"template_id": "general_downloads", "naming_style": "zh", "caution_level": "balanced", "note": ""}}
+2026-03-28 17:19:35 [INFO] httpx: HTTP Request: POST http://testserver/api/sessions "HTTP/1.1 200 OK"
+2026-03-28 17:19:35 [INFO] httpx: HTTP Request: POST http://testserver/api/sessions/9984dea7f8a24e759771ccd6e11dde1a/messages "HTTP/1.1 422 Unprocessable Entity"
+2026-03-28 17:19:35 [INFO] file_organizer.app.session_service: session.created session_id=a9e2f455fbb140e1b583ef9312af358f target_dir=d:/3_projects/active/file-organizer-gui-/test_temp_api/inbox stage=draft summary={"moves": 0, "unresolved": 0, "strategy": {"template_id": "general_downloads", "naming_style": "zh", "caution_level": "balanced", "note": ""}}
+2026-03-28 17:19:35 [INFO] httpx: HTTP Request: POST http://testserver/api/sessions "HTTP/1.1 200 OK"
+2026-03-28 17:19:35 [INFO] httpx: HTTP Request: POST http://testserver/api/sessions/a9e2f455fbb140e1b583ef9312af358f/messages "HTTP/1.1 200 OK"
+2026-03-28 17:19:35 [INFO] file_organizer.app.session_service: session.created session_id=7998287b644b46f8acb9a65f1e135279 target_dir=d:/3_projects/active/file-organizer-gui-/test_temp_api/inbox stage=draft summary={"moves": 0, "unresolved": 0, "strategy": {"template_id": "office_admin", "naming_style": "en", "caution_level": "balanced", "note": "票据优先归财务目录"}}
+2026-03-28 17:19:35 [INFO] httpx: HTTP Request: POST http://testserver/api/sessions "HTTP/1.1 200 OK"
+2026-03-28 17:19:35 [INFO] file_organizer.app.session_service: session.created session_id=491acc1f190e485bbee3a50291c1c9c9 target_dir=d:/3_projects/active/file-organizer-gui-/test_temp_api/inbox stage=draft summary={"moves": 0, "unresolved": 0, "strategy": {"template_id": "general_downloads", "naming_style": "zh", "caution_level": "balanced", "note": ""}}
+2026-03-28 17:19:35 [INFO] httpx: HTTP Request: POST http://testserver/api/sessions "HTTP/1.1 200 OK"
+2026-03-28 17:19:35 [INFO] file_organizer.app.session_service: session.created session_id=d2d8e3e0f5d448cf9087e53a13da4c33 target_dir=d:/3_projects/active/file-organizer-gui-/test_temp_api/inbox stage=draft summary={"moves": 0, "unresolved": 0, "strategy": {"template_id": "general_downloads", "naming_style": "zh", "caution_level": "balanced", "note": ""}}
+2026-03-28 17:19:35 [INFO] httpx: HTTP Request: POST http://testserver/api/sessions "HTTP/1.1 200 OK"
+2026-03-28 17:19:35 [INFO] httpx: HTTP Request: POST http://testserver/api/sessions "HTTP/1.1 422 Unprocessable Entity"
+2026-03-28 17:19:35 [INFO] file_organizer.app.session_service: session.created session_id=861f54064f3d4c07b480b7601dae848e target_dir=d:/3_projects/active/file-organizer-gui-/test_temp_api/inbox stage=draft summary={"moves": 0, "unresolved": 0, "strategy": {"template_id": "general_downloads", "naming_style": "zh", "caution_level": "balanced", "note": ""}}
+2026-03-28 17:19:35 [INFO] httpx: HTTP Request: POST http://testserver/api/sessions "HTTP/1.1 200 OK"
+2026-03-28 17:19:35 [INFO] file_organizer.app.session_service: session.created session_id=b83c61a0f6724060b4b130136d619cfe target_dir=d:/3_projects/active/file-organizer-gui-/test_temp_api/inbox stage=draft summary={"moves": 0, "unresolved": 0, "strategy": {"template_id": "project_workspace", "naming_style": "en", "caution_level": "balanced", "note": "旧策略"}}
+2026-03-28 17:19:35 [INFO] httpx: HTTP Request: POST http://testserver/api/sessions "HTTP/1.1 200 OK"
+2026-03-28 17:19:35 [INFO] file_organizer.app.session_service: session.resume_available session_id=b83c61a0f6724060b4b130136d619cfe target_dir=d:/3_projects/active/file-organizer-gui-/test_temp_api/inbox stage=draft summary={"moves": 0, "unresolved": 0, "existing_session_id": "b83c61a0f6724060b4b130136d619cfe"}
+2026-03-28 17:19:35 [INFO] httpx: HTTP Request: POST http://testserver/api/sessions "HTTP/1.1 200 OK"
+2026-03-28 17:19:36 [INFO] file_organizer.app.session_service: session.created session_id=0c8cce83431140aeb88f2788c914d714 target_dir=d:/3_projects/active/file-organizer-gui-/test_temp_api/inbox stage=draft summary={"moves": 0, "unresolved": 0, "strategy": {"template_id": "general_downloads", "naming_style": "zh", "caution_level": "balanced", "note": ""}}
+2026-03-28 17:19:36 [INFO] httpx: HTTP Request: POST http://testserver/api/sessions "HTTP/1.1 200 OK"
+2026-03-28 17:19:36 [INFO] file_organizer.app.session_service: precheck.started session_id=0c8cce83431140aeb88f2788c914d714 target_dir=d:/3_projects/active/file-organizer-gui-/test_temp_api/inbox stage=planning summary={"moves": 1, "unresolved": 0}
+2026-03-28 17:19:36 [INFO] file_organizer.app.session_service: precheck.completed session_id=0c8cce83431140aeb88f2788c914d714 target_dir=d:/3_projects/active/file-organizer-gui-/test_temp_api/inbox stage=ready_to_execute summary={"moves": 1, "unresolved": 0, "can_execute": true, "blocking_error_count": 0, "warning_count": 0}
+2026-03-28 17:19:36 [INFO] httpx: HTTP Request: POST http://testserver/api/sessions/0c8cce83431140aeb88f2788c914d714/precheck "HTTP/1.1 200 OK"
+2026-03-28 17:19:36 [INFO] file_organizer.app.session_service: execution.started session_id=0c8cce83431140aeb88f2788c914d714 target_dir=d:/3_projects/active/file-organizer-gui-/test_temp_api/inbox stage=executing summary={"moves": 1, "unresolved": 0}
+2026-03-28 17:19:36 [INFO] file_organizer.app.session_service: execution.completed session_id=0c8cce83431140aeb88f2788c914d714 target_dir=d:/3_projects/active/file-organizer-gui-/test_temp_api/inbox stage=completed summary={"moves": 1, "unresolved": 0, "execution_id": "e3995fecd8e1426d9aa9980fce8fa7f1", "success_count": 2, "failure_count": 0}
+2026-03-28 17:19:36 [INFO] httpx: HTTP Request: POST http://testserver/api/sessions/0c8cce83431140aeb88f2788c914d714/execute "HTTP/1.1 200 OK"
+2026-03-28 17:19:36 [INFO] file_organizer.app.session_service: rollback.started session_id=0c8cce83431140aeb88f2788c914d714 target_dir=d:/3_projects/active/file-organizer-gui-/test_temp_api/inbox stage=rolling_back summary={"moves": 1, "unresolved": 0}
+2026-03-28 17:19:36 [INFO] file_organizer.app.session_service: rollback.completed session_id=0c8cce83431140aeb88f2788c914d714 target_dir=d:/3_projects/active/file-organizer-gui-/test_temp_api/inbox stage=stale summary={"moves": 1, "unresolved": 0, "journal_id": "e3995fecd8e1426d9aa9980fce8fa7f1", "success_count": 2, "failure_count": 0}
+2026-03-28 17:19:36 [INFO] httpx: HTTP Request: POST http://testserver/api/sessions/0c8cce83431140aeb88f2788c914d714/rollback "HTTP/1.1 200 OK"
+2026-03-28 17:19:36 [INFO] file_organizer.app.session_service: session.created session_id=cb5fa7a33dd04b2cae10610c3cd66396 target_dir=d:/3_projects/active/file-organizer-gui-/test_temp_api/inbox stage=draft summary={"moves": 0, "unresolved": 0, "strategy": {"template_id": "general_downloads", "naming_style": "zh", "caution_level": "balanced", "note": ""}}
+2026-03-28 17:19:36 [INFO] httpx: HTTP Request: POST http://testserver/api/sessions "HTTP/1.1 200 OK"
+2026-03-28 17:19:36 [INFO] httpx: HTTP Request: POST http://testserver/api/sessions/cb5fa7a33dd04b2cae10610c3cd66396/refresh "HTTP/1.1 200 OK"
+2026-03-28 17:19:36 [INFO] file_organizer.app.session_service: session.created session_id=469462cbd864450c9c993c2a11420fb9 target_dir=d:/3_projects/active/file-organizer-gui-/test_temp_api/inbox stage=draft summary={"moves": 0, "unresolved": 0, "strategy": {"template_id": "general_downloads", "naming_style": "zh", "caution_level": "balanced", "note": ""}}
+2026-03-28 17:19:36 [INFO] httpx: HTTP Request: POST http://testserver/api/sessions "HTTP/1.1 200 OK"
+2026-03-28 17:19:36 [INFO] file_organizer.app.session_service: session.stale session_id=469462cbd864450c9c993c2a11420fb9 target_dir=d:/3_projects/active/file-organizer-gui-/test_temp_api/inbox stage=stale summary={"moves": 0, "unresolved": 0, "reason": "directory_changed"}
+2026-03-28 17:19:36 [INFO] httpx: HTTP Request: POST http://testserver/api/sessions/469462cbd864450c9c993c2a11420fb9/resume "HTTP/1.1 200 OK"
+2026-03-28 17:19:36 [INFO] file_organizer.app.session_service: session.created session_id=abe70b699fcd414f856cdf99c44f5ce3 target_dir=d:/3_projects/active/file-organizer-gui-/test_temp_api/inbox stage=draft summary={"moves": 0, "unresolved": 0, "strategy": {"template_id": "general_downloads", "naming_style": "zh", "caution_level": "balanced", "note": ""}}
+2026-03-28 17:19:36 [INFO] httpx: HTTP Request: POST http://testserver/api/sessions "HTTP/1.1 200 OK"
+2026-03-28 17:19:36 [INFO] httpx: HTTP Request: POST http://testserver/api/sessions/abe70b699fcd414f856cdf99c44f5ce3/return-to-planning "HTTP/1.1 200 OK"
+2026-03-28 17:19:36 [INFO] file_organizer.app.session_service: session.created session_id=37f283321a3a4d62bb3482ac38a91043 target_dir=d:/3_projects/active/file-organizer-gui-/test_temp_api/inbox stage=draft summary={"moves": 0, "unresolved": 0, "strategy": {"template_id": "general_downloads", "naming_style": "zh", "caution_level": "balanced", "note": ""}}
+2026-03-28 17:19:36 [INFO] httpx: HTTP Request: POST http://testserver/api/sessions "HTTP/1.1 200 OK"
+2026-03-28 17:19:36 [INFO] file_organizer.app.session_service: execution.started session_id=37f283321a3a4d62bb3482ac38a91043 target_dir=d:/3_projects/active/file-organizer-gui-/test_temp_api/inbox stage=executing summary={"moves": 1, "unresolved": 0}
+2026-03-28 17:19:36 [INFO] file_organizer.app.session_service: execution.completed session_id=37f283321a3a4d62bb3482ac38a91043 target_dir=d:/3_projects/active/file-organizer-gui-/test_temp_api/inbox stage=completed summary={"moves": 1, "unresolved": 0, "execution_id": "861e718eab3b4a11a7bf8c712789c4d7", "success_count": 2, "failure_count": 0}
+2026-03-28 17:19:36 [INFO] httpx: HTTP Request: POST http://testserver/api/sessions/37f283321a3a4d62bb3482ac38a91043/execute "HTTP/1.1 200 OK"
+2026-03-28 17:19:36 [INFO] httpx: HTTP Request: POST http://testserver/api/sessions/861e718eab3b4a11a7bf8c712789c4d7/rollback "HTTP/1.1 200 OK"
+2026-03-28 17:19:36 [INFO] httpx: HTTP Request: POST http://testserver/api/sessions/missing-session-id/rollback "HTTP/1.1 404 Not Found"
+2026-03-28 17:19:36 [INFO] file_organizer.app.session_service: session.created session_id=bebaca2296c84251bb1de4dd85bec5a0 target_dir=d:/3_projects/active/file-organizer-gui-/test_temp_api/inbox stage=draft summary={"moves": 0, "unresolved": 0, "strategy": {"template_id": "general_downloads", "naming_style": "zh", "caution_level": "balanced", "note": ""}}
+2026-03-28 17:19:36 [INFO] httpx: HTTP Request: POST http://testserver/api/sessions "HTTP/1.1 200 OK"
+2026-03-28 17:19:36 [INFO] httpx: HTTP Request: POST http://testserver/api/sessions/bebaca2296c84251bb1de4dd85bec5a0/scan "HTTP/1.1 200 OK"
+2026-03-28 17:19:36 [INFO] file_organizer.app.session_service: session.created session_id=cc965e211d9247b7bb15b73cde261710 target_dir=d:/3_projects/active/file-organizer-gui-/test_temp_api/inbox stage=draft summary={"moves": 0, "unresolved": 0, "strategy": {"template_id": "general_downloads", "naming_style": "zh", "caution_level": "balanced", "note": ""}}
+2026-03-28 17:19:36 [INFO] httpx: HTTP Request: POST http://testserver/api/sessions "HTTP/1.1 200 OK"
+2026-03-28 17:19:36 [INFO] httpx: HTTP Request: POST http://testserver/api/sessions/cc965e211d9247b7bb15b73cde261710/unresolved-resolutions "HTTP/1.1 409 Conflict"
+2026-03-28 17:19:36 [INFO] file_organizer.app.session_service: session.created session_id=f4c4ff39dd5e41c79d88eb12552e3a4e target_dir=d:/3_projects/active/file-organizer-gui-/test_temp_api/inbox stage=draft summary={"moves": 0, "unresolved": 0, "strategy": {"template_id": "general_downloads", "naming_style": "zh", "caution_level": "balanced", "note": ""}}
+2026-03-28 17:19:36 [INFO] httpx: HTTP Request: POST http://testserver/api/sessions "HTTP/1.1 200 OK"
+2026-03-28 17:19:36 [INFO] httpx: HTTP Request: POST http://testserver/api/sessions/f4c4ff39dd5e41c79d88eb12552e3a4e/unresolved-resolutions "HTTP/1.1 200 OK"
+2026-03-28 17:19:36 [INFO] file_organizer.app.session_service: session.created session_id=7bb064e6c4e94503a517736a40190f41 target_dir=d:/3_projects/active/file-organizer-gui-/test_temp_api/inbox stage=draft summary={"moves": 0, "unresolved": 0, "strategy": {"template_id": "general_downloads", "naming_style": "zh", "caution_level": "balanced", "note": ""}}
+2026-03-28 17:19:36 [INFO] file_organizer.app.session_service: session.interrupted session_id=7bb064e6c4e94503a517736a40190f41 target_dir=d:/3_projects/active/file-organizer-gui-/test_temp_api/inbox stage=interrupted summary={"moves": 0, "unresolved": 0, "interrupted_during": "scanning"}
+2026-03-28 17:19:36 [INFO] httpx: HTTP Request: POST http://testserver/api/sessions/7bb064e6c4e94503a517736a40190f41/update-item "HTTP/1.1 409 Conflict"
+2026-03-28 17:19:36 [INFO] file_organizer.app.session_service: session.created session_id=f99391415fc44cb6b8834273d4044945 target_dir=d:/3_projects/active/file-organizer-gui-/test_temp_api/inbox stage=draft summary={"moves": 0, "unresolved": 0, "strategy": {"template_id": "general_downloads", "naming_style": "zh", "caution_level": "balanced", "note": ""}}
+2026-03-28 17:19:36 [INFO] httpx: HTTP Request: POST http://testserver/api/sessions "HTTP/1.1 200 OK"
+2026-03-28 17:19:36 [INFO] httpx: HTTP Request: POST http://testserver/api/sessions/f99391415fc44cb6b8834273d4044945/update-item "HTTP/1.1 422 Unprocessable Entity"
+2026-03-28 17:19:36 [INFO] file_organizer.app.session_service: session.created session_id=4ca5eef59b8a43229d086475b8376221 target_dir=d:/3_projects/active/file-organizer-gui-/test_temp_api/inbox stage=draft summary={"moves": 0, "unresolved": 0, "strategy": {"template_id": "general_downloads", "naming_style": "zh", "caution_level": "balanced", "note": ""}}
+2026-03-28 17:19:36 [INFO] httpx: HTTP Request: POST http://testserver/api/sessions/4ca5eef59b8a43229d086475b8376221/update-item "HTTP/1.1 200 OK"
+2026-03-28 17:19:55 [INFO] file_organizer.app.session_service: session.created session_id=21bfce4e1acf4604855c81b54a541ce6 target_dir=d:/3_projects/active/file-organizer-gui-/test_temp_api/inbox stage=draft summary={"moves": 0, "unresolved": 0, "strategy": {"template_id": "general_downloads", "naming_style": "zh", "caution_level": "balanced", "note": ""}}
+2026-03-28 17:19:55 [INFO] httpx: HTTP Request: POST http://testserver/api/sessions "HTTP/1.1 200 OK"
+2026-03-28 17:19:55 [INFO] file_organizer.app.session_service: session.stale session_id=21bfce4e1acf4604855c81b54a541ce6 target_dir=d:/3_projects/active/file-organizer-gui-/test_temp_api/inbox stage=stale summary={"moves": 0, "unresolved": 0, "reason": "directory_changed"}
+2026-03-28 17:19:55 [INFO] httpx: HTTP Request: POST http://testserver/api/sessions/21bfce4e1acf4604855c81b54a541ce6/resume "HTTP/1.1 200 OK"
+2026-03-28 17:21:00 [INFO] file_organizer.app.session_service: session.created session_id=1b5eea221183414fa1a70f934dad2021 target_dir=d:/3_projects/active/file-organizer-gui-/test_temp_api/inbox stage=draft summary={"moves": 0, "unresolved": 0, "strategy": {"template_id": "general_downloads", "naming_style": "zh", "caution_level": "balanced", "note": ""}}
+2026-03-28 17:21:00 [INFO] httpx: HTTP Request: POST http://testserver/api/sessions "HTTP/1.1 200 OK"
+2026-03-28 17:21:00 [INFO] file_organizer.app.session_service: session.stale session_id=1b5eea221183414fa1a70f934dad2021 target_dir=d:/3_projects/active/file-organizer-gui-/test_temp_api/inbox stage=stale summary={"moves": 0, "unresolved": 0, "reason": "directory_changed"}
+2026-03-28 17:21:00 [INFO] httpx: HTTP Request: POST http://testserver/api/sessions/1b5eea221183414fa1a70f934dad2021/resume "HTTP/1.1 200 OK"
+2026-03-28 19:05:35 [INFO] __main__: backend.starting host=127.0.0.1 port=8765 reload=True runtime_log=D:\3_Projects\Active\file-organizer-GUI-\logs\backend\runtime.log
+2026-03-28 19:05:35 [INFO] __main__: backend.reload_enabled cwd=D:\3_Projects\Active\file-organizer-GUI-
+2026-03-28 19:05:35 [INFO] uvicorn.error: Will watch for changes in these directories: ['D:\\3_Projects\\Active\\file-organizer-GUI-\\file_organizer']
+2026-03-28 19:05:35 [INFO] uvicorn.error: Uvicorn running on http://127.0.0.1:8765 (Press CTRL+C to quit)
+2026-03-28 19:05:35 [INFO] uvicorn.error: Started reloader process [44220] using StatReload
+2026-03-28 19:05:36 [INFO] uvicorn.error: Started server process [44960]
+2026-03-28 19:05:36 [INFO] uvicorn.error: Waiting for application startup.
+2026-03-28 19:05:36 [INFO] uvicorn.error: Application startup complete.
+2026-03-28 19:14:12 [INFO] file_organizer.app.session_service: session.abandoned session_id=151d178241fa4873b04e0ad32b044371 target_dir=d:/5_downloads/downloads/123 - 副本/项目资料 stage=abandoned summary={"moves": 3, "unresolved": 0}
+2026-03-28 20:42:27 [INFO] httpx: HTTP Request: POST http://testserver/api/utils/config/presets "HTTP/1.1 200 OK"
+2026-03-28 20:42:27 [INFO] httpx: HTTP Request: GET http://testserver/api/utils/config "HTTP/1.1 200 OK"
+2026-03-28 20:42:27 [INFO] httpx: HTTP Request: POST http://testserver/api/utils/config/presets/switch "HTTP/1.1 200 OK"
+2026-03-28 20:42:27 [INFO] httpx: HTTP Request: POST http://testserver/api/utils/test-llm "HTTP/1.1 200 OK"
+2026-03-28 20:42:27 [INFO] httpx: HTTP Request: POST http://testserver/api/utils/test-llm "HTTP/1.1 200 OK"
+2026-03-28 20:42:27 [INFO] httpx: HTTP Request: POST http://testserver/api/utils/test-llm "HTTP/1.1 200 OK"
+2026-03-28 21:05:57 [INFO] httpx: HTTP Request: POST http://testserver/api/utils/config/presets "HTTP/1.1 200 OK"
+2026-03-28 21:05:57 [INFO] httpx: HTTP Request: POST http://testserver/api/icon-workbench/sessions/icon-session/apply-template "HTTP/1.1 200 OK"
+2026-03-28 21:05:57 [INFO] httpx: HTTP Request: POST http://testserver/api/icon-workbench/sessions/icon-session/apply-ready "HTTP/1.1 200 OK"
+2026-03-28 21:05:57 [INFO] httpx: HTTP Request: POST http://testserver/api/icon-workbench/sessions/icon-session/analyze "HTTP/1.1 200 OK"
+2026-03-28 21:05:57 [INFO] httpx: HTTP Request: POST http://testserver/api/icon-workbench/sessions/icon-session/generate "HTTP/1.1 200 OK"
+2026-03-28 21:05:57 [INFO] httpx: HTTP Request: GET http://testserver/api/utils/config "HTTP/1.1 200 OK"
+2026-03-28 21:05:57 [INFO] httpx: HTTP Request: POST http://testserver/api/icon-workbench/sessions/icon-session/actions/action-1/confirm "HTTP/1.1 200 OK"
+2026-03-28 21:05:57 [INFO] httpx: HTTP Request: POST http://testserver/api/icon-workbench/sessions/icon-session/actions/action-1/dismiss "HTTP/1.1 200 OK"
+2026-03-28 21:05:57 [INFO] httpx: HTTP Request: POST http://testserver/api/icon-workbench/sessions/icon-session/client-actions/report "HTTP/1.1 200 OK"
+2026-03-28 21:05:57 [INFO] httpx: HTTP Request: POST http://testserver/api/utils/config/presets/switch "HTTP/1.1 200 OK"
+2026-03-28 21:05:57 [INFO] httpx: HTTP Request: POST http://testserver/api/icon-workbench/sessions "HTTP/1.1 200 OK"
+2026-03-28 21:05:57 [INFO] httpx: HTTP Request: POST http://testserver/api/utils/test-llm "HTTP/1.1 400 Bad Request"
+2026-03-28 21:05:57 [INFO] httpx: HTTP Request: POST http://testserver/api/utils/test-llm "HTTP/1.1 400 Bad Request"
+2026-03-28 21:05:57 [INFO] httpx: HTTP Request: POST http://testserver/api/utils/test-llm "HTTP/1.1 200 OK"
+2026-03-28 21:05:57 [INFO] httpx: HTTP Request: GET http://testserver/api/icon-workbench/sessions/icon-session/folders/folder-1/versions/version-1/image "HTTP/1.1 200 OK"
+2026-03-28 21:05:57 [INFO] httpx: HTTP Request: POST http://testserver/api/icon-workbench/sessions/icon-session/messages "HTTP/1.1 200 OK"
+2026-03-28 21:05:57 [INFO] httpx: HTTP Request: POST http://testserver/api/icon-workbench/sessions/icon-session/folders/folder-1/prompt "HTTP/1.1 200 OK"
+2026-03-28 21:05:57 [INFO] httpx: HTTP Request: POST http://testserver/api/icon-workbench/sessions/icon-session/folders/folder-1/select-version "HTTP/1.1 200 OK"
+2026-03-28 21:05:57 [INFO] httpx: HTTP Request: GET http://testserver/api/icon-workbench/config "HTTP/1.1 200 OK"
+2026-03-28 21:05:57 [INFO] httpx: HTTP Request: POST http://testserver/api/icon-workbench/config "HTTP/1.1 200 OK"
+2026-03-28 21:05:58 [INFO] httpx: HTTP Request: POST http://testserver/api/icon-workbench/sessions/icon-session/targets "HTTP/1.1 200 OK"
+2026-03-28 21:05:58 [INFO] httpx: HTTP Request: DELETE http://testserver/api/icon-workbench/sessions/icon-session/targets/folder-1 "HTTP/1.1 200 OK"
+2026-03-28 21:05:58 [INFO] httpx: HTTP Request: GET http://testserver/api/icon-workbench/templates "HTTP/1.1 200 OK"
+2026-03-28 21:05:58 [INFO] httpx: HTTP Request: POST http://testserver/api/icon-workbench/templates "HTTP/1.1 200 OK"
+2026-03-28 21:05:58 [INFO] httpx: HTTP Request: PATCH http://testserver/api/icon-workbench/templates/user-template-1 "HTTP/1.1 200 OK"
+2026-03-28 21:05:58 [INFO] httpx: HTTP Request: DELETE http://testserver/api/icon-workbench/templates/user-template-1 "HTTP/1.1 200 OK"
+2026-03-28 21:06:26 [INFO] httpx: HTTP Request: POST http://testserver/api/utils/test-llm "HTTP/1.1 400 Bad Request"
+2026-03-28 21:44:05 [INFO] __main__: backend.starting host=127.0.0.1 port=8765 reload=False runtime_log=D:\3_Projects\Active\file-organizer-GUI-\logs\backend\runtime.log
+2026-03-28 21:44:05 [INFO] uvicorn.error: Started server process [19028]
+2026-03-28 21:44:05 [INFO] uvicorn.error: Waiting for application startup.
+2026-03-28 21:44:05 [INFO] uvicorn.error: Application startup complete.
+2026-03-28 21:44:05 [INFO] uvicorn.error: Uvicorn running on http://127.0.0.1:8765 (Press CTRL+C to quit)
+2026-03-28 21:54:39 [INFO] __main__: backend.starting host=127.0.0.1 port=8765 reload=False runtime_log=D:\3_Projects\Active\file-organizer-GUI-\logs\backend\runtime.log
+2026-03-28 21:54:39 [INFO] uvicorn.error: Started server process [27964]
+2026-03-28 21:54:39 [INFO] uvicorn.error: Waiting for application startup.
+2026-03-28 21:54:39 [INFO] uvicorn.error: Application startup complete.
+2026-03-28 21:54:39 [INFO] uvicorn.error: Uvicorn running on http://127.0.0.1:8765 (Press CTRL+C to quit)
+2026-03-28 22:36:04 [INFO] file_organizer.app.session_service: session.created session_id=d3ca8455f73f4492b96001b687e84d1a target_dir=d:/5_downloads/downloads/123 - 副本/项目资料 stage=draft summary={"moves": 0, "unresolved": 0, "strategy": {"template_id": "general_downloads", "naming_style": "zh", "caution_level": "balanced", "note": ""}}
+2026-03-28 22:36:04 [INFO] file_organizer.app.session_service: scan.started session_id=d3ca8455f73f4492b96001b687e84d1a target_dir=d:/5_downloads/downloads/123 - 副本/项目资料 stage=scanning summary={"moves": 0, "unresolved": 0}
+2026-03-28 22:36:05 [INFO] httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 401 Unauthorized"
+2026-03-28 22:36:05 [ERROR] file_organizer.app.session_service: scan.failed session_id=d3ca8455f73f4492b96001b687e84d1a target_dir=d:/5_downloads/downloads/123 - 副本/项目资料
+Traceback (most recent call last):
+  File "D:\3_Projects\Active\file-organizer-GUI-\file_organizer\app\async_scanner.py", line 20, in worker
+    result = run_scan(target_dir)
+  File "D:\3_Projects\Active\file-organizer-GUI-\file_organizer\app\session_service.py", line 240, in <lambda>
+    run_scan=lambda d: self._default_scan_runner(d, event_handler=on_scan_event),
+                       ~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\3_Projects\Active\file-organizer-GUI-\file_organizer\app\session_service.py", line 1124, in _default_scan_runner
+    return analysis_service.run_analysis_cycle(target_dir, event_handler=event_handler)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\3_Projects\Active\file-organizer-GUI-\file_organizer\analysis\service.py", line 450, in run_analysis_cycle
+    return _run_single_analysis(target_dir, files_info, model, event_handler=event_handler)
+  File "D:\3_Projects\Active\file-organizer-GUI-\file_organizer\analysis\service.py", line 375, in _run_single_analysis
+    items = _run_analysis_worker(
+        target_dir=target_dir,
+    ...<7 lines>...
+        wait_message="正在分析目录内容",
+    )
+  File "D:\3_Projects\Active\file-organizer-GUI-\file_organizer\analysis\service.py", line 316, in _run_analysis_worker
+    response = client.chat.completions.create(model=model, messages=curr_messages, tools=tools, tool_choice="auto")
+  File "C:\Users\QUPENG\miniconda3\Lib\site-packages\openai\_utils\_utils.py", line 286, in wrapper
+    return func(*args, **kwargs)
+  File "C:\Users\QUPENG\miniconda3\Lib\site-packages\openai\resources\chat\completions\completions.py", line 1211, in create
+    return self._post(
+           ~~~~~~~~~~^
+        "/chat/completions",
+        ^^^^^^^^^^^^^^^^^^^^
+    ...<47 lines>...
+        stream_cls=Stream[ChatCompletionChunk],
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\QUPENG\miniconda3\Lib\site-packages\openai\_base_client.py", line 1297, in post
+    return cast(ResponseT, self.request(cast_to, opts, stream=stream, stream_cls=stream_cls))
+                           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\QUPENG\miniconda3\Lib\site-packages\openai\_base_client.py", line 1070, in request
+    raise self._make_status_error_from_response(err.response) from None
+openai.AuthenticationError: Error code: 401 - {'error': {'message': "You didn't provide an API key. You need to provide your API key in an Authorization header using Bearer auth (i.e. Authorization: Bearer YOUR_KEY), or as the password field (with blank username) if you're accessing the API from your browser and are prompted for a username and password. You can obtain an API key from https://platform.openai.com/account/api-keys.", 'type': 'invalid_request_error', 'param': None, 'code': None}}
+2026-03-28 22:36:05 [ERROR] file_organizer.app.session_service: scan.failed session_id=d3ca8455f73f4492b96001b687e84d1a target_dir=d:/5_downloads/downloads/123 - 副本/项目资料 stage=interrupted summary={"moves": 0, "unresolved": 0, "error": "Error code: 401 - {'error': {'message': \"You didn't provide an API key. You need to provide your API key in an Authorization header using Bearer auth (i.e. Authorization: Bearer YOUR_KEY), or as the password field (with blank username) if you're accessing the API from your browser and are prompted for a username and password. You can obtain an API key from https://platform.openai.com/account/api-keys.\", 'type': 'invalid_request_error', 'param': None, 'code': None}}"}
+2026-03-28 22:37:56 [INFO] file_organizer.app.session_service: session.created session_id=89f9859894094a88a71d39d3c27cb63e target_dir=d:/5_downloads/downloads/123 - 副本 stage=draft summary={"moves": 0, "unresolved": 0, "strategy": {"template_id": "general_downloads", "naming_style": "zh", "caution_level": "balanced", "note": ""}}
+2026-03-28 22:37:56 [INFO] file_organizer.app.session_service: scan.started session_id=89f9859894094a88a71d39d3c27cb63e target_dir=d:/5_downloads/downloads/123 - 副本 stage=scanning summary={"moves": 0, "unresolved": 0}
+2026-03-28 22:37:57 [INFO] httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 401 Unauthorized"
+2026-03-28 22:37:57 [ERROR] file_organizer.app.session_service: scan.failed session_id=89f9859894094a88a71d39d3c27cb63e target_dir=d:/5_downloads/downloads/123 - 副本
+Traceback (most recent call last):
+  File "D:\3_Projects\Active\file-organizer-GUI-\file_organizer\app\async_scanner.py", line 20, in worker
+    result = run_scan(target_dir)
+  File "D:\3_Projects\Active\file-organizer-GUI-\file_organizer\app\session_service.py", line 240, in <lambda>
+    run_scan=lambda d: self._default_scan_runner(d, event_handler=on_scan_event),
+                       ~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\3_Projects\Active\file-organizer-GUI-\file_organizer\app\session_service.py", line 1124, in _default_scan_runner
+    return analysis_service.run_analysis_cycle(target_dir, event_handler=event_handler)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\3_Projects\Active\file-organizer-GUI-\file_organizer\analysis\service.py", line 450, in run_analysis_cycle
+    return _run_single_analysis(target_dir, files_info, model, event_handler=event_handler)
+  File "D:\3_Projects\Active\file-organizer-GUI-\file_organizer\analysis\service.py", line 375, in _run_single_analysis
+    items = _run_analysis_worker(
+        target_dir=target_dir,
+    ...<7 lines>...
+        wait_message="正在分析目录内容",
+    )
+  File "D:\3_Projects\Active\file-organizer-GUI-\file_organizer\analysis\service.py", line 316, in _run_analysis_worker
+    response = client.chat.completions.create(model=model, messages=curr_messages, tools=tools, tool_choice="auto")
+  File "C:\Users\QUPENG\miniconda3\Lib\site-packages\openai\_utils\_utils.py", line 286, in wrapper
+    return func(*args, **kwargs)
+  File "C:\Users\QUPENG\miniconda3\Lib\site-packages\openai\resources\chat\completions\completions.py", line 1211, in create
+    return self._post(
+           ~~~~~~~~~~^
+        "/chat/completions",
+        ^^^^^^^^^^^^^^^^^^^^
+    ...<47 lines>...
+        stream_cls=Stream[ChatCompletionChunk],
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\QUPENG\miniconda3\Lib\site-packages\openai\_base_client.py", line 1297, in post
+    return cast(ResponseT, self.request(cast_to, opts, stream=stream, stream_cls=stream_cls))
+                           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\QUPENG\miniconda3\Lib\site-packages\openai\_base_client.py", line 1070, in request
+    raise self._make_status_error_from_response(err.response) from None
+openai.AuthenticationError: Error code: 401 - {'error': {'message': 'Incorrect API key provided: sk-363dd*******************************************************566b. You can find your API key at https://platform.openai.com/account/api-keys.', 'type': 'invalid_request_error', 'code': 'invalid_api_key', 'param': None}, 'status': 401}
+2026-03-28 22:37:57 [ERROR] file_organizer.app.session_service: scan.failed session_id=89f9859894094a88a71d39d3c27cb63e target_dir=d:/5_downloads/downloads/123 - 副本 stage=interrupted summary={"moves": 0, "unresolved": 0, "error": "Error code: 401 - {'error': {'message': 'Incorrect API key provided: sk-363dd*******************************************************566b. You can find your API key at https://platform.openai.com/account/api-keys.', 'type': 'invalid_request_error', 'code': 'invalid_api_key', 'param': None}, 'status': 401}"}
+2026-03-28 22:38:16 [INFO] httpx: HTTP Request: GET https://api.openai.com/v1/models "HTTP/1.1 401 Unauthorized"
+2026-03-28 22:38:16 [ERROR] file_organizer.api.main: 模型链路连通性测试失败
+Traceback (most recent call last):
+  File "D:\3_Projects\Active\file-organizer-GUI-\file_organizer\api\main.py", line 716, in test_llm
+    client.models.list()
+    ~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\QUPENG\miniconda3\Lib\site-packages\openai\resources\models.py", line 93, in list
+    return self._get_api_list(
+           ~~~~~~~~~~~~~~~~~~^
+        "/models",
+        ^^^^^^^^^^
+    ...<4 lines>...
+        model=Model,
+        ^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\QUPENG\miniconda3\Lib\site-packages\openai\_base_client.py", line 1383, in get_api_list
+    return self._request_api_list(model, page, opts)
+           ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\QUPENG\miniconda3\Lib\site-packages\openai\_base_client.py", line 1182, in _request_api_list
+    return self.request(page, options, stream=False)
+           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\QUPENG\miniconda3\Lib\site-packages\openai\_base_client.py", line 1070, in request
+    raise self._make_status_error_from_response(err.response) from None
+openai.AuthenticationError: Error code: 401 - {'error': {'message': 'Incorrect API key provided: sk-363dd*******************************************************566b. You can find your API key at https://platform.openai.com/account/api-keys.', 'type': 'invalid_request_error', 'param': None, 'code': 'invalid_api_key'}}
+2026-03-28 22:38:39 [INFO] httpx: HTTP Request: GET https://ai.qaq.al/keys/models "HTTP/1.1 200 OK"
+2026-03-28 22:38:40 [ERROR] file_organizer.api.main: 模型链路连通性测试失败
+Traceback (most recent call last):
+  File "D:\3_Projects\Active\file-organizer-GUI-\file_organizer\api\main.py", line 716, in test_llm
+    client.models.list()
+    ~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\QUPENG\miniconda3\Lib\site-packages\openai\resources\models.py", line 93, in list
+    return self._get_api_list(
+           ~~~~~~~~~~~~~~~~~~^
+        "/models",
+        ^^^^^^^^^^
+    ...<4 lines>...
+        model=Model,
+        ^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\QUPENG\miniconda3\Lib\site-packages\openai\_base_client.py", line 1383, in get_api_list
+    return self._request_api_list(model, page, opts)
+           ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\QUPENG\miniconda3\Lib\site-packages\openai\_base_client.py", line 1182, in _request_api_list
+    return self.request(page, options, stream=False)
+           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\QUPENG\miniconda3\Lib\site-packages\openai\_base_client.py", line 1075, in request
+    return self._process_response(
+           ~~~~~~~~~~~~~~~~~~~~~~^
+        cast_to=cast_to,
+        ^^^^^^^^^^^^^^^^
+    ...<4 lines>...
+        retries_taken=retries_taken,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\QUPENG\miniconda3\Lib\site-packages\openai\_base_client.py", line 1164, in _process_response
+    return api_response.parse()
+           ~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\QUPENG\miniconda3\Lib\site-packages\openai\_response.py", line 328, in parse
+    parsed = self._options.post_parser(parsed)
+  File "C:\Users\QUPENG\miniconda3\Lib\site-packages\openai\_base_client.py", line 1173, in _parser
+    resp._set_private_attributes(
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'str' object has no attribute '_set_private_attributes'
+2026-03-28 22:38:49 [INFO] httpx: HTTP Request: GET https://ai.qaq.al/models "HTTP/1.1 200 OK"
+2026-03-28 22:38:50 [ERROR] file_organizer.api.main: 模型链路连通性测试失败
+Traceback (most recent call last):
+  File "D:\3_Projects\Active\file-organizer-GUI-\file_organizer\api\main.py", line 716, in test_llm
+    client.models.list()
+    ~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\QUPENG\miniconda3\Lib\site-packages\openai\resources\models.py", line 93, in list
+    return self._get_api_list(
+           ~~~~~~~~~~~~~~~~~~^
+        "/models",
+        ^^^^^^^^^^
+    ...<4 lines>...
+        model=Model,
+        ^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\QUPENG\miniconda3\Lib\site-packages\openai\_base_client.py", line 1383, in get_api_list
+    return self._request_api_list(model, page, opts)
+           ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\QUPENG\miniconda3\Lib\site-packages\openai\_base_client.py", line 1182, in _request_api_list
+    return self.request(page, options, stream=False)
+           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\QUPENG\miniconda3\Lib\site-packages\openai\_base_client.py", line 1075, in request
+    return self._process_response(
+           ~~~~~~~~~~~~~~~~~~~~~~^
+        cast_to=cast_to,
+        ^^^^^^^^^^^^^^^^
+    ...<4 lines>...
+        retries_taken=retries_taken,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\QUPENG\miniconda3\Lib\site-packages\openai\_base_client.py", line 1164, in _process_response
+    return api_response.parse()
+           ~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\QUPENG\miniconda3\Lib\site-packages\openai\_response.py", line 328, in parse
+    parsed = self._options.post_parser(parsed)
+  File "C:\Users\QUPENG\miniconda3\Lib\site-packages\openai\_base_client.py", line 1173, in _parser
+    resp._set_private_attributes(
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'str' object has no attribute '_set_private_attributes'
+2026-03-28 22:39:09 [INFO] httpx: HTTP Request: GET https://ai.qaq.al/models "HTTP/1.1 200 OK"
+2026-03-28 22:39:11 [ERROR] file_organizer.api.main: 模型链路连通性测试失败
+Traceback (most recent call last):
+  File "D:\3_Projects\Active\file-organizer-GUI-\file_organizer\api\main.py", line 716, in test_llm
+    client.models.list()
+    ~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\QUPENG\miniconda3\Lib\site-packages\openai\resources\models.py", line 93, in list
+    return self._get_api_list(
+           ~~~~~~~~~~~~~~~~~~^
+        "/models",
+        ^^^^^^^^^^
+    ...<4 lines>...
+        model=Model,
+        ^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\QUPENG\miniconda3\Lib\site-packages\openai\_base_client.py", line 1383, in get_api_list
+    return self._request_api_list(model, page, opts)
+           ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\QUPENG\miniconda3\Lib\site-packages\openai\_base_client.py", line 1182, in _request_api_list
+    return self.request(page, options, stream=False)
+           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\QUPENG\miniconda3\Lib\site-packages\openai\_base_client.py", line 1075, in request
+    return self._process_response(
+           ~~~~~~~~~~~~~~~~~~~~~~^
+        cast_to=cast_to,
+        ^^^^^^^^^^^^^^^^
+    ...<4 lines>...
+        retries_taken=retries_taken,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\QUPENG\miniconda3\Lib\site-packages\openai\_base_client.py", line 1164, in _process_response
+    return api_response.parse()
+           ~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\QUPENG\miniconda3\Lib\site-packages\openai\_response.py", line 328, in parse
+    parsed = self._options.post_parser(parsed)
+  File "C:\Users\QUPENG\miniconda3\Lib\site-packages\openai\_base_client.py", line 1173, in _parser
+    resp._set_private_attributes(
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'str' object has no attribute '_set_private_attributes'
+2026-03-28 22:40:09 [INFO] httpx: HTTP Request: GET https://sub.jlypx.de/models "HTTP/1.1 200 OK"
+2026-03-28 22:40:09 [ERROR] file_organizer.api.main: 模型链路连通性测试失败
+Traceback (most recent call last):
+  File "D:\3_Projects\Active\file-organizer-GUI-\file_organizer\api\main.py", line 716, in test_llm
+    client.models.list()
+    ~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\QUPENG\miniconda3\Lib\site-packages\openai\resources\models.py", line 93, in list
+    return self._get_api_list(
+           ~~~~~~~~~~~~~~~~~~^
+        "/models",
+        ^^^^^^^^^^
+    ...<4 lines>...
+        model=Model,
+        ^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\QUPENG\miniconda3\Lib\site-packages\openai\_base_client.py", line 1383, in get_api_list
+    return self._request_api_list(model, page, opts)
+           ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\QUPENG\miniconda3\Lib\site-packages\openai\_base_client.py", line 1182, in _request_api_list
+    return self.request(page, options, stream=False)
+           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\QUPENG\miniconda3\Lib\site-packages\openai\_base_client.py", line 1075, in request
+    return self._process_response(
+           ~~~~~~~~~~~~~~~~~~~~~~^
+        cast_to=cast_to,
+        ^^^^^^^^^^^^^^^^
+    ...<4 lines>...
+        retries_taken=retries_taken,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\QUPENG\miniconda3\Lib\site-packages\openai\_base_client.py", line 1164, in _process_response
+    return api_response.parse()
+           ~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\QUPENG\miniconda3\Lib\site-packages\openai\_response.py", line 328, in parse
+    parsed = self._options.post_parser(parsed)
+  File "C:\Users\QUPENG\miniconda3\Lib\site-packages\openai\_base_client.py", line 1173, in _parser
+    resp._set_private_attributes(
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'str' object has no attribute '_set_private_attributes'
+2026-03-28 22:40:18 [INFO] httpx: HTTP Request: GET https://api-inference.modelscope.cn/v1/images/generations/models "HTTP/1.1 404 Not Found"
+2026-03-28 22:40:18 [ERROR] file_organizer.api.main: 模型链路连通性测试失败
+Traceback (most recent call last):
+  File "D:\3_Projects\Active\file-organizer-GUI-\file_organizer\api\main.py", line 716, in test_llm
+    client.models.list()
+    ~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\QUPENG\miniconda3\Lib\site-packages\openai\resources\models.py", line 93, in list
+    return self._get_api_list(
+           ~~~~~~~~~~~~~~~~~~^
+        "/models",
+        ^^^^^^^^^^
+    ...<4 lines>...
+        model=Model,
+        ^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\QUPENG\miniconda3\Lib\site-packages\openai\_base_client.py", line 1383, in get_api_list
+    return self._request_api_list(model, page, opts)
+           ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\QUPENG\miniconda3\Lib\site-packages\openai\_base_client.py", line 1182, in _request_api_list
+    return self.request(page, options, stream=False)
+           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\QUPENG\miniconda3\Lib\site-packages\openai\_base_client.py", line 1070, in request
+    raise self._make_status_error_from_response(err.response) from None
+openai.NotFoundError: 404 page not found
+2026-03-28 22:41:21 [INFO] httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 401 Unauthorized"
+2026-03-28 22:41:21 [ERROR] uvicorn.error: Exception in ASGI application
+Traceback (most recent call last):
+  File "C:\Users\QUPENG\miniconda3\Lib\site-packages\openai\_base_client.py", line 1050, in request
+    response.raise_for_status()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\QUPENG\miniconda3\Lib\site-packages\httpx\_models.py", line 829, in raise_for_status
+    raise HTTPStatusError(message, request=request, response=self)
+httpx.HTTPStatusError: Client error '401 Unauthorized' for url 'https://api.openai.com/v1/chat/completions'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/401
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\QUPENG\miniconda3\Lib\site-packages\uvicorn\protocols\http\h11_impl.py", line 410, in run_asgi
+    result = await app(  # type: ignore[func-returns-value]
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        self.scope, self.receive, self.send
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\QUPENG\miniconda3\Lib\site-packages\uvicorn\middleware\proxy_headers.py", line 60, in __call__
+    return await self.app(scope, receive, send)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\QUPENG\miniconda3\Lib\site-packages\fastapi\applications.py", line 1135, in __call__
+    await super().__call__(scope, receive, send)
+  File "C:\Users\QUPENG\miniconda3\Lib\site-packages\starlette\applications.py", line 107, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "C:\Users\QUPENG\miniconda3\Lib\site-packages\starlette\middleware\errors.py", line 186, in __call__
+    raise exc
+  File "C:\Users\QUPENG\miniconda3\Lib\site-packages\starlette\middleware\errors.py", line 164, in __call__
+    await self.app(scope, receive, _send)
+  File "C:\Users\QUPENG\miniconda3\Lib\site-packages\starlette\middleware\base.py", line 191, in __call__
+    with recv_stream, send_stream, collapse_excgroups():
+                                   ~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\QUPENG\miniconda3\Lib\contextlib.py", line 162, in __exit__
+    self.gen.throw(value)
+    ~~~~~~~~~~~~~~^^^^^^^
+  File "C:\Users\QUPENG\miniconda3\Lib\site-packages\starlette\_utils.py", line 85, in collapse_excgroups
+    raise exc
+  File "C:\Users\QUPENG\miniconda3\Lib\site-packages\starlette\middleware\base.py", line 193, in __call__
+    response = await self.dispatch_func(request, call_next)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\3_Projects\Active\file-organizer-GUI-\file_organizer\api\main.py", line 180, in require_api_token
+    return await call_next(request)
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\QUPENG\miniconda3\Lib\site-packages\starlette\middleware\base.py", line 168, in call_next
+    raise app_exc from app_exc.__cause__ or app_exc.__context__
+  File "C:\Users\QUPENG\miniconda3\Lib\site-packages\starlette\middleware\base.py", line 144, in coro
+    await self.app(scope, receive_or_disconnect, send_no_error)
+  File "C:\Users\QUPENG\miniconda3\Lib\site-packages\starlette\middleware\cors.py", line 93, in __call__
+    await self.simple_response(scope, receive, send, request_headers=headers)
+  File "C:\Users\QUPENG\miniconda3\Lib\site-packages\starlette\middleware\cors.py", line 144, in simple_response
+    await self.app(scope, receive, send)
+  File "C:\Users\QUPENG\miniconda3\Lib\site-packages\starlette\middleware\exceptions.py", line 63, in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+  File "C:\Users\QUPENG\miniconda3\Lib\site-packages\starlette\_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "C:\Users\QUPENG\miniconda3\Lib\site-packages\starlette\_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "C:\Users\QUPENG\miniconda3\Lib\site-packages\fastapi\middleware\asyncexitstack.py", line 18, in __call__
+    await self.app(scope, receive, send)
+  File "C:\Users\QUPENG\miniconda3\Lib\site-packages\starlette\routing.py", line 716, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "C:\Users\QUPENG\miniconda3\Lib\site-packages\starlette\routing.py", line 736, in app
+    await route.handle(scope, receive, send)
+  File "C:\Users\QUPENG\miniconda3\Lib\site-packages\starlette\routing.py", line 290, in handle
+    await self.app(scope, receive, send)
+  File "C:\Users\QUPENG\miniconda3\Lib\site-packages\fastapi\routing.py", line 115, in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+  File "C:\Users\QUPENG\miniconda3\Lib\site-packages\starlette\_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "C:\Users\QUPENG\miniconda3\Lib\site-packages\starlette\_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "C:\Users\QUPENG\miniconda3\Lib\site-packages\fastapi\routing.py", line 101, in app
+    response = await f(request)
+               ^^^^^^^^^^^^^^^^
+  File "C:\Users\QUPENG\miniconda3\Lib\site-packages\fastapi\routing.py", line 355, in app
+    raw_response = await run_endpoint_function(
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<3 lines>...
+    )
+    ^
+  File "C:\Users\QUPENG\miniconda3\Lib\site-packages\fastapi\routing.py", line 245, in run_endpoint_function
+    return await run_in_threadpool(dependant.call, **values)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\QUPENG\miniconda3\Lib\site-packages\starlette\concurrency.py", line 32, in run_in_threadpool
+    return await anyio.to_thread.run_sync(func)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\QUPENG\miniconda3\Lib\site-packages\anyio\to_thread.py", line 63, in run_sync
+    return await get_async_backend().run_sync_in_worker_thread(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        func, args, abandon_on_cancel=abandon_on_cancel, limiter=limiter
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\QUPENG\miniconda3\Lib\site-packages\anyio\_backends\_asyncio.py", line 2502, in run_sync_in_worker_thread
+    return await future
+           ^^^^^^^^^^^^
+  File "C:\Users\QUPENG\miniconda3\Lib\site-packages\anyio\_backends\_asyncio.py", line 986, in run
+    result = context.run(func, *args)
+  File "D:\3_Projects\Active\file-organizer-GUI-\file_organizer\api\main.py", line 258, in refresh_session
+    result = app.state.service.refresh_session(session_id)
+  File "D:\3_Projects\Active\file-organizer-GUI-\file_organizer\app\session_service.py", line 117, in refresh_session
+    scan_lines = self._run_scan_sync(session, scan_runner or self._default_scan_runner)
+  File "D:\3_Projects\Active\file-organizer-GUI-\file_organizer\app\session_service.py", line 1260, in _run_scan_sync
+    result = scan_runner(Path(session.target_dir))
+  File "D:\3_Projects\Active\file-organizer-GUI-\file_organizer\app\session_service.py", line 1124, in _default_scan_runner
+    return analysis_service.run_analysis_cycle(target_dir, event_handler=event_handler)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\3_Projects\Active\file-organizer-GUI-\file_organizer\analysis\service.py", line 450, in run_analysis_cycle
+    return _run_single_analysis(target_dir, files_info, model, event_handler=event_handler)
+  File "D:\3_Projects\Active\file-organizer-GUI-\file_organizer\analysis\service.py", line 375, in _run_single_analysis
+    items = _run_analysis_worker(
+        target_dir=target_dir,
+    ...<7 lines>...
+        wait_message="正在分析目录内容",
+    )
+  File "D:\3_Projects\Active\file-organizer-GUI-\file_organizer\analysis\service.py", line 316, in _run_analysis_worker
+    response = client.chat.completions.create(model=model, messages=curr_messages, tools=tools, tool_choice="auto")
+  File "C:\Users\QUPENG\miniconda3\Lib\site-packages\openai\_utils\_utils.py", line 286, in wrapper
+    return func(*args, **kwargs)
+  File "C:\Users\QUPENG\miniconda3\Lib\site-packages\openai\resources\chat\completions\completions.py", line 1211, in create
+    return self._post(
+           ~~~~~~~~~~^
+        "/chat/completions",
+        ^^^^^^^^^^^^^^^^^^^^
+    ...<47 lines>...
+        stream_cls=Stream[ChatCompletionChunk],
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\QUPENG\miniconda3\Lib\site-packages\openai\_base_client.py", line 1297, in post
+    return cast(ResponseT, self.request(cast_to, opts, stream=stream, stream_cls=stream_cls))
+                           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\QUPENG\miniconda3\Lib\site-packages\openai\_base_client.py", line 1070, in request
+    raise self._make_status_error_from_response(err.response) from None
+openai.AuthenticationError: Error code: 401 - {'error': {'message': 'Incorrect API key provided: sk-363dd*******************************************************566b. You can find your API key at https://platform.openai.com/account/api-keys.', 'type': 'invalid_request_error', 'code': 'invalid_api_key', 'param': None}, 'status': 401}
+2026-03-28 22:41:36 [INFO] file_organizer.app.session_service: session.abandoned session_id=89f9859894094a88a71d39d3c27cb63e target_dir=d:/5_downloads/downloads/123 - 副本 stage=abandoned summary={"moves": 0, "unresolved": 0}
+2026-03-28 22:45:43 [INFO] httpx: HTTP Request: POST http://testserver/api/utils/config/presets "HTTP/1.1 200 OK"
+2026-03-28 22:45:43 [INFO] httpx: HTTP Request: GET http://testserver/api/utils/config "HTTP/1.1 200 OK"
+2026-03-28 22:45:43 [INFO] httpx: HTTP Request: POST http://testserver/api/utils/config/presets/switch "HTTP/1.1 200 OK"
+2026-03-28 22:45:43 [INFO] httpx: HTTP Request: POST http://testserver/api/utils/test-llm "HTTP/1.1 400 Bad Request"
+2026-03-28 22:45:44 [INFO] httpx: HTTP Request: POST http://testserver/api/utils/test-llm "HTTP/1.1 400 Bad Request"
+2026-03-28 22:45:44 [INFO] httpx: HTTP Request: POST http://testserver/api/utils/test-llm "HTTP/1.1 200 OK"
+2026-03-28 22:49:28 [INFO] openai._base_client: Retrying request to /models in 0.457984 seconds
+2026-03-28 22:49:29 [INFO] httpx: HTTP Request: GET https://api.openai.com/v1/models "HTTP/1.1 401 Unauthorized"
+2026-03-28 22:49:29 [ERROR] file_organizer.api.main: 模型链路连通性测试失败
+Traceback (most recent call last):
+  File "D:\3_Projects\Active\file-organizer-GUI-\file_organizer\api\main.py", line 716, in test_llm
+    client.models.list()
+    ~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\QUPENG\miniconda3\Lib\site-packages\openai\resources\models.py", line 93, in list
+    return self._get_api_list(
+           ~~~~~~~~~~~~~~~~~~^
+        "/models",
+        ^^^^^^^^^^
+    ...<4 lines>...
+        model=Model,
+        ^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\QUPENG\miniconda3\Lib\site-packages\openai\_base_client.py", line 1383, in get_api_list
+    return self._request_api_list(model, page, opts)
+           ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\QUPENG\miniconda3\Lib\site-packages\openai\_base_client.py", line 1182, in _request_api_list
+    return self.request(page, options, stream=False)
+           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\QUPENG\miniconda3\Lib\site-packages\openai\_base_client.py", line 1070, in request
+    raise self._make_status_error_from_response(err.response) from None
+openai.AuthenticationError: Error code: 401 - {'error': {'message': 'Incorrect API key provided: sk-363dd*******************************************************566b. You can find your API key at https://platform.openai.com/account/api-keys.', 'type': 'invalid_request_error', 'param': None, 'code': 'invalid_api_key'}}

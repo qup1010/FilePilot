@@ -330,6 +330,14 @@ class ConfigManager:
             "active_vision_preset_id": self._active_vision_preset_id,
         }
 
+    def get_secret_values(self, keys: list[str]) -> dict[str, str]:
+        secret_values: dict[str, str] = {}
+        for key in keys:
+            if key not in SECRET_KEYS:
+                raise ValueError(f"不支持读取密钥字段：{key}")
+            secret_values[key] = str(self.get(key, "") or "")
+        return secret_values
+
     def update_active_profile(self, patch: dict[str, Any]) -> None:
         global_patch: dict[str, Any] = {}
         text_patch = self._get_text_preset(self._active_text_preset_id)

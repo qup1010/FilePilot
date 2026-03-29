@@ -531,10 +531,10 @@ export function PreviewPanel({
           };
 
   return (
-    <div className="flex flex-col h-full bg-surface overflow-hidden">
-      <div className="flex-1 overflow-y-auto p-4 scrollbar-thin lg:p-5">
-        <div className="space-y-4">
-          <div className="rounded-[10px] border border-on-surface/8 bg-surface-container-low px-4 py-3.5">
+    <div className="flex h-full flex-col overflow-hidden bg-transparent">
+      <div className="flex-1 overflow-y-auto p-4 scrollbar-thin lg:p-6">
+        <div className="mx-auto max-w-[1360px] space-y-4">
+          <div className="rounded-[12px] border border-on-surface/8 bg-surface-container-lowest px-4 py-3.5 shadow-[0_18px_44px_rgba(0,0,0,0.04)]">
             <div className="flex items-center justify-between gap-4">
               <div className="space-y-1">
                 <h2 className="flex items-center gap-2 text-[15px] font-black text-on-surface">
@@ -551,19 +551,19 @@ export function PreviewPanel({
           </div>
 
           <div className="grid gap-2.5 sm:grid-cols-2 2xl:grid-cols-4">
-            <div className="rounded-[10px] border border-on-surface/8 bg-surface-container-lowest px-4 py-3.5">
+            <div className="rounded-[10px] border border-on-surface/8 bg-surface px-4 py-3.5">
               <span className="text-[12px] font-medium text-ui-muted">移动文件</span>
               <p className="mt-2 text-[1.35rem] font-black leading-none tracking-tight tabular-nums text-on-surface">
                 {plan.stats.move_count}
               </p>
             </div>
-            <div className="rounded-[10px] border border-on-surface/8 bg-surface-container-lowest px-4 py-3.5">
+            <div className="rounded-[10px] border border-on-surface/8 bg-surface px-4 py-3.5">
               <span className="text-[12px] font-medium text-ui-muted">新建目录</span>
               <p className="mt-2 text-[1.35rem] font-black leading-none tracking-tight tabular-nums text-on-surface">
                 {plan.stats.directory_count}
               </p>
             </div>
-            <div className="rounded-[10px] border border-on-surface/8 bg-surface-container-lowest px-4 py-3.5">
+            <div className="rounded-[10px] border border-on-surface/8 bg-surface px-4 py-3.5">
               <span className={cn(
                 "text-[12px] font-medium",
                 plan.unresolved_items.length > 0 ? "text-warning" : "text-ui-muted"
@@ -575,7 +575,7 @@ export function PreviewPanel({
                 {plan.unresolved_items.length}
               </p>
             </div>
-            <div className="rounded-[10px] border border-on-surface/8 bg-surface-container-lowest px-4 py-3.5">
+            <div className="rounded-[10px] border border-on-surface/8 bg-surface px-4 py-3.5">
               <span className="text-[12px] font-medium text-ui-muted">Review</span>
               <p className="mt-2 text-[1.35rem] font-black leading-none tracking-tight tabular-nums text-on-surface">
                 {plan.review_items.length}
@@ -586,7 +586,7 @@ export function PreviewPanel({
           {(plan.summary || (plan.change_highlights && plan.change_highlights.length > 0)) && (
             <div className="space-y-3">
               {plan.summary && (
-                <div className="rounded-[10px] border border-on-surface/8 bg-surface-container-low px-4 py-3.5">
+                <div className="rounded-[10px] border border-on-surface/8 bg-surface px-4 py-3.5">
                   <p className="text-[13px] leading-6 text-on-surface/80">
                     {plan.summary}
                   </p>
@@ -600,7 +600,7 @@ export function PreviewPanel({
                   </h4>
                   <div className="grid grid-cols-1 gap-1.5">
                     {plan.change_highlights.slice(0, 5).map((highlight, idx) => (
-                      <div key={idx} className="flex items-start gap-2.5 rounded-[9px] border border-on-surface/8 bg-surface-container-lowest px-3 py-2.5 text-[13px] leading-6 text-on-surface/75">
+                      <div key={idx} className="flex items-start gap-2.5 rounded-[9px] border border-on-surface/8 bg-surface px-3 py-2.5 text-[13px] leading-6 text-on-surface/75">
                         <Check className="mt-1 h-3.5 w-3.5 shrink-0 text-primary/45" />
                         <span>{highlight}</span>
                       </div>
@@ -643,7 +643,7 @@ export function PreviewPanel({
               </div>
             </div>
 
-            <div className="min-h-[220px] rounded-[10px] border border-on-surface/8 bg-surface-container-lowest p-2">
+            <div className="min-h-[220px] rounded-[12px] border border-on-surface/8 bg-surface-container-lowest p-2 shadow-[0_18px_44px_rgba(0,0,0,0.04)]">
               {!hasTreeContent ? (
                 <div className="flex h-36 flex-col items-center justify-center gap-2 text-[12px] font-medium text-on-surface-variant/45">
                   <Archive className="h-6 w-6 opacity-30" />

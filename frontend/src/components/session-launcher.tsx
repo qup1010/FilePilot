@@ -138,19 +138,19 @@ function StrategyDialog({
   return (
     <AnimatePresence>
       {open ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-surface/72 px-4 py-6 backdrop-blur-[4px]">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-surface/78 px-4 py-6 backdrop-blur-[6px]">
           <motion.div
             initial={{ opacity: 0, scale: 0.97, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.97, y: 20 }}
-            className="ui-dialog flex h-[min(84vh,820px)] w-full max-w-[1080px] flex-col overflow-hidden"
+            className="ui-dialog flex h-[min(84vh,820px)] w-full max-w-[1120px] flex-col overflow-hidden bg-surface-container-lowest"
           >
-            <div className="flex shrink-0 items-start justify-between gap-6 border-b border-on-surface/8 bg-surface-container-low/75 px-5 py-4 lg:px-6">
-              <div className="space-y-3">
+            <div className="flex shrink-0 items-start justify-between gap-6 border-b border-on-surface/8 bg-surface px-5 py-4 lg:px-6">
+              <div className="space-y-2.5">
                 <div className="flex items-center gap-3">
                   <div className="inline-flex items-center gap-2 rounded-[8px] border border-primary/12 bg-primary/8 px-2.5 py-1 text-[12px] font-semibold text-primary">
                     <Layers3 className="h-3.5 w-3.5" />
-                    整理设置
+                    Launch Setup
                   </div>
                   <div className="flex items-center gap-2">
                     <div className={cn("h-1.5 w-7 rounded-full transition-all duration-300", step === 1 ? "bg-primary" : "bg-primary/12")} />
@@ -158,11 +158,11 @@ function StrategyDialog({
                   </div>
                 </div>
                 <div className="space-y-1.5">
-                  <h2 className="text-[1.15rem] font-black font-headline tracking-tight text-on-surface leading-tight lg:text-[1.32rem]">
-                    {step === 1 ? "第一步：选择整理模板" : "第二步：补充整理偏好"}
+                  <h2 className="text-[1.12rem] font-black font-headline tracking-tight text-on-surface leading-tight lg:text-[1.28rem]">
+                    {step === 1 ? "选择本轮整理模板" : "补充这次的整理偏好"}
                   </h2>
                   <p className="max-w-2xl text-[13px] leading-6 text-ui-muted">
-                    {step === 1 ? "先确定这次整理会按哪种目录结构和风险偏好生成初始方案。" : "再补充命名风格、整理保守度和你的个人偏好。"}
+                    {step === 1 ? "先决定目录结构和整体风险取向，再进入扫描。" : "只保留会影响结果的关键偏好，不展开无关说明。"}
                   </p>
                 </div>
               </div>
@@ -195,7 +195,12 @@ function StrategyDialog({
                     className="flex h-full flex-col"
                   >
                     {/* 横排模板卡片 - 一屏可见 */}
-                    <div className="grid grid-cols-5 gap-3">
+                    <div className="grid gap-3 lg:grid-cols-[300px_minmax(0,1fr)]">
+                      <div className="rounded-[10px] border border-on-surface/8 bg-surface p-2">
+                        <div className="mb-2 px-2 py-1">
+                          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-ui-muted">Templates</p>
+                        </div>
+                        <div className="space-y-1.5">
                       {STRATEGY_TEMPLATES.map((template) => {
                         const active = strategy.template_id === template.id;
                         const defaultTag = template.defaultCautionLevel === "conservative" ? "保守" : "平衡";
@@ -206,14 +211,14 @@ function StrategyDialog({
                             disabled={loading}
                             onClick={() => onTemplateSelect(template.id)}
                             className={cn(
-                              "group relative flex flex-col rounded-[8px] border px-4 py-4 text-left transition-all duration-200 disabled:opacity-50",
+                              "group relative flex w-full flex-col rounded-[8px] border px-3.5 py-3.5 text-left transition-all duration-200 disabled:opacity-50",
                               active
-                                ? "border-primary/22 bg-primary/6 shadow-[0_10px_24px_rgba(0,0,0,0.06)]"
-                                : "border-on-surface/8 bg-surface-container-lowest hover:border-primary/16 hover:bg-white hover:shadow-[0_8px_18px_rgba(0,0,0,0.05)]",
+                                ? "border-primary/22 bg-primary/6 shadow-[0_8px_20px_rgba(0,0,0,0.05)]"
+                                : "border-transparent bg-surface-container-lowest hover:border-primary/16 hover:bg-white",
                             )}
                           >
-                            <div className="mb-2 flex items-center justify-between">
-                              <p className={cn("text-[14px] font-bold tracking-tight", active ? "text-primary" : "text-on-surface")}>{template.label}</p>
+                            <div className="mb-1.5 flex items-center justify-between gap-3">
+                              <p className={cn("text-[13px] font-bold tracking-tight", active ? "text-primary" : "text-on-surface")}>{template.label}</p>
                               {active && (
                                 <div className="flex h-5 w-5 items-center justify-center rounded-full bg-primary text-white">
                                   <CheckCircle2 className="h-3 w-3" />
@@ -238,11 +243,11 @@ function StrategyDialog({
                           </button>
                         );
                       })}
+                        </div>
                     </div>
 
-                    {/* 选中模板的紧凑详情 */}
-                    <div className="mt-5 grid flex-1 gap-4 lg:grid-cols-[1fr_280px]">
-                      <div className="ui-panel p-5">
+                    <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
+                      <div className="rounded-[10px] border border-on-surface/8 bg-surface-container-lowest p-5">
                         <div className="flex flex-wrap items-center gap-2.5">
                           <span className="rounded-full border border-primary/12 bg-primary/8 px-3 py-1 text-[12px] font-semibold text-primary">{currentTemplate.label}</span>
                           <span className="rounded-full border border-on-surface/8 bg-surface-container-low px-3 py-1 text-[12px] font-medium text-on-surface-variant">{templateTag}</span>
@@ -269,7 +274,7 @@ function StrategyDialog({
                         </div>
                       </div>
 
-                      <div className="ui-panel-muted p-4">
+                      <div className="rounded-[10px] border border-on-surface/8 bg-surface p-4">
                         <div className="mb-3 text-[11px] font-medium uppercase tracking-widest text-ui-muted">预计目录结构</div>
                         <div className="space-y-2">
                           {directoryPreview.map((directory, index) => (
@@ -286,6 +291,7 @@ function StrategyDialog({
                           ))}
                         </div>
                       </div>
+                    </div>
                     </div>
                   </motion.div>
                 ) : (
@@ -647,67 +653,71 @@ export function SessionLauncher() {
 
   return (
     <>
-      <div className="ui-page">
+      <div className="mx-auto flex min-h-full w-full max-w-[1220px] items-center px-4 py-6 sm:px-6 lg:px-8">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4, ease: "easeOut" }}
-          className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]"
+          className="w-full"
         >
-          <section className="ui-panel overflow-hidden p-5 sm:p-6">
-            <div className="space-y-5">
-              <div className="space-y-3">
-                <div className="ui-kicker">
+          <section className="overflow-hidden rounded-[12px] border border-on-surface/8 bg-surface-container-lowest px-5 py-6 shadow-[0_18px_44px_rgba(0,0,0,0.05)] sm:px-7 sm:py-7">
+            <div className="mx-auto max-w-[980px] space-y-7">
+              <div className="space-y-4">
+                <div className="inline-flex items-center gap-2 rounded-full border border-primary/12 bg-primary/8 px-3 py-1 text-[12px] font-semibold text-primary">
                   <Sparkles className="h-4 w-4" />
-                  新建整理任务
+                  New Task Console
                 </div>
-                <div className="space-y-2">
-                  <h1 className="max-w-3xl text-[2rem] font-black font-headline leading-[1.05] tracking-tight text-on-surface sm:text-[2.3rem] lg:text-[2.85rem]">
-                    先选目录，再开始整理
+                <div className="space-y-2.5">
+                  <h1 className="max-w-3xl text-[1.9rem] font-black font-headline leading-[1.02] tracking-tight text-on-surface sm:text-[2.4rem] lg:text-[2.9rem]">
+                    选择目录并开始整理
                   </h1>
                   <p className="max-w-2xl text-[14px] leading-7 text-ui-subtle sm:text-[15px]">
-                    首页只负责选择目录、确认默认策略并启动任务。真正的扫描、方案调整、预检和执行，都在后续工作台完成。
+                    这里负责启动任务。系统会先扫描、再给方案、再进入预检，真正执行前仍需要你确认。
                   </p>
                 </div>
               </div>
 
-              <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-stretch">
-                <div className="ui-field-shell min-h-[64px] px-2.5 py-2">
+              <div className="rounded-[12px] border border-on-surface/8 bg-surface px-3 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.6)]">
+                <div className="grid gap-3 lg:grid-cols-[56px_minmax(0,1fr)_auto] lg:items-center">
                   <Button
                     variant="ghost"
                     onClick={handleSelectDir}
                     disabled={loading}
-                    className="h-11 w-11 rounded-[8px] p-0 text-ui-muted hover:bg-primary/6 hover:text-primary"
+                    className="h-12 w-12 rounded-[10px] p-0 text-ui-muted hover:bg-primary/6 hover:text-primary"
                     title="浏览文件夹"
                   >
                     <FolderOpen className="h-5 w-5" />
                   </Button>
-                  <input
-                    value={targetDir}
-                    onChange={(event) => setTargetDir(event.target.value)}
-                    disabled={loading}
-                    className="h-12 w-full min-w-0 bg-transparent pr-3 text-[15px] font-semibold text-on-surface outline-none placeholder:text-on-surface-variant/32 disabled:opacity-70"
-                    placeholder="粘贴路径或点击左侧图标选择目录..."
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") void handlePrimaryLaunch();
-                    }}
-                  />
+                  <div className="min-w-0 border-l border-r border-on-surface/6 px-1 lg:px-4">
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-ui-muted">Target Directory</div>
+                    <input
+                      value={targetDir}
+                      onChange={(event) => setTargetDir(event.target.value)}
+                      disabled={loading}
+                      className="mt-1 h-12 w-full min-w-0 bg-transparent pr-3 text-[16px] font-semibold tracking-tight text-on-surface outline-none placeholder:text-on-surface-variant/32 disabled:opacity-70"
+                      placeholder="粘贴路径或点击左侧图标选择目录..."
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") void handlePrimaryLaunch();
+                      }}
+                    />
+                  </div>
+                  <Button
+                    variant="primary"
+                    size="lg"
+                    onClick={() => void handlePrimaryLaunch()}
+                    disabled={loading || !targetDir.trim()}
+                    loading={loading}
+                    className="w-full px-7 lg:min-w-[190px]"
+                  >
+                    {loading ? "正在准备" : "开始扫描整理"}
+                    {!loading && <ArrowRight className="h-4.5 w-4.5" />}
+                  </Button>
                 </div>
-                <Button
-                  variant="primary"
-                  size="lg"
-                  onClick={() => void handlePrimaryLaunch()}
-                  disabled={loading || !targetDir.trim()}
-                  loading={loading}
-                  className="w-full px-6 sm:w-auto"
-                >
-                  {loading ? "正在准备" : "开始扫描整理"}
-                  {!loading && <ArrowRight className="h-4.5 w-4.5" />}
-                </Button>
               </div>
 
-              <div className="ui-panel-muted px-4 py-4">
-                <div className="space-y-2">
+              <div className="rounded-[10px] border border-on-surface/8 bg-surface px-4 py-4">
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                  <div className="space-y-2">
                   <div className="flex flex-wrap items-center gap-2 text-[13px] font-semibold text-on-surface">
                     <span className="text-ui-muted">当前预设</span>
                     {launchPreferencesLoaded ? (
@@ -728,46 +738,15 @@ export function SessionLauncher() {
                       : "正在同步当前配置方案的启动预设。"}
                   </p>
                 </div>
+                  <div className="grid gap-2 text-[12px] text-ui-muted sm:grid-cols-3">
+                    <div className="rounded-[8px] border border-on-surface/6 bg-surface-container-low px-3 py-2.5">先扫描再出方案</div>
+                    <div className="rounded-[8px] border border-on-surface/6 bg-surface-container-low px-3 py-2.5">执行前仍需确认</div>
+                    <div className="rounded-[8px] border border-on-surface/6 bg-surface-container-low px-3 py-2.5">支持最近一次回退</div>
+                  </div>
+                </div>
               </div>
             </div>
           </section>
-
-          <motion.aside
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.08, duration: 0.32 }}
-            className="space-y-4"
-          >
-            <section className="ui-panel p-5">
-              <div className="mb-4 flex items-center gap-2 text-[12px] font-semibold text-ui-muted">
-                <ShieldCheck className="h-3.5 w-3.5 text-primary" />
-                启动说明
-              </div>
-              <div className="space-y-3">
-                <div className="ui-metric px-4 py-3.5">
-                  <div className="mb-1 flex items-center gap-2 text-[13px] font-bold text-on-surface">
-                    <FolderOpen className="h-4 w-4 text-primary" />
-                    选择目录
-                  </div>
-                  <p className="text-[12.5px] leading-6 text-ui-subtle">支持粘贴路径，也可以直接唤起目录选择器。</p>
-                </div>
-                <div className="ui-metric px-4 py-3.5">
-                  <div className="mb-1 flex items-center gap-2 text-[13px] font-bold text-on-surface">
-                    <Sparkles className="h-4 w-4 text-primary" />
-                    先出方案
-                  </div>
-                  <p className="text-[12.5px] leading-6 text-ui-subtle">系统会先扫描并给出整理建议，确认后才进入执行阶段。</p>
-                </div>
-                <div className="ui-metric px-4 py-3.5">
-                  <div className="mb-1 flex items-center gap-2 text-[13px] font-bold text-on-surface">
-                    <ShieldCheck className="h-4 w-4 text-primary" />
-                    预检与回退
-                  </div>
-                  <p className="text-[12.5px] leading-6 text-ui-subtle">执行前会预检，完成后仍支持最近一次回退。</p>
-                </div>
-              </div>
-            </section>
-          </motion.aside>
         </motion.div>
 
         <AnimatePresence>
@@ -778,7 +757,7 @@ export function SessionLauncher() {
               exit={{ opacity: 0, scale: 0.98 }}
               className="mt-4"
             >
-              <div className="ui-panel flex items-start gap-4 border-error/14 bg-error-container/14 px-5 py-4 text-[14px] font-semibold text-error">
+              <div className="rounded-[10px] border border-error/14 bg-error-container/14 px-5 py-4 text-[14px] font-semibold text-error">
                 <AlertTriangle className="mt-0.5 h-5 w-5 flex-shrink-0" />
                 <p className="leading-relaxed">{error}</p>
               </div>
@@ -807,7 +786,7 @@ export function SessionLauncher() {
               initial={{ opacity: 0, scale: 0.95, y: 10 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 10 }}
-              className="ui-dialog w-full max-w-[760px] p-6 sm:p-7"
+              className="ui-dialog w-full max-w-[760px] bg-surface-container-lowest p-6 sm:p-7"
             >
               <div className="mb-6 flex items-center gap-4">
                 <div className="flex h-12 w-12 items-center justify-center rounded-[8px] border border-primary/12 bg-primary/10 text-primary">
@@ -831,7 +810,7 @@ export function SessionLauncher() {
                 <em>{STAGE_LABELS[resumePrompt.snapshot.stage] || resumePrompt.snapshot.stage}</em>）。
               </p>
 
-              <div className="ui-panel-muted mb-6 space-y-4 p-5">
+              <div className="mb-6 rounded-[10px] border border-on-surface/8 bg-surface px-5 py-5">
                 <p className="text-ui-section font-semibold text-ui-muted">上一次使用的设置</p>
                 <StrategySummaryChips strategy={resumeStrategy} />
               </div>
@@ -844,7 +823,7 @@ export function SessionLauncher() {
                 >
                   {isCompletedResume ? "查看之前的结果" : "继续上一次整理"}
                 </Button>
-                <div className="ui-panel-muted px-5 py-4 text-ui-section font-medium leading-relaxed text-ui-muted">
+                <div className="rounded-[10px] border border-on-surface/8 bg-surface px-5 py-4 text-ui-section font-medium leading-relaxed text-ui-muted">
                   {isCompletedResume
                     ? "重新开始会按这次实际提交的策略重新扫描这个目录。"
                     : "重新开始会放弃上一次未完成的状态，并按这次实际提交的策略重新扫描。"}

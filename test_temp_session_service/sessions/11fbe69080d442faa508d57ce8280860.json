@@ -1,0 +1,111 @@
+{
+  "session_id": "11fbe69080d442faa508d57ce8280860",
+  "target_dir": "d:/3_projects/active/file-organizer-gui-/test_temp_session_service/inbox",
+  "stage": "ready_for_precheck",
+  "strategy_template_id": "general_downloads",
+  "strategy_template_label": "通用下载",
+  "naming_style": "zh",
+  "caution_level": "balanced",
+  "strategy_note": "",
+  "messages": [
+    {
+      "role": "user",
+      "content": "[用户手动调整记录]\n用户在预览区域对方案进行了如下手动调整：\n- needs review",
+      "visibility": "internal",
+      "id": "user-981c8c85ff314d9b96ba81881b0af8b4"
+    }
+  ],
+  "scan_lines": "",
+  "pending_plan": {
+    "directories": [
+      "Study"
+    ],
+    "moves": [
+      {
+        "source": "md",
+        "target": "Study/md",
+        "raw": ""
+      }
+    ],
+    "user_constraints": [],
+    "unresolved_items": [],
+    "summary": "needs review"
+  },
+  "plan_snapshot": {
+    "summary": "needs review",
+    "stats": {
+      "move_count": 1,
+      "unresolved_count": 0,
+      "directory_count": 1
+    },
+    "groups": [
+      {
+        "directory": "Study",
+        "count": 1,
+        "items": [
+          {
+            "item_id": "md",
+            "display_name": "md",
+            "source_relpath": "md",
+            "target_relpath": "Study/md",
+            "suggested_purpose": "",
+            "content_summary": "",
+            "is_unresolved": false,
+            "reason": "",
+            "status": "planned"
+          }
+        ]
+      }
+    ],
+    "items": [
+      {
+        "item_id": "md",
+        "display_name": "md",
+        "source_relpath": "md",
+        "target_relpath": "Study/md",
+        "suggested_purpose": "",
+        "content_summary": "",
+        "is_unresolved": false,
+        "reason": "",
+        "status": "planned"
+      }
+    ],
+    "unresolved_items": [],
+    "review_items": [],
+    "invalidated_items": [],
+    "diff_summary": [
+      "update_item"
+    ],
+    "readiness": {
+      "can_precheck": true
+    }
+  },
+  "user_constraints": [],
+  "scanner_progress": {},
+  "assistant_message": null,
+  "precheck_summary": null,
+  "execution_report": null,
+  "rollback_report": null,
+  "last_journal_id": null,
+  "integrity_flags": {},
+  "created_at": "2026-03-29T02:24:29+00:00",
+  "updated_at": "2026-03-29T02:24:29+00:00",
+  "stale_reason": null,
+  "last_error": null,
+  "last_ai_pending_plan": {
+    "directories": [
+      "Study"
+    ],
+    "moves": [
+      {
+        "source": "md",
+        "target": "Study/md",
+        "raw": ""
+      }
+    ],
+    "user_constraints": [],
+    "unresolved_items": [],
+    "summary": "needs review"
+  },
+  "summary": "needs review"
+}

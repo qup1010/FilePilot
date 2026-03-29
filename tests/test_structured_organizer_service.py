@@ -371,6 +371,58 @@ class StructuredOrganizerServiceTests(unittest.TestCase):
         self.assertIn("organizer.request", [entry["kind"] for entry in debug_lines])
         self.assertIn("organizer.response", [entry["kind"] for entry in debug_lines])
 
+    def test_chat_one_round_accepts_plain_text_string_response_even_when_stream_enabled(self):
+        create_mock = mock.Mock(return_value="先讨论整理方案。")
+        client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create_mock)))
+        events = []
+
+        with mock.patch.object(organizer_service, "create_openai_client", return_value=client):
+            result = organizer_service.chat_one_round(
+                [{"role": "user", "content": "请整理"}],
+                event_handler=lambda event, data=None: events.append(event),
+            )
+
+        self.assertEqual(result, "先讨论整理方案。")
+        self.assertEqual(events[:3], ["model_wait_start", "model_wait_end", "ai_streaming_start"])
+        self.assertIn("ai_streaming_end", events)
+        self.assertTrue(create_mock.call_args.kwargs["stream"])
+
+    def test_chat_one_round_accepts_json_string_tool_calls(self):
+        response = json.dumps(
+            {
+                "choices": [
+                    {
+                        "message": {
+                            "content": "",
+                            "tool_calls": [
+                                {
+                                    "id": "call_1",
+                                    "type": "function",
+                                    "function": {
+                                        "name": "submit_plan_diff",
+                                        "arguments": '{"directory_renames":[],"move_updates":[],"unresolved_adds":[],"unresolved_removals":[],"summary":"已更新"}',
+                                    },
+                                }
+                            ],
+                        },
+                        "finish_reason": "tool_calls",
+                    }
+                ]
+            },
+            ensure_ascii=False,
+        )
+        client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=mock.Mock(return_value=response))))
+
+        with mock.patch.object(organizer_service, "create_openai_client", return_value=client):
+            message = organizer_service.chat_one_round(
+                [{"role": "user", "content": "请整理"}],
+                return_message=True,
+            )
+
+        self.assertEqual(message.content, "")
+        self.assertEqual(message.tool_calls[0].function.name, "submit_plan_diff")
+        self.assertIn('"summary":"已更新"', message.tool_calls[0].function.arguments)
+
 
 if __name__ == "__main__":
     unittest.main()
