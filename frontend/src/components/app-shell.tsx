@@ -142,24 +142,24 @@ export function AppShell({ children }: { children: ReactNode }) {
     <div className="flex h-screen flex-col overflow-hidden bg-surface text-on-surface font-sans">
       <header className="z-50 grid h-[60px] shrink-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center border-b border-on-surface/7 bg-surface-container-lowest/96 px-3 backdrop-blur sm:px-4">
         <div className="flex shrink-0 items-center gap-3 pr-3 lg:pr-5">
-          <Link href="/" className="flex items-center gap-3">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] border border-on-surface/8 bg-surface text-[0.92rem] font-black text-primary transition-transform active:scale-95">
+          <Link href="/" className="flex items-center gap-3 group">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[12px] border border-primary/15 bg-primary/5 text-[1rem] font-black text-primary transition-all group-hover:bg-primary group-hover:text-white group-active:scale-95 shadow-sm">
               FO
             </div>
             <div className="hidden min-w-0 md:block">
-              <p className="truncate text-[13px] font-black uppercase tracking-[0.16em] text-primary/70">Desktop Console</p>
-              <p className="truncate text-[14px] font-black tracking-tight text-on-surface">File Organizer</p>
+              <p className="truncate text-[15px] font-black tracking-tighter text-on-surface">File Organizer</p>
             </div>
           </Link>
         </div>
 
-        <div className="flex min-w-0 items-center gap-2 border-l border-r border-on-surface/6 px-3 lg:px-5">
-          <div className="min-w-0">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-ui-muted">Current Module</p>
-            <div className="mt-0.5 flex min-w-0 items-center gap-2">
-              <p className="truncate text-[14px] font-black tracking-tight text-on-surface sm:text-[15px]">{moduleCopy.title}</p>
-              <ChevronRight className="hidden h-3.5 w-3.5 shrink-0 text-on-surface/20 sm:block" />
-              <p className="hidden truncate text-[12px] text-ui-muted sm:block">{moduleCopy.detail}</p>
+        <div className="flex min-w-0 flex-1 items-center gap-3 border-none px-2 lg:px-4">
+          <div className="flex min-w-0 items-center">
+            <div className="flex flex-col">
+              <div className="flex items-center gap-2">
+                <p className="truncate text-[16px] font-black tracking-tight text-on-surface">{moduleCopy.title}</p>
+                <ChevronRight className="h-3 w-3 shrink-0 text-on-surface/20" />
+                <p className="truncate text-[12px] font-bold text-ui-muted/80">{moduleCopy.detail}</p>
+              </div>
             </div>
           </div>
         </div>

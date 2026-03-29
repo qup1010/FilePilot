@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useState, useMemo, useEffect } from "react";
-import { Search, X, Check, Palette, LayoutGrid } from "lucide-react";
+import React, { useEffect } from "react";
+import { X, Check, Palette } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { IconTemplate } from "@/types/icon-workbench";
 
@@ -17,36 +17,17 @@ interface IconWorkbenchStylePanelProps {
 }
 
 /**
- * 全屏风格选择面板
- * 提供沉浸式的模板预览和选择体验。
+ * 全屏风格选择面板 - 精简版
+ * 专注于展示风格卡片的沉浸式体验。
  */
 export function IconWorkbenchStylePanel({
   isOpen,
   onClose,
   templates,
   onSelect,
-  onRequestManageTemplate,
   selectedTemplateId,
-  bgApiToken,
-  onBgApiTokenChange,
 }: IconWorkbenchStylePanelProps) {
-  const [query, setQuery] = useState("");
-  const selectedTemplate = useMemo(
-    () => templates.find((template) => template.template_id === selectedTemplateId) || null,
-    [selectedTemplateId, templates],
-  );
-
-  const filteredTemplates = useMemo(() => {
-    if (!query.trim()) return templates;
-    const lowerQuery = query.toLowerCase();
-    return templates.filter(
-      (t: IconTemplate) =>
-        t.name.toLowerCase().includes(lowerQuery) ||
-        t.description?.toLowerCase().includes(lowerQuery),
-    );
-  }, [templates, query]);
-
-  // ESC 关闭
+  // ESC 键自动关闭
   useEffect(() => {
     if (!isOpen) return;
     const handleEsc = (e: KeyboardEvent) => {
@@ -60,77 +41,29 @@ export function IconWorkbenchStylePanel({
 
   return (
     <div className="fixed inset-0 z-[60] flex flex-col bg-surface animate-fadeIn">
-      {/* 顶部标题栏 */}
+      {/* 顶部精简导航栏 */}
       <div className="glass-surface flex items-center justify-between border-b border-on-surface/8 px-6 py-4">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-[8px] border border-primary/12 bg-primary/10 text-primary">
-            <Palette className="h-5 w-5" />
+        <div className="flex items-center gap-3.5">
+          <div className="flex h-10 w-10 items-center justify-center rounded-[10px] bg-primary/10 text-primary">
+            <Palette className="h-5.5 w-5.5" />
           </div>
           <div>
-            <h2 className="text-[18px] font-black tracking-tight text-on-surface">选择图标风格</h2>
-            <p className="text-[12px] text-ui-subtle text-pretty">生成前需要先选择一个风格。点击任意模板后，会立即把它作为当前目标集合的生成风格。</p>
+            <h2 className="text-[18px] font-black tracking-tight text-on-surface leading-tight">选择图标风格</h2>
+            <p className="text-[12px] font-medium text-ui-muted">点击任意模板即可直接应用</p>
           </div>
         </div>
         <button
           onClick={onClose}
-          className="flex h-10 w-10 items-center justify-center rounded-[8px] hover:bg-on-surface/4 text-ui-muted transition-colors"
+          className="flex h-10 w-10 items-center justify-center rounded-[8px] hover:bg-on-surface/5 text-ui-muted transition-colors"
         >
-          <X className="h-5 w-5" />
+          <X className="h-5.5 w-5.5" />
         </button>
       </div>
 
-      {/* 搜索栏 */}
-      <div className="border-b border-on-surface/6 bg-surface-container-low/40 px-6 py-4">
-          <div className="mx-auto max-w-[600px] space-y-3">
-            <div className="ui-panel-muted border-primary/12 bg-primary/5 px-4 py-3 text-[12px] leading-6 text-primary/90">
-              选择完成后面板会自动关闭，你可以直接回到工作台，为当前目标文件夹继续生成图标。
-            </div>
-            {selectedTemplate ? (
-              <div className="flex flex-wrap items-center justify-between gap-3 rounded-[8px] border border-on-surface/8 bg-surface-container-lowest px-4 py-3">
-                <div className="min-w-0">
-                  <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-ui-muted">当前已选风格</p>
-                  <p className="mt-1 truncate text-[14px] font-semibold text-on-surface">{selectedTemplate.name}</p>
-                </div>
-                {onRequestManageTemplate ? (
-                  <button
-                    type="button"
-                    onClick={() => onRequestManageTemplate(selectedTemplate.template_id)}
-                    className="shrink-0 rounded-[10px] border border-primary/14 bg-primary/8 px-3.5 py-2 text-[12px] font-semibold text-primary transition-colors hover:bg-primary/12"
-                  >
-                    编辑当前模板
-                  </button>
-                ) : null}
-              </div>
-            ) : null}
-          
-          <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-3">
-            <div className="relative">
-              <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-ui-muted" />
-              <input
-                autoFocus
-                value={query}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setQuery(e.target.value)}
-                placeholder="搜索风格名称或描述..."
-                className="w-full h-11 rounded-[8px] border border-on-surface/10 bg-white py-0 pl-12 pr-4 text-[14px] outline-none transition-all focus:border-primary/20 focus:ring-4 focus:ring-primary/4"
-              />
-            </div>
-            <div className="relative flex items-center min-w-[280px]">
-              <input
-                type="password"
-                value={bgApiToken}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => onBgApiTokenChange(e.target.value)}
-                placeholder="HF Token (用于极速抠图, 选填)"
-                className="w-full h-11 rounded-[8px] border border-on-surface/10 bg-surface-container-lowest py-0 px-4 text-[13px] outline-none transition-all focus:border-primary/20 focus:bg-white focus:ring-4 focus:ring-primary/4 placeholder:text-12px"
-              />
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* 列表区 */}
+      {/* 全量风格展示列表区 */}
       <div className="flex-1 overflow-y-auto px-6 py-8 scrollbar-thin">
-        <div className="mx-auto grid max-w-[1200px] grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {filteredTemplates.map((template: IconTemplate) => {
+        <div className="mx-auto grid max-w-[1240px] grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {templates.map((template: IconTemplate) => {
             const isSelected = template.template_id === selectedTemplateId;
             return (
               <button
@@ -140,63 +73,60 @@ export function IconWorkbenchStylePanel({
                   onClose();
                 }}
                 className={cn(
-                  "group relative flex flex-col rounded-[8px] border p-4 text-left transition-all duration-300 active:scale-[0.98]",
+                  "group relative flex flex-col rounded-[12px] border p-4 text-left transition-all duration-300 active:scale-[0.98]",
                   isSelected
-                    ? "border-primary/24 bg-primary/5 shadow-[0_16px_34px_rgba(0,0,0,0.08)] ring-1 ring-primary/18"
-                    : "border-on-surface/8 bg-surface-container-lowest hover:border-primary/18 hover:bg-white hover:shadow-[0_12px_26px_rgba(0,0,0,0.06)]",
+                    ? "border-primary/30 bg-primary/5 shadow-xl ring-1 ring-primary/20"
+                    : "border-on-surface/8 bg-surface-container-lowest hover:border-primary/20 hover:bg-white hover:shadow-lg",
                 )}
               >
-                <div className="relative mb-4 aspect-square w-full overflow-hidden rounded-[8px] border border-on-surface/6 bg-surface-container-lowest">
+                {/* 封面预览 */}
+                <div className="relative mb-4 aspect-square w-full overflow-hidden rounded-[8px] border border-on-surface/6 bg-surface-container-low">
                   {template.cover_image ? (
                     <img
                       src={template.cover_image}
                       alt={template.name}
-                      className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                      className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110"
                     />
                   ) : (
-                    <div className="flex h-full w-full items-center justify-center bg-surface-container-low text-primary/40 transition-colors group-hover:bg-primary/10 group-hover:text-primary">
-                      <Palette className="h-10 w-10" />
+                    <div className="flex h-full w-full items-center justify-center text-primary/30">
+                      <Palette className="h-12 w-12" />
                     </div>
                   )}
+                  
+                  {/* 选中角标 */}
                   {isSelected && (
-                    <div className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full bg-primary text-white shadow-lg ring-4 ring-white/50">
-                      <Check className="h-4 w-4" />
+                    <div className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full bg-primary text-white shadow-lg ring-4 ring-white">
+                      <Check className="h-4.5 w-4.5 stroke-[3]" />
                     </div>
                   )}
                 </div>
 
-                <div className="mt-1 flex-1">
+                {/* 文本信息 */}
+                <div className="flex-1 space-y-2">
                   <h3 className="text-[17px] font-black tracking-tight text-on-surface group-hover:text-primary transition-colors">
-                  {template.name}
-                </h3>
-                <p className="mt-2 line-clamp-2 min-h-[40px] text-[13px] leading-6 text-ui-muted">
-                  {template.description || "一个精美的图标风格模板。"}
-                </p>
+                    {template.name}
+                  </h3>
+                  <p className="line-clamp-2 text-[13px] leading-relaxed text-ui-muted italic">
+                    {template.description || "为文件夹注入灵魂的艺术风格..."}
+                  </p>
                 </div>
 
-                <div className="mt-6 flex w-full items-center justify-between border-t border-on-surface/4 pt-4">
+                {/* 底部标记 */}
+                <div className="mt-5 flex w-full items-center justify-between border-t border-on-surface/4 pt-4">
                   <span className={cn(
-                    "rounded-full px-2.5 py-1 text-[10px] font-bold tracking-wider",
+                    "rounded-full px-2.5 py-0.5 text-[10px] font-bold tracking-wider",
                     template.is_builtin ? "bg-on-surface/6 text-ui-muted" : "bg-primary/10 text-primary"
                   )}>
-                    {template.is_builtin ? "系统内置" : "自定义"}
+                    {template.is_builtin ? "BUILT-IN" : "CUSTOM"}
                   </span>
-                  <span className="text-[11px] font-bold text-primary opacity-0 transition-opacity group-hover:opacity-100">
-                    点击选择模板
+                  <span className="text-[11px] font-black text-primary opacity-0 transition-all translate-x-1 group-hover:opacity-100 group-hover:translate-x-0">
+                    USE STYLE →
                   </span>
                 </div>
               </button>
             );
           })}
         </div>
-
-        {filteredTemplates.length === 0 && (
-          <div className="flex h-[300px] flex-col items-center justify-center text-center">
-             <LayoutGrid className="mb-4 h-12 w-12 text-on-surface/10" />
-            <p className="text-[15px] font-bold text-on-surface">没有找到匹配的风格</p>
-            <p className="mt-1 text-[13px] text-ui-muted">尝试搜索其他关键词</p>
-          </div>
-        )}
       </div>
     </div>
   );

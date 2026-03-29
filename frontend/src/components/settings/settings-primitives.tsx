@@ -44,15 +44,15 @@ export function SettingsSection({
   return (
     <section
       className={cn(
-        "ui-panel p-5",
+        "overflow-hidden rounded-[12px] border border-on-surface/8 bg-surface-container-lowest p-5 shadow-[0_18px_44px_rgba(0,0,0,0.04)]",
         disabled && "opacity-55",
       )}
     >
-      <div className="flex flex-wrap items-start justify-between gap-4 border-b border-on-surface/6 pb-3.5">
+      <div className="flex flex-wrap items-start justify-between gap-4 border-b border-on-surface/6 bg-surface px-4 py-4 -mx-5 -mt-5 mb-4">
         <div className="flex min-w-0 items-start gap-3.5">
           <div
             className={cn(
-              "flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] border",
+              "flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] border",
               disabled
                 ? "border-on-surface/6 bg-surface-container-low text-on-surface-variant/30"
                 : "border-primary/12 bg-primary/10 text-primary",
@@ -75,7 +75,7 @@ export function SettingsSection({
 export function FieldGroup({ label, hint, className, children }: FieldGroupProps) {
   return (
     <div className={cn("space-y-2", className)}>
-      <label className="flex items-center gap-2 px-1 text-[12px] font-medium text-on-surface-variant/65">
+      <label className="flex items-center gap-2 px-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-on-surface-variant/60">
         {label}
       </label>
       {children}
@@ -88,7 +88,7 @@ export function InputShell({ icon: Icon, children, className }: InputShellProps)
   return (
     <div
       className={cn(
-        "ui-field-shell group px-3 py-2",
+        "ui-field-shell group min-h-[52px] bg-surface-container-lowest px-3 py-2",
         className,
       )}
     >
@@ -116,8 +116,8 @@ export function StrategyOptionButton({
       type="button"
       onClick={onClick}
       className={cn(
-        "w-full rounded-[8px] border px-4 py-3 text-left transition-colors",
-        active ? "border-primary/20 bg-primary/6 shadow-[0_8px_18px_rgba(0,0,0,0.04)]" : "border-on-surface/8 bg-surface-container-lowest hover:border-primary/16 hover:bg-white",
+        "w-full rounded-[10px] border px-4 py-3 text-left transition-colors",
+        active ? "border-primary/20 bg-primary/6 shadow-[0_10px_22px_rgba(0,0,0,0.04)]" : "border-on-surface/8 bg-surface-container-lowest hover:border-primary/16 hover:bg-white",
       )}
     >
       <p className={cn("text-[14px] font-semibold tracking-tight", active ? "text-primary" : "text-on-surface")}>{label}</p>
@@ -171,10 +171,10 @@ export function PresetManager({
   onDelete: (preset: PresetItem) => void;
 }) {
   return (
-    <div className="space-y-3">
+    <div className="space-y-3 rounded-[10px] border border-on-surface/8 bg-surface px-4 py-4">
       <div className="flex items-center justify-between gap-3">
         <div className="space-y-1">
-          <p className="text-[12px] font-semibold text-on-surface">{title}</p>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-on-surface-variant/60">{title}</p>
           <p className="text-[12px] text-on-surface-variant/60">切换后只影响这一类模型的地址、模型和密钥。</p>
         </div>
         <Button variant="secondary" size="sm" onClick={onAdd} className="px-4 py-2">
@@ -192,8 +192,8 @@ export function PresetManager({
             className={cn(
               "group flex items-center justify-between rounded-[10px] border px-3.5 py-3 text-left transition-colors",
               activeId === preset.id
-                ? "border-primary/18 bg-primary/6"
-                : "border-on-surface/8 bg-white hover:border-primary/14",
+                ? "border-primary/18 bg-primary/6 shadow-[0_8px_18px_rgba(0,0,0,0.03)]"
+                : "border-on-surface/8 bg-surface-container-lowest hover:border-primary/14 hover:bg-white",
             )}
           >
             <div className="min-w-0">

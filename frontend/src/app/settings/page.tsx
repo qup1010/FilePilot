@@ -412,19 +412,23 @@ export default function SettingsPage() {
     <div className="flex min-h-0 flex-1 overflow-hidden bg-surface">
       <main className="min-w-0 flex-1 overflow-y-auto bg-surface">
         <div className="ui-page flex flex-col gap-5">
-          <div className="ui-page-header glass-surface sticky top-0 z-20 px-4 py-3">
-            <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="sticky top-0 z-20 overflow-hidden rounded-[12px] border border-on-surface/8 bg-surface-container-lowest shadow-[0_18px_44px_rgba(0,0,0,0.04)]">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-on-surface/6 bg-surface px-4 py-3">
               <div className="min-w-0 space-y-1.5">
                 <div className="flex flex-wrap items-center gap-3">
-                  <h1 className="text-[1.35rem] font-black tracking-tight text-on-surface">设置与偏好</h1>
+                  <div className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-ui-muted">
+                    <SettingsIcon className="h-3.5 w-3.5" />
+                    Model Console
+                  </div>
                   {isDirty ? (
                     <span className="rounded-[8px] border border-warning/10 bg-warning-container/20 px-2.5 py-1 text-[12px] font-medium text-warning">
                       未保存
                     </span>
                   ) : null}
                 </div>
+                <h1 className="text-[1.35rem] font-black tracking-tight text-on-surface">设置与偏好</h1>
                 <p className="max-w-[760px] text-[13px] leading-6 text-on-surface-variant/70">
-                  文本模型和图片理解模型都可以按「预设」保存并快速切换。其中，“图标工坊”会直接复用这里配置的文本能力，但也支持为绘图单独配置图像模型。
+                  集中管理文本模型、图片理解、启动默认值和少量运行开关。保存后，当前激活预设会直接影响后续整理任务。
                 </p>
               </div>
 
@@ -453,12 +457,18 @@ export default function SettingsPage() {
                 </Button>
               </div>
             </div>
+
+            <div className="grid gap-2 px-4 py-3 text-[12px] text-ui-muted md:grid-cols-3">
+              <div className="rounded-[8px] border border-on-surface/6 bg-surface px-3 py-2.5">文本模型与图片理解分开管理</div>
+              <div className="rounded-[8px] border border-on-surface/6 bg-surface px-3 py-2.5">支持预设切换、测试与保存</div>
+              <div className="rounded-[8px] border border-on-surface/6 bg-surface px-3 py-2.5">`Ctrl/Cmd + Shift + S` 可快速保存</div>
+            </div>
           </div>
 
           {error ? <ErrorAlert title="设置操作失败" message={error} /> : null}
 
-          <div className="grid gap-5 grid-cols-[248px_minmax(0,1fr)]">
-            <aside className="sticky top-[84px] h-fit space-y-3">
+          <div className="grid gap-5 grid-cols-[256px_minmax(0,1fr)]">
+            <aside className="sticky top-[126px] h-fit space-y-3">
               <div>
                 <div className="flex flex-col gap-2">
                   {SETTINGS_CATEGORIES.map((category) => {
@@ -470,10 +480,10 @@ export default function SettingsPage() {
                         type="button"
                         onClick={() => setActiveCategory(category.id)}
                         className={cn(
-                          "rounded-[8px] border px-4 py-3 text-left transition-colors",
+                          "rounded-[10px] border px-4 py-3 text-left transition-colors",
                           active
-                            ? "border-primary/18 bg-primary/7"
-                            : "border-on-surface/8 bg-surface-container-lowest hover:border-primary/14",
+                            ? "border-primary/18 bg-primary/7 shadow-[0_12px_26px_rgba(0,0,0,0.04)]"
+                            : "border-on-surface/8 bg-surface-container-lowest hover:border-primary/14 hover:bg-white",
                         )}
                       >
                         <div className="flex items-start gap-3">
@@ -521,7 +531,7 @@ export default function SettingsPage() {
                       </Button>
                     }
                   >
-                    <div className="rounded-[8px] border border-on-surface/8 bg-surface-container-low px-4 py-4">
+                    <div className="rounded-[10px] border border-on-surface/8 bg-surface px-4 py-4 shadow-[0_10px_24px_rgba(0,0,0,0.03)]">
                       <div className="flex flex-wrap items-center justify-between gap-3">
                         <div className="space-y-1">
                           <p className="text-[12px] font-medium text-on-surface-variant/60">当前激活文本预设</p>
@@ -639,7 +649,7 @@ export default function SettingsPage() {
                       </Button>
                     }
                   >
-                    <div className="rounded-[8px] border border-on-surface/8 bg-surface-container-low px-4 py-4">
+                    <div className="rounded-[10px] border border-on-surface/8 bg-surface px-4 py-4 shadow-[0_10px_24px_rgba(0,0,0,0.03)]">
                       <div className="grid gap-3 lg:grid-cols-2">
                         <div className="space-y-1">
                           <p className="text-[12px] font-medium text-on-surface-variant/60">当前文本来源</p>
@@ -845,7 +855,7 @@ export default function SettingsPage() {
                     }
                     disabled={!config.IMAGE_ANALYSIS_ENABLED}
                   >
-                    <div className="rounded-[8px] border border-on-surface/8 bg-surface-container-low px-4 py-4">
+                    <div className="rounded-[10px] border border-on-surface/8 bg-surface px-4 py-4 shadow-[0_10px_24px_rgba(0,0,0,0.03)]">
                       <div className="grid gap-3 lg:grid-cols-2">
                         <div className="space-y-1">
                           <p className="text-[12px] font-medium text-on-surface-variant/60">当前图片预设</p>
@@ -970,6 +980,21 @@ export default function SettingsPage() {
                   title="新任务启动"
                   description="自定义首页的默认选型，免去频繁设置策略模板、命名风格等基础偏好参数的繁琐步骤。"
                 >
+                  <div className="rounded-[10px] border border-on-surface/8 bg-surface px-4 py-4 shadow-[0_10px_24px_rgba(0,0,0,0.03)]">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="rounded-full border border-primary/12 bg-primary/8 px-3 py-1 text-[12px] font-semibold text-primary">{launchTemplate.label}</span>
+                      <span className="rounded-full border border-on-surface/8 bg-surface-container-low px-3 py-1 text-[12px] font-medium text-on-surface-variant">
+                        {config.LAUNCH_DEFAULT_NAMING_STYLE === "en" ? "英文目录" : config.LAUNCH_DEFAULT_NAMING_STYLE === "minimal" ? "极简命名" : "中文目录"}
+                      </span>
+                      <span className="rounded-full border border-on-surface/8 bg-surface-container-low px-3 py-1 text-[12px] font-medium text-on-surface-variant">
+                        {config.LAUNCH_DEFAULT_CAUTION_LEVEL === "conservative" ? "保守整理" : config.LAUNCH_DEFAULT_CAUTION_LEVEL === "aggressive" ? "积极整理" : "平衡整理"}
+                      </span>
+                    </div>
+                    <p className="mt-3 text-[13px] leading-6 text-on-surface-variant/70">
+                      这组默认值会直接影响首页的当前预设，以及策略弹窗的预填起点。
+                    </p>
+                  </div>
+
                   <div className="grid gap-4 xl:grid-cols-2">
                     <FieldGroup
                       label="默认整理模板"
@@ -1031,7 +1056,7 @@ export default function SettingsPage() {
                     </FieldGroup>
                   </div>
 
-                  <div className="rounded-[8px] border border-on-surface/8 bg-surface-container-low px-4 py-3.5">
+                  <div className="rounded-[10px] border border-on-surface/8 bg-surface px-4 py-3.5 shadow-[0_10px_24px_rgba(0,0,0,0.03)]">
                     <div className="flex items-start justify-between gap-4">
                       <div className="space-y-1.5">
                         <h3 className="text-[13px] font-semibold tracking-tight text-on-surface">直接用默认值启动</h3>
@@ -1046,7 +1071,7 @@ export default function SettingsPage() {
                     </div>
                   </div>
 
-                  <div className="rounded-[8px] border border-primary/12 bg-primary/6 px-4 py-3.5">
+                  <div className="rounded-[10px] border border-primary/12 bg-primary/6 px-4 py-3.5">
                     <p className="text-[12px] leading-6 text-primary/85">
                       即使不勾选直接启动，首页策略弹窗也会以上方数值作为最优先的预填起点。
                     </p>

@@ -94,15 +94,6 @@ export function IconWorkbenchToolbar({
         >
           <Settings2 className="h-5 w-5 text-ui-muted" />
         </Button>
-
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-10 w-10 hover:bg-on-surface/4"
-          title="布局切换"
-        >
-          <LayoutGrid className="h-5 w-5 text-ui-muted" />
-        </Button>
       </div>
     </div>
   );

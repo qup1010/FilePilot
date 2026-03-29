@@ -641,54 +641,54 @@ export default function WorkspaceClient() {
       <ErrorBoundary fallbackTitle="页面加载出错了" className="flex-1">
         {layoutReady ? (
           <div className="flex flex-1 min-h-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.45),rgba(255,255,255,0))]">
-          {showConversationPane ? (
-            <section
-              ref={leftPaneRef}
-              style={{ width: `${leftWidth}%` }}
-              className="relative flex h-full min-h-0 min-w-[360px] flex-col border-r border-on-surface/6 bg-surface-container-lowest"
-            >
-              {conversationHeader}
-              {conversationPanel}
-            </section>
-          ) : null}
-
-          {showConversationPane ? (
-            <div
-              onMouseDown={handleStartResizing}
-              className={cn(
-                "absolute top-0 bottom-0 w-2.5 z-40 transition-colors cursor-col-resize flex items-center justify-center select-none group",
-                isResizingState ? "bg-transparent" : "hover:bg-primary/[0.018]",
-              )}
-              style={{ left: dividerLeft !== null ? `${dividerLeft - 1.25}px` : `calc(${leftWidth}% - 1.25px)` }}
-            >
-              <div
-                className={cn(
-                  "w-[1px] h-full transition-all duration-300",
-                  isResizingState
-                    ? "bg-primary/35 shadow-[0_0_12px_rgba(0,120,212,0.18)] scale-x-[1.5]"
-                    : "bg-on-surface/[0.06] group-hover:bg-primary/18",
-                )}
-              />
-              <div
-                className={cn(
-                  "absolute top-1/2 flex h-9 w-5 -translate-y-1/2 flex-col items-center justify-center gap-0.5 rounded-[8px] border border-on-surface/8 bg-surface-container-lowest transition-all duration-200",
-                  isResizingState
-                    ? "scale-110 border-primary/20 opacity-100 shadow-[0_4px_10px_rgba(0,0,0,0.08)]"
-                    : "opacity-0 group-hover:opacity-100 scale-100",
-                )}
+            {showConversationPane ? (
+              <section
+                ref={leftPaneRef}
+                style={{ width: `${leftWidth}%` }}
+                className="relative flex h-full min-h-0 min-w-[360px] flex-col border-r border-on-surface/6 bg-surface-container-lowest"
               >
-                <div className={cn("w-[1.5px] h-3 rounded-sm transition-colors", isResizingState ? "bg-primary/40" : "bg-on-surface/15")} />
-                <div className={cn("w-[1.5px] h-3 rounded-sm transition-colors", isResizingState ? "bg-primary/40" : "bg-on-surface/15")} />
-              </div>
-            </div>
-          ) : null}
+                {conversationHeader}
+                {conversationPanel}
+              </section>
+            ) : null}
 
-          <section
-            style={{ width: showConversationPane ? `${100 - leftWidth}%` : "100%" }}
-            className="flex h-full min-h-0 min-w-[320px] flex-col overflow-hidden bg-[linear-gradient(180deg,rgba(248,249,250,0.82),rgba(242,244,245,0.55))]"
-          >
-            <div className="flex-1 min-h-0">{renderPreviewContent()}</div>
-          </section>
+            {showConversationPane ? (
+              <div
+                onMouseDown={handleStartResizing}
+                className={cn(
+                  "absolute top-0 bottom-0 w-2.5 z-40 transition-colors cursor-col-resize flex items-center justify-center select-none group",
+                  isResizingState ? "bg-transparent" : "hover:bg-primary/[0.018]",
+                )}
+                style={{ left: dividerLeft !== null ? `${dividerLeft - 1.25}px` : `calc(${leftWidth}% - 1.25px)` }}
+              >
+                <div
+                  className={cn(
+                    "w-[1px] h-full transition-all duration-300",
+                    isResizingState
+                      ? "bg-primary/35 shadow-[0_0_12px_rgba(0,120,212,0.18)] scale-x-[1.5]"
+                      : "bg-on-surface/[0.06] group-hover:bg-primary/18",
+                  )}
+                />
+                <div
+                  className={cn(
+                    "absolute top-1/2 flex h-9 w-5 -translate-y-1/2 flex-col items-center justify-center gap-0.5 rounded-[8px] border border-on-surface/8 bg-surface-container-lowest transition-all duration-200",
+                    isResizingState
+                      ? "scale-110 border-primary/20 opacity-100 shadow-[0_4px_10px_rgba(0,0,0,0.08)]"
+                      : "opacity-0 group-hover:opacity-100 scale-100",
+                  )}
+                >
+                  <div className={cn("w-[1.5px] h-3 rounded-sm transition-colors", isResizingState ? "bg-primary/40" : "bg-on-surface/15")} />
+                  <div className={cn("w-[1.5px] h-3 rounded-sm transition-colors", isResizingState ? "bg-primary/40" : "bg-on-surface/15")} />
+                </div>
+              </div>
+            ) : null}
+
+            <section
+              style={{ width: showConversationPane ? `${100 - leftWidth}%` : "100%" }}
+              className="flex h-full min-h-0 min-w-[320px] flex-col overflow-hidden bg-[linear-gradient(180deg,rgba(248,249,250,0.82),rgba(242,244,245,0.55))]"
+            >
+              <div className="flex-1 min-h-0">{renderPreviewContent()}</div>
+            </section>
           </div>
         ) : renderLayoutSkeleton()}
       </ErrorBoundary>

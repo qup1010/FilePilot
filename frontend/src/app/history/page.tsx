@@ -208,13 +208,13 @@ export default function HistoryPage() {
   return (
     <div className="flex-1 min-h-0 overflow-hidden bg-surface">
       <div className="ui-page flex h-full min-h-0 flex-col gap-4 lg:flex-row">
-        <section className="ui-panel flex min-h-0 w-full flex-col overflow-hidden lg:w-[396px] lg:min-w-[396px]">
-          <div className="border-b border-on-surface/6 px-4 py-4">
+        <section className="flex min-h-0 w-full flex-col overflow-hidden rounded-[12px] border border-on-surface/8 bg-surface-container-lowest shadow-[0_18px_44px_rgba(0,0,0,0.04)] lg:w-[400px] lg:min-w-[400px]">
+          <div className="border-b border-on-surface/6 bg-surface px-4 py-4">
             <div className="space-y-3">
               <div className="space-y-1.5">
-                <div className="inline-flex items-center gap-2 text-ui-meta font-medium text-ui-muted">
+                <div className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-ui-muted">
                   <PanelLeft className="h-3.5 w-3.5" />
-                  历史列表
+                  Archive Index
                 </div>
                 <h1 className="text-[1.2rem] font-black font-headline tracking-tight text-on-surface">
                   整理记录
@@ -226,8 +226,8 @@ export default function HistoryPage() {
 
               <div className="grid gap-2 sm:grid-cols-3">
                 {historyStats.map((item) => (
-                  <div key={item.label} className="ui-metric px-3 py-2.5">
-                    <div className="text-[12px] text-ui-muted">{item.label}</div>
+                  <div key={item.label} className="rounded-[10px] border border-on-surface/8 bg-surface-container-lowest px-3 py-2.5">
+                    <div className="text-[11px] font-medium uppercase tracking-[0.14em] text-ui-muted">{item.label}</div>
                     <div className="mt-1 text-[1rem] font-black tabular-nums text-on-surface">{item.value}</div>
                   </div>
                 ))}
@@ -235,8 +235,8 @@ export default function HistoryPage() {
             </div>
           </div>
 
-          <div className="border-b border-on-surface/6 px-4 py-3">
-            <div className="ui-panel-muted space-y-2.5 p-3">
+          <div className="border-b border-on-surface/6 bg-surface-container-low px-4 py-3">
+            <div className="space-y-2.5 rounded-[10px] border border-on-surface/8 bg-surface px-3 py-3">
               <div className="relative">
                 <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ui-muted" />
                 <input
@@ -278,7 +278,7 @@ export default function HistoryPage() {
             </div>
           ) : null}
 
-          <div className="flex-1 overflow-y-auto px-4 py-4 scrollbar-thin">
+          <div className="flex-1 overflow-y-auto bg-surface-container-low px-4 py-4 scrollbar-thin">
             {loading ? (
               <div className="flex h-full min-h-[16rem] flex-col items-center justify-center gap-4">
                 <div className="flex h-14 w-14 items-center justify-center rounded-[8px] border border-on-surface/6 bg-white text-primary">
@@ -287,7 +287,7 @@ export default function HistoryPage() {
                 <p className="text-ui-body font-medium text-ui-muted">正在载入历史记录...</p>
               </div>
             ) : filteredHistory.length > 0 ? (
-              <div className="space-y-2.5">
+              <div className="space-y-2">
                 {filteredHistory.map((entry, idx) => {
                   const active = selectedSessionId === entry.execution_id;
                   const sessionLike = isHistorySessionEntry(entry);
@@ -310,14 +310,13 @@ export default function HistoryPage() {
                       className={cn(
                         "group relative overflow-hidden rounded-[10px] border transition-all cursor-pointer",
                         active
-                          ? "border-primary/22 bg-primary/[0.045] shadow-[inset_0_0_0_1px_rgba(0,0,0,0.08),0_6px_16px_rgba(0,0,0,0.05)]"
-                          : "border-on-surface/6 bg-white hover:border-primary/15 hover:bg-surface-container-lowest",
+                          ? "border-primary/22 bg-primary/[0.05] shadow-[inset_0_0_0_1px_rgba(0,0,0,0.08),0_8px_18px_rgba(0,0,0,0.04)]"
+                          : "border-on-surface/6 bg-surface-container-lowest hover:border-primary/15 hover:bg-white",
                       )}
                     >
                       <div className={cn("absolute inset-y-3 left-0 w-[2px] rounded-full transition-colors", active ? "bg-primary/80" : "bg-transparent")} />
-                      <div className={cn("pointer-events-none absolute inset-x-0 top-0 h-12 transition-opacity", active ? "bg-primary/[0.035] opacity-100" : "opacity-0")} />
 
-                      <div className="relative space-y-2.5 p-3">
+                      <div className="relative space-y-2.5 p-3.5">
                         <div className="flex items-start justify-between gap-2">
                           <div className="min-w-0 space-y-1">
                             <div className="flex flex-wrap items-center gap-2">
@@ -337,12 +336,12 @@ export default function HistoryPage() {
                                 )} />
                                 {sessionLike ? "进行中会话" : entry.status === "rolled_back" ? "已回退" : "执行结果"}
                               </span>
-                              <span className="text-ui-meta text-ui-muted">{formatDisplayDate(entry.created_at)}</span>
+                              <span className="text-[11px] text-ui-muted">{formatDisplayDate(entry.created_at)}</span>
                             </div>
-                            <h3 className="line-clamp-1 text-[14px] font-semibold tracking-tight text-on-surface">
+                            <h3 className="line-clamp-1 text-[13px] font-bold tracking-tight text-on-surface">
                               {getHistoryEntryName(entry)}
                             </h3>
-                            <p className="line-clamp-1 text-ui-meta text-ui-muted" title={entry.target_dir}>
+                            <p className="line-clamp-1 text-[11px] leading-5 text-ui-muted" title={entry.target_dir}>
                               {formatPath(entry.target_dir)}
                             </p>
                           </div>
@@ -363,7 +362,7 @@ export default function HistoryPage() {
                           </button>
                         </div>
 
-                        <div className="flex items-center justify-between gap-3 text-[12px]">
+                        <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 text-[12px]">
                           <div className="min-w-0">
                             <span className="text-ui-muted">当前状态</span>
                             <span className="ml-2 font-semibold text-on-surface">{getEntrySummary(entry)}</span>
@@ -398,7 +397,7 @@ export default function HistoryPage() {
           </div>
         </section>
 
-        <section className="ui-panel relative flex min-h-0 flex-1 flex-col overflow-hidden">
+        <section className="relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-[12px] border border-on-surface/8 bg-surface-container-lowest shadow-[0_18px_44px_rgba(0,0,0,0.04)]">
           <AnimatePresence mode="wait">
             {selectedSessionId && selectedEntry && (isSelectedSession ? sessionDetail : journal) ? (
               <motion.div
@@ -408,12 +407,12 @@ export default function HistoryPage() {
                 exit={{ opacity: 0, y: -8 }}
                 className="flex min-h-0 flex-1 flex-col"
               >
-                <div className="border-b border-on-surface/6 bg-surface-container-lowest px-5 py-4 lg:px-6">
+                <div className="border-b border-on-surface/6 bg-surface px-5 py-4 lg:px-6">
                   <div className="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
                     <div className="space-y-1.5">
-                      <div className="inline-flex items-center gap-2 text-ui-meta font-medium text-ui-muted">
+                      <div className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-ui-muted">
                         <FileClock className="h-3.5 w-3.5" />
-                        {isSelectedSession ? "会话详情" : "执行详情"}
+                        {isSelectedSession ? "Session Archive" : "Execution Archive"}
                       </div>
                       <h2 className="text-[1.25rem] font-black font-headline tracking-tight text-on-surface lg:text-[1.45rem]">
                         {getHistoryEntryName(selectedEntry)}
@@ -460,7 +459,7 @@ export default function HistoryPage() {
                   ) : isSelectedSession ? (
                     <div className="space-y-3">
                       <div className="grid gap-3 xl:grid-cols-[minmax(0,1.15fr)_minmax(260px,0.85fr)]">
-                        <div className="rounded-[10px] border border-on-surface/6 bg-white p-4">
+                        <div className="rounded-[12px] border border-on-surface/6 bg-white p-4 shadow-[0_10px_24px_rgba(0,0,0,0.03)]">
                           <div className="flex items-start justify-between gap-4">
                             <div>
                               <p className="text-ui-meta text-ui-muted">当前阶段</p>
@@ -478,13 +477,13 @@ export default function HistoryPage() {
                         </div>
 
                         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
-                          <div className="rounded-[10px] border border-on-surface/6 bg-white p-4">
+                          <div className="rounded-[12px] border border-on-surface/6 bg-white p-4 shadow-[0_10px_24px_rgba(0,0,0,0.03)]">
                             <p className="text-ui-meta text-ui-muted">最近更新时间</p>
                             <p className="mt-2.5 text-[1.25rem] font-black tracking-tight text-on-surface">
                               {formatDisplayDate(sessionDetail?.updated_at || selectedEntry.created_at)}
                             </p>
                           </div>
-                          <div className="rounded-[10px] border border-on-surface/6 bg-white p-4">
+                          <div className="rounded-[12px] border border-on-surface/6 bg-white p-4 shadow-[0_10px_24px_rgba(0,0,0,0.03)]">
                             <p className="text-ui-meta text-ui-muted">计划条目</p>
                             <p className="mt-2.5 text-[1.25rem] font-black tracking-tight text-on-surface">
                               {sessionDetail?.plan_snapshot?.stats?.move_count || 0}
@@ -493,7 +492,7 @@ export default function HistoryPage() {
                         </div>
                       </div>
 
-                      <div className="rounded-[10px] border border-on-surface/6 bg-white p-4">
+                      <div className="rounded-[12px] border border-on-surface/6 bg-white p-4 shadow-[0_10px_24px_rgba(0,0,0,0.03)]">
                         <div className="space-y-4">
                           <div>
                             <p className="text-ui-meta text-ui-muted">状态说明</p>
@@ -527,7 +526,7 @@ export default function HistoryPage() {
                         <motion.div
                           initial={{ opacity: 0, scale: 0.98 }}
                           animate={{ opacity: 1, scale: 1 }}
-                          className="rounded-[10px] border border-emerald-500/12 bg-white p-4"
+                          className="rounded-[12px] border border-emerald-500/12 bg-white p-4 shadow-[0_10px_24px_rgba(0,0,0,0.03)]"
                         >
                           <div className="flex items-start gap-4">
                             <div className="flex h-10 w-10 items-center justify-center rounded-[9px] bg-emerald-500/12 text-emerald-700">
@@ -544,19 +543,19 @@ export default function HistoryPage() {
                       ) : null}
 
                       <div className="grid gap-3 sm:grid-cols-3">
-                        <div className="rounded-[10px] border border-on-surface/6 bg-white p-4">
+                        <div className="rounded-[12px] border border-on-surface/6 bg-white p-4 shadow-[0_10px_24px_rgba(0,0,0,0.03)]">
                           <p className="text-ui-meta text-ui-muted">处理条目</p>
                           <p className="mt-2.5 text-[1.35rem] font-black tracking-tight text-on-surface tabular-nums">
                             {journal?.item_count || 0}
                           </p>
                         </div>
-                        <div className="rounded-[10px] border border-on-surface/6 bg-white p-4">
+                        <div className="rounded-[12px] border border-on-surface/6 bg-white p-4 shadow-[0_10px_24px_rgba(0,0,0,0.03)]">
                           <p className="text-ui-meta text-ui-muted">成功项目</p>
                           <p className="mt-2.5 text-[1.35rem] font-black tracking-tight text-on-surface tabular-nums">
                             {journal?.success_count || 0}
                           </p>
                         </div>
-                        <div className="rounded-[10px] border border-on-surface/6 bg-white p-4">
+                        <div className="rounded-[12px] border border-on-surface/6 bg-white p-4 shadow-[0_10px_24px_rgba(0,0,0,0.03)]">
                           <p className="text-ui-meta text-ui-muted">失败项目</p>
                           <p className="mt-2.5 text-[1.35rem] font-black tracking-tight text-on-surface tabular-nums">
                             {journal?.failure_count || 0}
@@ -564,7 +563,7 @@ export default function HistoryPage() {
                         </div>
                       </div>
 
-                      <div className="rounded-[10px] border border-on-surface/6 bg-white p-4">
+                      <div className="rounded-[12px] border border-on-surface/6 bg-white p-4 shadow-[0_10px_24px_rgba(0,0,0,0.03)]">
                         <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
                           <div>
                             <p className="text-ui-meta text-ui-muted">路径变化记录</p>
