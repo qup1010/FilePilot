@@ -7,7 +7,7 @@ from file_organizer.app.session_service import OrganizerSessionService
 from file_organizer.app.session_store import SessionStore
 from file_organizer.cli.console import default_cli
 from file_organizer.cli.event_printer import scanner_ui_handler
-from file_organizer.shared.config import ANALYSIS_MODEL_NAME, ORGANIZER_MODEL_NAME, PROJECT_ROOT, RESULT_FILE_PATH
+from file_organizer.shared.config import PROJECT_ROOT, RESULT_FILE_PATH, get_analysis_model_name, get_organizer_model_name
 
 
 EXIT_REPLIES = {"quit", "exit"}
@@ -49,7 +49,7 @@ def run_session_pipeline(
 ):
     service = service or OrganizerSessionService(SessionStore(Path("output/sessions")))
     path_exists = path_exists or (lambda path: Path(path).is_dir())
-    cli.show_app_header(PROJECT_ROOT, ANALYSIS_MODEL_NAME, ORGANIZER_MODEL_NAME)
+    cli.show_app_header(PROJECT_ROOT, get_analysis_model_name(), get_organizer_model_name())
 
     target_dir = _prompt_text(cli, "prompt_path", "请输入要分析的目录绝对路径", input_func=input_func).strip()
     if not target_dir:

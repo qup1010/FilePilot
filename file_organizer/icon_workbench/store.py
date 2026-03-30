@@ -7,15 +7,16 @@ from pathlib import Path
 from file_organizer.icon_workbench.config import IconWorkbenchConfigStore
 from file_organizer.icon_workbench.models import IconTemplate, IconWorkbenchSession
 from file_organizer.icon_workbench.templates import builtin_templates
+from file_organizer.shared.settings_service import SettingsService
 
 
 class IconWorkbenchStore:
-    def __init__(self, root: Path):
+    def __init__(self, root: Path, settings_service: SettingsService | None = None):
         self.root = root
         self.sessions_dir = self.root / "sessions"
         self.previews_dir = self.root / "previews"
         self.templates_path = self.root / "templates.json"
-        self.config_store = IconWorkbenchConfigStore(self.root / "config.json")
+        self.config_store = IconWorkbenchConfigStore(self.root / "config.json", settings_service=settings_service)
         self.sessions_dir.mkdir(parents=True, exist_ok=True)
         self.previews_dir.mkdir(parents=True, exist_ok=True)
 

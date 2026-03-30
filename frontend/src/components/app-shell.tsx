@@ -36,7 +36,7 @@ function readStoredContext(key: string) {
 function getBaseModuleLabel(pathname: string, searchParams: URLSearchParams) {
   if (pathname === "/history") {
     return {
-      title: "历史",
+      title: "整理历史",
       detail: "会话与执行档案",
     };
   }
@@ -69,7 +69,7 @@ function getStoredModuleLabel(pathname: string, searchParams: URLSearchParams) {
   if (pathname === "/history") {
     const stored = readStoredContext(HISTORY_CONTEXT_KEY);
     return {
-      title: "历史",
+      title: "整理历史",
       detail: stored?.detail || "会话与执行档案",
     };
   }
@@ -157,8 +157,8 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   const navItems = [
     { href: workspaceRoute, icon: LayoutGrid, label: workspaceRoute === "/" ? "新建任务" : "当前任务" },
+    { href: "/history", icon: History, label: "整理历史" },
     { href: "/icons", icon: Palette, label: "图标工坊" },
-    { href: "/history", icon: History, label: "历史" },
     { href: "/settings", icon: Settings, label: "设置" },
   ];
 
@@ -174,11 +174,15 @@ export function AppShell({ children }: { children: ReactNode }) {
       <header className="z-50 grid h-[60px] shrink-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center border-b border-on-surface/7 bg-surface-container-lowest/96 px-3 backdrop-blur sm:px-4">
         <div className="flex shrink-0 items-center gap-3 pr-3 lg:pr-5">
           <Link href="/" className="flex items-center gap-3 group">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[12px] border border-primary/15 bg-primary/5 text-[1rem] font-black text-primary transition-all group-hover:bg-primary group-hover:text-white group-active:scale-95 shadow-sm">
-              FO
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-[10px] bg-transparent transition-all group-active:scale-95">
+              <img
+                src="/app-icon.png"
+                alt="FilePilot"
+                className="h-full w-full object-cover"
+              />
             </div>
             <div className="hidden min-w-0 md:block">
-              <p className="truncate text-[15px] font-black tracking-tighter text-on-surface">File Organizer</p>
+              <p className="truncate text-[15px] font-black tracking-tighter text-on-surface">FilePilot</p>
             </div>
           </Link>
         </div>

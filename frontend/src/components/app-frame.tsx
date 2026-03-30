@@ -19,7 +19,7 @@ export function AppFrame({
     <div className="app-shell">
       <header className="topbar">
         <div>
-          <p className="eyebrow">File Organizer Desktop MVP</p>
+          <p className="eyebrow">FilePilot MVP</p>
           <h1>{title}</h1>
           <p className="subtitle">{subtitle}</p>
         </div>

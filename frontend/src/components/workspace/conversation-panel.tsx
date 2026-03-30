@@ -124,11 +124,11 @@ function MarkdownProse({ content }: { content: string }) {
     <ReactMarkdown
       remarkPlugins={[remarkGfm]}
       components={{
-        p: ({ node, ...props }) => <div className="mb-3 last:mb-0 text-[14px] leading-7" {...props} />,
+        p: ({ node, ...props }) => <div className="mb-1.5 last:mb-0 text-[14px] leading-7" {...props} />,
         strong: ({ node, ...props }) => <strong className="font-black text-on-surface" {...props} />,
         em: ({ node, ...props }) => <em className="italic text-on-surface/80" {...props} />,
-        ul: ({ node, ...props }) => <ul className="mb-4 ml-4 list-disc space-y-2 text-[14px]" {...props} />,
-        ol: ({ node, ...props }) => <ol className="mb-4 ml-4 list-decimal space-y-2 text-[14px]" {...props} />,
+        ul: ({ node, ...props }) => <ul className="mb-2 ml-4 list-disc space-y-1.5 text-[14px]" {...props} />,
+        ol: ({ node, ...props }) => <ol className="mb-2 ml-4 list-decimal space-y-1.5 text-[14px]" {...props} />,
         li: ({ node, ...props }) => (
           <li className={cn("pl-1 leading-7", String(node?.position?.start.line).length > 2 && "ml-4")} {...props} />
         ),
@@ -144,21 +144,21 @@ function MarkdownProse({ content }: { content: string }) {
           </a>
         ),
         table: ({ node, ...props }) => (
-          <div className="my-6 overflow-x-auto rounded-[10px] border border-on-surface/8 bg-surface-container-low">
+          <div className="my-4 overflow-x-auto rounded-[10px] border border-on-surface/8 bg-surface-container-low">
             <table className="w-full text-left border-collapse text-[13px]" {...props} />
           </div>
         ),
         thead: ({ node, ...props }) => <thead className="bg-surface-container text-[12px] font-semibold text-on-surface-variant/80" {...props} />,
-        th: ({ node, ...props }) => <th className="px-4 py-3 border-b border-on-surface/5" {...props} />,
-        td: ({ node, ...props }) => <td className="px-4 py-3 border-b border-on-surface/[0.03] leading-relaxed" {...props} />,
-        hr: ({ node, ...props }) => <hr className="my-8 border-t border-on-surface/5" {...props} />,
-        h1: ({ node, ...props }) => <h1 className="mb-5 mt-8 text-xl font-black font-headline tracking-tighter text-on-surface" {...props} />,
-        h2: ({ node, ...props }) => <h2 className="mb-4 mt-7 text-lg font-black tracking-tight text-on-surface/90 flex items-center gap-2" {...props} />,
+        th: ({ node, ...props }) => <th className="px-3 py-2 border-b border-on-surface/5" {...props} />,
+        td: ({ node, ...props }) => <td className="px-3 py-2 border-b border-on-surface/[0.03] leading-relaxed" {...props} />,
+        hr: ({ node, ...props }) => <hr className="my-5 border-t border-on-surface/5" {...props} />,
+        h1: ({ node, ...props }) => <h1 className="mb-3 mt-4 text-xl font-black font-headline tracking-tighter text-on-surface" {...props} />,
+        h2: ({ node, ...props }) => <h2 className="mb-2.5 mt-4 text-lg font-black tracking-tight text-on-surface/90 flex items-center gap-2" {...props} />,
         h3: ({ node, ...props }) => (
-          <h3 className="mb-3 mt-6 flex items-center gap-2 text-[14px] font-semibold text-on-surface/70" {...props} />
+          <h3 className="mb-2 mt-3 flex items-center gap-2 text-[14px] font-semibold text-on-surface/70" {...props} />
         ),
         blockquote: ({ node, ...props }) => (
-          <blockquote className="my-6 rounded-r-[10px] border-l-4 border-primary/20 bg-primary/[0.03] px-5 py-4 text-on-surface/75 leading-7" {...props} />
+          <blockquote className="my-4 rounded-r-[10px] border-l-4 border-primary/20 bg-primary/[0.03] px-4 py-3 text-on-surface/75 leading-7" {...props} />
         ),
         code: ({ node, inline, className, children, ...props }: any) => {
           if (inline) {
@@ -197,43 +197,83 @@ function UnresolvedChoicesBubble({
   onSetAllReview,
   onSubmit,
 }: UnresolvedChoicesBubbleProps) {
+  const [isExpanded, setIsExpanded] = useState(false);
   const isSubmitted = block.status === "submitted";
   const submittedMap = Object.fromEntries(
     (block.submitted_resolutions || []).map((item) => [item.item_id, item]),
   );
 
+  const COLLAPSE_THRESHOLD = 3;
+  const showExpandButton = !isSubmitted && block.items.length > COLLAPSE_THRESHOLD;
+  const visibleItems = isExpanded || isSubmitted ? block.items : block.items.slice(0, COLLAPSE_THRESHOLD);
+
+  if (isSubmitted) {
+    return (
+      <div className="mt-2.5 rounded-[10px] border border-emerald-600/15 bg-emerald-600/[0.03] p-3 text-ui-body">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2 text-emerald-700">
+            <div className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-600 text-white">
+              <Check className="h-3 w-3" />
+            </div>
+            <span className="text-[13px] font-bold">处理完成</span>
+          </div>
+          <span className="text-[12px] font-medium text-emerald-600/60 tabular-nums">
+            共处理 {block.items.length} 项
+          </span>
+        </div>
+        <div className="mt-2 space-y-1.5 border-t border-emerald-600/10 pt-2 text-[12px]">
+          {block.items.map((item) => {
+            const submitted = submittedMap[item.item_id];
+            return (
+              <div key={item.item_id} className="flex items-baseline gap-2 text-on-surface/60">
+                <span className="shrink-0 font-bold text-on-surface/80">{item.display_name}</span>
+                <div className="h-[1px] flex-1 border-b border-dashed border-on-surface/5" />
+                <span className="shrink-0 rounded-md bg-emerald-600/10 px-1.5 py-0.5 font-semibold text-emerald-700">
+                  {submitted?.selected_folder || "自定义/Review"}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="mt-3 rounded-[10px] border border-warning/18 bg-warning-container/18 p-4 font-sans text-ui-body">
+    <div className="mt-2.5 rounded-[16px] border border-on-surface/[0.04] bg-surface-container-low/70 backdrop-blur-md p-4 font-sans shadow-sm ring-1 ring-inset ring-white/5 transition-all">
       <div className="flex items-start justify-between gap-3">
-        <div>
-          <h4 className="text-[14px] font-semibold text-on-surface">待你确认的项目</h4>
-          <p className="mt-1 text-[13px] leading-6 text-ui-muted">
-            {block.summary || "你可以直接选一个目录，或者补充一点想法。"}
+        <div className="space-y-1">
+          <h4 className="flex items-center gap-2 text-[13px] font-black tracking-tight text-on-surface/90">
+            <div className="flex h-5 w-5 items-center justify-center rounded-full bg-warning/10 text-warning">
+              <Sparkles className="h-3 w-3" />
+            </div>
+            待确认项目
+          </h4>
+          <p className="text-[12px] font-medium leading-relaxed text-on-surface-variant/70">
+            {block.summary || "请为以下文件选择合适的归类建议。"}
           </p>
         </div>
-        {!isSubmitted ? (
-          <button
-            type="button"
-            onClick={onSetAllReview}
-            className="rounded-[8px] border border-on-surface/8 bg-surface-container-lowest px-3 py-1.5 text-[12px] font-medium text-on-surface-variant transition-colors hover:bg-white hover:text-on-surface"
-          >
-            全部放入 Review
-          </button>
-        ) : null}
+        <button
+          type="button"
+          onClick={onSetAllReview}
+          className="shrink-0 rounded-[8px] border border-on-surface/5 bg-on-surface/[0.02] px-3 py-1.5 text-[11px] font-black uppercase tracking-wider text-on-surface-variant/60 transition-all hover:bg-white hover:text-on-surface active:scale-95"
+        >
+          全部 Review
+        </button>
       </div>
 
-      <div className="mt-4 space-y-3">
-        {block.items.map((item) => {
-          const submitted = submittedMap[item.item_id];
+      <div className="mt-5 space-y-3">
+        {visibleItems.map((item) => {
           const draft = drafts[item.item_id] || { selected_folder: "", note: "", custom_selected: false };
-          const selectedFolder = isSubmitted ? (submitted?.selected_folder || "") : draft.selected_folder;
-          const currentNote = isSubmitted ? (submitted?.note || "") : draft.note;
-          const customSelected = isSubmitted ? Boolean(submitted?.note) && !submitted?.selected_folder : draft.custom_selected;
+          const selectedFolder = draft.selected_folder;
+          const currentNote = draft.note;
+          const customSelected = draft.custom_selected;
+          
           return (
-            <div key={item.item_id} className="rounded-[10px] border border-on-surface/8 bg-surface-container-lowest p-4">
-              <div className="space-y-1">
-                <p className="text-[14px] font-semibold text-on-surface">{item.display_name}</p>
-                <p className="text-[13px] leading-6 text-ui-muted">{item.question}</p>
+            <div key={item.item_id} className="group/item rounded-[12px] border border-on-surface/[0.03] bg-surface-container-lowest/50 p-3.5 transition-all hover:border-primary/10 hover:shadow-md hover:shadow-black/[0.02]">
+              <div className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:gap-3 min-w-0">
+                <span className="shrink-0 text-[13.5px] font-black text-on-surface truncate max-w-[70%] sm:max-w-[60%]">{item.display_name}</span>
+                <span className="text-[12px] font-medium text-ui-muted opacity-60 truncate flex-1">{item.question}</span>
               </div>
 
               <div className="mt-3 flex flex-wrap gap-2">
@@ -241,14 +281,12 @@ function UnresolvedChoicesBubble({
                   <button
                     key={folder}
                     type="button"
-                    disabled={isSubmitted}
                     onClick={() => onPickFolder(item.item_id, folder)}
                     className={cn(
-                      "rounded-full border px-3 py-2 text-[12px] font-medium transition-colors",
+                      "rounded-full border px-3 py-1 text-[11.5px] font-black transition-all active:scale-95",
                       selectedFolder === folder
-                        ? "border-primary bg-primary text-white"
-                        : "border-on-surface/8 bg-surface text-on-surface-variant hover:text-on-surface",
-                      isSubmitted && "cursor-default",
+                        ? "border-primary bg-primary text-white shadow-lg shadow-primary/20"
+                        : "border-on-surface/[0.06] bg-surface/80 text-on-surface-variant/80 hover:border-on-surface/20 hover:text-on-surface",
                     )}
                   >
                     {folder}
@@ -256,70 +294,73 @@ function UnresolvedChoicesBubble({
                 ))}
                 <button
                   type="button"
-                  disabled={isSubmitted}
                   onClick={() => onPickFolder(item.item_id, "Review")}
                   className={cn(
-                    "rounded-full border px-3 py-2 text-[12px] font-medium transition-colors",
+                    "rounded-full border px-3 py-1 text-[11.5px] font-black transition-all active:scale-95",
                     selectedFolder === "Review"
-                      ? "border-warning bg-warning text-white"
-                      : "border-warning/20 bg-warning-container/10 text-warning hover:bg-warning/15",
-                    isSubmitted && "cursor-default",
+                      ? "border-warning bg-warning text-white shadow-lg shadow-warning/20"
+                      : "border-warning/10 bg-warning/5 text-warning/80 hover:bg-warning/10 hover:text-warning",
                   )}
                 >
-                  归入 Review
+                  Review
                 </button>
                 <button
                   type="button"
-                  disabled={isSubmitted}
                   onClick={() => onPickCustom(item.item_id)}
                   className={cn(
-                    "rounded-full border px-3 py-2 text-[12px] font-medium transition-colors",
+                    "rounded-full border px-3 py-1 text-[11.5px] font-black transition-all active:scale-95",
                     customSelected
                       ? "border-on-surface bg-on-surface text-white"
-                      : "border-on-surface/8 bg-surface text-on-surface-variant hover:text-on-surface",
-                    isSubmitted && "cursor-default",
+                      : "border-on-surface/[0.06] bg-surface/80 text-on-surface-variant/80 hover:bg-on-surface/5 hover:text-on-surface",
                   )}
                 >
                   自定义
                 </button>
               </div>
 
-              {(customSelected || (isSubmitted && currentNote)) ? (
+              {customSelected && (
                 <textarea
                   value={currentNote}
-                  disabled={isSubmitted}
                   onChange={(event) => onChangeNote(item.item_id, event.target.value)}
-                  placeholder="请输入你的自定义分类想法。"
-                  className="mt-3 min-h-[88px] w-full rounded-[10px] border border-on-surface/8 bg-surface px-4 py-3 text-[13px] leading-6 text-on-surface outline-none transition-all placeholder:text-on-surface-variant/45 focus:border-primary/25 disabled:opacity-70"
+                  placeholder="补充你的分类建议..."
+                  className="mt-3 min-h-[64px] w-full rounded-[10px] border border-on-surface/[0.08] bg-surface-container-low/50 px-3 py-2.5 text-[12px] font-medium leading-relaxed text-on-surface outline-none transition-all focus:border-primary/30"
                 />
-              ) : null}
+              )}
             </div>
           );
         })}
+
+        {showExpandButton && (
+          <button
+            type="button"
+            onClick={() => setIsExpanded(!isExpanded)}
+            className="flex w-full items-center justify-center gap-2 py-1 text-[11px] font-black uppercase tracking-widest text-on-surface-variant/40 transition-colors hover:text-primary"
+          >
+            {isExpanded ? (
+              <>收起所有项目 <ChevronDown className="h-3 w-3 rotate-180" /></>
+            ) : (
+              <>展开其余 {block.items.length - COLLAPSE_THRESHOLD} 个项目 <ChevronDown className="h-3 w-3" /></>
+            )}
+          </button>
+        )}
       </div>
 
-      {warning ? (
-        <div className="mt-4 rounded-[10px] border border-warning/20 bg-surface-container-lowest px-4 py-3 text-[13px] text-warning">
+      {warning && (
+        <div className="mt-4 flex items-center gap-2.5 rounded-[10px] border border-error/10 bg-error-container/10 px-4 py-2.5 text-[11.5px] font-bold text-error">
+          <AlertTriangle className="h-4 w-4 shrink-0" />
           {warning}
         </div>
-      ) : null}
-
-      {isSubmitted ? (
-        <div className="mt-4 inline-flex items-center gap-2 rounded-[8px] bg-emerald-600 px-3 py-2 text-[12px] font-medium text-white">
-          <ArrowRight className="h-3.5 w-3.5" />
-          已提交本批选择
-        </div>
-      ) : (
-        <button
-          type="button"
-          onClick={onSubmit}
-          disabled={isSubmitting}
-          className="mt-4 inline-flex items-center gap-2 rounded-[10px] border border-primary/20 bg-primary px-4 py-2.5 text-[13px] font-semibold text-white transition-colors hover:bg-primary-dim disabled:opacity-40"
-        >
-          {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-          提交这些选择
-        </button>
       )}
+
+      <button
+        type="button"
+        onClick={onSubmit}
+        disabled={isSubmitting}
+        className="mt-5 flex w-full items-center justify-center gap-2.5 rounded-[12px] border border-primary/20 bg-primary py-2.5 text-[13px] font-black text-white transition-all hover:bg-primary-dim hover:shadow-lg hover:shadow-primary/20 active:scale-[0.98] disabled:opacity-40"
+      >
+        {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+        确认并推送到计划阶段
+      </button>
     </div>
   );
 }
@@ -549,116 +590,142 @@ export function ConversationPanel({
           <motion.div
             initial={{ opacity: 0, scale: 0.98 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="flex items-center gap-4 rounded-[10px] border border-on-surface/8 bg-surface-container-low px-5 py-4 shadow-xl shadow-black/5"
+            className="flex items-center gap-3.5 rounded-[12px] border border-on-surface/8 bg-surface-container-low px-4 py-3 shadow-sm shadow-black/[0.02]"
           >
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[8px] border border-primary/20 bg-primary/5 text-primary">
-              <Bot className="h-5 w-5" />
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[8px] border border-primary/20 bg-primary/5 text-primary">
+              <Bot className="h-4 w-4" />
             </div>
             <div className="flex flex-1 items-center justify-between gap-4">
-              <div className="space-y-1">
-                <p className="text-[14px] font-bold text-on-surface">正在进行目录分析</p>
-                <div className="flex items-center gap-2 text-[11px] text-ui-muted font-medium uppercase tracking-wider">
+          <div className="space-y-0.5">
+                <p className="text-[13px] font-bold text-on-surface">正在分析目录结构...</p>
+                <div className="flex items-center gap-2 text-[10px] text-ui-muted font-bold uppercase tracking-wider">
                   <span className="relative flex h-1.5 w-1.5">
                     <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary/40 opacity-75"></span>
                     <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-primary/60"></span>
                   </span>
-                  扫描进行中
+                  AI 引擎扫描中
                 </div>
               </div>
-              <div className="flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-[13px] font-black tabular-nums text-primary">
+              <div className="flex items-center gap-2 rounded-full bg-primary/10 px-2.5 py-0.5 text-[12px] font-black tabular-nums text-primary">
                 {scanningPercent}%
               </div>
             </div>
           </motion.div>
         )}
 
-        <div className="space-y-2">
+        <div className="space-y-1.5">
           {messages.map((message, idx) => {
             const isAssistant = message.role === "assistant";
             const prevMessage = messages[idx - 1];
             const isGrouped = prevMessage && prevMessage.role === message.role;
+            const isSystemLog = isAssistant && !message.content?.trim() && (message.blocks || []).length === 0;
+
+            if (isSystemLog) {
+              return (
+                <div key={message.id} className="ml-10 py-1.5 text-[11.5px] font-bold text-on-surface-variant/40 flex items-center gap-2">
+                  <div className="h-[1px] w-4 bg-on-surface-variant/10" />
+                  日志: 系统任务同步完成
+                </div>
+              );
+            }
             
             return (
               <motion.div
                 key={message.id}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
+                initial={{ opacity: 0, x: -5 }}
+                animate={{ opacity: 1, x: 0 }}
                 className={cn(
-                  "flex gap-4", 
+                  "relative flex gap-3", 
                   isAssistant ? "flex-row" : "flex-row-reverse justify-start",
-                  isGrouped ? "mt-1" : "mt-8"
+                  isGrouped ? "mt-1.5" : "mt-6",
+                  isGrouped ? "pb-0.5" : "pb-1"
                 )}
               >
+                {/* 垂直连接引导线 (Thread Line) */}
+                {isAssistant && (
+                  <div className={cn(
+                    "absolute left-[13px] w-[1px] bg-on-surface-variant/10 transition-all pointer-events-none",
+                    !isGrouped ? "top-8" : "top-0",
+                    messages[idx + 1]?.role === "assistant" ? "bottom-[-1.5rem]" : "bottom-0"
+                  )} />
+                )}
+
                 <div className={cn(
-                  "flex h-8 w-8 shrink-0 items-center justify-center rounded-[8px] border border-on-surface/8 transition-opacity",
+                  "flex h-6.5 w-6.5 shrink-0 items-center justify-center rounded-[6px] border border-on-surface/8 transition-opacity z-10",
                   isAssistant ? "bg-surface-container-lowest text-primary" : "bg-primary text-white",
                   isGrouped ? "opacity-0" : "opacity-100"
                 )}>
-                  {isAssistant ? <Bot className="w-3.5 h-3.5" /> : <User className="w-3.5 h-3.5" />}
+                  {isAssistant ? <Bot className="w-3 h-3" /> : <User className="w-3 h-3" />}
                 </div>
                 
-                <div
-                  className={cn(
-                    "max-w-[90%] 2xl:max-w-[84%] rounded-[10px] p-4 text-ui-body leading-relaxed transition-all",
-                    isAssistant
-                      ? "border border-on-surface/8 bg-surface-container-lowest text-on-surface"
-                      : "bg-surface-container-high text-on-surface font-medium whitespace-pre-wrap",
-                    isGrouped && isAssistant && "rounded-tl-[4px]",
-                    isGrouped && !isAssistant && "rounded-tr-[4px]"
+                <div className="flex-1 flex flex-col gap-2 min-w-0">
+                  {message.content && (
+                    <div
+                      className={cn(
+                        "max-w-[90%] 2xl:max-w-[84%] rounded-[12px] px-3.5 py-2.5 text-ui-body leading-relaxed transition-all shadow-sm shadow-black/[0.01]",
+                        isAssistant
+                          ? "border border-on-surface/8 bg-surface-container-lowest text-on-surface"
+                          : "bg-surface-container-low text-on-surface font-medium whitespace-pre-wrap ml-auto",
+                        isGrouped && isAssistant && "rounded-tl-[4px]",
+                        isGrouped && !isAssistant && "rounded-tr-[4px]"
+                      )}
+                    >
+                      <MarkdownProse content={message.content} />
+                    </div>
                   )}
-                >
-                  {message.content ? <MarkdownProse content={message.content} /> : null}
+
                   {isAssistant && (message.blocks || []).map((block) => {
                     if (block.type !== "unresolved_choices") {
                       return null;
                     }
                     return (
-                      <UnresolvedChoicesBubble
-                        key={block.request_id}
-                        block={block}
-                        drafts={resolutionDrafts[block.request_id] || {}}
-                        warning={resolutionWarnings[block.request_id] || null}
-                        isSubmitting={submittingRequestId === block.request_id}
-                        onPickFolder={(itemId, folder) => {
-                          updateDraft(block.request_id, itemId, (draft) => ({
-                            ...draft,
-                            selected_folder: folder,
-                            custom_selected: false,
-                          }));
-                        }}
-                        onPickCustom={(itemId) => {
-                          updateDraft(block.request_id, itemId, (draft) => ({
-                            ...draft,
-                            selected_folder: "",
-                            custom_selected: true,
-                          }));
-                        }}
-                        onChangeNote={(itemId, note) => {
-                          updateDraft(block.request_id, itemId, (draft) => ({
-                            ...draft,
-                            note,
-                            custom_selected: true,
-                            selected_folder: "",
-                          }));
-                        }}
-                        onSetAllReview={() => {
-                          setResolutionDrafts((prev) => ({
-                            ...prev,
-                            [block.request_id]: Object.fromEntries(
-                              block.items.map((item) => {
-                                const current = prev[block.request_id]?.[item.item_id] || {
-                                  selected_folder: "",
-                                  note: "",
-                                  custom_selected: false,
-                                };
-                                return [item.item_id, { ...current, selected_folder: "Review", custom_selected: false }];
-                              }),
-                            ),
-                          }));
-                          setResolutionWarnings((prev) => ({ ...prev, [block.request_id]: null }));
-                        }}
-                        onSubmit={() => void handleSubmitUnresolved(block)}
-                      />
+                      <div key={block.request_id} className="max-w-[90%] 2xl:max-w-[88%] transform group">
+                        <UnresolvedChoicesBubble
+                          block={block}
+                          drafts={resolutionDrafts[block.request_id] || {}}
+                          warning={resolutionWarnings[block.request_id] || null}
+                          isSubmitting={submittingRequestId === block.request_id}
+                          onPickFolder={(itemId, folder) => {
+                            updateDraft(block.request_id, itemId, (draft) => ({
+                              ...draft,
+                              selected_folder: folder,
+                              custom_selected: false,
+                            }));
+                          }}
+                          onPickCustom={(itemId) => {
+                            updateDraft(block.request_id, itemId, (draft) => ({
+                              ...draft,
+                              selected_folder: "",
+                              custom_selected: true,
+                            }));
+                          }}
+                          onChangeNote={(itemId, note) => {
+                            updateDraft(block.request_id, itemId, (draft) => ({
+                              ...draft,
+                              note,
+                              custom_selected: true,
+                              selected_folder: "",
+                            }));
+                          }}
+                          onSetAllReview={() => {
+                            setResolutionDrafts((prev) => ({
+                              ...prev,
+                              [block.request_id]: Object.fromEntries(
+                                block.items.map((item) => {
+                                  const current = prev[block.request_id]?.[item.item_id] || {
+                                    selected_folder: "",
+                                    note: "",
+                                    custom_selected: false,
+                                  };
+                                  return [item.item_id, { ...current, selected_folder: "Review", custom_selected: false }];
+                                }),
+                              ),
+                            }));
+                            setResolutionWarnings((prev) => ({ ...prev, [block.request_id]: null }));
+                          }}
+                          onSubmit={() => void handleSubmitUnresolved(block)}
+                        />
+                      </div>
                     );
                   })}
                 </div>
@@ -671,12 +738,12 @@ export function ConversationPanel({
               key="assistant-streaming-bubble"
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-            className="flex gap-4 mt-8"
+            className="flex gap-3 mt-5.5"
           >
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[8px] border border-on-surface/8 bg-surface-container-lowest text-primary">
-                <Bot className="w-3.5 h-3.5" />
+              <div className="flex h-6.5 w-6.5 shrink-0 items-center justify-center rounded-[6px] border border-on-surface/8 bg-surface-container-lowest text-primary">
+                <Bot className="w-3 h-3" />
               </div>
-              <div className="flex-1 rounded-[10px] border border-on-surface/8 bg-surface-container-lowest p-4 text-ui-body leading-relaxed text-on-surface">
+              <div className="flex-1 rounded-[10px] border border-on-surface/8 bg-surface-container-lowest px-3.5 py-2.5 text-ui-body leading-relaxed text-on-surface shadow-sm shadow-black/[0.01]">
                 <div className="mb-3 flex items-center gap-2 text-primary/70">
                   <div className="flex gap-0.5">
                     <motion.span 
@@ -745,45 +812,40 @@ export function ConversationPanel({
           <AnimatePresence>
             {composerStatus && composerMode === "editable" ? (
               <motion.div
-                key="composer-status-bubble"
-                initial={{ opacity: 0, y: 10 }}
+                key="composer-status-badge"
+                initial={{ opacity: 0, y: 5 }}
                 animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: 10 }}
-                className="mb-4 flex items-start gap-3 rounded-[10px] border border-primary/12 bg-primary/[0.05] px-4 py-3 text-[13px] text-primary"
+                exit={{ opacity: 0, y: 5 }}
+                className="mb-2 flex items-center gap-2 px-1 text-[12px] font-bold text-primary"
               >
-                <Loader2 className="mt-0.5 h-4 w-4 shrink-0 animate-spin" />
-                <div className="space-y-1">
-                  <p className="font-semibold">{composerStatus.label}</p>
-                  {composerStatus.detail ? (
-                    <p className="leading-6 text-primary/80">{composerStatus.detail}</p>
-                  ) : null}
-                </div>
+                <Loader2 className="h-3 w-3 animate-spin" />
+                <span>{composerStatus.label}</span>
+                {composerStatus.detail && (
+                  <span className="font-medium text-primary/60 truncate opacity-80">— {composerStatus.detail}</span>
+                )}
               </motion.div>
             ) : null}
 
             {unresolvedCount > 0 && composerMode === "editable" ? (
               <motion.div
-                key="unresolved-count-bubble"
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: 10 }}
-                className="mb-4 flex items-center gap-2 rounded-[10px] border border-warning/12 bg-warning-container/16 px-4 py-2.5 text-[12px] font-medium text-warning"
+                key="unresolved-count-pill"
+                initial={{ opacity: 0, x: 10 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 10 }}
+                className="mb-2 flex items-center gap-2 rounded-full border border-warning/15 bg-warning-container/10 px-2.5 py-1 text-[11px] font-bold text-warning-dim shadow-sm"
               >
-                <AlertTriangle className="w-3.5 h-3.5" />
-                还有 {unresolvedCount} 项待确认
+                <AlertTriangle className="h-3 w-3" />
+                还有 {unresolvedCount} 项归类需要你确认
               </motion.div>
-            ) : (unresolvedCount === 0 && stage === "planning" && composerMode === "editable") ? (
+            ) : (unresolvedCount === 0 && stage === "planning" && composerMode === "editable" && !isBusy) ? (
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className="mb-3 flex items-center gap-2.5 px-1 text-[12px] font-medium text-ui-muted"
+                className="mb-2 flex items-center gap-2 px-1 text-[11px] font-bold text-emerald-600/70"
               >
-                <span className="w-1 h-1 rounded-full bg-primary/20 shrink-0" />
-                <p>
-                  方案已经准备好了。如果你觉得没问题，可以点右侧底部的
-                  <span className="text-primary/70 font-semibold mx-1">“开始预检”</span>
-                </p>
+                <Sparkles className="h-3 w-3" />
+                <p>方案已绪，可以点击右侧底部的 “开始预检” 执行整理</p>
               </motion.div>
             ) : null}
           </AnimatePresence>

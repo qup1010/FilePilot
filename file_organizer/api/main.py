@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import json
 import logging
 import os
@@ -65,6 +66,35 @@ class ConfigSecretsPayload(BaseModel):
 class LlmTestPayload(BaseModel):
     model_config = ConfigDict(extra="allow")
     test_type: str = "text"
+
+
+class SettingsSecretPayload(BaseModel):
+    action: str = "keep"
+    value: str | None = None
+
+
+class SettingsFamilyUpdatePayload(BaseModel):
+    preset: dict[str, Any] | None = None
+    secret: SettingsSecretPayload | None = None
+    enabled: bool | None = None
+
+
+class SettingsUpdatePayload(BaseModel):
+    global_config: dict[str, Any] | None = None
+    families: dict[str, SettingsFamilyUpdatePayload] = Field(default_factory=dict)
+
+
+class SettingsPresetCreatePayload(BaseModel):
+    name: str
+    copy_from_active: bool = True
+    preset: dict[str, Any] | None = None
+    secret: SettingsSecretPayload | None = None
+
+
+class SettingsTestPayload(BaseModel):
+    family: str
+    preset: dict[str, Any] | None = None
+    secret: SettingsSecretPayload | None = None
 
 
 class IconWorkbenchCreatePayload(BaseModel):
@@ -203,13 +233,121 @@ def _normalize_image_generation_probe_url(base_url: str) -> str:
     return f"{normalized.rstrip('/')}/v1/images/generations"
 
 
+_TINY_PNG_DATA_URL = (
+    "data:image/png;base64,"
+    + base64.b64encode(
+        b"\x89PNG\r\n\x1a\n"
+        b"\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15\xc4\x89"
+        b"\x00\x00\x00\x0dIDATx\x9cc\xf8\xcf\xc0\xf0\x1f\x00\x05\x00\x01\xff\x89\x99=\x1d"
+        b"\x00\x00\x00\x00IEND\xaeB`\x82"
+    ).decode("ascii")
+)
+
+
+def _classify_test_error(exc: Exception) -> tuple[str, str]:
+    status_code = getattr(exc, "status_code", None)
+    if status_code is None:
+        response = getattr(exc, "response", None)
+        status_code = getattr(response, "status_code", None)
+    message = str(exc or "").lower()
+    if status_code is None:
+        if "接口请求失败: 401" in str(exc):
+            status_code = 401
+        elif "接口请求失败: 403" in str(exc):
+            status_code = 403
+        elif "接口请求失败: 404" in str(exc):
+            status_code = 404
+        elif "接口请求失败: 429" in str(exc):
+            status_code = 429
+    if status_code == 401:
+        return "401", "认证失败，请检查 API 密钥是否正确。"
+    if status_code == 403:
+        return "403", "请求被拒绝，请检查账号权限或服务商访问策略。"
+    if status_code == 404:
+        return "404", "接口或模型不存在，请检查 Base URL、端点和模型 ID。"
+    if status_code in {400, 422}:
+        if "image" in message or "vision" in message:
+            return "capability_mismatch", "当前接口或模型不支持所需的多模态或图像能力。"
+        return "unknown", "请求被服务端拒绝，请检查模型 ID、请求格式和服务商兼容性。"
+    if status_code == 429:
+        return "429", "请求已被限流，请稍后再试。"
+    if "timeout" in message or "超时" in str(exc):
+        if "modelscope" in message or "modelscope" in str(exc).lower():
+            return "timeout", "图像生成任务等待超时，服务可能正在排队或当前模型响应较慢，请稍后重试。"
+        return "timeout", "连接超时，请检查网络或服务响应速度。"
+    if "connection" in message or "dns" in message or "name or service" in message:
+        return "network", "无法连接到模型服务，请检查 Base URL 和网络。"
+    if "image_url" in message or "vision" in message or "multimodal" in message or "content type" in message:
+        return "capability_mismatch", "当前接口或模型不支持图片理解能力。"
+    if "model" in message and ("not found" in message or "does not exist" in message or "invalid" in message):
+        return "model_not_found", "模型 ID 不存在或当前账号不可用。"
+    return "unknown", "连接测试失败，请检查配置与网络状态。"
+
+
+def _coerce_secret_payload(payload: SettingsSecretPayload | dict[str, Any] | None) -> dict[str, Any]:
+    if payload is None:
+        return {"action": "keep"}
+    if isinstance(payload, SettingsSecretPayload):
+        return payload.model_dump()
+    return dict(payload)
+
+
+def _legacy_secret_action(value: Any) -> SettingsSecretPayload:
+    if value == "":
+        return SettingsSecretPayload(action="clear", value="")
+    if value and not _is_masked_secret(value):
+        return SettingsSecretPayload(action="replace", value=str(value))
+    return SettingsSecretPayload(action="keep")
+
+
+def _build_text_test_runtime(payload: SettingsTestPayload, settings_service) -> dict[str, Any]:
+    runtime = settings_service.get_runtime_family_config("text")
+    preset = dict(payload.preset or {})
+    runtime["base_url"] = str(preset.get("OPENAI_BASE_URL", runtime["base_url"]) or "").strip()
+    runtime["model"] = str(preset.get("OPENAI_MODEL", runtime["model"]) or "").strip()
+    runtime["name"] = str(preset.get("name", runtime["name"]) or "").strip()
+    secret_payload = _coerce_secret_payload(payload.secret)
+    runtime["api_key"] = settings_service._apply_secret_action(runtime["api_key"], secret_payload)
+    return runtime
+
+
+def _build_vision_test_runtime(payload: SettingsTestPayload, settings_service) -> dict[str, Any]:
+    runtime = settings_service.get_runtime_family_config("vision")
+    preset = dict(payload.preset or {})
+    runtime["base_url"] = str(preset.get("IMAGE_ANALYSIS_BASE_URL", runtime["base_url"]) or "").strip()
+    runtime["model"] = str(preset.get("IMAGE_ANALYSIS_MODEL", runtime["model"]) or "").strip()
+    runtime["name"] = str(
+        preset.get("IMAGE_ANALYSIS_NAME", preset.get("name", runtime["name"])) or ""
+    ).strip()
+    secret_payload = _coerce_secret_payload(payload.secret)
+    runtime["api_key"] = settings_service._apply_secret_action(runtime["api_key"], secret_payload)
+    return runtime
+
+
+def _build_icon_image_test_runtime(payload: SettingsTestPayload, settings_service) -> dict[str, Any]:
+    runtime = settings_service.get_runtime_family_config("icon_image")
+    preset = dict(payload.preset or {})
+    image_model = {
+        **dict(runtime.get("image_model") or {}),
+        **dict(preset.get("image_model") or {}),
+    }
+    secret_payload = _coerce_secret_payload(payload.secret)
+    image_model["api_key"] = settings_service._apply_secret_action(
+        str(image_model.get("api_key", "") or ""),
+        secret_payload,
+    )
+    runtime["name"] = str(preset.get("name", runtime.get("name", "")) or "").strip()
+    runtime["image_model"] = image_model
+    runtime["image_size"] = str(preset.get("image_size", runtime.get("image_size", "1024x1024")) or "1024x1024").strip()
+    runtime["concurrency_limit"] = int(preset.get("concurrency_limit", runtime.get("concurrency_limit", 1)) or 1)
+    runtime["save_mode"] = str(preset.get("save_mode", runtime.get("save_mode", "centralized")) or "centralized")
+    return runtime
+
+
 def _probe_image_generation_endpoint(base_url: str, model: str, api_key: str) -> None:
     url = _normalize_image_generation_probe_url(base_url)
     payload = {
         "model": model,
-        "prompt": "ping",
-        "n": 1,
-        "size": "256x256",
     }
     request = urllib_request.Request(
         url=url,
@@ -225,14 +363,15 @@ def _probe_image_generation_endpoint(base_url: str, model: str, api_key: str) ->
         with urllib_request.urlopen(request, timeout=20):
             return
     except urllib_error.HTTPError as exc:
-        if exc.code in {200, 201, 202, 400, 422, 429}:
+        if exc.code == 400:
             return
-        raise
+        body = exc.read().decode("utf-8", errors="replace")
+        raise RuntimeError(f"接口请求失败: {exc.code} {body}") from exc
 
 
 def create_app(service: OrganizerSessionService | None = None) -> FastAPI:
     setup_backend_logging()
-    app = FastAPI(title="File Organizer Desktop API")
+    app = FastAPI(title="FilePilot API")
     app.state.service = service or OrganizerSessionService(SessionStore(Path("output/sessions")))
     from file_organizer.icon_workbench import IconWorkbenchService
 
@@ -768,6 +907,137 @@ def create_app(service: OrganizerSessionService | None = None) -> FastAPI:
             logger.exception("Register processed version failed")
             raise HTTPException(status_code=500, detail=str(exc))
 
+    def _execute_settings_test(payload: SettingsTestPayload):
+        from openai import OpenAI
+        from file_organizer.shared.config_manager import config_manager
+
+        settings_service = config_manager.service
+        family = str(payload.family or "").strip()
+        try:
+            if family == "text":
+                runtime = _build_text_test_runtime(payload, settings_service)
+                if not runtime["base_url"] or not runtime["model"] or not runtime["api_key"]:
+                    hint = _describe_base_url_hint(runtime["base_url"])
+                    return JSONResponse(
+                        status_code=400,
+                        content={
+                            "status": "error",
+                            "family": family,
+                            "code": "incomplete_config",
+                            "message": "文本模型配置不完整，请补全接口地址、模型 ID 和 API 密钥。" + (f" {hint}" if hint else ""),
+                        },
+                    )
+                client = OpenAI(api_key=runtime["api_key"], base_url=runtime["base_url"])
+                client.chat.completions.create(
+                    model=runtime["model"],
+                    messages=[{"role": "user", "content": "ping"}],
+                    max_tokens=1,
+                )
+                return {"status": "ok", "family": family, "code": "ok", "message": "文本模型连接测试已通过。"}
+
+            if family == "vision":
+                runtime = _build_vision_test_runtime(payload, settings_service)
+                if not runtime["base_url"] or not runtime["model"] or not runtime["api_key"]:
+                    hint = _describe_base_url_hint(runtime["base_url"])
+                    return JSONResponse(
+                        status_code=400,
+                        content={
+                            "status": "error",
+                            "family": family,
+                            "code": "incomplete_config",
+                            "message": "图片理解模型配置不完整，请补全接口地址、模型 ID 和 API 密钥。" + (f" {hint}" if hint else ""),
+                        },
+                    )
+                client = OpenAI(api_key=runtime["api_key"], base_url=runtime["base_url"])
+                client.chat.completions.create(
+                    model=runtime["model"],
+                    messages=[
+                        {"role": "system", "content": "请只回复 ok。"},
+                        {
+                            "role": "user",
+                            "content": [
+                                {"type": "text", "text": "请识别这张图片并回复 ok。"},
+                                {"type": "image_url", "image_url": {"url": _TINY_PNG_DATA_URL}},
+                            ],
+                        },
+                    ],
+                    max_tokens=8,
+                )
+                return {"status": "ok", "family": family, "code": "ok", "message": "图片理解连接测试已通过。"}
+
+            if family == "icon_image":
+                runtime = _build_icon_image_test_runtime(payload, settings_service)
+                image_model = dict(runtime.get("image_model") or {})
+                if not image_model.get("base_url") or not image_model.get("model") or not image_model.get("api_key"):
+                    hint = _describe_base_url_hint(str(image_model.get("base_url") or ""), image_generation=True)
+                    return JSONResponse(
+                        status_code=400,
+                        content={
+                            "status": "error",
+                            "family": family,
+                            "code": "incomplete_config",
+                            "message": "图像生成模型配置不完整，请补全接口地址、模型 ID 和 API 密钥。" + (f" {hint}" if hint else ""),
+                        },
+                    )
+                _probe_image_generation_endpoint(
+                    str(image_model.get("base_url") or ""),
+                    str(image_model.get("model") or ""),
+                    str(image_model.get("api_key") or ""),
+                )
+                return {
+                    "status": "ok",
+                    "family": family,
+                    "code": "ok",
+                    "message": "图像端点连通性测试已通过。",
+                }
+
+            return JSONResponse(status_code=400, content={"status": "error", "family": family, "code": "invalid_family", "message": "不支持的测试类型。"})
+        except Exception as exc:
+            logger.exception("设置连接测试失败", extra={"family": family})
+            code, message = _classify_test_error(exc)
+            return JSONResponse(
+                status_code=400,
+                content={"status": "error", "family": family, "code": code, "message": message},
+            )
+
+    @app.get("/api/settings")
+    def get_settings():
+        from file_organizer.shared.config_manager import config_manager
+        return config_manager.service.get_settings_snapshot()
+
+    @app.patch("/api/settings")
+    def update_settings(payload: SettingsUpdatePayload):
+        from file_organizer.shared.config_manager import config_manager
+        return config_manager.service.update_settings(payload.model_dump(exclude_none=True))
+
+    @app.post("/api/settings/presets/{family}")
+    def add_settings_preset(family: str, payload: SettingsPresetCreatePayload):
+        from file_organizer.shared.config_manager import config_manager
+        new_id = config_manager.service.add_preset(
+            family,
+            payload.name,
+            copy_from_active=payload.copy_from_active,
+            preset_patch=payload.preset,
+            secret_payload=_coerce_secret_payload(payload.secret),
+        )
+        return {"status": "ok", "id": new_id}
+
+    @app.post("/api/settings/presets/{family}/{preset_id}/activate")
+    def activate_settings_preset(family: str, preset_id: str):
+        from file_organizer.shared.config_manager import config_manager
+        config_manager.service.activate_preset(family, preset_id)
+        return {"status": "ok"}
+
+    @app.delete("/api/settings/presets/{family}/{preset_id}")
+    def delete_settings_preset(family: str, preset_id: str):
+        from file_organizer.shared.config_manager import config_manager
+        config_manager.service.delete_preset(family, preset_id)
+        return {"status": "ok"}
+
+    @app.post("/api/settings/test")
+    def test_settings(payload: SettingsTestPayload):
+        return _execute_settings_test(payload)
+
     @app.get("/api/utils/config")
     def get_config():
         from file_organizer.shared.config_manager import config_manager
@@ -781,8 +1051,8 @@ def create_app(service: OrganizerSessionService | None = None) -> FastAPI:
 
     @app.post("/api/utils/config/secrets")
     def get_config_secrets(payload: ConfigSecretsPayload):
-        from file_organizer.shared.config_manager import config_manager
-        return {"secrets": config_manager.get_secret_values(payload.keys)}
+        del payload
+        raise HTTPException(status_code=410, detail="CONFIG_SECRET_READ_DISABLED")
 
     @app.post("/api/utils/config/presets/switch")
     def switch_config(payload: PresetSwitchPayload):
@@ -809,110 +1079,40 @@ def create_app(service: OrganizerSessionService | None = None) -> FastAPI:
 
     @app.post("/api/utils/test-llm")
     def test_llm(payload: LlmTestPayload):
-        from openai import OpenAI
-        from file_organizer.shared.config_manager import config_manager
-
-        raw_payload = payload.model_dump()
-        test_type = raw_payload.get("test_type", "text")
-
+        raw = payload.model_dump()
+        test_type = str(raw.get("test_type") or "text")
         if test_type == "vision":
-            try:
-                api_key = _resolve_test_secret(
-                    raw_payload,
-                    secret_key="IMAGE_ANALYSIS_API_KEY",
-                    reuse_flag_key="IMAGE_ANALYSIS_API_KEY_USE_STORED",
-                    read_stored_secret=lambda: config_manager.get("IMAGE_ANALYSIS_API_KEY"),
-                )
-            except ValueError as exc:
-                return JSONResponse(status_code=400, content={"status": "error", "message": str(exc)})
-            base_url = raw_payload.get("IMAGE_ANALYSIS_BASE_URL")
-            model = raw_payload.get("IMAGE_ANALYSIS_MODEL")
-            if not raw_payload.get("IMAGE_ANALYSIS_ENABLED"):
-                return JSONResponse(
-                    status_code=400,
-                    content={"status": "error", "message": "图片理解尚未启用，请先打开开关。"},
-                )
-            if not base_url or not model or not api_key:
-                hint = _describe_base_url_hint(str(base_url or ""))
-                return JSONResponse(
-                    status_code=400,
-                    content={
-                        "status": "error",
-                        "message": "图片模型配置不完整，请补全接口地址、模型 ID 和 API 密钥。"
-                        + (f" {hint}" if hint else ""),
-                    },
-                )
-        elif test_type == "icon_image":
-            try:
-                api_key = _resolve_test_secret(
-                    raw_payload,
-                    secret_key="ICON_IMAGE_API_KEY",
-                    reuse_flag_key="ICON_IMAGE_API_KEY_USE_STORED",
-                    read_stored_secret=lambda: app.state.icon_workbench_service.get_config().get("image_model", {}).get("api_key"),
-                )
-            except ValueError as exc:
-                return JSONResponse(status_code=400, content={"status": "error", "message": str(exc)})
-            base_url = raw_payload.get("ICON_IMAGE_BASE_URL")
-            model = raw_payload.get("ICON_IMAGE_MODEL")
-            if not base_url or not model or not api_key:
-                hint = _describe_base_url_hint(str(base_url or ""), image_generation=True)
-                return JSONResponse(
-                    status_code=400,
-                    content={
-                        "status": "error",
-                        "message": "图像生成模型配置不完整，请补全接口地址、模型 ID 和 API 密钥。"
-                        + (f" {hint}" if hint else ""),
-                    },
-                )
-        else:
-            try:
-                api_key = _resolve_test_secret(
-                    raw_payload,
-                    secret_key="OPENAI_API_KEY",
-                    reuse_flag_key="OPENAI_API_KEY_USE_STORED",
-                    read_stored_secret=lambda: config_manager.get("OPENAI_API_KEY"),
-                )
-            except ValueError as exc:
-                return JSONResponse(status_code=400, content={"status": "error", "message": str(exc)})
-            base_url = raw_payload.get("OPENAI_BASE_URL")
-            model = raw_payload.get("OPENAI_MODEL")
-            if not base_url or not model or not api_key:
-                hint = _describe_base_url_hint(str(base_url or ""))
-                return JSONResponse(
-                    status_code=400,
-                    content={
-                        "status": "error",
-                        "message": "文本模型配置不完整，请补全接口地址、模型 ID 和 API 密钥。"
-                        + (f" {hint}" if hint else ""),
-                    },
-                )
-
-        try:
-            client = OpenAI(api_key=api_key, base_url=base_url)
-            if test_type == "icon_image":
-                try:
-                    client.models.list()
-                except Exception as exc:
-                    status_code = getattr(exc, "status_code", None)
-                    if status_code is None:
-                        response = getattr(exc, "response", None)
-                        status_code = getattr(response, "status_code", None)
-                    if status_code not in {404, 405, 501} and "404" not in str(exc):
-                        raise
-                    _probe_image_generation_endpoint(str(base_url or ""), str(model or ""), str(api_key or ""))
-            else:
-                client.chat.completions.create(
-                    model=model,
-                    messages=[{"role": "user", "content": "ping"}],
-                    max_tokens=1,
-                )
-            type_label = "图片理解" if test_type == "vision" else ("图像生成" if test_type == "icon_image" else "文本模型")
-            return {"status": "ok", "message": f"{type_label}连接测试已通过。"}
-        except Exception:
-            logger.exception("模型链路连通性测试失败", extra={"test_type": test_type})
-            return JSONResponse(
-                status_code=400,
-                content={"status": "error", "message": "连接测试失败，请检查接口地址、模型 ID、API 密钥和网络状态。"}
+            mapped = SettingsTestPayload(
+                family="vision",
+                preset={
+                    "IMAGE_ANALYSIS_NAME": raw.get("IMAGE_ANALYSIS_NAME"),
+                    "IMAGE_ANALYSIS_BASE_URL": raw.get("IMAGE_ANALYSIS_BASE_URL"),
+                    "IMAGE_ANALYSIS_MODEL": raw.get("IMAGE_ANALYSIS_MODEL"),
+                },
+                secret=_legacy_secret_action(raw.get("IMAGE_ANALYSIS_API_KEY")),
             )
+            return _execute_settings_test(mapped)
+        if test_type == "icon_image":
+            mapped = SettingsTestPayload(
+                family="icon_image",
+                preset={
+                    "image_model": {
+                        "base_url": raw.get("ICON_IMAGE_BASE_URL"),
+                        "model": raw.get("ICON_IMAGE_MODEL"),
+                    }
+                },
+                secret=_legacy_secret_action(raw.get("ICON_IMAGE_API_KEY")),
+            )
+            return _execute_settings_test(mapped)
+        mapped = SettingsTestPayload(
+            family="text",
+            preset={
+                "name": raw.get("name"),
+                "OPENAI_BASE_URL": raw.get("OPENAI_BASE_URL"),
+                "OPENAI_MODEL": raw.get("OPENAI_MODEL"),
+            },
+            secret=_legacy_secret_action(raw.get("OPENAI_API_KEY")),
+        )
+        return _execute_settings_test(mapped)
 
     return app

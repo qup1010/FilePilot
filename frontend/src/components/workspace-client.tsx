@@ -66,8 +66,8 @@ export default function WorkspaceClient() {
 
   React.useEffect(() => {
     const api = createApiClient(getApiBaseUrl(), getApiToken());
-    api.getConfig().then(data => {
-      setGlobalConfig(data.config);
+    api.getSettings().then(data => {
+      setGlobalConfig(data.status);
     }).finally(() => {
       setConfigLoading(false);
     });
@@ -75,7 +75,7 @@ export default function WorkspaceClient() {
 
   const isTextModelConfigured = useMemo(() => {
     if (!globalConfig) return true; // Default to true while loading to avoid flash
-    return Boolean(globalConfig.OPENAI_API_KEY && globalConfig.OPENAI_MODEL && globalConfig.OPENAI_BASE_URL);
+    return Boolean(globalConfig.text_configured);
   }, [globalConfig]);
 
   const [messageInput, setMessageInput] = useState("");
@@ -293,7 +293,7 @@ export default function WorkspaceClient() {
       return {
         tone: "warning",
         title: "这是只读模式",
-        description: "当前只能查看之前的方案和记录，不能继续修改、预检或执行。如需继续整理，请返回首页重新选择。",
+        description: "当前只能查看之前的方案 and 记录，不能继续修改、预检或执行。如需继续整理，请返回首页重新选择。",
       };
     }
 
@@ -625,50 +625,47 @@ export default function WorkspaceClient() {
         <div className="hidden h-10 w-10 shrink-0 items-center justify-center rounded-[12px] border border-primary/10 bg-primary/[0.05] text-primary/75 shadow-[inset_0_1px_0_rgba(255,255,255,0.45)] sm:flex">
           <FolderTree className="h-4.5 w-4.5" />
         </div>
-        <div className="flex min-w-0 flex-col gap-2">
-          <div className="flex min-w-0 flex-wrap items-center gap-2.5">
+        <div className="flex min-w-0 flex-col gap-1.5">
+          <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2">
             <h2 className="truncate text-[18px] font-black tracking-tight text-on-surface lg:text-[1.1rem]">
               {targetDirName}
             </h2>
-            <span className="whitespace-nowrap rounded-[8px] border border-primary/12 bg-primary/8 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-primary/85">
-              Stage
-            </span>
-          </div>
-          <div className="flex flex-wrap items-center gap-2 text-[12px]">
-            <span className="inline-flex items-center gap-1.5 rounded-[8px] border border-on-surface/8 bg-surface-container-low px-2.5 py-1 font-semibold text-on-surface-variant">
-              <span className="h-1.5 w-1.5 rounded-full bg-warning/80" />
-              {getFriendlyStage(stage)}
-            </span>
-            {assistantRuntime ? (
-              <span className="inline-flex items-center gap-1.5 rounded-[8px] border border-primary/10 bg-primary/6 px-2.5 py-1 font-medium text-primary/75">
-                <Loader2 className="h-3.5 w-3.5 animate-spin-slow" />
-                {assistantRuntime.label}
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-on-surface/8 bg-surface-container-low px-2.5 py-0.5 text-[11px] font-bold text-on-surface-variant">
+                <span className={cn(
+                  "h-1.5 w-1.5 rounded-full",
+                  stage === "completed" ? "bg-success" : "bg-warning/80"
+                )} />
+                {getFriendlyStage(stage)}
               </span>
-            ) : null}
-            {streamStatus !== "connected" ? (
-              <span
-                className={cn(
-                  "rounded-[8px] border px-2.5 py-1 font-medium",
-                  streamStatus === "connecting" && "border-warning/20 bg-warning-container/20 text-warning",
-                  streamStatus === "reconnecting" && "border-warning/20 bg-warning-container/30 text-warning",
-                  streamStatus === "offline" && "border-on-surface/10 bg-surface-container-low text-ui-muted",
-                )}
-              >
-                {streamStatus === "connecting"
-                  ? "正在连接"
-                  : streamStatus === "reconnecting"
-                    ? "连接中断，重连中"
-                    : "连接已断开"}
-              </span>
-            ) : null}
+              
+              {assistantRuntime ? (
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/10 bg-primary/6 px-2.5 py-0.5 text-[11px] font-bold text-primary/75">
+                  <Loader2 className="h-3 w-3 animate-spin-slow" />
+                  {assistantRuntime.label}
+                </span>
+              ) : null}
+
+              {streamStatus !== "connected" ? (
+                <span
+                  className={cn(
+                    "rounded-full border px-2.5 py-0.5 text-[11px] font-bold",
+                    streamStatus === "connecting" && "border-warning/20 bg-warning-container/20 text-warning",
+                    streamStatus === "reconnecting" && "border-warning/20 bg-warning-container/30 text-warning",
+                    streamStatus === "offline" && "border-on-surface/10 bg-surface-container-low text-ui-muted",
+                  )}
+                >
+                  {streamStatus === "connecting"
+                    ? "正在连接"
+                    : streamStatus === "reconnecting"
+                      ? "连接中断，重连中"
+                      : "连接已断开"}
+                </span>
+              ) : null}
+            </div>
           </div>
-          <div className="flex min-w-0 items-center gap-2 rounded-[10px] border border-on-surface/7 bg-surface-container-low/72 px-3 py-2 text-[12px]">
-            <FolderTree className="h-3.5 w-3.5 shrink-0 text-primary/70" />
-            <p className="truncate font-medium text-ui-muted">
-              {targetPath || "..."}
-            </p>
-          </div>
-          <p className="max-w-[44rem] text-[12px] leading-5 text-on-surface-variant/68">
+          
+          <p className="max-w-[44rem] text-[12px] leading-relaxed text-on-surface-variant/68" title={targetPath}>
             {nextStepHint}
           </p>
         </div>

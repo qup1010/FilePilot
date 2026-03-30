@@ -257,7 +257,7 @@ function StrategyDialog({
               </div>
             </div>
 
-            <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5 lg:px-6">
+            <div className="min-h-0 flex-1 overflow-hidden px-5 py-5 lg:px-6">
               <AnimatePresence mode="wait">
                 {step === 1 ? (
                   <motion.div
@@ -265,106 +265,99 @@ function StrategyDialog({
                     initial={{ opacity: 0, x: -10 }}
                     animate={{ opacity: 1, x: 0 }}
                     exit={{ opacity: 0, x: 10 }}
-                    className="flex h-full flex-col"
+                    className="flex h-full flex-col overflow-hidden"
                   >
-                    {/* 横排模板卡片 - 一屏可见 */}
-                    <div className="grid gap-3 lg:grid-cols-[300px_minmax(0,1fr)]">
-                      <div className="rounded-[10px] border border-on-surface/8 bg-surface p-2">
-                        <div className="mb-2 px-2 py-1">
-                          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-ui-muted">整理模板</p>
+                    <div className="grid min-h-0 flex-1 gap-3 lg:grid-cols-[300px_minmax(0,1fr)]">
+                      <div className="flex flex-col overflow-hidden rounded-[10px] border border-on-surface/8 bg-surface">
+                        <div className="shrink-0 px-4 py-3">
+                          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-ui-muted">整理模板群组</p>
                         </div>
-                        <div className="space-y-1.5">
-                      {STRATEGY_TEMPLATES.map((template) => {
-                        const active = strategy.template_id === template.id;
-                        const defaultTag = template.defaultCautionLevel === "conservative" ? "保守" : "平衡";
-                        return (
-                          <button
-                            key={template.id}
-                            type="button"
-                            disabled={loading}
-                            onClick={() => onTemplateSelect(template.id)}
-                            className={cn(
-                              "group relative flex w-full flex-col rounded-[8px] border px-3.5 py-3.5 text-left transition-all duration-200 disabled:opacity-50",
-                              active
-                                ? "border-primary/22 bg-primary/6 shadow-[0_8px_20px_rgba(0,0,0,0.05)]"
-                                : "border-transparent bg-surface-container-lowest hover:border-primary/16 hover:bg-white",
-                            )}
-                          >
-                            <div className="mb-1.5 flex items-center justify-between gap-3">
-                              <p className={cn("text-[13px] font-bold tracking-tight", active ? "text-primary" : "text-on-surface")}>{template.label}</p>
-                              {active && (
-                                <div className="flex h-5 w-5 items-center justify-center rounded-full bg-primary text-white">
-                                  <CheckCircle2 className="h-3 w-3" />
+                        <div className="flex-1 overflow-y-auto p-2 pt-0 space-y-1.5 scrollbar-thin">
+                          {STRATEGY_TEMPLATES.map((template) => {
+                            const active = strategy.template_id === template.id;
+                            const defaultTag = template.defaultCautionLevel === "conservative" ? "保守" : "平衡";
+                            return (
+                              <button
+                                key={template.id}
+                                type="button"
+                                disabled={loading}
+                                onClick={() => onTemplateSelect(template.id)}
+                                className={cn(
+                                  "group relative flex w-full flex-col rounded-[8px] border px-3.5 py-3.5 text-left transition-all duration-200 disabled:opacity-50",
+                                  active
+                                    ? "border-primary/22 bg-primary/6 shadow-[0_8px_20px_rgba(0,0,0,0.05)]"
+                                    : "border-transparent bg-surface-container-lowest hover:border-primary/16 hover:bg-white",
+                                )}
+                              >
+                                <div className="mb-1.5 flex items-center justify-between gap-3">
+                                  <p className={cn("text-[13px] font-bold tracking-tight", active ? "text-primary" : "text-on-surface")}>{template.label}</p>
+                                  {active && (
+                                    <div className="flex h-5 w-5 items-center justify-center rounded-full bg-primary text-white">
+                                      <CheckCircle2 className="h-3 w-3" />
+                                    </div>
+                                  )}
                                 </div>
-                              )}
+                                <p className="line-clamp-2 text-[11.5px] leading-[1.6] text-ui-muted">{template.applicableScenarios}</p>
+                                <div className="mt-auto flex flex-wrap gap-1.5 pt-3">
+                                  <span className="rounded-full border border-on-surface/8 bg-surface-container-low px-2 py-0.5 text-[10px] font-medium text-on-surface-variant">
+                                    {template.defaultNamingStyle === "en" ? "英文目录" : template.defaultNamingStyle === "minimal" ? "极简" : "中文目录"}
+                                  </span>
+                                  <span className="rounded-full border border-on-surface/8 bg-surface-container-low px-2 py-0.5 text-[10px] font-medium text-on-surface-variant">
+                                    {defaultTag}
+                                  </span>
+                                </div>
+                                {active && (
+                                  <motion.div
+                                    layoutId="active-indicator"
+                                    className="absolute bottom-0 left-3 right-3 h-[2.5px] rounded-full bg-primary"
+                                  />
+                                )}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      <div className="flex flex-col gap-4 overflow-hidden">
+                        <div className="shrink-0 flex flex-col rounded-[10px] border border-on-surface/8 bg-surface-container-lowest p-5">
+                          <div className="flex flex-wrap items-center gap-2.5">
+                            <span className="rounded-full border border-primary/12 bg-primary/8 px-3 py-1 text-[12px] font-semibold text-primary">{currentTemplate.label}</span>
+                            <span className="rounded-full border border-on-surface/8 bg-surface-container-low px-3 py-1 text-[12px] font-medium text-on-surface-variant">{templateTag}</span>
+                          </div>
+                          <p className="mt-3 text-[13.5px] leading-7 text-ui-muted">{currentTemplate.description}</p>
+
+                          <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                            <div className="rounded-[10px] border border-on-surface/6 bg-surface-container-low px-4 py-3">
+                              <div className="text-[10.5px] font-medium uppercase tracking-widest text-ui-muted">适用场景</div>
+                              <p className="mt-1.5 text-[13px] font-semibold leading-6 text-on-surface">{currentTemplate.applicableScenarios}</p>
                             </div>
-                            <p className="line-clamp-2 text-[11.5px] leading-[1.6] text-ui-muted">{template.applicableScenarios}</p>
-                            <div className="mt-auto flex flex-wrap gap-1.5 pt-3">
-                              <span className="rounded-full border border-on-surface/8 bg-surface-container-low px-2 py-0.5 text-[10px] font-medium text-on-surface-variant">
-                                {template.defaultNamingStyle === "en" ? "英文目录" : template.defaultNamingStyle === "minimal" ? "极简" : "中文目录"}
-                              </span>
-                              <span className="rounded-full border border-on-surface/8 bg-surface-container-low px-2 py-0.5 text-[10px] font-medium text-on-surface-variant">
-                                {defaultTag}
-                              </span>
+                            <div className="rounded-[10px] border border-on-surface/6 bg-surface-container-low px-4 py-3">
+                              <div className="text-[10.5px] font-medium uppercase tracking-widest text-ui-muted">目录风格/整理方式</div>
+                              <p className="mt-1.5 text-[13px] font-semibold text-on-surface">{namingLabel} · {cautionLabel}</p>
                             </div>
-                            {active && (
+                          </div>
+                        </div>
+
+                        <div className="flex-1 min-h-0 flex flex-col overflow-hidden rounded-[10px] border border-on-surface/8 bg-surface">
+                          <div className="shrink-0 px-4 py-3 border-b border-on-surface/6">
+                            <div className="text-[11px] font-medium uppercase tracking-widest text-ui-muted">预计目录结构预览</div>
+                          </div>
+                          <div className="flex-1 overflow-y-auto p-4 space-y-2 scrollbar-thin">
+                            {directoryPreview.map((directory, index) => (
                               <motion.div
-                                layoutId="active-indicator"
-                                className="absolute bottom-0 left-3 right-3 h-[2.5px] rounded-full bg-primary"
-                              />
-                            )}
-                          </button>
-                        );
-                      })}
-                        </div>
-                    </div>
-
-                    <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
-                      <div className="rounded-[10px] border border-on-surface/8 bg-surface-container-lowest p-5">
-                        <div className="flex flex-wrap items-center gap-2.5">
-                          <span className="rounded-full border border-primary/12 bg-primary/8 px-3 py-1 text-[12px] font-semibold text-primary">{currentTemplate.label}</span>
-                          <span className="rounded-full border border-on-surface/8 bg-surface-container-low px-3 py-1 text-[12px] font-medium text-on-surface-variant">{templateTag}</span>
-                        </div>
-                        <p className="mt-3 text-[13.5px] leading-7 text-ui-muted">{currentTemplate.description}</p>
-
-                        <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                          <div className="rounded-[10px] border border-on-surface/6 bg-surface-container-low px-4 py-3">
-                            <div className="text-[10.5px] font-medium uppercase tracking-widest text-ui-muted">适用场景</div>
-                            <p className="mt-1.5 text-[13px] font-semibold leading-6 text-on-surface">{currentTemplate.applicableScenarios}</p>
-                          </div>
-                          <div className="rounded-[10px] border border-on-surface/6 bg-surface-container-low px-4 py-3">
-                            <div className="text-[10.5px] font-medium uppercase tracking-widest text-ui-muted">命名风格</div>
-                            <p className="mt-1.5 text-[13px] font-semibold text-on-surface">{namingLabel}</p>
-                          </div>
-                          <div className="rounded-[10px] border border-on-surface/6 bg-surface-container-low px-4 py-3">
-                            <div className="text-[10.5px] font-medium uppercase tracking-widest text-ui-muted">整理方式</div>
-                            <p className="mt-1.5 text-[13px] font-semibold text-on-surface">{cautionLabel}</p>
-                          </div>
-                          <div className="rounded-[10px] border border-primary/10 bg-primary/4 px-4 py-3">
-                            <div className="text-[10.5px] font-medium uppercase tracking-widest text-primary/70">安全提示</div>
-                            <p className="mt-1.5 text-[12px] font-medium leading-5 text-primary/80">先出方案再确认，不会直接移动文件</p>
+                                initial={{ opacity: 0, x: 12 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                transition={{ delay: index * 0.06 }}
+                                key={`${strategy.template_id}-${strategy.naming_style}-${directory}`}
+                                className="flex items-center gap-2.5 rounded-[8px] border border-on-surface/6 bg-surface-container-lowest px-3 py-2.5 transition-colors hover:border-primary/16"
+                              >
+                                <div className="h-1.5 w-1.5 rounded-full bg-primary/40" />
+                                <span className="text-[12.5px] font-semibold text-on-surface">{directory}</span>
+                              </motion.div>
+                            ))}
                           </div>
                         </div>
                       </div>
-
-                      <div className="rounded-[10px] border border-on-surface/8 bg-surface p-4">
-                        <div className="mb-3 text-[11px] font-medium uppercase tracking-widest text-ui-muted">预计目录结构</div>
-                        <div className="space-y-2">
-                          {directoryPreview.map((directory, index) => (
-                            <motion.div
-                              initial={{ opacity: 0, x: 12 }}
-                              animate={{ opacity: 1, x: 0 }}
-                              transition={{ delay: index * 0.06 }}
-                              key={`${strategy.template_id}-${strategy.naming_style}-${directory}`}
-                              className="flex items-center gap-2.5 rounded-[8px] border border-on-surface/6 bg-surface-container-lowest px-3 py-2.5 transition-colors hover:border-primary/16"
-                            >
-                              <div className="h-1.5 w-1.5 rounded-full bg-primary/40" />
-                              <span className="text-[12.5px] font-semibold text-on-surface">{directory}</span>
-                            </motion.div>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
                     </div>
                   </motion.div>
                 ) : (
@@ -567,15 +560,15 @@ export function SessionLauncher() {
     async function loadLaunchPreferences() {
       try {
         const api = createApiClient(apiBaseUrl, getApiToken());
-        const data = await api.getConfig();
+        const data = await api.getSettings();
         if (cancelled) {
           return;
         }
-        const strategy = getLaunchStrategyFromConfig(data.config);
+        const strategy = getLaunchStrategyFromConfig(data.global_config);
         setSavedLaunchStrategy(strategy);
         setDraftStrategy(strategy);
         setEffectiveLaunchStrategy(strategy);
-        setLaunchSkipPrompt(shouldSkipLaunchStrategyPrompt(data.config));
+        setLaunchSkipPrompt(shouldSkipLaunchStrategyPrompt(data.global_config));
         setLaunchPreferencesLoaded(true);
       } catch {
         if (cancelled) {

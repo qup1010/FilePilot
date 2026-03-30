@@ -193,18 +193,35 @@ export function MinimalScanningView({
           <div className="hidden flex-col gap-4 lg:flex">
             <div className="flex-1 rounded-[6px] border border-on-surface/8 bg-surface-container-low/10 p-4">
               <h4 className="text-[10px] font-bold uppercase tracking-wider text-on-surface/40 mb-4">
-                说明
+                扫描作业说明
               </h4>
               <div className="space-y-4">
                 <div className="space-y-1">
-                  <p className="text-[12px] font-bold text-on-surface">自动分类</p>
+                  <p className="text-[12px] font-bold text-on-surface">自动分类引擎</p>
                   <p className="text-[11px] leading-relaxed text-ui-muted">
-                    系统根据文件摘要自动分类。超大文件仅读取元数据。
+                    系统根据文件摘要自动分类。超大文件仅读取元数据。AI 将根据预设模板分析文件用途并推荐归类。
                   </p>
                 </div>
 
-                <div className="rounded-[4px] border border-on-surface/6 bg-surface-container-lowest p-3 text-[11px] text-ui-muted">
-                  扫描完成后可直接查看第一版整理方案。
+                <div className="rounded-[4px] border border-primary/10 bg-primary/5 p-3">
+                  <p className="text-[11px] font-bold text-primary mb-1">扫描作业完成后</p>
+                  <p className="text-[10px] leading-relaxed text-primary/70">
+                    您将直接看到第一版整理方案预览。在点击“开始预检”前，您可以继续补充要求。
+                  </p>
+                </div>
+
+                <div className="pt-2">
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-on-surface/30 mb-2">作业指标</div>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-[11px]">
+                      <span className="text-ui-muted">核心目录分析</span>
+                      <span className="font-medium text-on-surface">高优先级</span>
+                    </div>
+                    <div className="flex items-center justify-between text-[11px]">
+                      <span className="text-ui-muted">上下文深度</span>
+                      <span className="font-medium text-on-surface">标准</span>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>

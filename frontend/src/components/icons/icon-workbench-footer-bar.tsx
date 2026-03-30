@@ -18,6 +18,7 @@ interface IconWorkbenchFooterBarProps {
   isRemovingBgBatch: boolean;
   selectedTemplateName?: string | null;
   generateBlockedReason?: string | null;
+  generateProgressHint?: string | null;
 }
 
 export function IconWorkbenchFooterBar({
@@ -32,6 +33,7 @@ export function IconWorkbenchFooterBar({
   isRemovingBgBatch,
   selectedTemplateName,
   generateBlockedReason,
+  generateProgressHint,
 }: IconWorkbenchFooterBarProps) {
   if (targetCount <= 0) {
     return null;
@@ -108,7 +110,7 @@ export function IconWorkbenchFooterBar({
               isGenerating || isRemovingBgBatch || isApplying ? "animate-pulse text-primary" : 
               generateBlockedReason ? "text-error/70" : "text-ui-muted"
             )}>
-              {isGenerating ? "正在整理目标目录并提交生成任务..." :
+              {isGenerating ? (generateProgressHint || "正在整理目标目录并提交生成任务...") :
                isRemovingBgBatch ? "正在处理选中图标的背景..." :
                isApplying ? "正在批量写入图标配置..." :
                generateBlockedReason || "确认预览后可批量替换目标文件夹的显示图标。"}

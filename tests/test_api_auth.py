@@ -96,6 +96,15 @@ class ApiAuthTests(unittest.TestCase):
         self.assertIn("text/event-stream", response.headers["content-type"])
         self.assertIn("event: session.snapshot", body)
 
+    def test_settings_routes_require_auth_when_token_enabled(self):
+        get_response = self.client.get("/api/settings")
+        patch_response = self.client.patch("/api/settings", json={"global_config": {"DEBUG_MODE": True}})
+        test_response = self.client.post("/api/settings/test", json={"family": "text"})
+
+        self.assertEqual(get_response.status_code, 401)
+        self.assertEqual(patch_response.status_code, 401)
+        self.assertEqual(test_response.status_code, 401)
+
     def test_health_and_options_remain_public(self):
         health = self.client.get("/api/health")
         options = self.client.options(

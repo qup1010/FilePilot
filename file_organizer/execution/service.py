@@ -135,13 +135,18 @@ def validate_execution_preconditions(plan: ExecutionPlan) -> PrecheckResult:
             blocking_errors.append(f"源项目不存在: {relative_display(source, plan.base_dir)}")
             continue
 
+        source_abs = source.resolve()
+        target_abs = target.resolve(strict=False)
+
+        if source_abs == target_abs:
+            # No-op move, skip validation
+            continue
+
         if target.exists():
             blocking_errors.append(f"目标已存在: {relative_display(target, plan.base_dir)}")
             continue
 
-        source_abs = source.resolve()
-        target_abs = target.resolve(strict=False)
-        if source_abs == target_abs or source_abs in target_abs.parents:
+        if source_abs in target_abs.parents:
             blocking_errors.append(f"不能移动到自身子路径: {relative_display(target, plan.base_dir)}")
 
         parent_dir = target.parent.resolve(strict=False)

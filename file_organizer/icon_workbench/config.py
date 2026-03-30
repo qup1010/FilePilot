@@ -6,23 +6,49 @@ from pathlib import Path
 from typing import Any
 
 from file_organizer.icon_workbench.models import IconWorkbenchConfig, ModelConfig
+from file_organizer.shared.settings_service import ICON_IMAGE_FAMILY, SettingsService
 
 DEFAULT_PRESET_ID = "default"
 DEFAULT_PRESET_NAME = "默认图标生图"
 
 
 class IconWorkbenchConfigStore:
-    def __init__(self, config_path: Path):
+    def __init__(self, config_path: Path, settings_service: SettingsService | None = None):
         self._config_path = config_path
+        self._settings_service = settings_service
         self._config_path.parent.mkdir(parents=True, exist_ok=True)
 
     def load(self) -> IconWorkbenchConfig:
+        if self._settings_service is not None:
+            runtime = self._settings_service.get_runtime_family_config(ICON_IMAGE_FAMILY)
+            return IconWorkbenchConfig.from_dict(runtime)
         payload = self._load_payload()
         config = IconWorkbenchConfig.from_dict(payload["config"])
         config.text_model = self._global_text_model()
         return config
 
     def save(self, config: IconWorkbenchConfig) -> IconWorkbenchConfig:
+        if self._settings_service is not None:
+            self._settings_service.update_settings(
+                {
+                    "families": {
+                        ICON_IMAGE_FAMILY: {
+                            "preset": {
+                                "name": config.to_dict().get("name", DEFAULT_PRESET_NAME),
+                                "image_model": {
+                                    "base_url": config.image_model.base_url,
+                                    "model": config.image_model.model,
+                                },
+                                "image_size": config.image_size,
+                                "concurrency_limit": config.concurrency_limit,
+                                "save_mode": config.save_mode,
+                            },
+                            "secret": {"action": "replace", "value": config.image_model.api_key},
+                        }
+                    }
+                }
+            )
+            return self.load()
         payload = self._load_storage()
         active_id = payload["active_preset_id"]
         payload["presets"][active_id] = self._normalize_preset_payload(
@@ -37,6 +63,34 @@ class IconWorkbenchConfigStore:
         return saved
 
     def update(self, payload: dict) -> IconWorkbenchConfig:
+        if self._settings_service is not None:
+            image_model = dict(payload.get("image_model") or {})
+            secret_payload = {"action": "keep"}
+            if "api_key" in image_model:
+                if image_model.get("api_key", "") == "":
+                    secret_payload = {"action": "clear"}
+                else:
+                    secret_payload = {"action": "replace", "value": str(image_model.get("api_key") or "")}
+            self._settings_service.update_settings(
+                {
+                    "families": {
+                        ICON_IMAGE_FAMILY: {
+                            "preset": {
+                                "name": payload.get("name"),
+                                "image_model": {
+                                    "base_url": image_model.get("base_url"),
+                                    "model": image_model.get("model"),
+                                },
+                                "image_size": payload.get("image_size"),
+                                "concurrency_limit": payload.get("concurrency_limit"),
+                                "save_mode": payload.get("save_mode"),
+                            },
+                            "secret": secret_payload,
+                        }
+                    }
+                }
+            )
+            return self.load()
         current = self.load()
         merged = current.to_dict()
         next_name: str | None = None
@@ -61,6 +115,8 @@ class IconWorkbenchConfigStore:
         return saved
 
     def get_payload(self) -> dict[str, Any]:
+        if self._settings_service is not None:
+            return self._settings_service.get_legacy_icon_config_payload()
         payload = self._load_payload()
         return {
             "config": payload["config"],
@@ -69,6 +125,9 @@ class IconWorkbenchConfigStore:
         }
 
     def switch_preset(self, preset_id: str) -> dict[str, Any]:
+        if self._settings_service is not None:
+            self._settings_service.activate_preset(ICON_IMAGE_FAMILY, preset_id)
+            return self.get_payload()
         payload = self._load_storage()
         if preset_id not in payload["presets"]:
             raise ValueError("图标生图预设不存在")
@@ -83,6 +142,19 @@ class IconWorkbenchConfigStore:
         copy_from_active: bool = True,
         config_patch: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
+        if self._settings_service is not None:
+            image_model = dict((config_patch or {}).get("image_model") or {})
+            secret_payload = None
+            if "api_key" in image_model:
+                secret_payload = {"action": "replace", "value": str(image_model.get("api_key") or "")}
+            self._settings_service.add_preset(
+                ICON_IMAGE_FAMILY,
+                name,
+                copy_from_active=copy_from_active,
+                preset_patch=config_patch,
+                secret_payload=secret_payload,
+            )
+            return self.get_payload()
         payload = self._load_storage()
         preset_id = str(uuid.uuid4())[:8]
         active_id = payload["active_preset_id"]
@@ -102,6 +174,9 @@ class IconWorkbenchConfigStore:
         return self.get_payload()
 
     def delete_preset(self, preset_id: str) -> dict[str, Any]:
+        if self._settings_service is not None:
+            self._settings_service.delete_preset(ICON_IMAGE_FAMILY, preset_id)
+            return self.get_payload()
         if preset_id == DEFAULT_PRESET_ID:
             raise ValueError("默认图标生图预设不能删除")
         payload = self._load_storage()

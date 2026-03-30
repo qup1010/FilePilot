@@ -86,8 +86,8 @@ def _request_json(
         raise RuntimeError(f"接口连接失败: {exc.reason}") from exc
 
 
-def _post_json(url: str, payload: dict[str, Any], api_key: str) -> dict[str, Any]:
-    return _request_json(url, method="POST", payload=payload, api_key=api_key)
+def _post_json(url: str, payload: dict[str, Any], api_key: str, *, timeout: float = 120) -> dict[str, Any]:
+    return _request_json(url, method="POST", payload=payload, api_key=api_key, timeout=timeout)
 
 
 class IconWorkbenchTextClient:
@@ -148,19 +148,27 @@ class IconWorkbenchImageClient:
             "response_format": "b64_json",
         }
 
-    def _read_remote_image(self, image_url: str) -> bytes:
-        with request.urlopen(image_url.strip(), timeout=120) as response:
+    def _read_remote_image(self, image_url: str, *, timeout: float = 120) -> bytes:
+        with request.urlopen(image_url.strip(), timeout=timeout) as response:
             return response.read()
 
-    def _poll_modelscope_result(self, url: str, api_key: str) -> dict[str, Any]:
-        max_attempts = 24
+    def _poll_modelscope_result(
+        self,
+        url: str,
+        api_key: str,
+        *,
+        max_wait_seconds: float = 120,
+        poll_interval_seconds: float = 5,
+    ) -> dict[str, Any]:
+        max_attempts = max(1, int(max_wait_seconds / poll_interval_seconds))
         for _ in range(max_attempts):
-            time.sleep(5)
+            time.sleep(poll_interval_seconds)
             response = _request_json(
                 url,
                 method="GET",
                 api_key=api_key,
                 extra_headers={"X-ModelScope-Task-Type": "image_generation"},
+                timeout=max(15, poll_interval_seconds + 10),
             )
             status = str(response.get("task_status", "") or "").upper()
             if status == "SUCCEED":
@@ -169,26 +177,34 @@ class IconWorkbenchImageClient:
                 raise RuntimeError("ModelScope 任务执行失败")
             if status in {"PENDING", "RUNNING"}:
                 continue
-        raise RuntimeError("ModelScope 任务超时 (120秒)")
+        raise RuntimeError(f"ModelScope 任务超时 ({int(max_wait_seconds)}秒)")
 
-    def _generate_modelscope_png(self, url: str, payload: dict[str, Any], api_key: str) -> bytes:
+    def _generate_modelscope_png(
+        self,
+        url: str,
+        payload: dict[str, Any],
+        api_key: str,
+        *,
+        timeout_seconds: float = 120,
+    ) -> bytes:
         response = _request_json(
             url,
             method="POST",
             payload=payload,
             api_key=api_key,
             extra_headers={"X-ModelScope-Async-Mode": "true"},
+            timeout=max(20, min(timeout_seconds, 60)),
         )
         task_id = str(response.get("task_id", "") or "").strip()
         if not task_id:
-            return self._extract_image_bytes(response)
+            return self._extract_image_bytes(response, timeout=timeout_seconds)
 
         task_base_url = url.rsplit("/images/generations", 1)[0]
         task_url = f"{task_base_url}/tasks/{task_id}"
-        task_response = self._poll_modelscope_result(task_url, api_key)
-        return self._extract_image_bytes(task_response)
+        task_response = self._poll_modelscope_result(task_url, api_key, max_wait_seconds=timeout_seconds)
+        return self._extract_image_bytes(task_response, timeout=timeout_seconds)
 
-    def _extract_image_bytes(self, response: dict[str, Any]) -> bytes:
+    def _extract_image_bytes(self, response: dict[str, Any], *, timeout: float = 120) -> bytes:
         data = response.get("data")
         if isinstance(data, list) and data:
             first = data[0]
@@ -199,7 +215,7 @@ class IconWorkbenchImageClient:
 
                 image_url = first.get("url")
                 if isinstance(image_url, str) and image_url.strip():
-                    return self._read_remote_image(image_url)
+                    return self._read_remote_image(image_url, timeout=timeout)
 
         images = response.get("images")
         if isinstance(images, list) and images:
@@ -207,28 +223,35 @@ class IconWorkbenchImageClient:
             if isinstance(first, dict):
                 image_url = first.get("url")
                 if isinstance(image_url, str) and image_url.strip():
-                    return self._read_remote_image(image_url)
+                    return self._read_remote_image(image_url, timeout=timeout)
             elif isinstance(first, str) and first.strip():
-                return self._read_remote_image(first)
+                return self._read_remote_image(first, timeout=timeout)
 
         output_images = response.get("output_images")
         if isinstance(output_images, list) and output_images:
             first = output_images[0]
             if isinstance(first, str) and first.strip():
-                return self._read_remote_image(first)
+                return self._read_remote_image(first, timeout=timeout)
 
         raise RuntimeError("图像响应缺少可用图像数据")
 
-    def generate_png(self, config: ModelConfig, prompt: str, size: str) -> bytes:
+    def generate_png(
+        self,
+        config: ModelConfig,
+        prompt: str,
+        size: str,
+        *,
+        timeout_seconds: float = 120,
+    ) -> bytes:
         if not config.is_configured():
             raise ValueError("图像模型配置不完整")
 
         url = _normalize_endpoint(config.base_url, "/images/generations")
         payload = self._build_payload(config, prompt, size)
         if _is_modelscope_endpoint(config.base_url):
-            return self._generate_modelscope_png(url, payload, config.api_key)
-        response = _post_json(url, payload, config.api_key)
-        return self._extract_image_bytes(response)
+            return self._generate_modelscope_png(url, payload, config.api_key, timeout_seconds=timeout_seconds)
+        response = _post_json(url, payload, config.api_key, timeout=timeout_seconds)
+        return self._extract_image_bytes(response, timeout=timeout_seconds)
 
 
 def scan_folder_tree(folder_path: str, max_depth: int = 2) -> list[str]:

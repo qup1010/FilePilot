@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { AlertCircle, FolderOpen, FolderPlus, LoaderCircle, Palette, Sparkles } from "lucide-react";
+import { AlertCircle, CheckCircle2, FolderOpen, FolderPlus, LoaderCircle, Palette, Sparkles } from "lucide-react";
 import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
@@ -26,7 +26,13 @@ import { IconWorkbenchPreviewModal } from "./icon-workbench-preview-modal";
 import { IconWorkbenchStylePanel } from "./icon-workbench-style-panel";
 import { IconWorkbenchTemplateDrawer } from "./icon-workbench-template-drawer";
 import { IconWorkbenchToolbar } from "./icon-workbench-toolbar";
-import { buildImageSrc, isFolderReady } from "./icon-workbench-utils";
+import {
+  buildImageSrc,
+  getGenerateFlowPresentation,
+  isFolderReady,
+  type GenerateFlowProgress,
+  type GenerateFlowStage,
+} from "./icon-workbench-utils";
 import { useBackgroundRemoval } from "./use-background-removal";
 import { useIconTemplates } from "./use-icon-templates";
 
@@ -86,6 +92,7 @@ export default function IconWorkbenchV2() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [actionLabel, setActionLabel] = useState<string | null>(null);
+  const [generateProgress, setGenerateProgress] = useState<GenerateFlowProgress | null>(null);
 
   const [expandedFolderId, setExpandedFolderId] = useState<string | null>(null);
   const [stylePanelOpen, setStylePanelOpen] = useState(false);
@@ -113,7 +120,7 @@ export default function IconWorkbenchV2() {
   const isImageModelConfigured = useMemo(() => {
     if (!workbenchConfig) return true;
     const m = workbenchConfig.image_model;
-    return Boolean(m?.api_key && m?.model && m?.base_url);
+    return Boolean(m?.configured ?? (m?.secret_state === "stored" && m?.model && m?.base_url));
   }, [workbenchConfig]);
   const {
     templates,
@@ -151,6 +158,17 @@ export default function IconWorkbenchV2() {
 
   const targetCount = session?.folders.length ?? 0;
   const hasTargets = targetCount > 0;
+  const isGeneratingFlow = Boolean(generateProgress);
+  const isBusy = Boolean(actionLabel) || isGeneratingFlow;
+  const generatePresentation = useMemo(
+    () => (generateProgress ? getGenerateFlowPresentation(generateProgress) : null),
+    [generateProgress],
+  );
+  const generateStageSteps: Array<{ key: GenerateFlowStage; label: string }> = useMemo(() => ([
+    { key: "analyzing", label: "分析目录" },
+    { key: "applying_template", label: "套用风格" },
+    { key: "generating", label: "生成预览" },
+  ]), []);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -272,7 +290,7 @@ export default function IconWorkbenchV2() {
     ? "先选择目标文件夹"
     : !hasSelectedStyle
       ? "先选择一个风格模板"
-      : actionLabel
+      : isBusy
         ? "正在生成，请稍候"
         : null;
 
@@ -312,16 +330,68 @@ export default function IconWorkbenchV2() {
       return;
     }
 
-    setActionLabel(`正在为 ${folderIds.length} 个目标文件夹生成图标...`);
+    const targetFolders = folderIds
+      .map((folderId) => session.folders.find((folder) => folder.folder_id === folderId))
+      .filter((folder): folder is FolderIconCandidate => Boolean(folder));
+
+    const totalFolders = targetFolders.length || folderIds.length;
+    setError(null);
+    setGenerateProgress({
+      stage: "analyzing",
+      totalFolders,
+      completedFolders: 0,
+      currentFolderId: null,
+      currentFolderName: null,
+    });
+
     try {
-      applySession(await iconApi.analyzeFolders(session.session_id, folderIds));
-      applySession(await iconApi.applyTemplate(session.session_id, selectedTemplateId, folderIds));
-      applySession(await iconApi.generatePreviews(session.session_id, folderIds));
-      setNotice(`已完成 ${folderIds.length} 个目标文件夹的图标生成。`);
+      const foldersToAnalyze = folderIds.filter(id => {
+        const folder = session.folders.find(f => f.folder_id === id);
+        return folder?.analysis_status !== "ready";
+      });
+
+      let nextSession = session;
+      if (foldersToAnalyze.length > 0) {
+        nextSession = await iconApi.analyzeFolders(session.session_id, foldersToAnalyze);
+        applySession(nextSession);
+      }
+
+      setGenerateProgress((current) => current ? {
+        ...current,
+        stage: "applying_template",
+      } : current);
+
+      nextSession = await iconApi.applyTemplate(session.session_id, selectedTemplateId, folderIds);
+      applySession(nextSession);
+
+      for (let index = 0; index < folderIds.length; index += 1) {
+        const folderId = folderIds[index];
+        const folder = nextSession.folders.find((item) => item.folder_id === folderId) || targetFolders[index] || null;
+
+        setGenerateProgress((current) => current ? {
+          ...current,
+          stage: "generating",
+          completedFolders: index,
+          currentFolderId: folderId,
+          currentFolderName: folder?.folder_name || null,
+        } : current);
+
+        nextSession = await iconApi.generatePreviews(session.session_id, [folderId]);
+        applySession(nextSession);
+      }
+
+      setGenerateProgress((current) => current ? {
+        ...current,
+        stage: "generating",
+        completedFolders: totalFolders,
+        currentFolderId: null,
+        currentFolderName: null,
+      } : current);
+      setNotice(`已完成 ${totalFolders} 个目标文件夹的图标生成。`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "生成图标失败");
     } finally {
-      setActionLabel(null);
+      setGenerateProgress(null);
     }
   };
 
@@ -537,7 +607,67 @@ export default function IconWorkbenchV2() {
     </div>
   ) : null;
 
-  const processingBanner = actionLabel ? (
+  const processingBanner = generatePresentation ? (
+    <div className="border-b border-primary/10 bg-primary/6 px-6 py-4">
+      <div className="flex flex-col gap-3">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0 space-y-1">
+            <div className="flex items-center gap-2 text-primary">
+              <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+              <p className="text-[13px] font-black">{generatePresentation.title}</p>
+            </div>
+            <p className="text-[12px] font-medium text-primary/80">{generatePresentation.detail}</p>
+          </div>
+          <div className="rounded-full border border-primary/12 bg-white/70 px-3 py-1 text-[11px] font-bold text-primary shadow-sm">
+            {generateProgress?.completedFolders ?? 0} / {generateProgress?.totalFolders ?? 0}
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <div className="h-2 overflow-hidden rounded-full bg-primary/10">
+            <div
+              className="h-full rounded-full bg-primary transition-all duration-500"
+              style={{ width: `${generatePresentation.percent}%` }}
+            />
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {generateStageSteps.map((step, index) => {
+              const currentStage = generateProgress?.stage;
+              const stageOrder: GenerateFlowStage[] = ["analyzing", "applying_template", "generating"];
+              const currentIndex = currentStage ? stageOrder.indexOf(currentStage) : -1;
+              const completed = currentIndex > index || (step.key === "generating" && (generateProgress?.completedFolders ?? 0) >= (generateProgress?.totalFolders ?? 0));
+              const active = currentStage === step.key;
+
+              return (
+                <div
+                  key={step.key}
+                  className={cn(
+                    "flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-bold transition-colors",
+                    completed
+                      ? "border-primary/16 bg-primary/10 text-primary"
+                      : active
+                        ? "border-primary/20 bg-white text-primary shadow-sm"
+                        : "border-on-surface/8 bg-white/45 text-ui-muted",
+                  )}
+                >
+                  {completed ? (
+                    <CheckCircle2 className="h-3.5 w-3.5" />
+                  ) : active ? (
+                    <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <span className="flex h-3.5 w-3.5 items-center justify-center rounded-full border border-current/20 text-[10px]">
+                      {index + 1}
+                    </span>
+                  )}
+                  <span>{step.label}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    </div>
+  ) : actionLabel ? (
     <div className="flex items-center gap-3 bg-primary/10 px-6 py-2 text-[12px] font-bold text-primary">
       <LoaderCircle className="h-3 w-3 animate-spin" />
       <span>{actionLabel}</span>
@@ -593,7 +723,7 @@ export default function IconWorkbenchV2() {
         statusText={topStatusText}
         primaryCtaLabel={primaryCtaLabel}
         primaryActionKind={primaryActionKind}
-        primaryCtaDisabled={Boolean(actionLabel)}
+        primaryCtaDisabled={isBusy}
         onPrimaryAction={handleGuidePrimaryAction}
       />
 
@@ -641,23 +771,26 @@ export default function IconWorkbenchV2() {
               setRestoreConfirmOpen(true);
             }
           }}
-        onRemoveTarget={(folderId) => void handleRemoveTarget(folderId)}
-        onRemoveBg={(folderId, version) => void handleRemoveBg(folderId, version)}
-        onDeleteVersion={(folderId, versionId) => void handleDeleteVersion(folderId, versionId)}
-        processingBgVersionIds={processingBgVersionIds}
-        baseUrl={baseUrl}
-        apiToken={apiToken}
+          onRemoveTarget={(folderId) => void handleRemoveTarget(folderId)}
+          onRemoveBg={(folderId, version) => void handleRemoveBg(folderId, version)}
+          onDeleteVersion={(folderId, versionId) => void handleDeleteVersion(folderId, versionId)}
+          processingBgVersionIds={processingBgVersionIds}
+          baseUrl={baseUrl}
+          apiToken={apiToken}
           isApplyingId={isApplyingId}
-        activeProcessingId={activeProcessingId}
-        desktopReady={desktopReady}
-        hasSelectedStyle={hasSelectedStyle}
-      />
+          activeProcessingId={activeProcessingId}
+          desktopReady={desktopReady}
+          hasSelectedStyle={hasSelectedStyle}
+          isProcessing={isBusy}
+          processingFolderId={generateProgress?.currentFolderId ?? null}
+        />
       )}
 
       {hasTargets && hasSelectedStyle ? (
         <IconWorkbenchFooterBar
           targetCount={targetCount}
-          isGenerating={Boolean(actionLabel)}
+          isGenerating={isGeneratingFlow}
+          generateProgressHint={generatePresentation?.detail || null}
           isApplying={batchApplyLoading}
           onGenerate={() => void runGenerateFlow(allFolderIds)}
           onApplyBatch={handleApplyBatch}

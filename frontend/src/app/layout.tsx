@@ -6,7 +6,7 @@ import "./globals.css";
 import { AppShell } from "../components/app-shell";
 
 export const metadata: Metadata = {
-  title: "File Organizer Desktop",
+  title: "FilePilot",
   description: "AI-powered file organization workbench.",
 };
 

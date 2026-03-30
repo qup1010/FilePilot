@@ -1,7 +1,9 @@
 export interface IconWorkbenchModelConfig {
   base_url: string;
-  api_key: string;
   model: string;
+  secret_state?: "empty" | "stored";
+  configured?: boolean;
+  name?: string;
 }
 
 export interface IconWorkbenchConfig {

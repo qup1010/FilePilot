@@ -38,6 +38,7 @@ interface IconWorkbenchFolderCardProps {
   desktopReady: boolean;
   hasSelectedStyle: boolean;
   isProcessing?: boolean;
+  isActiveProcessing?: boolean;
 }
 
 export function IconWorkbenchFolderCard({
@@ -59,23 +60,30 @@ export function IconWorkbenchFolderCard({
   desktopReady,
   hasSelectedStyle,
   isProcessing,
+  isActiveProcessing,
 }: IconWorkbenchFolderCardProps) {
   const currentPreview = useMemo(() => resolvePreviewVersion(folder), [folder]);
   const hasVersions = folder.versions.length > 0;
   const generateLabel = hasVersions ? "重新生成" : "生成第一版";
 
   const status = useMemo(() => {
+    if (isActiveProcessing) {
+      return { label: "生成中", color: "text-primary", icon: LoaderCircle, animate: true };
+    }
     if (folder.last_error) return { label: "异常", color: "text-error", icon: AlertCircle };
     if (folder.versions.some((version) => version.status === "ready")) {
       return {
         label: `v${currentPreview?.version_number || 1} 就绪`,
         color: "text-primary",
         icon: CheckCircle2,
+        animate: false,
       };
     }
-    if (folder.analysis_status === "ready") return { label: "分析完成", color: "text-primary/70", icon: CheckCircle2 };
-    return { label: "待处理", color: "text-ui-muted", icon: CircleDashed };
-  }, [currentPreview?.version_number, folder]);
+    if (folder.analysis_status === "ready") {
+      return { label: "分析完成", color: "text-primary/70", icon: CheckCircle2, animate: false };
+    }
+    return { label: "待处理", color: "text-ui-muted", icon: CircleDashed, animate: false };
+  }, [currentPreview?.version_number, folder, isActiveProcessing]);
 
   const StatusIcon = status.icon;
 
@@ -103,7 +111,7 @@ export function IconWorkbenchFolderCard({
         </div>
 
         <div className={cn("hidden items-center gap-1.5 sm:flex", status.color)}>
-          <StatusIcon className="h-3.5 w-3.5" />
+          <StatusIcon className={cn("h-3.5 w-3.5", status.animate ? "animate-spin" : undefined)} />
           <span className="text-[12px] font-semibold">{status.label}</span>
         </div>
 
@@ -160,6 +168,13 @@ export function IconWorkbenchFolderCard({
 
             {!hasSelectedStyle ? (
               <p className="text-[12px] leading-6 text-ui-muted">请先选择风格，再为这个目标文件夹生成图标版本。</p>
+            ) : null}
+
+            {isActiveProcessing ? (
+              <div className="flex items-center gap-2 rounded-xl border border-primary/12 bg-primary/6 px-3 py-2 text-[12px] font-medium text-primary">
+                <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+                <span>这个文件夹正在生成新预览，完成后会自动刷新到当前列表。</span>
+              </div>
             ) : null}
 
             {hasVersions ? (

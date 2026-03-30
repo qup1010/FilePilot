@@ -79,13 +79,10 @@ function buildFileTree(groups: PlanGroup[]): TreeNode {
     current.items = [...group.items];
   });
 
-  // 递归计算状态
   const propagateStatus = (node: TreeNode) => {
-    // 自身 items 状态
     node.hasUnresolved = node.items.some(it => it.status === "unresolved");
     node.hasReview = node.items.some(it => it.status === "review");
 
-    // 子目录状态冒泡
     Object.values(node.children).forEach(child => {
       propagateStatus(child);
       if (child.hasUnresolved) node.hasUnresolved = true;
@@ -101,13 +98,11 @@ function buildSourceTree(items: PlanItem[]): TreeNode {
   const root: TreeNode = { name: "Root", path: "", items: [], children: {} };
 
   items.forEach((item) => {
-    // 统一移除尾部斜杠并规范化
     const normalizedPath = item.source_relpath.replace(/\\/g, "/").replace(/\/$/, "");
     const parts = normalizedPath.split("/").filter(Boolean);
     
     let current = root;
 
-    // 前面所有部分都是目录
     for (let i = 0; i < parts.length - 1; i++) {
       const part = parts[i];
       const path = parts.slice(0, i + 1).join("/");
@@ -122,14 +117,12 @@ function buildSourceTree(items: PlanItem[]): TreeNode {
       current = current.children[part];
     }
 
-    // 最后一部分可能是文件，也可能是后端标识的目录条目
     const lastPart = parts[parts.length - 1];
     if (lastPart) {
       current.items.push(item);
     }
   });
 
-  // 递归计算状态
   const propagateStatus = (node: TreeNode) => {
     node.hasUnresolved = node.items.some(it => it.status === "unresolved");
     node.hasReview = node.items.some(it => it.status === "review");
@@ -247,7 +240,6 @@ function FolderNode({
             handleEditSubmit={handleEditSubmit}
           />
         ))}
-        {/* 处理根目录下的孤立文件 */}
         {node.items.map(item => (
           <FileItem 
             key={item.item_id}
@@ -293,7 +285,6 @@ function FolderNode({
           {node.name}
         </span>
         
-        {/* 文件夹状态指示灯 */}
         <div className="flex items-center gap-1 pr-1">
           {node.hasUnresolved && <span className="h-1.5 w-1.5 rounded-full bg-warning" title="包含待确认项" />}
           {node.hasReview && <span className="h-1.5 w-1.5 rounded-full bg-primary/50" title="包含待核对项" />}
@@ -313,7 +304,6 @@ function FolderNode({
             className="overflow-hidden"
           >
             <div className="mt-0.5 space-y-0.5">
-              {/* 子目录递归 */}
               {Object.values(node.children).map((child) => (
                 <FolderNode
                   key={child.path}
@@ -333,7 +323,6 @@ function FolderNode({
                 />
               ))}
 
-              {/* 文件条目渲染 */}
               {node.items.map((item) => (
                 <FileItem 
                   key={item.item_id}
@@ -410,7 +399,7 @@ function FileItem({
               <span className="rounded-[5px] bg-warning px-1.5 py-0.5 text-[11px] font-semibold leading-none text-white">待确认</span>
             )}
             {isReview && (
-              <span className="rounded-[5px] bg-primary px-1.5 py-0.5 text-[11px] font-semibold leading-none text-white">待核对</span>
+              <span className="rounded-[5px] bg-primary px-1.5 py-0.5 text-[11px] font-semibold leading-none text-white">待确认</span>
             )}
           </div>
           {item.suggested_purpose && (
@@ -437,13 +426,6 @@ function FileItem({
           </div>
         )}
       </div>
-      {hoverDetails.length > 0 && (
-        <div className="pointer-events-none absolute left-6 right-3 top-full z-20 mt-1 hidden rounded-[8px] border border-on-surface/10 bg-surface-container px-3 py-2 text-[11px] leading-5 text-on-surface shadow-lg group-hover/item:block">
-          {hoverDetails.map((line) => (
-            <div key={line}>{line}</div>
-          ))}
-        </div>
-      )}
       {isEditing && (
         <div className="mt-1 ml-4 flex gap-2 border-l border-primary/20 py-1 pl-2" onClick={(e) => e.stopPropagation()}>
           <input
@@ -501,6 +483,7 @@ export function PreviewPanel({
     viewMode === "after"
       ? plan.groups.length > 0 || plan.items.some((item) => Boolean(item.target_relpath))
       : plan.items.length > 0;
+
   const precheckButtonLabel = isBusy
     ? "正在更新中"
     : canRunPrecheck
@@ -510,6 +493,7 @@ export function PreviewPanel({
         : hasPlanItems
           ? "等待方案就绪"
           : "暂无可预检内容";
+
   const precheckNotice = canRunPrecheck
     ? {
         tone: "ready" as const,
@@ -532,145 +516,145 @@ export function PreviewPanel({
 
   return (
     <div className="flex h-full flex-col overflow-hidden bg-transparent">
-      <div className="flex-1 overflow-y-auto p-4 scrollbar-thin lg:p-6">
+      <div className="flex-1 overflow-y-auto p-4 lg:p-6 scrollbar-thin">
         <div className="mx-auto max-w-[1360px] space-y-4">
-          <div className="rounded-[12px] border border-on-surface/8 bg-surface-container-lowest px-4 py-3.5 shadow-[0_18px_44px_rgba(0,0,0,0.04)]">
-            <div className="flex items-center justify-between gap-4">
-              <div className="space-y-1">
-                <h2 className="flex items-center gap-2 text-[15px] font-black text-on-surface">
-                  <Activity className="h-4 w-4 text-primary" /> 当前整理方案
-                </h2>
-                <p className="text-[13px] leading-6 text-ui-muted">
-                  先确认这轮目录变化和待处理项，再决定是否开始预检。
-                </p>
-              </div>
-              <div className="flex items-center gap-1.5 rounded-[8px] bg-surface-container-lowest px-2.5 py-1 text-[12px] font-medium text-on-surface-variant">
-                {stage === "completed" ? "已完成" : "整理中"}
-              </div>
-            </div>
-          </div>
-
-          <div className="grid gap-2.5 sm:grid-cols-2 2xl:grid-cols-4">
-            <div className="rounded-[10px] border border-on-surface/8 bg-surface px-4 py-3.5">
-              <span className="text-[12px] font-medium text-ui-muted">移动文件</span>
-              <p className="mt-2 text-[1.35rem] font-black leading-none tracking-tight tabular-nums text-on-surface">
-                {plan.stats.move_count}
-              </p>
-            </div>
-            <div className="rounded-[10px] border border-on-surface/8 bg-surface px-4 py-3.5">
-              <span className="text-[12px] font-medium text-ui-muted">新建目录</span>
-              <p className="mt-2 text-[1.35rem] font-black leading-none tracking-tight tabular-nums text-on-surface">
-                {plan.stats.directory_count}
-              </p>
-            </div>
-            <div className="rounded-[10px] border border-on-surface/8 bg-surface px-4 py-3.5">
-              <span className={cn(
-                "text-[12px] font-medium",
-                plan.unresolved_items.length > 0 ? "text-warning" : "text-ui-muted"
-              )}>待确认项</span>
-              <p className={cn(
-                "mt-2 text-[1.35rem] font-black leading-none tracking-tight tabular-nums",
-                plan.unresolved_items.length > 0 ? "text-warning" : "text-on-surface"
-              )}>
-                {plan.unresolved_items.length}
-              </p>
-            </div>
-            <div className="rounded-[10px] border border-on-surface/8 bg-surface px-4 py-3.5">
-              <span className="text-[12px] font-medium text-ui-muted">Review</span>
-              <p className="mt-2 text-[1.35rem] font-black leading-none tracking-tight tabular-nums text-on-surface">
-                {plan.review_items.length}
-              </p>
-            </div>
-          </div>
-
-          {(plan.summary || (plan.change_highlights && plan.change_highlights.length > 0)) && (
-            <div className="space-y-3">
-              {plan.summary && (
-                <div className="rounded-[10px] border border-on-surface/8 bg-surface px-4 py-3.5">
-                  <p className="text-[13px] leading-6 text-on-surface/80">
-                    {plan.summary}
+          {/* 计划整合容器 */}
+          <div className="flex flex-col rounded-[16px] border border-on-surface/8 bg-surface-container-lowest shadow-[0_24px_56px_-12px_rgba(0,0,0,0.06)] overflow-hidden">
+            {/* Header: Title + Stats + Summary */}
+            <div className="border-b border-on-surface/6 bg-surface-container-low/15 px-5 py-4">
+              <div className="flex items-center justify-between gap-4 mb-3.5">
+                <div className="space-y-0.5">
+                  <h2 className="flex items-center gap-2 text-[15px] font-black tracking-tight text-on-surface">
+                    <Activity className="h-4 w-4 text-primary" /> 当前整理方案
+                  </h2>
+                  <p className="text-[12px] text-ui-muted opacity-80">
+                    确认目录变化范围，决定是否执行整理。
                   </p>
                 </div>
-              )}
+                <div className="flex items-center gap-1.5 rounded-full bg-surface-container-low/60 px-2.5 py-1 text-[11px] font-bold text-on-surface-variant/70">
+                  {stage === "completed" ? "任务已完成" : "正在调整方案..."}
+                </div>
+              </div>
 
-              {plan.change_highlights && plan.change_highlights.length > 0 && (
-                <div className="space-y-2.5">
-                  <h4 className="flex items-center gap-2 text-[13px] font-medium text-ui-muted">
-                    <Sparkles className="h-3.5 w-3.5 text-primary" /> 本轮重点变化
-                  </h4>
-                  <div className="grid grid-cols-1 gap-1.5">
-                    {plan.change_highlights.slice(0, 5).map((highlight, idx) => (
-                      <div key={idx} className="flex items-start gap-2.5 rounded-[9px] border border-on-surface/8 bg-surface px-3 py-2.5 text-[13px] leading-6 text-on-surface/75">
-                        <Check className="mt-1 h-3.5 w-3.5 shrink-0 text-primary/45" />
-                        <span>{highlight}</span>
-                      </div>
-                    ))}
+              <div className="flex flex-wrap items-center gap-y-3 gap-x-6 border-t border-on-surface/[0.04] pt-3.5">
+                <div className="flex items-center gap-6">
+                  <div className="flex flex-col">
+                    <span className="text-[10.5px] font-bold uppercase tracking-wider text-ui-muted opacity-50">移动</span>
+                    <span className="text-[15px] font-black tabular-nums text-on-surface">{plan.stats.move_count}</span>
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-[10.5px] font-bold uppercase tracking-wider text-ui-muted opacity-50">新建</span>
+                    <span className="text-[15px] font-black tabular-nums text-on-surface">{plan.stats.directory_count}</span>
+                  </div>
+                  <div className="flex flex-col">
+                    <span className={cn(
+                      "text-[10.5px] font-bold uppercase tracking-wider",
+                      plan.unresolved_items.length > 0 ? "text-warning" : "text-ui-muted opacity-50"
+                    )}>待确认</span>
+                    <span className={cn(
+                      "text-[15px] font-black tabular-nums",
+                      plan.unresolved_items.length > 0 ? "text-warning" : "text-on-surface"
+                    )}>{plan.unresolved_items.length}</span>
                   </div>
                 </div>
-              )}
-            </div>
-          )}
 
-          <div className="space-y-3">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <h3 className="flex items-center gap-1.5 text-[13px] font-medium text-ui-muted">
-                <Layers className="h-3.5 w-3.5 text-primary/70" /> 目录结构
-              </h3>
-
-              <div className="flex rounded-[10px] border border-on-surface/8 bg-surface-container p-1 sm:w-[220px]">
-                <button
-                  onClick={() => setViewMode("before")}
-                  className={cn(
-                    "flex-1 rounded-[8px] px-4 py-2 text-[13px] font-semibold transition-colors",
-                    viewMode === "before" 
-                      ? "border border-on-surface/8 bg-surface-container-lowest text-on-surface" 
-                      : "text-on-surface-variant/60 hover:text-on-surface"
-                  )}
-                >
-                  整理前
-                </button>
-                <button
-                  onClick={() => setViewMode("after")}
-                  className={cn(
-                    "flex-1 rounded-[8px] px-4 py-2 text-[13px] font-semibold transition-colors",
-                    viewMode === "after" 
-                      ? "border border-on-surface/8 bg-surface-container-lowest text-on-surface" 
-                      : "text-on-surface-variant/60 hover:text-on-surface"
-                  )}
-                >
-                  整理后
-                </button>
+                {plan.summary && (
+                  <div className="ml-auto flex items-center gap-2.5 rounded-[10px] bg-primary/[0.04] pl-3 py-1 pr-1.5 border border-primary/10">
+                    <p className="text-[12px] font-black text-primary/85 leading-none">
+                      {plan.summary}
+                    </p>
+                    <div className="h-4 w-[1px] bg-primary/15" />
+                    <Sparkles className="h-3 w-3 text-primary/60" />
+                  </div>
+                )}
               </div>
             </div>
 
-            <div className="min-h-[220px] rounded-[12px] border border-on-surface/8 bg-surface-container-lowest p-2 shadow-[0_18px_44px_rgba(0,0,0,0.04)]">
-              {!hasTreeContent ? (
-                <div className="flex h-36 flex-col items-center justify-center gap-2 text-[12px] font-medium text-on-surface-variant/45">
-                  <Archive className="h-6 w-6 opacity-30" />
-                  还没有可显示的内容
+            {/* Tree Section */}
+            <div className="flex flex-col">
+              <div className="flex items-center justify-between px-5 py-3 border-b border-on-surface/[0.04]">
+                <h3 className="flex items-center gap-2 text-[12px] font-bold text-on-surface/50">
+                  <Layers className="h-3.5 w-3.5" /> 结构预览
+                </h3>
+                
+                <div className="flex rounded-[9px] bg-surface-container-low p-0.5">
+                  <button
+                    onClick={() => setViewMode("before")}
+                    className={cn(
+                      "rounded-[7px] px-3 py-1 text-[11px] font-black transition-all",
+                      viewMode === "before" 
+                        ? "bg-white text-on-surface shadow-sm" 
+                        : "text-on-surface-variant/40 hover:text-on-surface"
+                    )}
+                  >
+                    整理前
+                  </button>
+                  <button
+                    onClick={() => setViewMode("after")}
+                    className={cn(
+                      "rounded-[7px] px-3 py-1 text-[11px] font-black transition-all",
+                      viewMode === "after" 
+                        ? "bg-white text-on-surface shadow-sm" 
+                        : "text-on-surface-variant/40 hover:text-on-surface"
+                    )}
+                  >
+                    整理后
+                  </button>
                 </div>
-              ) : (
-                <FolderNode
-                  node={currentTree}
-                  level={0}
-                  readOnly={isViewOnly}
-                  editingId={editingId}
-                  editValue={editValue}
-                  expandedGroups={expandedGroups}
-                  onToggle={toggleGroup}
-                  onEdit={(id, path) => {
-                    setEditingId(id);
-                    setEditValue(path.split("/").slice(0, -1).join("/") || "");
-                  }}
-                  onMoveToReview={(id) => onUpdateItem(id, { move_to_review: true })}
-                  onUpdateItem={onUpdateItem}
-                  setEditingId={setEditingId}
-                  setEditValue={setEditValue}
-                  handleEditSubmit={handleEditSubmit}
-                />
-              )}
+              </div>
+
+              <div className="min-h-[280px] max-h-[55vh] overflow-y-auto p-2 scrollbar-thin">
+                {(!hasTreeContent && stage === "planning") ? (
+                  <div className="flex h-64 flex-col items-center justify-center gap-4 text-center">
+                    <div className="relative">
+                      <motion.div animate={{ rotate: 360 }} transition={{ duration: 4, repeat: Infinity, ease: "linear" }} className="absolute -inset-2 rounded-full border-t-2 border-primary/20" />
+                      <Sparkles className="h-8 w-8 text-primary/40 animate-pulse" />
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-[14px] font-black text-on-surface">方案生成中</p>
+                      <p className="text-[12px] text-ui-muted opacity-60">正在为您构建结构预览...</p>
+                    </div>
+                  </div>
+                ) : !hasTreeContent ? (
+                  <div className="flex h-36 flex-col items-center justify-center gap-2 text-[12px] font-medium text-on-surface-variant/35">
+                    <Archive className="h-6 w-6 opacity-20" />
+                    还没有可显示的内容
+                  </div>
+                ) : (
+                  <FolderNode
+                    node={currentTree}
+                    level={0}
+                    readOnly={isViewOnly}
+                    editingId={editingId}
+                    editValue={editValue}
+                    expandedGroups={expandedGroups}
+                    onToggle={toggleGroup}
+                    onEdit={(id, path) => {
+                      setEditingId(id);
+                      setEditValue(path.split("/").slice(0, -1).join("/") || "");
+                    }}
+                    onMoveToReview={(id) => onUpdateItem(id, { move_to_review: true })}
+                    onUpdateItem={onUpdateItem}
+                    setEditingId={setEditingId}
+                    setEditValue={setEditValue}
+                    handleEditSubmit={handleEditSubmit}
+                  />
+                )}
+              </div>
             </div>
           </div>
+
+          {/* Highlights Feed */}
+          {plan.change_highlights && plan.change_highlights.length > 0 && (
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              {plan.change_highlights.slice(0, 4).map((highlight, idx) => (
+                <div key={idx} className="flex items-center gap-3 rounded-[12px] border border-on-surface/5 bg-surface-container-low/30 px-3.5 py-2.5">
+                  <Check className="h-3.5 w-3.5 shrink-0 text-emerald-500/50" />
+                  <span className="text-[12px] font-bold text-on-surface/70 leading-tight">{highlight}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 

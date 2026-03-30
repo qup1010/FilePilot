@@ -26,6 +26,7 @@ interface IconWorkbenchFolderListProps {
   desktopReady: boolean;
   hasSelectedStyle: boolean;
   isProcessing?: boolean;
+  processingFolderId?: string | null;
 }
 
 export function IconWorkbenchFolderList({
@@ -48,6 +49,7 @@ export function IconWorkbenchFolderList({
   desktopReady,
   hasSelectedStyle,
   isProcessing,
+  processingFolderId,
 }: IconWorkbenchFolderListProps) {
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
@@ -104,6 +106,7 @@ export function IconWorkbenchFolderList({
                 desktopReady={desktopReady}
                 hasSelectedStyle={hasSelectedStyle}
                 isProcessing={isProcessing}
+                isActiveProcessing={processingFolderId === folder.folder_id}
               />
             ))}
           </div>

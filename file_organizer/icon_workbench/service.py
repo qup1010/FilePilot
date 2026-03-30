@@ -22,6 +22,7 @@ from file_organizer.icon_workbench.models import (
 )
 from file_organizer.icon_workbench.store import IconWorkbenchStore
 from file_organizer.icon_workbench.templates import render_prompt_template
+from file_organizer.shared.config_manager import config_manager
 
 
 class IconWorkbenchService:
@@ -36,7 +37,7 @@ class IconWorkbenchService:
     ):
         project_root = Path(__file__).resolve().parents[2]
         root = project_root / "output" / "icon_workbench"
-        self.store = store or IconWorkbenchStore(root)
+        self.store = store or IconWorkbenchStore(root, settings_service=config_manager.service)
         self.text_client = text_client or IconWorkbenchTextClient()
         self.image_client = image_client or IconWorkbenchImageClient()
         self.chat_agent = chat_agent or IconWorkbenchChatAgent(self.text_client)
@@ -257,7 +258,8 @@ class IconWorkbenchService:
         return self.store.config_store.get_payload()
 
     def update_config(self, payload: dict) -> dict:
-        return self.store.config_store.update(payload).to_dict()
+        self.store.config_store.update(payload)
+        return self.store.config_store.get_payload()["config"]
 
     def switch_config_preset(self, preset_id: str) -> dict:
         return self.store.config_store.switch_preset(preset_id)

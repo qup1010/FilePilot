@@ -58,20 +58,12 @@ _SPOOF_HEADERS = {
 from file_organizer.shared.config_manager import config_manager
 
 def create_openai_client() -> OpenAI:
-    return OpenAI(
-        api_key=config_manager.get("OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY"),
-        base_url=config_manager.get("OPENAI_BASE_URL", DEFAULT_BASE_URL),
-        default_headers=_SPOOF_HEADERS,
-    )
+    runtime = config_manager.service.get_runtime_family_config("text")
+    return OpenAI(api_key=runtime["api_key"], base_url=runtime["base_url"], default_headers=_SPOOF_HEADERS)
 
 
 def get_image_analysis_settings() -> dict[str, str | bool | None]:
-    return {
-        "enabled": config_manager.get("IMAGE_ANALYSIS_ENABLED", False),
-        "base_url": config_manager.get("IMAGE_ANALYSIS_BASE_URL"),
-        "api_key": config_manager.get("IMAGE_ANALYSIS_API_KEY"),
-        "model": config_manager.get("IMAGE_ANALYSIS_MODEL"),
-    }
+    return config_manager.service.get_runtime_family_config("vision")
 
 
 def create_image_analysis_client() -> OpenAI:

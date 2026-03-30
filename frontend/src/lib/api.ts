@@ -13,10 +13,15 @@ import type {
   ResolveUnresolvedChoicesResponse,
   SessionSnapshot,
   HistoryItem,
-  AppConfig,
   UpdateItemRequest,
   SessionStrategySelection,
 } from "@/types/session";
+import type {
+  SettingsPresetCreatePayload,
+  SettingsSnapshot,
+  SettingsTestResult,
+  SettingsUpdatePayload,
+} from "@/types/settings";
 
 function joinUrl(baseUrl: string, path: string): string {
   return new URL(path.replace(/^\//, ""), `${baseUrl.replace(/\/$/, "")}/`).toString();
@@ -63,13 +68,12 @@ export interface ApiClient {
   selectDir(): Promise<{ path: string | null }>;
   getHistory(): Promise<HistoryItem[]>;
   deleteHistoryEntry(entry_id: string): Promise<{ status: string; entry_id: string; entry_type: string }>;
-  getConfig(): Promise<AppConfig>;
-  getConfigSecrets(keys: string[]): Promise<Record<string, string>>;
-  updateConfig(config: Record<string, any>): Promise<{ status: string }>;
-  switchPreset(preset_type: "text" | "vision", id: string): Promise<{ status: string }>;
-  addPreset(preset_type: "text" | "vision", name: string, copy?: boolean, config?: Record<string, any>): Promise<{ status: string; id: string }>;
-  deletePreset(preset_type: "text" | "vision", id: string): Promise<{ status: string }>;
-  testLlm(payload: { test_type: "text" | "vision" | "icon_image"; [key: string]: any }): Promise<{ status: string; message: string }>;
+  getSettings(): Promise<SettingsSnapshot>;
+  updateSettings(payload: SettingsUpdatePayload): Promise<SettingsSnapshot>;
+  activateSettingsPreset(family: "text" | "vision" | "icon_image", id: string): Promise<{ status: string }>;
+  createSettingsPreset(family: "text" | "vision" | "icon_image", payload: SettingsPresetCreatePayload): Promise<{ status: string; id: string }>;
+  deleteSettingsPreset(family: "text" | "vision" | "icon_image", id: string): Promise<{ status: string }>;
+  testSettings(payload: { family: "text" | "vision" | "icon_image"; preset?: Record<string, any>; secret?: { action: string; value?: string } }): Promise<SettingsTestResult>;
 }
 
 export function createApiClient(baseUrl: string, apiToken?: string): ApiClient {
@@ -211,59 +215,53 @@ export function createApiClient(baseUrl: string, apiToken?: string): ApiClient {
       });
       return parseResponse<{ status: string; entry_id: string; entry_type: string }>(response);
     },
-    async getConfig() {
-      const response = await fetch(joinUrl(baseUrl, "/api/utils/config"), {
+    async getSettings() {
+      const response = await fetch(joinUrl(baseUrl, "/api/settings"), {
         headers: buildAuthHeaders(apiToken),
       });
-      return parseResponse<AppConfig>(response);
+      return parseResponse<SettingsSnapshot>(response);
     },
-    async getConfigSecrets(keys) {
-      const response = await fetch(joinUrl(baseUrl, "/api/utils/config/secrets"), {
-        method: "POST",
+    async updateSettings(payload) {
+      const response = await fetch(joinUrl(baseUrl, "/api/settings"), {
+        method: "PATCH",
         headers: buildAuthHeaders(apiToken, { "Content-Type": "application/json" }),
-        body: JSON.stringify({ keys }),
+        body: JSON.stringify(payload),
       });
-      const payload = await parseResponse<{ secrets: Record<string, string> }>(response);
-      return payload.secrets;
+      return parseResponse<SettingsSnapshot>(response);
     },
-    async updateConfig(config) {
-      const response = await fetch(joinUrl(baseUrl, "/api/utils/config"), {
+    async activateSettingsPreset(family, id) {
+      const response = await fetch(joinUrl(baseUrl, `/api/settings/presets/${family}/${id}/activate`), {
         method: "POST",
-        headers: buildAuthHeaders(apiToken, { "Content-Type": "application/json" }),
-        body: JSON.stringify(config),
+        headers: buildAuthHeaders(apiToken),
       });
       return parseResponse<{ status: string }>(response);
     },
-    async switchPreset(preset_type, id) {
-      const response = await fetch(joinUrl(baseUrl, "/api/utils/config/presets/switch"), {
+    async createSettingsPreset(family, payload) {
+      const response = await fetch(joinUrl(baseUrl, `/api/settings/presets/${family}`), {
         method: "POST",
         headers: buildAuthHeaders(apiToken, { "Content-Type": "application/json" }),
-        body: JSON.stringify({ preset_type, id }),
-      });
-      return parseResponse<{ status: string }>(response);
-    },
-    async addPreset(preset_type, name, copy = true, config) {
-      const response = await fetch(joinUrl(baseUrl, "/api/utils/config/presets"), {
-        method: "POST",
-        headers: buildAuthHeaders(apiToken, { "Content-Type": "application/json" }),
-        body: JSON.stringify({ preset_type, name, copy, config }),
+        body: JSON.stringify(payload),
       });
       return parseResponse<{ status: string; id: string }>(response);
     },
-    async deletePreset(preset_type, id) {
-      const response = await fetch(joinUrl(baseUrl, `/api/utils/config/presets/${preset_type}/${id}`), {
+    async deleteSettingsPreset(family, id) {
+      const response = await fetch(joinUrl(baseUrl, `/api/settings/presets/${family}/${id}`), {
         method: "DELETE",
         headers: buildAuthHeaders(apiToken),
       });
       return parseResponse<{ status: string }>(response);
     },
-    async testLlm(payload) {
-      const response = await fetch(joinUrl(baseUrl, "/api/utils/test-llm"), {
+    async testSettings(payload) {
+      const response = await fetch(joinUrl(baseUrl, "/api/settings/test"), {
         method: "POST",
         headers: buildAuthHeaders(apiToken, { "Content-Type": "application/json" }),
         body: JSON.stringify(payload),
       });
-      return parseResponse<{ status: string; message: string }>(response);
+      const data = (await response.json()) as SettingsTestResult;
+      if (!response.ok && data?.status !== "error") {
+        throw new Error(`Request failed (${response.status} ${response.statusText})`);
+      }
+      return data;
     },
   };
 }

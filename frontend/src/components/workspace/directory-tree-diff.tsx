@@ -185,8 +185,8 @@ function buildTree(column: DirectoryTreeColumnData, filter: DirectoryTreeFilter 
 function statusBadge(status: DirectoryTreeLeafStatus | undefined) {
   if (status === "review") {
     return {
-      label: "Review",
-      className: "border-warning/20 bg-warning-container/20 text-warning",
+      label: "待确认",
+      className: "border-warning/30 bg-warning-container/30 text-warning-dim",
     };
   }
   if (status === "failed") {
@@ -202,7 +202,7 @@ function statusBadge(status: DirectoryTreeLeafStatus | undefined) {
     };
   }
   return {
-    label: "将移动",
+    label: "计划中",
     className: "border-primary/15 bg-primary/8 text-primary",
   };
 }
@@ -243,7 +243,7 @@ function DirectoryTreePanel({ column, filter = "all" }: { column: DirectoryTreeC
               <File className="h-4 w-4 shrink-0 text-on-surface-variant/55" />
             )}
             <span className="min-w-0 flex-1 truncate text-on-surface">{node.name}</span>
-            <span className={cn("shrink-0 rounded-full border px-2 py-1 text-[12px] font-medium", badge.className)}>
+            <span className={cn("shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-black whitespace-nowrap", badge.className)}>
               {badge.label}
             </span>
           </div>
@@ -276,8 +276,8 @@ function DirectoryTreePanel({ column, filter = "all" }: { column: DirectoryTreeC
             {node.descendantFileCount} 项
           </span>
           {isReviewDirectory ? (
-            <span className="shrink-0 rounded-full border border-warning/20 bg-warning-container/20 px-2 py-1 text-[12px] font-medium text-warning">
-              Review
+            <span className="shrink-0 rounded-full border border-warning/20 bg-warning-container/20 px-2 py-0.5 text-[11px] font-black whitespace-nowrap text-warning-dim/80">
+              待确认
             </span>
           ) : null}
         </button>
