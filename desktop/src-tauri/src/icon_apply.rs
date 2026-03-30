@@ -496,7 +496,7 @@ fn run_windows_command<const N: usize>(command: &str, args: [&str; N], target: &
 
 fn refresh_shell(folder_path: &str) {
     let _ = Command::new("ie4uinit.exe").arg("-show").status();
-    let _ = Command::new("explorer.exe").arg(folder_path).status();
+    // let _ = Command::new("explorer.exe").arg(folder_path).status();
 }
 
 #[cfg(test)]

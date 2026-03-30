@@ -260,6 +260,73 @@ class OrganizerSessionServiceTests(unittest.TestCase):
         self.assertEqual(scanned.scan_lines, "a.txt | 文档 | A")
         self.assertEqual(scanned.scanner_progress["status"], "completed")
 
+    def test_start_scan_marks_session_interrupted_when_async_scan_returns_empty_for_nonempty_directory(self):
+        service = OrganizerSessionService(self.store, scanner=ImmediateScanner())
+        (self.target_dir / "a.txt").write_text("hello", encoding="utf-8")
+        created = service.create_session(str(self.target_dir), resume_if_exists=False)
+        session = created.session
+        assert session is not None
+
+        with mock.patch(
+            "file_organizer.app.session_service.analysis_service.run_analysis_cycle",
+            return_value=None,
+        ), mock.patch(
+            "file_organizer.app.session_service.organize_service.run_organizer_cycle",
+        ) as organizer_cycle_mock:
+            service.start_scan(session.session_id)
+
+        scanned = self.store.load(session.session_id)
+        self.assertIsNotNone(scanned)
+        assert scanned is not None
+        self.assertEqual(scanned.stage, "interrupted")
+        self.assertEqual(scanned.last_error, "scan_empty_result")
+        self.assertEqual(scanned.scanner_progress["status"], "failed")
+        self.assertEqual(scanned.scanner_progress["message"], "扫描未返回任何条目，请检查模型输出或调试日志")
+        organizer_cycle_mock.assert_not_called()
+        error_events = [event for event in service.read_events(session.session_id) if event["event_type"] == "session.error"]
+        self.assertTrue(error_events)
+
+    def test_start_scan_sync_runner_raises_when_scan_returns_empty_for_nonempty_directory(self):
+        (self.target_dir / "a.txt").write_text("hello", encoding="utf-8")
+        created = self.service.create_session(str(self.target_dir), resume_if_exists=False)
+        session = created.session
+        assert session is not None
+
+        with self.assertRaisesRegex(RuntimeError, "scan_empty_result"):
+            self.service.start_scan(session.session_id, scan_runner=lambda path: "")
+
+        scanned = self.store.load(session.session_id)
+        self.assertIsNotNone(scanned)
+        assert scanned is not None
+        self.assertEqual(scanned.stage, "interrupted")
+        self.assertEqual(scanned.last_error, "scan_empty_result")
+        self.assertEqual(scanned.scanner_progress["status"], "failed")
+
+    def test_start_scan_handles_empty_directory_without_marking_failure(self):
+        service = OrganizerSessionService(self.store, scanner=ImmediateScanner())
+        created = service.create_session(str(self.target_dir), resume_if_exists=False)
+        session = created.session
+        assert session is not None
+
+        with mock.patch(
+            "file_organizer.app.session_service.analysis_service.run_analysis_cycle",
+            return_value=None,
+        ), mock.patch(
+            "file_organizer.app.session_service.organize_service.run_organizer_cycle",
+        ) as organizer_cycle_mock:
+            service.start_scan(session.session_id)
+
+        scanned = self.store.load(session.session_id)
+        self.assertIsNotNone(scanned)
+        assert scanned is not None
+        self.assertEqual(scanned.stage, "planning")
+        self.assertEqual(scanned.summary, "当前目录为空，无需整理")
+        self.assertEqual(scanned.scanner_progress["status"], "completed")
+        self.assertEqual(scanned.scanner_progress["message"], "目录为空，无需整理")
+        self.assertIsNone(scanned.last_error)
+        self.assertEqual(scanned.assistant_message["content"], "当前目录为空，没有可整理的文件。")
+        organizer_cycle_mock.assert_not_called()
+
     def test_start_scan_tracks_parallel_batch_progress_in_snapshot(self):
         service = OrganizerSessionService(self.store, scanner=ImmediateScanner())
         (self.target_dir / "a.txt").write_text("hello", encoding="utf-8")
@@ -970,6 +1037,24 @@ class OrganizerSessionServiceTests(unittest.TestCase):
 
         with self.assertRaisesRegex(RuntimeError, "SESSION_STAGE_CONFLICT"):
             self.service.refresh_session(session.session_id, scan_runner=lambda path: "")
+
+    def test_refresh_session_marks_interrupted_when_scan_returns_empty_for_nonempty_directory(self):
+        (self.target_dir / "a.txt").write_text("hello", encoding="utf-8")
+        created = self.service.create_session(str(self.target_dir), resume_if_exists=False)
+        session = created.session
+        assert session is not None
+        session.stage = "stale"
+        session.scan_lines = "a.txt | 文档 | A"
+        self.store.save(session)
+
+        with self.assertRaisesRegex(RuntimeError, "scan_empty_result"):
+            self.service.refresh_session(session.session_id, scan_runner=lambda path: "")
+
+        reloaded = self.store.load(session.session_id)
+        self.assertIsNotNone(reloaded)
+        assert reloaded is not None
+        self.assertEqual(reloaded.stage, "interrupted")
+        self.assertEqual(reloaded.last_error, "scan_empty_result")
 
     def test_finish_async_scan_ignores_non_scanning_sessions(self):
         created = self.service.create_session(str(self.target_dir), resume_if_exists=False)

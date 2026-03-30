@@ -98,6 +98,14 @@ def get_model_names() -> tuple[str, str]:
         config_manager.get("OPENAI_MODEL", DEFAULT_ORGANIZER_MODEL),
     )
 
+
+def get_analysis_model_name() -> str:
+    return config_manager.get("OPENAI_MODEL", DEFAULT_ANALYSIS_MODEL)
+
+
+def get_organizer_model_name() -> str:
+    return config_manager.get("OPENAI_MODEL", DEFAULT_ORGANIZER_MODEL)
+
 ANALYSIS_MODEL_NAME, ORGANIZER_MODEL_NAME = get_model_names()
 DEBUG_MODE = config_manager.get("DEBUG_MODE", False)
 

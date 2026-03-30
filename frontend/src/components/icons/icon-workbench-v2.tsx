@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { FolderOpen, FolderPlus, LoaderCircle, Palette, Sparkles } from "lucide-react";
+import { AlertCircle, FolderOpen, FolderPlus, LoaderCircle, Palette, Sparkles } from "lucide-react";
+import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -14,6 +15,7 @@ import { cn } from "@/lib/utils";
 import type {
   ApplyIconResult,
   FolderIconCandidate,
+  IconWorkbenchConfig,
   IconPreviewVersion,
   IconWorkbenchPendingAction,
   IconWorkbenchSession,
@@ -99,6 +101,20 @@ export default function IconWorkbenchV2() {
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
   const [folderToRestore, setFolderToRestore] = useState<FolderIconCandidate | null>(null);
   const [restoringSession, setRestoringSession] = useState(true);
+
+  const [workbenchConfig, setWorkbenchConfig] = useState<IconWorkbenchConfig | null>(null);
+
+  useEffect(() => {
+    iconApi.getConfig().then((payload) => setWorkbenchConfig(payload.config)).catch(() => {
+      setWorkbenchConfig(null);
+    });
+  }, [iconApi]);
+
+  const isImageModelConfigured = useMemo(() => {
+    if (!workbenchConfig) return true;
+    const m = workbenchConfig.image_model;
+    return Boolean(m?.api_key && m?.model && m?.base_url);
+  }, [workbenchConfig]);
   const {
     templates,
     templatesLoading,
@@ -225,7 +241,7 @@ export default function IconWorkbenchV2() {
   }, [applySession, iconApi, setSelectedTemplateId]);
 
   useEffect(() => {
-    if (typeof window === "undefined") {
+    if (typeof window === "undefined" || restoringSession) {
       return;
     }
     if (!session) {
@@ -238,7 +254,7 @@ export default function IconWorkbenchV2() {
       expandedFolderId,
     };
     window.localStorage.setItem(ICONS_WORKSPACE_STATE_KEY, JSON.stringify(payload));
-  }, [expandedFolderId, selectedTemplateId, session]);
+  }, [expandedFolderId, restoringSession, selectedTemplateId, session]);
 
   const topStatusText = useMemo(() => {
     if (!hasTargets) {
@@ -583,6 +599,23 @@ export default function IconWorkbenchV2() {
 
       {statusRail}
       {processingBanner}
+
+      {!isImageModelConfigured && (
+        <div className="mx-6 my-4 flex items-center justify-between gap-4 rounded-[12px] border border-warning/20 bg-warning/6 p-4">
+          <div className="flex items-center gap-3 text-warning">
+            <AlertCircle className="h-5 w-5" />
+            <div className="space-y-0.5">
+              <p className="text-[13px] font-black text-on-surface">图标生成模型未配置</p>
+              <p className="text-[12px] font-medium text-ui-muted">未完成配置将无法生成新图标，请前往设置页面完善信息。</p>
+            </div>
+          </div>
+          <Link href="/settings">
+            <Button variant="secondary" size="sm" className="font-bold">
+              去配置
+            </Button>
+          </Link>
+        </div>
+      )}
 
       {!hasTargets ? (
         renderEmptyState(

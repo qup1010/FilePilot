@@ -107,6 +107,19 @@ class ParallelAnalysisTests(unittest.TestCase):
         single_mock.assert_called_once()
         batch_mock.assert_not_called()
 
+    def test_run_analysis_cycle_reads_runtime_model_when_not_explicitly_passed(self):
+        self._make_entries(2)
+
+        with mock.patch.object(analysis_service, "get_analysis_model_name", return_value="glm-4.7"), mock.patch.object(
+            analysis_service,
+            "_run_single_analysis",
+            return_value="serial-result",
+        ) as single_mock, mock.patch.object(analysis_service, "list_local_files", return_value="files-info"):
+            result = analysis_service.run_analysis_cycle(self.base_dir)
+
+        self.assertEqual(result, "serial-result")
+        self.assertEqual(single_mock.call_args.args[2], "glm-4.7")
+
     def test_failed_batch_triggers_retry_and_merges_complete_result(self):
         entries = self._make_entries(31)
 

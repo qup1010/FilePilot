@@ -1,8 +1,47 @@
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, field
 
 from file_organizer.shared.path_utils import split_relative_parts
+
+
+def _coerce_list_payload(value) -> list:
+    if value is None:
+        return []
+    if isinstance(value, list):
+        return value
+    if not isinstance(value, str):
+        return list(value) if isinstance(value, tuple) else []
+
+    text = value.strip()
+    if not text:
+        return []
+
+    if text.startswith("```"):
+        lines = text.splitlines()
+        if len(lines) >= 3:
+            text = "\n".join(lines[1:-1]).strip()
+
+    decoder = json.JSONDecoder()
+    candidates = [text]
+    if text.startswith('"') and text.endswith('"'):
+        try:
+            unwrapped = json.loads(text)
+        except json.JSONDecodeError:
+            unwrapped = None
+        if isinstance(unwrapped, str) and unwrapped.strip():
+            candidates.append(unwrapped.strip())
+
+    for candidate in candidates:
+        try:
+            parsed, _ = decoder.raw_decode(candidate)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(parsed, list):
+            return parsed
+
+    return []
 
 
 @dataclass
@@ -132,11 +171,12 @@ class UnresolvedChoiceItem:
 
     @classmethod
     def from_dict(cls, data: dict) -> "UnresolvedChoiceItem":
+        folders = _coerce_list_payload(data.get("suggested_folders", []))
         return cls(
             item_id=data.get("item_id", ""),
             display_name=data.get("display_name", ""),
             question=data.get("question", ""),
-            suggested_folders=list(data.get("suggested_folders", [])),
+            suggested_folders=[str(item) for item in folders],
         )
 
     def to_dict(self) -> dict:
@@ -156,10 +196,11 @@ class UnresolvedChoiceRequest:
 
     @classmethod
     def from_dict(cls, data: dict) -> "UnresolvedChoiceRequest":
+        raw_items = _coerce_list_payload(data.get("items", []))
         return cls(
             request_id=data.get("request_id", ""),
             summary=data.get("summary", ""),
-            items=[UnresolvedChoiceItem.from_dict(item) for item in data.get("items", [])],
+            items=[UnresolvedChoiceItem.from_dict(item) for item in raw_items if isinstance(item, dict)],
         )
 
     def to_dict(self) -> dict:

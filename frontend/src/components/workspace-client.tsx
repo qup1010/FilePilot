@@ -11,6 +11,8 @@ import { getFriendlyStage } from "@/lib/utils";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { createApiClient } from "@/lib/api";
+import { getApiBaseUrl, getApiToken } from "@/lib/runtime";
 import { MinimalScanningView } from "./workspace/minimal-scanning-view";
 import { PrecheckView } from "./workspace/precheck-view";
 import { CompletionView } from "./workspace/completion-view";
@@ -22,6 +24,7 @@ const DEFAULT_LEFT_WIDTH = 50;
 export default function WorkspaceClient() {
   const APP_CONTEXT_EVENT = "file-organizer-context-change";
   const WORKSPACE_CONTEXT_KEY = "workspace_header_context";
+  const ACTIVE_WORKSPACE_ROUTE_KEY = "workspace_active_route";
   const searchParams = useSearchParams();
   const router = useRouter();
   const sessionIdParam = searchParams.get("session_id");
@@ -57,6 +60,23 @@ export default function WorkspaceClient() {
     loadJournal,
     updateItem,
   } = useSession(sessionIdParam);
+
+  const [globalConfig, setGlobalConfig] = useState<any>(null);
+  const [configLoading, setConfigLoading] = useState(true);
+
+  React.useEffect(() => {
+    const api = createApiClient(getApiBaseUrl(), getApiToken());
+    api.getConfig().then(data => {
+      setGlobalConfig(data.config);
+    }).finally(() => {
+      setConfigLoading(false);
+    });
+  }, []);
+
+  const isTextModelConfigured = useMemo(() => {
+    if (!globalConfig) return true; // Default to true while loading to avoid flash
+    return Boolean(globalConfig.OPENAI_API_KEY && globalConfig.OPENAI_MODEL && globalConfig.OPENAI_BASE_URL);
+  }, [globalConfig]);
 
   const [messageInput, setMessageInput] = useState("");
   const [leftWidth, setLeftWidth] = useState(DEFAULT_LEFT_WIDTH);
@@ -232,6 +252,9 @@ export default function WorkspaceClient() {
   const handleConfirmExitWorkbench = async () => {
     const success = await abandonSession();
     if (success) {
+      if (typeof window !== "undefined") {
+        window.localStorage.removeItem(ACTIVE_WORKSPACE_ROUTE_KEY);
+      }
       setExitConfirmOpen(false);
       router.push("/");
     }
@@ -240,6 +263,9 @@ export default function WorkspaceClient() {
   const handleConfirmAbortScan = async () => {
     const success = await abandonSession();
     if (success) {
+      if (typeof window !== "undefined") {
+        window.localStorage.removeItem(ACTIVE_WORKSPACE_ROUTE_KEY);
+      }
       setScanAbortConfirmOpen(false);
       router.push("/");
     }
@@ -385,6 +411,13 @@ export default function WorkspaceClient() {
     window.dispatchEvent(new Event(APP_CONTEXT_EVENT));
   }, [APP_CONTEXT_EVENT, WORKSPACE_CONTEXT_KEY, dirParam, snapshot?.target_dir, stage]);
 
+  React.useEffect(() => {
+    if (typeof window === "undefined" || !sessionIdParam) {
+      return;
+    }
+    window.localStorage.setItem(ACTIVE_WORKSPACE_ROUTE_KEY, `/workspace${window.location.search}`);
+  }, [ACTIVE_WORKSPACE_ROUTE_KEY, dirParam, isReadOnly, sessionIdParam]);
+
   const renderPreviewContent = () => {
     return (
       <AnimatePresence mode="wait">
@@ -404,6 +437,7 @@ export default function WorkspaceClient() {
                   progressPercent={progressPercent}
                   onAbort={() => setScanAbortConfirmOpen(true)}
                   aborting={loading}
+                  isModelConfigured={isTextModelConfigured}
                 />
               );
             }

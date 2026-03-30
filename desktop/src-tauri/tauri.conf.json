@@ -6,7 +6,7 @@
   "build": {
     "beforeDevCommand": "npm.cmd --prefix ../frontend run dev -- --hostname 127.0.0.1 --port 3000",
     "beforeBuildCommand": "npm.cmd --prefix ../frontend run build",
-    "frontendDist": "../frontend/out",
+    "frontendDist": "../../frontend/out",
     "devUrl": "http://127.0.0.1:3000"
   },
   "app": {

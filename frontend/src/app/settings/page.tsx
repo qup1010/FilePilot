@@ -43,7 +43,7 @@ import {
   type PresetItem,
 } from "@/components/settings/settings-primitives";
 
-type PresetType = "text" | "vision";
+type PresetType = "text" | "vision" | "icon_image";
 type SettingsCategory = "models" | "launch" | "advanced";
 type ConfigSecretKey = "OPENAI_API_KEY" | "IMAGE_ANALYSIS_API_KEY";
 
@@ -97,8 +97,10 @@ export default function SettingsPage() {
   const [originalIconConfig, setOriginalIconConfig] = useState<IconWorkbenchConfig | null>(null);
   const [textPresets, setTextPresets] = useState<PresetItem[]>([]);
   const [visionPresets, setVisionPresets] = useState<PresetItem[]>([]);
+  const [iconImagePresets, setIconImagePresets] = useState<PresetItem[]>([]);
   const [activeTextPresetId, setActiveTextPresetId] = useState("default");
   const [activeVisionPresetId, setActiveVisionPresetId] = useState("default");
+  const [activeIconImagePresetId, setActiveIconImagePresetId] = useState("default");
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -118,6 +120,7 @@ export default function SettingsPage() {
   const [textEditorExpanded, setTextEditorExpanded] = useState(true);
   const [visionEditorExpanded, setVisionEditorExpanded] = useState(true);
   const pendingScrollRestoreRef = useRef<number | null>(null);
+  const mainRef = useRef<HTMLDivElement>(null);
 
   const isDirty = Boolean(
     (config && originalConfig && JSON.stringify(config) !== JSON.stringify(originalConfig))
@@ -131,12 +134,14 @@ export default function SettingsPage() {
       const [data, nextIconConfig] = await Promise.all([api.getConfig(), iconApi.getConfig()]);
       setConfig(data.config);
       setOriginalConfig(data.config);
-      setIconConfig(nextIconConfig);
-      setOriginalIconConfig(nextIconConfig);
+      setIconConfig(nextIconConfig.config);
+      setOriginalIconConfig(nextIconConfig.config);
       setTextPresets(data.text_presets);
       setVisionPresets(data.vision_presets);
+      setIconImagePresets(nextIconConfig.presets);
       setActiveTextPresetId(data.active_text_preset_id);
       setActiveVisionPresetId(data.active_vision_preset_id);
+      setActiveIconImagePresetId(nextIconConfig.active_preset_id);
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -149,7 +154,7 @@ export default function SettingsPage() {
   }, []);
 
   useEffect(() => {
-    if (typeof window === "undefined") {
+    if (typeof window === "undefined" || !mainRef.current) {
       return;
     }
     const savedScrollTop = window.localStorage.getItem(SETTINGS_SCROLL_KEY);
@@ -161,30 +166,31 @@ export default function SettingsPage() {
       return;
     }
     requestAnimationFrame(() => {
-      window.scrollTo({ top: nextTop });
+      mainRef.current?.scrollTo({ top: nextTop });
     });
   }, []);
 
   useEffect(() => {
-    if (typeof window === "undefined") {
+    const el = mainRef.current;
+    if (typeof window === "undefined" || !el) {
       return;
     }
     const handleScroll = () => {
-      window.localStorage.setItem(SETTINGS_SCROLL_KEY, String(window.scrollY));
+      window.localStorage.setItem(SETTINGS_SCROLL_KEY, String(el.scrollTop));
     };
     handleScroll();
-    window.addEventListener("scroll", handleScroll, { passive: true });
-    return () => window.removeEventListener("scroll", handleScroll);
+    el.addEventListener("scroll", handleScroll, { passive: true });
+    return () => el.removeEventListener("scroll", handleScroll);
   }, []);
 
   useEffect(() => {
-    if (typeof window === "undefined" || loading || pendingScrollRestoreRef.current === null) {
+    if (typeof window === "undefined" || loading || pendingScrollRestoreRef.current === null || !mainRef.current) {
       return;
     }
     const nextTop = pendingScrollRestoreRef.current;
     pendingScrollRestoreRef.current = null;
     requestAnimationFrame(() => {
-      window.scrollTo({ top: nextTop });
+      mainRef.current?.scrollTo({ top: nextTop });
       window.localStorage.setItem(SETTINGS_SCROLL_KEY, String(nextTop));
     });
   }, [loading]);
@@ -359,16 +365,26 @@ export default function SettingsPage() {
 
   const performSwitchPreset = async (presetType: PresetType, id: string) => {
     setDialog(null);
-    if (typeof window !== "undefined") {
-      pendingScrollRestoreRef.current = window.scrollY;
-      window.localStorage.setItem(SETTINGS_SCROLL_KEY, String(window.scrollY));
+    if (typeof window !== "undefined" && mainRef.current) {
+      pendingScrollRestoreRef.current = mainRef.current.scrollTop;
+      window.localStorage.setItem(SETTINGS_SCROLL_KEY, String(mainRef.current.scrollTop));
     }
     setLoading(true);
     setError(null);
     try {
-      await api.switchPreset(presetType, id);
+      if (presetType === "icon_image") {
+        await iconApi.switchConfigPreset(id);
+      } else {
+        await api.switchPreset(presetType, id);
+      }
       await fetchAll();
-      setSuccess(`${presetType === "text" ? "文本" : "图片"}预设已切换`);
+      setSuccess(
+        presetType === "text"
+          ? "文本预设已切换"
+          : presetType === "vision"
+            ? "图片预设已切换"
+            : "图标生图预设已切换",
+      );
       setTimeout(() => setSuccess(null), 3000);
     } catch (err: any) {
       setError(err.message);
@@ -377,7 +393,12 @@ export default function SettingsPage() {
   };
 
   const handleSwitchPreset = (presetType: PresetType, id: string) => {
-    const currentId = presetType === "text" ? activeTextPresetId : activeVisionPresetId;
+    const currentId =
+      presetType === "text"
+        ? activeTextPresetId
+        : presetType === "vision"
+          ? activeVisionPresetId
+          : activeIconImagePresetId;
     if (currentId === id) {
       return;
     }
@@ -404,18 +425,32 @@ export default function SettingsPage() {
             OPENAI_MODEL: config?.OPENAI_MODEL,
             OPENAI_API_KEY: config?.OPENAI_API_KEY,
           }
-        : {
+        : presetType === "vision"
+          ? {
             IMAGE_ANALYSIS_NAME: config?.IMAGE_ANALYSIS_NAME,
             IMAGE_ANALYSIS_BASE_URL: config?.IMAGE_ANALYSIS_BASE_URL,
             IMAGE_ANALYSIS_MODEL: config?.IMAGE_ANALYSIS_MODEL,
             IMAGE_ANALYSIS_API_KEY: config?.IMAGE_ANALYSIS_API_KEY,
+          }
+          : {
+            image_model: iconConfig?.image_model,
+            image_size: iconConfig?.image_size,
+            concurrency_limit: iconConfig?.concurrency_limit,
+            save_mode: iconConfig?.save_mode,
           };
 
     setDialog({
       type: "prompt",
-      title: `新建${presetType === "text" ? "文本" : "图片"}预设`,
+      title: `新建${
+        presetType === "text" ? "文本" : presetType === "vision" ? "图片" : "图标生图"
+      }预设`,
       message: "输入一个便于识别的预设名称。将按当前编辑中的字段保存为新预设。",
-      value: presetType === "text" ? "新的文本预设" : "新的图片预设",
+      value:
+        presetType === "text"
+          ? "新的文本预设"
+          : presetType === "vision"
+            ? "新的图片预设"
+            : "新的图标生图预设",
       onConfirm: async (value) => {
         const name = String(value || "").trim();
         if (!name) {
@@ -425,9 +460,19 @@ export default function SettingsPage() {
         setLoading(true);
         setError(null);
         try {
-          await api.addPreset(presetType, name, true, presetConfig);
+          if (presetType === "icon_image") {
+            await iconApi.addConfigPreset(name, presetConfig);
+          } else {
+            await api.addPreset(presetType, name, true, presetConfig);
+          }
           await fetchAll();
-          setSuccess(`${presetType === "text" ? "文本" : "图片"}预设已创建`);
+          setSuccess(
+            presetType === "text"
+              ? "文本预设已创建"
+              : presetType === "vision"
+                ? "图片预设已创建"
+                : "图标生图预设已创建",
+          );
           setTimeout(() => setSuccess(null), 3000);
         } catch (err: any) {
           setError(err.message);
@@ -447,9 +492,19 @@ export default function SettingsPage() {
         setLoading(true);
         setError(null);
         try {
-          await api.deletePreset(presetType, preset.id);
+          if (presetType === "icon_image") {
+            await iconApi.deleteConfigPreset(preset.id);
+          } else {
+            await api.deletePreset(presetType, preset.id);
+          }
           await fetchAll();
-          setSuccess(`${presetType === "text" ? "文本" : "图片"}预设已删除`);
+          setSuccess(
+            presetType === "text"
+              ? "文本预设已删除"
+              : presetType === "vision"
+                ? "图片预设已删除"
+                : "图标生图预设已删除",
+          );
           setTimeout(() => setSuccess(null), 3000);
         } catch (err: any) {
           setError(err.message);
@@ -459,7 +514,9 @@ export default function SettingsPage() {
     });
   };
 
-  if (loading || !config || !iconConfig) {
+  const isInitialLoad = !config || !iconConfig;
+
+  if (isInitialLoad) {
     return (
       <div className="flex flex-1 items-center justify-center bg-surface">
         <div className="flex flex-col items-center gap-5">
@@ -471,8 +528,24 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="flex min-h-0 flex-1 overflow-hidden bg-surface">
-      <main className="min-w-0 flex-1 overflow-y-auto bg-surface">
+    <div className="relative flex min-h-0 flex-1 overflow-hidden bg-surface">
+      <AnimatePresence>
+        {loading && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="absolute inset-0 z-[100] flex items-center justify-center bg-surface/30 backdrop-blur-[2px]"
+          >
+            <div className="flex flex-col items-center gap-4">
+              <RefreshCw className="h-8 w-8 animate-spin text-primary/60" />
+              <p className="text-[12px] font-bold text-primary/80">正在应用预设...</p>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <main ref={mainRef} className="min-w-0 flex-1 overflow-y-auto bg-surface">
         <div className="ui-page flex flex-col gap-5">
           <div className="sticky top-0 z-20 overflow-hidden rounded-[12px] border border-on-surface/8 bg-surface-container-lowest shadow-[0_18px_44px_rgba(0,0,0,0.04)]">
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-on-surface/6 bg-surface px-4 py-3">
@@ -654,7 +727,10 @@ export default function SettingsPage() {
                         </InputShell>
                       </FieldGroup>
 
-                      <FieldGroup label="接口地址 / Base URL">
+                      <FieldGroup
+                        label="接口地址 / Base URL"
+                        hint="大多数 OpenAI 兼容接口这里需要填到 `/v1`，例如 `https://host/v1`。不要只填裸域名；如果服务商明确要求完整聊天端点，也可以直接填它给出的 `/chat/completions` 地址。"
+                      >
                         <InputShell icon={Globe}>
                           <input
                             value={config.OPENAI_BASE_URL}
@@ -718,12 +794,20 @@ export default function SettingsPage() {
                     <div className="rounded-[10px] border border-on-surface/8 bg-surface px-4 py-4 shadow-[0_10px_24px_rgba(0,0,0,0.03)]">
                       <div className="grid gap-3 lg:grid-cols-2">
                         <div className="space-y-1">
+                          <p className="text-[14px] font-semibold tracking-tight text-on-surface">
+                            当前使用 {iconImagePresets.find((preset) => preset.id === activeIconImagePresetId)?.name || "默认图标生图"}
+                          </p>
+                          <p className="text-[12px] leading-5 text-on-surface-variant/65">
+                            先选择要编辑的图标生图预设，再修改下方接口地址、模型和生成参数。
+                          </p>
+                        </div>
+                        <div className="space-y-1">
                           <p className="text-[12px] font-medium text-on-surface-variant/60">当前文本来源</p>
                           <p className="text-[14px] font-semibold text-on-surface">
                             {iconConfig.text_model.model || config.OPENAI_MODEL || "未配置文本模型"}
                           </p>
                         </div>
-                        <div className="space-y-1">
+                        <div className="space-y-1 lg:col-start-2">
                           <p className="text-[12px] font-medium text-on-surface-variant/60">当前图像模型</p>
                           <p className="text-[14px] font-semibold text-on-surface">
                             {iconConfig.image_model.model || "未配置图像生成模型"}
@@ -734,6 +818,15 @@ export default function SettingsPage() {
                         图标工坊中的“文件夹标签抽取”和“提示词生成”会直接复用上面的文本模型。
                       </div>
                     </div>
+
+                    <PresetSelector
+                      label="图标生图预设"
+                      presets={iconImagePresets}
+                      activeId={activeIconImagePresetId}
+                      onSwitch={(id) => handleSwitchPreset("icon_image", id)}
+                      onAdd={() => handleAddPreset("icon_image")}
+                      onDelete={(preset) => handleDeletePreset("icon_image", preset)}
+                    />
 
                     {testResult?.type === "icon_image" ? (
                       <div
@@ -754,7 +847,20 @@ export default function SettingsPage() {
                     ) : null}
 
                     <div className="grid gap-4 xl:grid-cols-2">
-                      <FieldGroup label="图像生成接口地址" hint="可填 base URL 或完整 images/generations 地址。魔搭兼容端点也走这里。">
+                      <FieldGroup label="图标生图预设名称" className="xl:col-span-2">
+                        <InputShell icon={Edit3}>
+                          <input
+                            value={iconConfig.name ?? ""}
+                            onChange={(event) => {
+                              setIconConfig((current) => (current ? { ...current, name: event.target.value } : current));
+                            }}
+                            className="w-full bg-transparent py-2 text-sm font-semibold text-on-surface outline-none"
+                            placeholder="例如：ModelScope 生图"
+                          />
+                        </InputShell>
+                      </FieldGroup>
+
+                      <FieldGroup label="图像生成接口地址" hint="通常填到 `/v1`，例如 `https://host/v1`；如果服务商明确给的是完整生图端点，也可以直接填 `/images/generations`。不要只填裸域名。">
                         <InputShell icon={Globe}>
                           <input
                             value={iconConfig.image_model.base_url}
@@ -999,7 +1105,10 @@ export default function SettingsPage() {
                         </InputShell>
                       </FieldGroup>
 
-                      <FieldGroup label="图片接口地址">
+                      <FieldGroup
+                        label="图片接口地址"
+                        hint="通常填到 `/v1`，例如 `https://host/v1`；如果服务商给的是完整聊天端点，也可以直接填 `/chat/completions`。不要只填裸域名。"
+                      >
                         <InputShell icon={Globe}>
                           <input
                             value={config.IMAGE_ANALYSIS_BASE_URL}

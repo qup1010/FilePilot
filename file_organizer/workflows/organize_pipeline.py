@@ -7,7 +7,12 @@ from file_organizer.cli.event_printer import scanner_ui_handler
 from file_organizer.execution import service as execution_service
 from file_organizer.organize import service as organize_service
 from file_organizer.organize.models import FinalPlan, PendingPlan, PlanMove
-from file_organizer.shared.config import ANALYSIS_MODEL_NAME, ORGANIZER_MODEL_NAME, PROJECT_ROOT, RESULT_FILE_PATH
+from file_organizer.shared.config import (
+    PROJECT_ROOT,
+    RESULT_FILE_PATH,
+    get_analysis_model_name,
+    get_organizer_model_name,
+)
 
 
 EXIT_REPLIES = {"quit", "exit"}
@@ -209,7 +214,7 @@ def run_organize_chat(
     while True:
         try:
             if not skip_model_round:
-                cli.stage(f"文件整理助手 ({ORGANIZER_MODEL_NAME})", style="blue")
+                cli.stage(f"文件整理助手 ({get_organizer_model_name()})", style="blue")
                 display_text, cycle_result = _run_organizer_cycle_with_state(
                     organizer_module,
                     messages,
@@ -333,7 +338,7 @@ def run_pipeline(
     cli=default_cli,
 ):
     del print_func
-    cli.show_app_header(PROJECT_ROOT, ANALYSIS_MODEL_NAME, ORGANIZER_MODEL_NAME)
+    cli.show_app_header(PROJECT_ROOT, get_analysis_model_name(), get_organizer_model_name())
 
     target_dir = _prompt_text(cli, "prompt_path", "请输入要分析的目录绝对路径", input_func=input_func).strip()
     if not target_dir:

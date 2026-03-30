@@ -3,9 +3,12 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 from pathlib import Path
 from queue import Empty
 from typing import Any
+from urllib import error as urllib_error
+from urllib import request as urllib_request
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -55,6 +58,10 @@ class AddPresetPayload(BaseModel):
     config: dict[str, Any] | None = None
 
 
+class ConfigSecretsPayload(BaseModel):
+    keys: list[str] = Field(default_factory=list)
+
+
 class LlmTestPayload(BaseModel):
     model_config = ConfigDict(extra="allow")
     test_type: str = "text"
@@ -79,6 +86,15 @@ class IconWorkbenchPromptPayload(BaseModel):
 
 class IconWorkbenchSelectVersionPayload(BaseModel):
     version_id: str
+
+
+class IconWorkbenchConfigPresetSwitchPayload(BaseModel):
+    id: str
+
+
+class IconWorkbenchConfigPresetCreatePayload(BaseModel):
+    name: str
+    config: dict[str, Any] | None = None
 
 
 class IconWorkbenchTemplatePayload(BaseModel):
@@ -144,6 +160,74 @@ def _get_request_token(request: Request) -> str:
             return bearer_token
 
     return request.query_params.get("access_token", "").strip()
+
+
+def _resolve_test_secret(
+    payload: dict[str, Any],
+    *,
+    secret_key: str,
+    reuse_flag_key: str,
+    read_stored_secret,
+) -> str:
+    secret = payload.get(secret_key)
+    if _is_masked_secret(secret):
+        if payload.get(reuse_flag_key):
+            return str(read_stored_secret() or "")
+        raise ValueError("检测到当前密钥仍是脱敏展示值。若要复用已保存密钥，请保持原值不改并重试。")
+    return str(secret or "")
+
+
+def _describe_base_url_hint(base_url: str, *, image_generation: bool = False) -> str | None:
+    normalized = str(base_url or "").strip().rstrip("/")
+    if not normalized:
+        return None
+    if normalized.endswith("/v1"):
+        return None
+    if re.search(r"/chat/completions/?$", normalized):
+        return None
+    if image_generation and re.search(r"/images/generations/?$", normalized):
+        return None
+    return "接口地址通常需要带上 /v1 后缀；若服务商文档要求完整端点，也可以直接填写它给出的 /chat/completions 或 /images/generations 地址。"
+
+
+def _normalize_image_generation_probe_url(base_url: str) -> str:
+    normalized = str(base_url or "").strip()
+    if not normalized:
+        return ""
+    if normalized.endswith("/images/generations"):
+        return normalized
+    if normalized.endswith("/v1"):
+        return f"{normalized}/images/generations"
+    if "/v1/" in normalized or normalized.endswith("/chat/completions"):
+        return normalized
+    return f"{normalized.rstrip('/')}/v1/images/generations"
+
+
+def _probe_image_generation_endpoint(base_url: str, model: str, api_key: str) -> None:
+    url = _normalize_image_generation_probe_url(base_url)
+    payload = {
+        "model": model,
+        "prompt": "ping",
+        "n": 1,
+        "size": "256x256",
+    }
+    request = urllib_request.Request(
+        url=url,
+        data=json.dumps(payload).encode("utf-8"),
+        headers={
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {api_key}",
+        },
+        method="POST",
+    )
+    try:
+        with urllib_request.urlopen(request, timeout=20):
+            return
+    except urllib_error.HTTPError as exc:
+        if exc.code in {200, 201, 202, 400, 422, 429}:
+            return
+        raise
 
 
 def create_app(service: OrganizerSessionService | None = None) -> FastAPI:
@@ -250,7 +334,9 @@ def create_app(service: OrganizerSessionService | None = None) -> FastAPI:
             }
         except FileNotFoundError:
             raise HTTPException(status_code=404, detail="SESSION_NOT_FOUND")
-        except RuntimeError:
+        except RuntimeError as exc:
+            if str(exc) == "scan_empty_result":
+                return _error_response(app.state.service, session_id, "SCAN_EMPTY_RESULT", 409)
             return _error_response(app.state.service, session_id, "SESSION_STAGE_CONFLICT", 409)
 
     @app.post("/api/sessions/{session_id}/refresh")
@@ -263,6 +349,8 @@ def create_app(service: OrganizerSessionService | None = None) -> FastAPI:
         except RuntimeError as exc:
             if str(exc) == "SESSION_STAGE_CONFLICT":
                 return _error_response(app.state.service, session_id, "SESSION_STAGE_CONFLICT", 409)
+            if str(exc) == "scan_empty_result":
+                return _error_response(app.state.service, session_id, "SCAN_EMPTY_RESULT", 409)
             raise
 
     @app.post("/api/sessions/{session_id}/messages")
@@ -545,6 +633,27 @@ def create_app(service: OrganizerSessionService | None = None) -> FastAPI:
     def update_icon_workbench_config(payload: dict):
         return app.state.icon_workbench_service.update_config(payload)
 
+    @app.post("/api/icon-workbench/config/presets/switch")
+    def switch_icon_workbench_config_preset(payload: IconWorkbenchConfigPresetSwitchPayload):
+        try:
+            return app.state.icon_workbench_service.switch_config_preset(payload.id)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+
+    @app.post("/api/icon-workbench/config/presets")
+    def add_icon_workbench_config_preset(payload: IconWorkbenchConfigPresetCreatePayload):
+        try:
+            return app.state.icon_workbench_service.add_config_preset(payload.name, payload.config)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+
+    @app.delete("/api/icon-workbench/config/presets/{preset_id}")
+    def delete_icon_workbench_config_preset(preset_id: str):
+        try:
+            return app.state.icon_workbench_service.delete_config_preset(preset_id)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+
     @app.get("/api/icon-workbench/templates")
     def list_icon_workbench_templates():
         return {"templates": app.state.icon_workbench_service.list_templates()}
@@ -632,6 +741,33 @@ def create_app(service: OrganizerSessionService | None = None) -> FastAPI:
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc))
 
+    @app.post("/api/icon-workbench/sessions/{session_id}/folders/{folder_id}/versions/{version_id}/add-processed")
+    async def add_icon_workbench_processed_version(
+        session_id: str,
+        folder_id: str,
+        version_id: str,
+        request: Request,
+        suffix: str = "processed"
+    ):
+        try:
+            image_bytes = await request.body()
+            if not image_bytes:
+                raise HTTPException(status_code=400, detail="EMPTY_IMAGE_DATA")
+            
+            session = app.state.icon_workbench_service.add_processed_version(
+                session_id,
+                folder_id,
+                version_id,
+                image_bytes,
+                suffix=suffix
+            )
+            return {"session": session}
+        except FileNotFoundError:
+            raise HTTPException(status_code=404, detail="ICON_ENTITY_NOT_FOUND")
+        except Exception as exc:
+            logger.exception("Register processed version failed")
+            raise HTTPException(status_code=500, detail=str(exc))
+
     @app.get("/api/utils/config")
     def get_config():
         from file_organizer.shared.config_manager import config_manager
@@ -642,6 +778,11 @@ def create_app(service: OrganizerSessionService | None = None) -> FastAPI:
         from file_organizer.shared.config_manager import config_manager
         config_manager.update_active_profile(payload)
         return {"status": "ok"}
+
+    @app.post("/api/utils/config/secrets")
+    def get_config_secrets(payload: ConfigSecretsPayload):
+        from file_organizer.shared.config_manager import config_manager
+        return {"secrets": config_manager.get_secret_values(payload.keys)}
 
     @app.post("/api/utils/config/presets/switch")
     def switch_config(payload: PresetSwitchPayload):
@@ -675,51 +816,96 @@ def create_app(service: OrganizerSessionService | None = None) -> FastAPI:
         test_type = raw_payload.get("test_type", "text")
 
         if test_type == "vision":
-            api_key = raw_payload.get("IMAGE_ANALYSIS_API_KEY")
+            try:
+                api_key = _resolve_test_secret(
+                    raw_payload,
+                    secret_key="IMAGE_ANALYSIS_API_KEY",
+                    reuse_flag_key="IMAGE_ANALYSIS_API_KEY_USE_STORED",
+                    read_stored_secret=lambda: config_manager.get("IMAGE_ANALYSIS_API_KEY"),
+                )
+            except ValueError as exc:
+                return JSONResponse(status_code=400, content={"status": "error", "message": str(exc)})
             base_url = raw_payload.get("IMAGE_ANALYSIS_BASE_URL")
             model = raw_payload.get("IMAGE_ANALYSIS_MODEL")
-            if _is_masked_secret(api_key):
-                api_key = config_manager.get("IMAGE_ANALYSIS_API_KEY")
             if not raw_payload.get("IMAGE_ANALYSIS_ENABLED"):
                 return JSONResponse(
                     status_code=400,
                     content={"status": "error", "message": "图片理解尚未启用，请先打开开关。"},
                 )
             if not base_url or not model or not api_key:
+                hint = _describe_base_url_hint(str(base_url or ""))
                 return JSONResponse(
                     status_code=400,
-                    content={"status": "error", "message": "图片模型配置不完整，请补全接口地址、模型 ID 和 API 密钥。"},
+                    content={
+                        "status": "error",
+                        "message": "图片模型配置不完整，请补全接口地址、模型 ID 和 API 密钥。"
+                        + (f" {hint}" if hint else ""),
+                    },
                 )
         elif test_type == "icon_image":
-            api_key = raw_payload.get("ICON_IMAGE_API_KEY")
+            try:
+                api_key = _resolve_test_secret(
+                    raw_payload,
+                    secret_key="ICON_IMAGE_API_KEY",
+                    reuse_flag_key="ICON_IMAGE_API_KEY_USE_STORED",
+                    read_stored_secret=lambda: app.state.icon_workbench_service.get_config().get("image_model", {}).get("api_key"),
+                )
+            except ValueError as exc:
+                return JSONResponse(status_code=400, content={"status": "error", "message": str(exc)})
             base_url = raw_payload.get("ICON_IMAGE_BASE_URL")
             model = raw_payload.get("ICON_IMAGE_MODEL")
-            if _is_masked_secret(api_key):
-                try:
-                    actual_config = app.state.icon_workbench_service.get_config()
-                    api_key = actual_config.get("image_model", {}).get("api_key")
-                except Exception:
-                    pass
             if not base_url or not model or not api_key:
+                hint = _describe_base_url_hint(str(base_url or ""), image_generation=True)
                 return JSONResponse(
                     status_code=400,
-                    content={"status": "error", "message": "图像生成模型配置不完整，请补全接口地址、模型 ID 和 API 密钥。"},
+                    content={
+                        "status": "error",
+                        "message": "图像生成模型配置不完整，请补全接口地址、模型 ID 和 API 密钥。"
+                        + (f" {hint}" if hint else ""),
+                    },
                 )
         else:
-            api_key = raw_payload.get("OPENAI_API_KEY")
+            try:
+                api_key = _resolve_test_secret(
+                    raw_payload,
+                    secret_key="OPENAI_API_KEY",
+                    reuse_flag_key="OPENAI_API_KEY_USE_STORED",
+                    read_stored_secret=lambda: config_manager.get("OPENAI_API_KEY"),
+                )
+            except ValueError as exc:
+                return JSONResponse(status_code=400, content={"status": "error", "message": str(exc)})
             base_url = raw_payload.get("OPENAI_BASE_URL")
             model = raw_payload.get("OPENAI_MODEL")
-            if _is_masked_secret(api_key):
-                api_key = config_manager.get("OPENAI_API_KEY")
             if not base_url or not model or not api_key:
+                hint = _describe_base_url_hint(str(base_url or ""))
                 return JSONResponse(
                     status_code=400,
-                    content={"status": "error", "message": "文本模型配置不完整，请补全接口地址、模型 ID 和 API 密钥。"},
+                    content={
+                        "status": "error",
+                        "message": "文本模型配置不完整，请补全接口地址、模型 ID 和 API 密钥。"
+                        + (f" {hint}" if hint else ""),
+                    },
                 )
 
         try:
             client = OpenAI(api_key=api_key, base_url=base_url)
-            client.models.list()
+            if test_type == "icon_image":
+                try:
+                    client.models.list()
+                except Exception as exc:
+                    status_code = getattr(exc, "status_code", None)
+                    if status_code is None:
+                        response = getattr(exc, "response", None)
+                        status_code = getattr(response, "status_code", None)
+                    if status_code not in {404, 405, 501} and "404" not in str(exc):
+                        raise
+                    _probe_image_generation_endpoint(str(base_url or ""), str(model or ""), str(api_key or ""))
+            else:
+                client.chat.completions.create(
+                    model=model,
+                    messages=[{"role": "user", "content": "ping"}],
+                    max_tokens=1,
+                )
             type_label = "图片理解" if test_type == "vision" else ("图像生成" if test_type == "icon_image" else "文本模型")
             return {"status": "ok", "message": f"{type_label}连接测试已通过。"}
         except Exception:

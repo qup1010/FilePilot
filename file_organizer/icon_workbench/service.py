@@ -193,6 +193,44 @@ class IconWorkbenchService:
         self.store.save_session(session)
         return self._serialize_session(session)
 
+    def add_processed_version(
+        self,
+        session_id: str,
+        folder_id: str,
+        original_version_id: str,
+        image_bytes: bytes,
+        suffix: str = "processed",
+    ) -> dict:
+        session = self.store.load_session(session_id)
+        folder = self._get_folder(session, folder_id)
+        original = next(
+            (v for v in folder.versions if v.version_id == original_version_id),
+            None,
+        )
+        if not original:
+            raise FileNotFoundError(f"Original version {original_version_id} not found")
+
+        version_number = len(folder.versions) + 1
+        version_id = uuid.uuid4().hex
+        filename = f"v{version_number}_{suffix}.png" if suffix else f"v{version_number}.png"
+        image_path = self.store.preview_directory(session.session_id, folder.folder_id) / filename
+        
+        image_path.write_bytes(image_bytes)
+        
+        version = IconPreviewVersion(
+            version_id=version_id,
+            version_number=version_number,
+            prompt=original.prompt,
+            image_path=str(image_path.resolve()),
+            status="ready",
+        )
+        folder.versions.append(version)
+        folder.current_version_id = version.version_id
+        folder.updated_at = utc_now_iso()
+        session.updated_at = utc_now_iso()
+        self.store.save_session(session)
+        return self._serialize_session(session)
+
     def select_version(self, session_id: str, folder_id: str, version_id: str) -> dict:
         session = self.store.load_session(session_id)
         folder = self._get_folder(session, folder_id)
@@ -216,10 +254,19 @@ class IconWorkbenchService:
         raise FileNotFoundError(version_id)
 
     def get_config(self) -> dict:
-        return self.store.config_store.load().to_dict()
+        return self.store.config_store.get_payload()
 
     def update_config(self, payload: dict) -> dict:
         return self.store.config_store.update(payload).to_dict()
+
+    def switch_config_preset(self, preset_id: str) -> dict:
+        return self.store.config_store.switch_preset(preset_id)
+
+    def add_config_preset(self, name: str, config_patch: dict | None = None) -> dict:
+        return self.store.config_store.add_preset(name, copy_from_active=True, config_patch=config_patch)
+
+    def delete_config_preset(self, preset_id: str) -> dict:
+        return self.store.config_store.delete_preset(preset_id)
 
     def send_message(
         self,

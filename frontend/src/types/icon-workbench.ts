@@ -5,11 +5,18 @@ export interface IconWorkbenchModelConfig {
 }
 
 export interface IconWorkbenchConfig {
+  name?: string;
   text_model: IconWorkbenchModelConfig;
   image_model: IconWorkbenchModelConfig;
   image_size: string;
   concurrency_limit: number;
   save_mode: "in_folder" | "centralized";
+}
+
+export interface IconWorkbenchConfigPayload {
+  config: IconWorkbenchConfig;
+  presets: Array<{ id: string; name: string }>;
+  active_preset_id: string;
 }
 
 export interface IconTemplate {

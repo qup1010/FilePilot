@@ -9,8 +9,9 @@ from types import SimpleNamespace
 from file_organizer.analysis.file_reader import list_local_files, read_local_file
 from file_organizer.analysis.models import AnalysisItem
 from file_organizer.analysis.prompts import build_system_prompt
-from file_organizer.shared.config import ANALYSIS_MODEL_NAME, RESULT_FILE_PATH, create_openai_client
+from file_organizer.shared.config import ANALYSIS_MODEL_NAME, RESULT_FILE_PATH, create_openai_client, get_analysis_model_name
 from file_organizer.shared.events import emit
+from file_organizer.shared.logging_utils import append_debug_event
 from file_organizer.shared.path_utils import normalize_entry_name, resolve_tool_path
 
 MAX_ANALYSIS_RETRIES = 3
@@ -20,6 +21,24 @@ BATCH_TARGET_SIZE = 15
 MAX_WORKERS = 3
 WORKDIR_PATH = Path.cwd().resolve()
 SUBMIT_ANALYSIS_TOOL_NAME = "submit_analysis_result"
+
+
+def _write_analysis_debug_event(
+    target_dir: Path,
+    kind: str,
+    *,
+    level: str = "INFO",
+    session_id: str | None = None,
+    payload: dict | list | str | None = None,
+) -> None:
+    append_debug_event(
+        kind=kind,
+        level=level,
+        session_id=session_id,
+        target_dir=str(target_dir),
+        stage="scanning",
+        payload=payload,
+    )
 
 
 def get_client():
@@ -371,6 +390,201 @@ def _slice_files_info_for_batch(files_info: str, batch_entries: list[str], targe
         return "\n".join(filtered_lines)
 
     fallback_lines = ["路径 | 类型 | 说明", f"{target_dir} | dir | 包含 {len(batch_entries)} 个条目"]
+    fallback_lines.extend(f"{target_dir / entry} | entry | 批次条目" for entry in batch_entries)
+    return "\n".join(fallback_lines)
+
+
+def _dispatch_tool_call(target_dir: Path, name: str, args: dict):
+    if name == "read_local_file":
+        filename = _resolve_readable_file(target_dir, args.get("filename"))
+        if filename is None:
+            return "错误：仅读取目标目录内的文件，不允许访问目录外路径。"
+        return read_local_file(str(filename), allowed_base_dir=str(target_dir.resolve()))
+    if name == "list_local_files":
+        directory = _resolve_list_directory(target_dir, args.get("directory"))
+        if directory is None:
+            return "错误：动态扫描最多只能深入目标目录下一层。"
+        requested_depth = max(0, int(args.get("max_depth", 0)))
+        max_depth = 0 if directory == target_dir.resolve() else min(requested_depth, 1)
+        return list_local_files(str(directory), max_depth=max_depth)
+    return "Unknown tool"
+
+
+def _extract_submitted_analysis(tool_calls) -> list[AnalysisItem] | None:
+    for tool_call in tool_calls or []:
+        if tool_call.function.name != SUBMIT_ANALYSIS_TOOL_NAME:
+            continue
+        args = json.loads(tool_call.function.arguments)
+        return _coerce_analysis_items(args.get("items", []))
+    return None
+
+
+def _normalize_tool_calls(tool_calls) -> list[SimpleNamespace]:
+    normalized = []
+    for tool_call in tool_calls or []:
+        if isinstance(tool_call, dict):
+            function = tool_call.get("function") or {}
+            normalized.append(
+                SimpleNamespace(
+                    id=tool_call.get("id"),
+                    type=tool_call.get("type", "function"),
+                    function=SimpleNamespace(
+                        name=function.get("name", ""),
+                        arguments=function.get("arguments", "") or "",
+                    ),
+                )
+            )
+            continue
+
+        function = getattr(tool_call, "function", None)
+        if function is None:
+            continue
+        normalized.append(
+            SimpleNamespace(
+                id=getattr(tool_call, "id", None),
+                type=getattr(tool_call, "type", "function"),
+                function=SimpleNamespace(
+                    name=getattr(function, "name", ""),
+                    arguments=getattr(function, "arguments", "") or "",
+                ),
+            )
+        )
+    return normalized
+
+
+def _coerce_response_message(response):
+    if hasattr(response, "choices"):
+        choices = getattr(response, "choices", None) or []
+        if not choices:
+            raise ValueError("模型响应缺少 choices")
+        message = getattr(choices[0], "message", None)
+        if message is None:
+            raise ValueError("模型响应缺少 message")
+        return SimpleNamespace(
+            content=getattr(message, "content", "") or "",
+            tool_calls=_normalize_tool_calls(getattr(message, "tool_calls", None)),
+        )
+
+    if isinstance(response, str):
+        text = response.strip()
+        if text and text[0] in "[{":
+            try:
+                return _coerce_response_message(json.loads(text))
+            except json.JSONDecodeError:
+                pass
+        return SimpleNamespace(content=text, tool_calls=[])
+
+    if isinstance(response, dict):
+        choices = response.get("choices") or []
+        if not choices:
+            raise ValueError("模型响应缺少 choices")
+        message = choices[0].get("message") or {}
+        return SimpleNamespace(
+            content=message.get("content", "") or "",
+            tool_calls=_normalize_tool_calls(message.get("tool_calls")),
+        )
+
+    if hasattr(response, "model_dump"):
+        try:
+            return _coerce_response_message(response.model_dump())
+        except Exception:
+            pass
+
+    raise TypeError(f"不支持的模型响应类型: {type(response).__name__}")
+
+
+def _serialize_assistant_message(message) -> dict:
+    tool_calls_payload = []
+    for tool_call in getattr(message, "tool_calls", None) or []:
+        function = getattr(tool_call, "function", None)
+        if function is None:
+            continue
+        tool_calls_payload.append(
+            {
+                "id": getattr(tool_call, "id", None),
+                "type": getattr(tool_call, "type", "function"),
+                "function": {
+                    "name": getattr(function, "name", ""),
+                    "arguments": getattr(function, "arguments", "") or "",
+                },
+            }
+        )
+
+    payload = {
+        "role": "assistant",
+        "content": getattr(message, "content", "") or "",
+    }
+    if tool_calls_payload:
+        payload["tool_calls"] = tool_calls_payload
+    return payload
+
+
+def _emit_text_response(content: str, event_handler=None) -> None:
+    if not content:
+        return
+    emit(event_handler, "ai_streaming_start")
+    emit(event_handler, "ai_chunk", {"content": content})
+    emit(event_handler, "ai_streaming_end", {"full_content": content})
+
+
+def _split_batches(entries: list[str]) -> list[list[str]]:
+    if not entries:
+        return []
+    batch_count = min(MAX_WORKERS, max(1, math.ceil(len(entries) / BATCH_TARGET_SIZE)))
+    base_size, remainder = divmod(len(entries), batch_count)
+    batches: list[list[str]] = []
+    cursor = 0
+    for index in range(batch_count):
+        size = base_size + (1 if index < remainder else 0)
+        if size <= 0:
+            continue
+        batches.append(entries[cursor:cursor + size])
+        cursor += size
+    return batches
+
+
+def _slice_files_info_for_batch(files_info: str, batch_entries: list[str], target_dir: Path) -> str:
+    lines = [line for line in (files_info or "").splitlines() if line.strip()]
+    if not lines:
+        return files_info
+
+    batch_set = set(batch_entries)
+    normalized_root = str(target_dir).replace("\\", "/").rstrip("/")
+    filtered_lines: list[str] = []
+    header_added = False
+
+    for line in lines:
+        parts = [part.strip() for part in line.split("|", 2)]
+        if len(parts) < 3:
+            if not header_added:
+                filtered_lines.append(line)
+                header_added = True
+            continue
+
+        path_text = parts[0]
+        normalized_path = path_text.replace("\\", "/").rstrip("/")
+
+        if path_text == "路径":
+            filtered_lines.append(line)
+            header_added = True
+            continue
+
+        if normalized_path == normalized_root:
+            filtered_lines.append(re.sub(r"包含\s+\d+\s+个条目", f"包含 {len(batch_entries)} 个条目", line, count=1))
+            continue
+
+        prefix = f"{normalized_root}/"
+        if not normalized_path.startswith(prefix):
+            continue
+        relative_path = normalized_path[len(prefix):]
+        top_level_name = relative_path.split("/", 1)[0]
+        if top_level_name in batch_set:
+            filtered_lines.append(line)
+
+    if len(filtered_lines) >= 2:
+        return "\n".join(filtered_lines)
+
+    fallback_lines = ["路径 | 类型 | 说明", f"{target_dir} | dir | 包含 {len(batch_entries)} 个条目"]
     for entry in batch_entries:
         entry_path = (target_dir / entry).resolve()
         entry_kind = "dir" if entry_path.is_dir() else "file"
@@ -396,6 +610,7 @@ def _run_analysis_worker(
     user_message: str,
     expected_entries: list[str],
     model: str,
+    session_id: str | None = None,
     event_handler=None,
     max_retries: int = MAX_ANALYSIS_RETRIES,
     retry_scope: str = "当前层条目",
@@ -415,6 +630,16 @@ def _run_analysis_worker(
             emit(event_handler, "model_wait_start", {"message": wait_message})
             try:
                 response = client.chat.completions.create(model=model, messages=curr_messages, tools=tools, tool_choice="auto")
+                _write_analysis_debug_event(
+                    target_dir,
+                    "analysis.response",
+                    session_id=session_id,
+                    payload={
+                        "attempt": attempt,
+                        "model": model,
+                        "response": response.choices[0].message.to_dict() if hasattr(response.choices[0].message, "to_dict") else str(response),
+                    },
+                )
             finally:
                 emit(event_handler, "model_wait_end")
             msg = _coerce_response_message(response)
@@ -460,9 +685,30 @@ def _run_analysis_worker(
                 "attempt": attempt,
                 "items": [item.to_dict() for item in normalized_items]
             })
+            _write_analysis_debug_event(
+                target_dir,
+                "analysis.validation_pass",
+                session_id=session_id,
+                payload={
+                    "attempt": attempt,
+                    "model": model,
+                    "item_count": len(normalized_items),
+                },
+            )
             return normalized_items
 
         emit(event_handler, "validation_fail", {"attempt": attempt, "details": check})
+        _write_analysis_debug_event(
+            target_dir,
+            "analysis.validation_fail",
+            level="WARNING",
+            session_id=session_id,
+            payload={
+                "attempt": attempt,
+                "model": model,
+                "details": check,
+            },
+        )
         if attempt < max_retries:
             if rendered:
                 messages.append({"role": "assistant", "content": rendered})
@@ -470,11 +716,22 @@ def _run_analysis_worker(
             continue
 
         emit(event_handler, "retry_exhausted", {"attempt": attempt})
+        _write_analysis_debug_event(
+            target_dir,
+            "analysis.retry_exhausted",
+            level="ERROR",
+            session_id=session_id,
+            payload={
+                "attempt": attempt,
+                "model": model,
+                "expected_entries": list(expected_entries or []),
+            },
+        )
         return None
     return None
 
 
-def _run_single_analysis(target_dir: Path, files_info: str, model: str, event_handler=None) -> str | None:
+def _run_single_analysis(target_dir: Path, files_info: str, model: str, event_handler=None, session_id: str | None = None) -> str | None:
     entries = _list_current_entries(target_dir)
     items = _run_analysis_worker(
         target_dir=target_dir,
@@ -482,6 +739,7 @@ def _run_single_analysis(target_dir: Path, files_info: str, model: str, event_ha
         user_message="请分析当前目录下的所有条目及其用途。",
         expected_entries=entries,
         model=model,
+        session_id=session_id,
         event_handler=event_handler,
         max_retries=MAX_ANALYSIS_RETRIES,
         retry_scope="当前层条目",
@@ -499,6 +757,7 @@ def _analyze_batch(
     total_batches: int,
     files_info: str,
     model: str,
+    session_id: str | None = None,
     event_handler=None,
 ) -> list[AnalysisItem]:
     batch_files_info = _slice_files_info_for_batch(files_info, batch_entries, target_dir)
@@ -508,6 +767,7 @@ def _analyze_batch(
         user_message="请分析以上条目及其用途。",
         expected_entries=batch_entries,
         model=model,
+        session_id=session_id,
         event_handler=event_handler,
         max_retries=BATCH_ANALYSIS_RETRIES,
         retry_scope="以上条目",
@@ -542,16 +802,40 @@ def _merge_batch_results(batch_results: list[list[AnalysisItem]], target_dir: Pa
     return ordered_items
 
 
-def run_analysis_cycle(target_dir: Path, event_handler=None, model: str = ANALYSIS_MODEL_NAME):
+def run_analysis_cycle(target_dir: Path, event_handler=None, model: str | None = None, session_id: str | None = None):
     global WORKDIR_PATH
     """一个完整的分析循环：扫描 -> 工具调用/结构化提交 -> 校验 -> 重试。"""
     target_dir = Path(target_dir).resolve()
     WORKDIR_PATH = target_dir
+    model = model or get_analysis_model_name()
     entries = _list_current_entries(target_dir)
     files_info = list_local_files(str(target_dir), max_depth=0)
+    _write_analysis_debug_event(
+        target_dir,
+        "analysis.started",
+        session_id=session_id,
+        payload={
+            "model": model,
+            "entry_count": len(entries),
+            "mode": "single" if len(entries) <= BATCH_THRESHOLD else "batch",
+        },
+    )
 
     if len(entries) <= BATCH_THRESHOLD:
-        return _run_single_analysis(target_dir, files_info, model, event_handler=event_handler)
+        result = _run_single_analysis(target_dir, files_info, model, event_handler=event_handler, session_id=session_id)
+        _write_analysis_debug_event(
+            target_dir,
+            "analysis.completed" if result else "analysis.empty_result",
+            session_id=session_id,
+            level="INFO" if result else "ERROR",
+            payload={
+                "model": model,
+                "entry_count": len(entries),
+                "result_count": len((result or "").splitlines()),
+                "mode": "single",
+            },
+        )
+        return result
 
     detailed_files_info = list_local_files(str(target_dir), max_depth=1, char_limit=0)
     batches = _split_batches(entries)
@@ -576,6 +860,7 @@ def run_analysis_cycle(target_dir: Path, event_handler=None, model: str = ANALYS
                 len(batches),
                 detailed_files_info,
                 model,
+                session_id,
                 event_handler,
             ): (batch_index, batch_entries)
             for batch_index, batch_entries in enumerate(batches)
@@ -613,6 +898,7 @@ def run_analysis_cycle(target_dir: Path, event_handler=None, model: str = ANALYS
                     retry_batch_index + 1,
                     detailed_files_info,
                     model,
+                    session_id,
                     event_handler,
                 )
             )
@@ -629,10 +915,34 @@ def run_analysis_cycle(target_dir: Path, event_handler=None, model: str = ANALYS
         check = validate_analysis_items(merged_items, target_dir)
         if not check["is_valid"]:
             emit(event_handler, "validation_fail", {"attempt": 1, "details": check})
+            _write_analysis_debug_event(
+                target_dir,
+                "analysis.validation_fail",
+                session_id=session_id,
+                level="WARNING",
+                payload={
+                    "attempt": 1,
+                    "model": model,
+                    "details": check,
+                    "mode": "batch_merge",
+                },
+            )
             return None
 
     emit(event_handler, "validation_pass", {"attempt": 1})
-    return render_analysis_items(merged_items)
+    rendered_result = render_analysis_items(merged_items)
+    _write_analysis_debug_event(
+        target_dir,
+        "analysis.completed",
+        session_id=session_id,
+        payload={
+            "model": model,
+            "entry_count": len(entries),
+            "result_count": len(merged_items),
+            "mode": "batch",
+        },
+    )
+    return rendered_result
 
 
 tools = [

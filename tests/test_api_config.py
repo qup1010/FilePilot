@@ -1,4 +1,5 @@
 from collections import Counter
+from urllib.error import HTTPError
 import unittest
 from unittest import mock
 
@@ -142,6 +143,57 @@ class ApiConfigTests(unittest.TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertIn("脱敏展示值", response.json()["message"])
         get_mock.assert_not_called()
+
+    def test_test_llm_icon_image_falls_back_to_generation_probe_when_models_api_missing(self):
+        mock_client = mock.Mock()
+        mock_client.models.list.side_effect = Exception("404 page not found")
+
+        with mock.patch("openai.OpenAI", return_value=mock_client), mock.patch(
+            "urllib.request.urlopen"
+        ) as urlopen_mock:
+            urlopen_mock.return_value.__enter__.return_value = mock.Mock()
+            response = self.client.post(
+                "/api/utils/test-llm",
+                json={
+                    "test_type": "icon_image",
+                    "ICON_IMAGE_BASE_URL": "https://api-inference.modelscope.cn/v1/images/generations",
+                    "ICON_IMAGE_MODEL": "qwen-image",
+                    "ICON_IMAGE_API_KEY": "secret",
+                },
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["status"], "ok")
+        mock_client.models.list.assert_called_once()
+        self.assertTrue(urlopen_mock.called)
+
+    def test_test_llm_icon_image_accepts_422_from_generation_probe_as_reachable(self):
+        mock_client = mock.Mock()
+        mock_client.models.list.side_effect = Exception("404 page not found")
+        http_error = HTTPError(
+            url="https://image.example/v1/images/generations",
+            code=422,
+            msg="unprocessable",
+            hdrs=None,
+            fp=None,
+        )
+
+        with mock.patch("openai.OpenAI", return_value=mock_client), mock.patch(
+            "urllib.request.urlopen",
+            side_effect=http_error,
+        ):
+            response = self.client.post(
+                "/api/utils/test-llm",
+                json={
+                    "test_type": "icon_image",
+                    "ICON_IMAGE_BASE_URL": "https://image.example/v1",
+                    "ICON_IMAGE_MODEL": "qwen-image",
+                    "ICON_IMAGE_API_KEY": "secret",
+                },
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["status"], "ok")
 
     def test_create_app_does_not_register_duplicate_api_routes(self):
         route_counts = Counter(

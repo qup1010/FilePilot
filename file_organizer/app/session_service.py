@@ -237,7 +237,7 @@ class OrganizerSessionService:
         self.async_scanner.start(
             session_id=session.session_id,
             target_dir=target_dir,
-            run_scan=lambda d: self._default_scan_runner(d, event_handler=on_scan_event),
+            run_scan=lambda d: self._default_scan_runner(d, event_handler=on_scan_event, session_id=session.session_id),
             on_complete=self._finish_async_scan,
             on_error=self._fail_async_scan,
         )
@@ -1169,8 +1169,8 @@ class OrganizerSessionService:
             session.scanner_progress = progress
         return changed
 
-    def _default_scan_runner(self, target_dir: Path, event_handler=None) -> str:
-        return analysis_service.run_analysis_cycle(target_dir, event_handler=event_handler)
+    def _default_scan_runner(self, target_dir: Path, event_handler=None, session_id: str | None = None) -> str:
+        return analysis_service.run_analysis_cycle(target_dir, event_handler=event_handler, session_id=session_id)
 
     def _finish_async_scan(self, session_id: str, scan_lines: str) -> None:
         session = self._load_or_raise(session_id)
@@ -1306,7 +1306,7 @@ class OrganizerSessionService:
         session.scanner_progress = self._initial_scan_progress(Path(session.target_dir))
         self.store.save(session)
         self._record_event("scan.started", session)
-        result = scan_runner(Path(session.target_dir))
+        result = scan_runner(Path(session.target_dir), session_id=session.session_id)
         all_entries = self._scan_entries(result)
         recent_items = all_entries[-5:]
         session.scan_lines = result or ""

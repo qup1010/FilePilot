@@ -235,6 +235,18 @@ class SessionApiTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["session_snapshot"]["stage"], "planning")
 
+    def test_refresh_endpoint_returns_scan_empty_result_with_snapshot(self):
+        created = self.client.post(
+            "/api/sessions",
+            json={"target_dir": str(self.target_dir), "resume_if_exists": False},
+        ).json()
+
+        with mock.patch.object(self.service, "refresh_session", side_effect=RuntimeError("scan_empty_result")):
+            response = self.client.post(f"/api/sessions/{created['session_id']}/refresh")
+
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(response.json()["error_code"], "SCAN_EMPTY_RESULT")
+
     def test_update_item_returns_422_when_item_id_is_missing(self):
         created = self.client.post(
             "/api/sessions",

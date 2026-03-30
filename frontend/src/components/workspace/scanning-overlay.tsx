@@ -17,6 +17,8 @@ import {
   Search,
   Activity,
 } from "lucide-react";
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
 
 import { cn } from "@/lib/utils";
 import { RecentAnalysisItem, ScannerProgress } from "@/types/session";
@@ -26,6 +28,7 @@ interface ScanningOverlayProps {
   progressPercent: number;
   onAbort?: () => void;
   aborting?: boolean;
+  isModelConfigured?: boolean;
 }
 
 function getStatusMeta(scanner: ScannerProgress, progressPercent: number) {
@@ -76,7 +79,13 @@ function getPhaseIndex(status: ScannerProgress["status"], progressPercent: numbe
   return 3;
 }
 
-export function ScanningOverlay({ scanner, progressPercent, onAbort, aborting = false }: ScanningOverlayProps) {
+export function ScanningOverlay({ 
+  scanner, 
+  progressPercent, 
+  onAbort, 
+  aborting = false,
+  isModelConfigured = true 
+}: ScanningOverlayProps) {
   const meta = getStatusMeta(scanner, progressPercent);
   const clampedPercent = Math.max(0, Math.min(100, Math.round(progressPercent)));
   const recentItems = [...(scanner.recent_analysis_items || [])].slice(-5).reverse();
@@ -91,7 +100,25 @@ export function ScanningOverlay({ scanner, progressPercent, onAbort, aborting = 
   ];
 
   return (
-    <div className="flex h-full w-full items-center justify-center bg-surface p-4 lg:p-6">
+    <div className="flex h-full w-full items-center justify-center bg-surface p-4 lg:p-6 flex-col gap-4">
+      {!isModelConfigured && (
+        <div className="flex w-full max-w-[1400px] items-center justify-between gap-4 rounded-[14px] border border-warning/20 bg-warning-container/20 p-5 backdrop-blur-md">
+          <div className="flex items-center gap-4">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-warning/15 text-warning">
+              <AlertCircle className="h-6 w-6" />
+            </div>
+            <div className="space-y-1">
+              <p className="text-[15px] font-black text-on-surface">AI 文本模型未配置</p>
+              <p className="text-[13px] font-medium text-ui-muted opacity-80">未配置文本模型将导致摘要抽取和用途识别失效，建议前往设置完成配置。</p>
+            </div>
+          </div>
+          <Link href="/settings">
+            <Button variant="secondary" size="md" className="font-bold px-6">
+              立即前往设置
+            </Button>
+          </Link>
+        </div>
+      )}
       <motion.div
         initial={{ opacity: 0, scale: 0.98 }}
         animate={{ opacity: 1, scale: 1 }}

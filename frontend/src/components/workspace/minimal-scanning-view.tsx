@@ -6,8 +6,10 @@ import {
   StopCircle, 
   Search, 
   FileText, 
-  Activity
+  Activity,
+  AlertCircle
 } from "lucide-react";
+import Link from "next/link";
 
 import { ScannerProgress } from "@/types/session";
 import { Button } from "@/components/ui/button";
@@ -18,9 +20,16 @@ interface MinimalScanningViewProps {
   progressPercent: number;
   onAbort?: () => void;
   aborting?: boolean;
+  isModelConfigured?: boolean;
 }
 
-export function MinimalScanningView({ scanner, progressPercent, onAbort, aborting = false }: MinimalScanningViewProps) {
+export function MinimalScanningView({ 
+  scanner, 
+  progressPercent, 
+  onAbort, 
+  aborting = false,
+  isModelConfigured = true 
+}: MinimalScanningViewProps) {
   const currentItem = scanner.current_item || "正在读取目录...";
   const recentItems = scanner.recent_analysis_items || [];
 
@@ -31,6 +40,24 @@ export function MinimalScanningView({ scanner, progressPercent, onAbort, abortin
         animate={{ opacity: 1, y: 0 }}
         className="mx-auto flex h-full w-full max-w-[1360px] flex-col"
       >
+        {!isModelConfigured && (
+          <div className="mb-6 flex items-center justify-between gap-4 rounded-[10px] border border-warning/20 bg-warning-container/20 p-4 backdrop-blur-sm">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-warning/15 text-warning">
+                <AlertCircle className="h-5 w-5" />
+              </div>
+              <div className="space-y-1">
+                <p className="text-[14px] font-black text-on-surface">AI 文本模型未配置</p>
+                <p className="text-[12px] font-medium text-ui-muted">未配置模型将无法分析文件具体用途，建议前往“设置”页面完成配置。</p>
+              </div>
+            </div>
+            <Link href="/settings">
+              <Button variant="secondary" size="sm" className="whitespace-nowrap px-4 font-bold">
+                去配置模型
+              </Button>
+            </Link>
+          </div>
+        )}
         {/* Header */}
         <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="space-y-1">

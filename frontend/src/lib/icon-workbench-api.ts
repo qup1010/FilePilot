@@ -4,6 +4,7 @@ import type {
   IconWorkbenchClientActionReportPayload,
   IconTemplate,
   IconWorkbenchConfig,
+  IconWorkbenchConfigPayload,
   IconWorkbenchMessagePayload,
   IconWorkbenchSession,
   IconWorkbenchTargetUpdatePayload,
@@ -39,8 +40,11 @@ export interface IconWorkbenchApiClient {
   generatePreviews(session_id: string, folder_ids: string[]): Promise<IconWorkbenchSession>;
   updatePrompt(session_id: string, folder_id: string, prompt: string): Promise<IconWorkbenchSession>;
   selectVersion(session_id: string, folder_id: string, version_id: string): Promise<IconWorkbenchSession>;
-  getConfig(): Promise<IconWorkbenchConfig>;
+  getConfig(): Promise<IconWorkbenchConfigPayload>;
   updateConfig(config: IconWorkbenchConfig): Promise<IconWorkbenchConfig>;
+  switchConfigPreset(id: string): Promise<IconWorkbenchConfigPayload>;
+  addConfigPreset(name: string, config?: Partial<IconWorkbenchConfig> & { name?: string }): Promise<IconWorkbenchConfigPayload>;
+  deleteConfigPreset(id: string): Promise<IconWorkbenchConfigPayload>;
   listTemplates(): Promise<IconTemplate[]>;
   createTemplate(payload: Pick<IconTemplate, "name" | "description" | "prompt_template">): Promise<IconTemplate>;
   updateTemplate(template_id: string, payload: Partial<Pick<IconTemplate, "name" | "description" | "prompt_template">>): Promise<IconTemplate>;
@@ -130,7 +134,7 @@ export function createIconWorkbenchApiClient(baseUrl: string, apiToken?: string)
       const response = await fetch(joinUrl(baseUrl, "/api/icon-workbench/config"), {
         headers: buildAuthHeaders(apiToken),
       });
-      return parseResponse<IconWorkbenchConfig>(response);
+      return parseResponse<IconWorkbenchConfigPayload>(response);
     },
     async updateConfig(config) {
       const response = await fetch(joinUrl(baseUrl, "/api/icon-workbench/config"), {
@@ -139,6 +143,29 @@ export function createIconWorkbenchApiClient(baseUrl: string, apiToken?: string)
         body: JSON.stringify(config),
       });
       return parseResponse<IconWorkbenchConfig>(response);
+    },
+    async switchConfigPreset(id) {
+      const response = await fetch(joinUrl(baseUrl, "/api/icon-workbench/config/presets/switch"), {
+        method: "POST",
+        headers: buildAuthHeaders(apiToken, { "Content-Type": "application/json" }),
+        body: JSON.stringify({ id }),
+      });
+      return parseResponse<IconWorkbenchConfigPayload>(response);
+    },
+    async addConfigPreset(name, config) {
+      const response = await fetch(joinUrl(baseUrl, "/api/icon-workbench/config/presets"), {
+        method: "POST",
+        headers: buildAuthHeaders(apiToken, { "Content-Type": "application/json" }),
+        body: JSON.stringify({ name, config }),
+      });
+      return parseResponse<IconWorkbenchConfigPayload>(response);
+    },
+    async deleteConfigPreset(id) {
+      const response = await fetch(joinUrl(baseUrl, `/api/icon-workbench/config/presets/${id}`), {
+        method: "DELETE",
+        headers: buildAuthHeaders(apiToken),
+      });
+      return parseResponse<IconWorkbenchConfigPayload>(response);
     },
     async listTemplates() {
       const response = await fetch(joinUrl(baseUrl, "/api/icon-workbench/templates"), {

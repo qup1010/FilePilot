@@ -266,7 +266,7 @@ impl BgRemovalClient {
 pub async fn remove_background_for_image(
     image_path: String,
     api_token: Option<String>,
-) -> Result<String, String> {
+) -> Result<Vec<u8>, String> {
     let path = Path::new(&image_path);
     if !path.exists() {
         return Err(format!("原始图像不存在: {}", image_path));
@@ -282,8 +282,5 @@ pub async fn remove_background_for_image(
 
     let processed_bytes = BgRemovalClient::remove_background(&config, &bytes).await?;
     
-    // Overwrite the original image
-    fs::write(path, processed_bytes).map_err(|e| format!("覆盖背景移除图像失败: {}", e))?;
-    
-    Ok(image_path)
+    Ok(processed_bytes)
 }

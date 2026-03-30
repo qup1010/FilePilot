@@ -12,6 +12,7 @@ const SETTINGS_CONTEXT_KEY = "settings_header_context";
 const HISTORY_CONTEXT_KEY = "history_header_context";
 const ICONS_CONTEXT_KEY = "icons_header_context";
 const APP_CONTEXT_EVENT = "file-organizer-context-change";
+const ACTIVE_WORKSPACE_ROUTE_KEY = "workspace_active_route";
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -98,19 +99,49 @@ function getStoredModuleLabel(pathname: string, searchParams: URLSearchParams) {
   return { title: "新建任务", detail: "选择目录并启动新的整理任务" };
 }
 
+function getWorkspaceRoute(pathname: string, searchParams: URLSearchParams) {
+  if (pathname.startsWith("/workspace")) {
+    const query = searchParams.toString();
+    return query ? `/workspace?${query}` : "/workspace";
+  }
+  if (typeof window === "undefined") {
+    return "/";
+  }
+  return window.localStorage.getItem(ACTIVE_WORKSPACE_ROUTE_KEY) || "/";
+}
+
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const [isHydrated, setIsHydrated] = React.useState(false);
   const [moduleCopy, setModuleCopy] = React.useState(() => getBaseModuleLabel(pathname, searchParams));
+  const [workspaceRoute, setWorkspaceRoute] = React.useState("/");
+
+  React.useEffect(() => {
+    setIsHydrated(true);
+  }, []);
 
   React.useEffect(() => {
     setModuleCopy(getBaseModuleLabel(pathname, searchParams));
+    setWorkspaceRoute(isHydrated ? getWorkspaceRoute(pathname, searchParams) : "/");
+  }, [isHydrated, pathname, searchParams]);
+
+  React.useEffect(() => {
+    if (!isHydrated) {
+      return;
+    }
+    setWorkspaceRoute(getWorkspaceRoute(pathname, searchParams));
   }, [pathname, searchParams]);
 
   React.useEffect(() => {
     const syncModuleCopy = () => {
       setModuleCopy(getStoredModuleLabel(pathname, searchParams));
+      setWorkspaceRoute(getWorkspaceRoute(pathname, searchParams));
     };
+
+    if (!isHydrated) {
+      return;
+    }
 
     syncModuleCopy();
 
@@ -122,17 +153,17 @@ export function AppShell({ children }: { children: ReactNode }) {
     return () => {
       window.removeEventListener(APP_CONTEXT_EVENT, handleContextChange);
     };
-  }, [pathname, searchParams]);
+  }, [isHydrated, pathname, searchParams]);
 
   const navItems = [
-    { href: "/", icon: LayoutGrid, label: "新建任务" },
+    { href: workspaceRoute, icon: LayoutGrid, label: workspaceRoute === "/" ? "新建任务" : "当前任务" },
     { href: "/icons", icon: Palette, label: "图标工坊" },
     { href: "/history", icon: History, label: "历史" },
     { href: "/settings", icon: Settings, label: "设置" },
   ];
 
   const isNavActive = (href: string) => {
-    if (href === "/") {
+    if (href === "/" || href.startsWith("/workspace")) {
       return pathname === "/" || pathname.startsWith("/workspace");
     }
     return pathname.startsWith(href);

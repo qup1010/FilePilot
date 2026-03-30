@@ -129,6 +129,58 @@ class StructuredOrganizerServiceTests(unittest.TestCase):
         self.assertEqual(result["assistant_message"]["blocks"][0]["type"], "unresolved_choices")
         self.assertEqual(result["assistant_message"]["blocks"][0]["items"][0]["suggested_folders"], ["学习资料", "截图记录"])
 
+    def test_run_organizer_cycle_accepts_stringified_unresolved_items_payload(self):
+        unresolved_call = self._tool_call(
+            "request_unresolved_choices",
+            '{"request_id":"req_1","summary":"还有 1 个待确认项","items":"[{\\"item_id\\":\\"截图1.png\\",\\"display_name\\":\\"截图1.png\\",\\"question\\":\\"更像学习截图还是问题记录？\\",\\"suggested_folders\\":[\\"学习资料\\",\\"截图记录\\"]}]"}',
+        )
+        message = SimpleNamespace(content="", tool_calls=[unresolved_call])
+
+        with mock.patch.object(organizer_service, "chat_one_round", return_value=message):
+            _, result = organizer_service.run_organizer_cycle(
+                messages=[],
+                scan_lines="截图1.png | 截图记录 | 报错界面",
+                pending_plan=PendingPlan(),
+            )
+
+        self.assertEqual(result["unresolved_request"]["items"][0]["item_id"], "截图1.png")
+        self.assertEqual(result["assistant_message"]["blocks"][0]["items"][0]["suggested_folders"], ["学习资料", "截图记录"])
+
+    def test_run_organizer_cycle_accepts_stringified_unresolved_items_payload_with_trailing_bracket(self):
+        items_payload = json.dumps(
+            [
+                {
+                    "item_id": "截图1.png",
+                    "display_name": "截图1.png",
+                    "question": "更像学习截图还是问题记录？",
+                    "suggested_folders": json.dumps(["学习资料", "截图记录"], ensure_ascii=False),
+                }
+            ],
+            ensure_ascii=False,
+        ) + "]"
+        unresolved_call = self._tool_call(
+            "request_unresolved_choices",
+            json.dumps(
+                {
+                    "request_id": "req_1",
+                    "summary": "还有 1 个待确认项",
+                    "items": f"\n{items_payload}\n",
+                },
+                ensure_ascii=False,
+            ),
+        )
+        message = SimpleNamespace(content="", tool_calls=[unresolved_call])
+
+        with mock.patch.object(organizer_service, "chat_one_round", return_value=message):
+            _, result = organizer_service.run_organizer_cycle(
+                messages=[],
+                scan_lines="截图1.png | 截图记录 | 报错界面",
+                pending_plan=PendingPlan(),
+            )
+
+        self.assertEqual(result["unresolved_request"]["items"][0]["item_id"], "截图1.png")
+        self.assertEqual(result["unresolved_request"]["items"][0]["suggested_folders"], ["学习资料", "截图记录"])
+
     def test_apply_plan_diff_auto_removes_unresolved_when_moved_to_non_review(self):
         old_plan = PendingPlan(
             moves=[PlanMove(source="合同.pdf", target="Review/合同.pdf")],
@@ -226,6 +278,26 @@ class StructuredOrganizerServiceTests(unittest.TestCase):
         self.assertNotIn("blocks", request_messages[1])
         self.assertIn("待确认请求", request_messages[1]["content"])
         self.assertIn("这是课程笔记", request_messages[1]["content"])
+
+    def test_chat_one_round_reads_runtime_model_when_not_explicitly_passed(self):
+        response = SimpleNamespace(
+            choices=[SimpleNamespace(message=SimpleNamespace(content="好的", tool_calls=[]))]
+        )
+        create_mock = mock.Mock(return_value=response)
+        client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create_mock)))
+
+        with mock.patch.object(organizer_service, "create_openai_client", return_value=client), mock.patch.object(
+            organizer_service,
+            "get_organizer_model_name",
+            return_value="glm-4.7",
+        ), mock.patch.object(
+            organizer_service,
+            "_stream_enabled",
+            return_value=False,
+        ):
+            organizer_service.chat_one_round([{"role": "user", "content": "请整理"}])
+
+        self.assertEqual(create_mock.call_args.kwargs["model"], "glm-4.7")
 
     def test_build_initial_messages_prioritizes_text_before_tool_call(self):
         messages = organizer_service.build_initial_messages("合同.pdf | 财务/合同 | 付款协议")

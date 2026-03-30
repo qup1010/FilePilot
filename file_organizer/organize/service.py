@@ -15,7 +15,7 @@ from file_organizer.organize.models import (
     derive_directories_from_moves,
 )
 from file_organizer.organize.prompts import build_prompt
-from file_organizer.shared.config import ORGANIZER_MODEL_NAME, RESULT_FILE_PATH, create_openai_client
+from file_organizer.shared.config import RESULT_FILE_PATH, create_openai_client, get_organizer_model_name
 from file_organizer.shared.events import emit
 from file_organizer.shared.logging_utils import append_debug_event
 from file_organizer.shared.path_utils import normalize_source_name, split_relative_parts
@@ -364,9 +364,11 @@ def _debug_enabled() -> bool:
     return config_manager.get("DEBUG_MODE", False) or os.getenv("DEBUG_MODE") == "True"
 
 
-def _write_planning_debug_event(kind: str, payload: dict | None = None) -> None:
+def _write_planning_debug_event(kind: str, payload: dict | None = None, session_id: str | None = None, target_dir: str | None = None) -> None:
     append_debug_event(
         kind=kind,
+        session_id=session_id,
+        target_dir=target_dir,
         stage="planning",
         payload=payload or {},
     )
@@ -406,6 +408,8 @@ def _update_debug_log_response(
     synthetic_content_used: bool,
     response_mode: str | None = None,
     raw_response=None,
+    session_id: str | None = None,
+    target_dir: str | None = None,
 ) -> None:
     from file_organizer.shared.config import RUNTIME_DIR
 
@@ -443,16 +447,20 @@ def _update_debug_log_response(
                 "response_mode": response_mode,
                 "raw_response": raw_response,
             },
+            session_id=session_id,
+            target_dir=target_dir,
         )
         logger.info("organizer.response_recorded round=%s", len(history))
     except Exception:
         logger.exception("organizer.response_record_failed")
 
 
-def chat_one_round(messages: list, event_handler=None, model: str = ORGANIZER_MODEL_NAME, tools=None, tool_choice="auto", return_message=False):
+def chat_one_round(messages: list, event_handler=None, model: str | None = None, tools=None, tool_choice="auto", return_message=False, session_id: str | None = None, target_dir: str | None = None):
     from file_organizer.shared.config import RUNTIME_DIR, config_manager
     from datetime import datetime
-    
+
+    model = model or get_organizer_model_name()
+
     # 动态获取状态
     is_debug = config_manager.get("DEBUG_MODE", False) or _debug_enabled()
     stream_enabled = _stream_enabled()
@@ -492,6 +500,8 @@ def chat_one_round(messages: list, event_handler=None, model: str = ORGANIZER_MO
                     "request": request_messages,
                     "request_meta": new_entry["request_meta"],
                 },
+                session_id=session_id,
+                target_dir=target_dir,
             )
         except Exception:
             logger.exception("organizer.request_record_failed")
@@ -528,6 +538,8 @@ def chat_one_round(messages: list, event_handler=None, model: str = ORGANIZER_MO
                 },
                 "error": {"type": type(exc).__name__, "message": str(exc)},
             },
+            session_id=session_id,
+            target_dir=target_dir,
         )
         raise
 
@@ -608,6 +620,8 @@ def chat_one_round(messages: list, event_handler=None, model: str = ORGANIZER_MO
         synthetic_content_used=False,
         response_mode=response_mode,
         raw_response=raw_response,
+        session_id=session_id,
+        target_dir=target_dir,
     )
 
     # 构造兼容的 Message 对象供后续解析
@@ -1097,8 +1111,10 @@ def run_organizer_cycle(
     user_constraints: list[str] | None = None,
     strategy_instructions: str | None = None,
     event_handler=None,
-    model: str = ORGANIZER_MODEL_NAME,
+    model: str | None = None,
     max_retries: int = 3,
+    session_id: str | None = None,
+    target_dir: str | None = None,
 ) -> tuple[str, dict | None]:
     current_pending = pending_plan or PendingPlan()
     current_constraints = list(user_constraints or [])
@@ -1109,7 +1125,14 @@ def run_organizer_cycle(
     # 系统会根据失败细节构造反馈消息并触发下一次尝试，直到达到最大重试次数。
     for attempt in range(1, max_retries + 1):
         # 核心：发起 AI 对话获取建议
-        message = chat_one_round(llm_messages, event_handler=event_handler, model=model, return_message=True)
+        message = chat_one_round(
+            llm_messages,
+            event_handler=event_handler,
+            model=model,
+            return_message=True,
+            session_id=session_id,
+            target_dir=target_dir,
+        )
         raw_content = getattr(message, "content", "") or ""
         content, plan_diff, final_plan, unresolved_request = _extract_plan_submissions(message)
         message_blocks = []
@@ -1139,6 +1162,8 @@ def run_organizer_cycle(
             tool_calls=_serialize_tool_calls(getattr(message, "tool_calls", None)),
             chunks=None,
             synthetic_content_used=synthetic_content_used,
+            session_id=session_id,
+            target_dir=target_dir,
         )
             
 

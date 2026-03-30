@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState, type Dispatch, type SetStateAction } from "react";
 
-import { invokeTauriCommand } from "@/lib/runtime";
+import { getApiBaseUrl, invokeTauriCommand } from "@/lib/runtime";
 import type { IconPreviewVersion, IconWorkbenchSession } from "@/types/icon-workbench";
 
 const HF_BG_TOKEN_STORAGE_KEY = "file_organizer__hf_bg_token";
@@ -58,7 +58,7 @@ export function useBackgroundRemoval({
   }, []);
 
   const handleRemoveBg = useCallback(async (folderId: string, version: IconPreviewVersion) => {
-    if (!desktopReady) {
+    if (!desktopReady || !session) {
       setError("抠图功能目前仅支持桌面端。");
       return;
     }
@@ -67,34 +67,41 @@ export function useBackgroundRemoval({
     setProcessingBgVersionIds((prev) => new Set(prev).add(processingKey));
 
     try {
-      await invokeTauriCommand("remove_background_for_image", {
+      // 1. 调用 Tauri 从远端获取移除背景后的字节流（不再覆盖本地文件）
+      const processedBytes = await invokeTauriCommand<number[]>("remove_background_for_image", {
         imagePath: version.image_path,
         apiToken: bgApiToken || null,
       });
 
-      setSession((current) => {
-        if (!current) {
-          return current;
-        }
-        const updatedFolders = current.folders.map((folder) => {
-          if (folder.folder_id !== folderId) {
-            return folder;
-          }
-          const updatedVersions = folder.versions.map((item) => {
-            if (item.version_id !== version.version_id) {
-              return item;
-            }
-            const url = new URL(item.image_url.startsWith("/") ? `http://dummy${item.image_url}` : item.image_url);
-            url.searchParams.set("t", Date.now().toString());
-            const finalUrl = item.image_url.startsWith("/") ? `${url.pathname}${url.search}` : url.toString();
-            return { ...item, image_url: finalUrl };
-          });
-          return { ...folder, versions: updatedVersions };
-        });
-        return { ...current, folders: updatedFolders };
-      });
+      if (!processedBytes || processedBytes.length === 0) {
+        throw new Error("移除背景返回的数据为空");
+      }
 
-      setNotice(`版本 v${version.version_number} 已成功移除背景。`);
+      // 2. 将字节流发往后端，注册一个带有 'nobg' 后缀的新版本
+      const response = await fetch(
+        `${getApiBaseUrl()}/api/icon-workbench/sessions/${session.session_id}/folders/${folderId}/versions/${version.version_id}/add-processed?suffix=nobg`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/octet-stream",
+          },
+          body: new Uint8Array(processedBytes),
+        }
+      );
+
+      if (!response.ok) {
+        const errData = await response.json();
+        throw new Error(errData.detail || "注册新版本失败");
+      }
+
+      const result = await response.json();
+      
+      // 3. 更新全量 Session 状态（后端会返回包含新版本的 session）
+      if (result.session) {
+        setSession(result.session);
+      }
+
+      setNotice(`已基于 v${version.version_number} 生成了移除背景的新版本。`);
     } catch (err) {
       setError(`抠图失败: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
@@ -104,7 +111,7 @@ export function useBackgroundRemoval({
         return next;
       });
     }
-  }, [bgApiToken, desktopReady, setError, setNotice, setSession]);
+  }, [bgApiToken, desktopReady, session, setError, setNotice, setSession]);
 
   const handleRemoveBgBatch = useCallback(async () => {
     if (!session || session.folders.length === 0 || !desktopReady) {

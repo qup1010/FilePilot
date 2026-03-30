@@ -27,6 +27,8 @@ class FakeIconWorkbenchService:
                 "updated_at": "2026-01-01T00:00:00+00:00",
             }
         ]
+        self.icon_presets = [{"id": "default", "name": "默认图标生图"}]
+        self.active_icon_preset_id = "default"
         self.image_path.write_bytes(
             b"\x89PNG\r\n\x1a\n"
             b"\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15\xc4\x89"
@@ -84,14 +86,34 @@ class FakeIconWorkbenchService:
 
     def get_config(self):
         return {
-            "text_model": {"base_url": "https://text.example/v1", "api_key": "text", "model": "gpt-text"},
-            "image_model": {"base_url": "https://image.example/v1", "api_key": "image", "model": "gpt-image"},
-            "image_size": "512x512",
-            "concurrency_limit": 1,
+            "config": {
+                "name": "默认图标生图",
+                "text_model": {"base_url": "https://text.example/v1", "api_key": "text", "model": "gpt-text"},
+                "image_model": {"base_url": "https://image.example/v1", "api_key": "image", "model": "gpt-image"},
+                "image_size": "512x512",
+                "concurrency_limit": 1,
+            },
+            "presets": list(self.icon_presets),
+            "active_preset_id": self.active_icon_preset_id,
         }
 
     def update_config(self, payload):
         return payload
+
+    def switch_config_preset(self, preset_id):
+        self.active_icon_preset_id = preset_id
+        return self.get_config()
+
+    def add_config_preset(self, name, config_patch=None):
+        preset_id = "icon-preset-2"
+        self.icon_presets.append({"id": preset_id, "name": name})
+        self.active_icon_preset_id = preset_id
+        return self.get_config()
+
+    def delete_config_preset(self, preset_id):
+        self.icon_presets = [item for item in self.icon_presets if item["id"] != preset_id]
+        self.active_icon_preset_id = "default"
+        return self.get_config()
 
     def list_templates(self):
         return list(self.templates)
@@ -298,11 +320,23 @@ class ApiIconWorkbenchTests(unittest.TestCase):
 
         response = self.client.get("/api/icon-workbench/config")
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json()["image_size"], "512x512")
+        self.assertEqual(response.json()["config"]["image_size"], "512x512")
 
         response = self.client.post("/api/icon-workbench/config", json={"image_size": "1024x1024"})
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["image_size"], "1024x1024")
+
+        response = self.client.post("/api/icon-workbench/config/presets", json={"name": "ModelScope"})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["active_preset_id"], "icon-preset-2")
+
+        response = self.client.post("/api/icon-workbench/config/presets/switch", json={"id": "default"})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["active_preset_id"], "default")
+
+        response = self.client.delete("/api/icon-workbench/config/presets/icon-preset-2")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["active_preset_id"], "default")
 
     def test_template_crud_routes(self):
         response = self.client.get("/api/icon-workbench/templates")

@@ -167,6 +167,7 @@ class IconWorkbenchServiceTests(unittest.TestCase):
     def test_update_config_persists_values(self):
         updated = self.service.update_config(
             {
+                "name": "ModelScope 生图",
                 "image_size": "1024x1024",
                 "image_model": {"model": "flux-1"},
             }
@@ -174,6 +175,34 @@ class IconWorkbenchServiceTests(unittest.TestCase):
 
         self.assertEqual(updated["image_size"], "1024x1024")
         self.assertEqual(updated["image_model"]["model"], "flux-1")
+
+        payload = self.service.get_config()
+        self.assertEqual(payload["config"]["name"], "ModelScope 生图")
+        self.assertEqual(payload["active_preset_id"], "default")
+
+    def test_config_presets_support_add_switch_delete(self):
+        created = self.service.add_config_preset(
+            "阿里云生图",
+            {
+                "image_model": {
+                    "base_url": "https://image.example/v1",
+                    "api_key": "next-image-key",
+                    "model": "wanx",
+                },
+                "image_size": "1024x1024",
+            },
+        )
+        new_id = created["active_preset_id"]
+        self.assertNotEqual(new_id, "default")
+        self.assertTrue(any(item["id"] == new_id for item in created["presets"]))
+        self.assertEqual(created["config"]["image_model"]["model"], "wanx")
+
+        switched = self.service.switch_config_preset("default")
+        self.assertEqual(switched["active_preset_id"], "default")
+
+        deleted = self.service.delete_config_preset(new_id)
+        self.assertEqual(deleted["active_preset_id"], "default")
+        self.assertFalse(any(item["id"] == new_id for item in deleted["presets"]))
 
     def test_template_crud_and_apply_template(self):
         session = self.service.create_session([str(self.alpha_dir), str(self.beta_dir)])
