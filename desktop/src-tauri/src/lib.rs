@@ -190,7 +190,11 @@ fn bootstrap_backend(app: &App) -> Result<(), String> {
     }
 
     let launch = backend::start_backend(&state.project_root, state.backend_executable.as_deref())?;
-    let expected_pid = launch.child.id();
+    let expected_pid = if state.backend_executable.is_some() {
+        None
+    } else {
+        Some(launch.child.id())
+    };
     let expected_instance_id = launch.instance_id.clone();
     let api_token = launch.api_token.clone();
     let mut child = launch.child;

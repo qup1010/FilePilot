@@ -57,7 +57,7 @@ pub fn build_runtime_injection_script(config: &DesktopRuntimeConfig, api_token: 
 pub fn wait_for_runtime_config(
     path: &Path,
     timeout: Duration,
-    expected_pid: u32,
+    expected_pid: Option<u32>,
     expected_instance_id: &str,
 ) -> Result<DesktopRuntimeConfig, String> {
     let deadline = Instant::now() + timeout;
@@ -66,13 +66,22 @@ pub fn wait_for_runtime_config(
     loop {
         match read_runtime_config(path) {
             Ok(config) => {
-                if config.pid != expected_pid {
-                    last_error = format!(
-                        "runtime file {} belongs to unexpected pid {}",
-                        path.display(),
-                        config.pid
-                    );
-                } else if config.instance_id.as_deref() != Some(expected_instance_id) {
+                if let Some(expected_pid) = expected_pid {
+                    if config.pid != expected_pid {
+                        last_error = format!(
+                            "runtime file {} belongs to unexpected pid {}",
+                            path.display(),
+                            config.pid
+                        );
+                        if Instant::now() >= deadline {
+                            return Err(last_error);
+                        }
+                        thread::sleep(Duration::from_millis(200));
+                        continue;
+                    }
+                }
+
+                if config.instance_id.as_deref() != Some(expected_instance_id) {
                     last_error = format!(
                         "runtime file {} belongs to unexpected instance",
                         path.display()
@@ -249,9 +258,46 @@ mod tests {
         )
         .expect("write backend json");
 
-        let config = wait_for_runtime_config(&path, Duration::from_secs(1), pid, instance_id)
+        let config = wait_for_runtime_config(&path, Duration::from_secs(1), Some(pid), instance_id)
             .expect("runtime config");
         assert_eq!(config.port, port);
+        server.join().expect("server thread");
+    }
+
+    #[test]
+    fn wait_for_runtime_config_allows_pid_mismatch_when_pid_check_is_disabled() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let path = dir.path().join("backend.json");
+        let listener = TcpListener::bind("127.0.0.1:0").expect("bind listener");
+        let port = listener.local_addr().expect("listener addr").port();
+        let instance_id = "desktop-instance";
+
+        let server = thread::spawn(move || {
+            if let Ok((mut stream, _)) = listener.accept() {
+                let mut buffer = [0_u8; 512];
+                let _ = stream.read(&mut buffer);
+                let response = concat!(
+                    "HTTP/1.1 200 OK\r\n",
+                    "Content-Type: application/json\r\n",
+                    "Connection: close\r\n",
+                    "\r\n"
+                );
+                let body = format!(r#"{{"status":"ok","instance_id":"{instance_id}"}}"#);
+                let _ = stream.write_all(format!("{response}{body}").as_bytes());
+            }
+        });
+
+        fs::write(
+            &path,
+            format!(
+                r#"{{"base_url":"http://127.0.0.1:{port}","host":"127.0.0.1","port":{port},"pid":45308,"started_at":"2026-03-21T00:00:00Z","instance_id":"{instance_id}"}}"#
+            ),
+        )
+        .expect("write backend json");
+
+        let config = wait_for_runtime_config(&path, Duration::from_secs(1), None, instance_id)
+            .expect("runtime config");
+        assert_eq!(config.pid, 45308);
         server.join().expect("server thread");
     }
 
