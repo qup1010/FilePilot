@@ -7,7 +7,13 @@ from file_organizer.app.session_service import OrganizerSessionService
 from file_organizer.app.session_store import SessionStore
 from file_organizer.cli.console import default_cli
 from file_organizer.cli.event_printer import scanner_ui_handler
-from file_organizer.shared.config import PROJECT_ROOT, RESULT_FILE_PATH, get_analysis_model_name, get_organizer_model_name
+from file_organizer.shared.config import (
+    PROJECT_ROOT,
+    RESULT_FILE_PATH,
+    SESSIONS_DIR,
+    get_analysis_model_name,
+    get_organizer_model_name,
+)
 
 
 EXIT_REPLIES = {"quit", "exit"}
@@ -47,7 +53,7 @@ def run_session_pipeline(
     *,
     path_exists=None,
 ):
-    service = service or OrganizerSessionService(SessionStore(Path("output/sessions")))
+    service = service or OrganizerSessionService(SessionStore(SESSIONS_DIR))
     path_exists = path_exists or (lambda path: Path(path).is_dir())
     cli.show_app_header(PROJECT_ROOT, get_analysis_model_name(), get_organizer_model_name())
 

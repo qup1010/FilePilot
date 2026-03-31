@@ -146,7 +146,15 @@ fn ensure_windows() -> Result<(), String> {
 }
 
 fn load_configured_save_mode() -> String {
-    let Some(project_root) = Path::new(env!("CARGO_MANIFEST_DIR")).ancestors().nth(2) else {
+    let project_root = std::env::var_os("FILE_ORGANIZER_PROJECT_ROOT")
+        .map(PathBuf::from)
+        .or_else(|| {
+            Path::new(env!("CARGO_MANIFEST_DIR"))
+                .ancestors()
+                .nth(2)
+                .map(PathBuf::from)
+        });
+    let Some(project_root) = project_root else {
         return "centralized".to_string();
     };
 

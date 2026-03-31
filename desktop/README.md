@@ -4,7 +4,8 @@
 
 ## 当前职责
 
-- 拉起本地 `python -m file_organizer.api`
+- 开发态拉起本地 `python -m file_organizer.api`
+- 打包态拉起随应用分发的 `file_organizer_api.exe`
 - 通过 `output/runtime/backend.json` 发现并校验后端实例
 - 向前端注入 `window.__FILE_ORGANIZER_RUNTIME__`
 - 提供目录选择、批量目录选择、文件夹图标应用 / 恢复、抠图测试等原生命令
@@ -30,9 +31,20 @@ npm install
 npm run tauri:dev
 ```
 
+## GitHub Actions 打包
+
+- 仓库提供了一个仅支持手动触发的 Windows 打包工作流：
+  - `.github/workflows/windows-desktop-bundle.yml`
+- 触发后会在 GitHub Actions 中完成：
+  - 安装 `frontend/` 与 `desktop/` 的 Node 依赖
+  - 安装根目录 `requirements.txt`、`fastapi`、`uvicorn`、`pyinstaller`
+  - 构建 `file_organizer_api.exe`
+  - 执行 `npm run tauri:build`
+  - 上传 Windows bundle 产物为 `filepilot-windows-bundle` artifact
+
 Tauri 启动后会：
 
-1. 拉起 `python -m file_organizer.api`
+1. 开发态拉起 `python -m file_organizer.api`，打包态拉起内置的 `file_organizer_api.exe`
 2. 等待 `output/runtime/backend.json`
 3. 通过 `/api/health` 校验实例归属与健康状态
 4. 向前端注入运行时对象
@@ -68,3 +80,7 @@ window.__FILE_ORGANIZER_RUNTIME__
 - `started_at`
 - `instance_id`
 
+## 当前限制
+
+- 这个 workflow 当前只构建 Windows 包。
+- 打包产物会携带桌面壳和内置 Python 后端，但仍需要在真实 Windows 环境进一步验证安装、首次启动和回退链路。

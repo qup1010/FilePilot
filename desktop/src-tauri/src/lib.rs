@@ -84,14 +84,16 @@ fn open_directory(path: String) -> Result<(), String> {
 
 struct DesktopState {
     project_root: PathBuf,
+    backend_executable: Option<PathBuf>,
     backend_child: Mutex<Option<Child>>,
     runtime_script: Mutex<Option<String>>,
 }
 
 impl DesktopState {
-    fn new(project_root: PathBuf) -> Self {
+    fn new(project_root: PathBuf, backend_executable: Option<PathBuf>) -> Self {
         Self {
             project_root,
+            backend_executable,
             backend_child: Mutex::new(None),
             runtime_script: Mutex::new(None),
         }
@@ -131,6 +133,43 @@ fn resolve_project_root() -> PathBuf {
         .to_path_buf()
 }
 
+fn resolve_bundled_backend_executable(app: &App) -> Result<PathBuf, String> {
+    let resource_dir = app
+        .path()
+        .resource_dir()
+        .map_err(|error| format!("failed to resolve resource dir: {error}"))?;
+    let candidates = [
+        resource_dir.join("backend").join("file_organizer_api.exe"),
+        resource_dir.join("file_organizer_api.exe"),
+    ];
+
+    candidates
+        .into_iter()
+        .find(|path| path.is_file())
+        .ok_or_else(|| {
+            format!(
+                "bundled backend executable was not found under {}",
+                resource_dir.display()
+            )
+        })
+}
+
+fn resolve_desktop_state(app: &App) -> Result<DesktopState, String> {
+    if tauri::is_dev() {
+        let project_root = resolve_project_root();
+        return Ok(DesktopState::new(project_root, None));
+    }
+
+    let project_root = app
+        .path()
+        .app_data_dir()
+        .map_err(|error| format!("failed to resolve app data dir: {error}"))?;
+    fs::create_dir_all(&project_root)
+        .map_err(|error| format!("failed to create app data dir {}: {error}", project_root.display()))?;
+    let backend_executable = resolve_bundled_backend_executable(app)?;
+    Ok(DesktopState::new(project_root, Some(backend_executable)))
+}
+
 fn bootstrap_backend(app: &App) -> Result<(), String> {
     let state = app.state::<DesktopState>();
     let runtime_path = runtime::backend_runtime_path(&state.project_root);
@@ -150,7 +189,7 @@ fn bootstrap_backend(app: &App) -> Result<(), String> {
         }
     }
 
-    let launch = backend::start_backend(&state.project_root)?;
+    let launch = backend::start_backend(&state.project_root, state.backend_executable.as_deref())?;
     let expected_pid = launch.child.id();
     let expected_instance_id = launch.instance_id.clone();
     let api_token = launch.api_token.clone();
@@ -188,10 +227,7 @@ fn rehydrate_runtime(webview: &tauri::Webview) {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let project_root = resolve_project_root();
-
     tauri::Builder::default()
-        .manage(DesktopState::new(project_root))
         .invoke_handler(tauri::generate_handler![
             pick_directory,
             pick_directories,
@@ -207,6 +243,9 @@ pub fn run() {
             crate::bg_removal::test_bg_removal_connection
         ])
         .setup(|app| {
+            let state = resolve_desktop_state(app)?;
+            std::env::set_var("FILE_ORGANIZER_PROJECT_ROOT", &state.project_root);
+            app.manage(state);
             bootstrap_backend(app).map_err(Into::into)
         })
         .on_page_load(|window, _| {

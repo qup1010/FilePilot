@@ -10,8 +10,9 @@ from file_organizer.shared.settings_service import (
     VISION_FAMILY,
     SettingsService,
 )
+from file_organizer.shared.constants import PROJECT_ROOT
 
-CONFIG_PATH = Path(__file__).resolve().parents[2] / "config.json"
+CONFIG_PATH = PROJECT_ROOT / "config.json"
 
 
 def _is_masked_secret(value: Any) -> bool:
