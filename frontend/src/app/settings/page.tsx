@@ -29,6 +29,7 @@ import {
   StrategyOptionButton,
   ToggleSwitch,
 } from "@/components/settings/settings-primitives";
+import { buildFamilySavePayload, isEditablePreset } from "@/app/settings/preset-flow";
 import { createApiClient } from "@/lib/api";
 import { getApiBaseUrl, getApiToken, invokeTauriCommand, isTauriDesktop } from "@/lib/runtime";
 import {
@@ -156,12 +157,20 @@ function describeSecret(secretState: SecretState, secret: SecretDraft) {
   return secretState === "stored" ? "当前已有密钥保存在本地" : "当前还没有保存密钥";
 }
 
-function buildFingerprint(draft: DraftState | null, secrets: Record<SettingsFamily, SecretDraft>) {
+function buildFingerprint(
+  draft: DraftState | null,
+  secrets: Record<SettingsFamily, SecretDraft>,
+  transientInputs?: {
+    analysisConcurrencyInput: string;
+    imageConcurrencyInput: string;
+  },
+) {
   if (!draft) {
     return "";
   }
   return JSON.stringify({
     draft,
+    transientInputs: transientInputs ?? null,
     secrets: {
       text: { action: secrets.text.action, value: secrets.text.value },
       vision: { action: secrets.vision.action, value: secrets.vision.value },
@@ -213,7 +222,14 @@ export default function SettingsPage() {
     [bgRemovalSecret, iconSecret, textSecret, visionSecret],
   );
 
-  const isDirty = useMemo(() => buildFingerprint(draft, secretMap) !== baseline, [baseline, draft, secretMap]);
+  const isDirty = useMemo(
+    () =>
+      buildFingerprint(draft, secretMap, {
+        analysisConcurrencyInput,
+        imageConcurrencyInput,
+      }) !== baseline,
+    [analysisConcurrencyInput, baseline, draft, imageConcurrencyInput, secretMap],
+  );
 
   const hydrate = (nextSnapshot: SettingsSnapshot) => {
     const nextDraft = snapshotToDraft(nextSnapshot);
@@ -231,7 +247,12 @@ export default function SettingsPage() {
     setBgRemovalSecret(emptySecrets.bg_removal);
     setAnalysisConcurrencyInput(String(nextDraft.icon_image.analysis_concurrency_limit));
     setImageConcurrencyInput(String(nextDraft.icon_image.image_concurrency_limit));
-    setBaseline(buildFingerprint(nextDraft, emptySecrets));
+    setBaseline(
+      buildFingerprint(nextDraft, emptySecrets, {
+        analysisConcurrencyInput: String(nextDraft.icon_image.analysis_concurrency_limit),
+        imageConcurrencyInput: String(nextDraft.icon_image.image_concurrency_limit),
+      }),
+    );
     setTestResults({});
   };
 
@@ -370,7 +391,6 @@ export default function SettingsPage() {
           name: presetName.trim(),
           copy_from_active: true,
           preset: {
-            name: draft.text.name,
             OPENAI_BASE_URL: draft.text.OPENAI_BASE_URL,
             OPENAI_MODEL: draft.text.OPENAI_MODEL,
           },
@@ -381,7 +401,6 @@ export default function SettingsPage() {
           name: presetName.trim(),
           copy_from_active: true,
           preset: {
-            name: draft.vision.name,
             IMAGE_ANALYSIS_NAME: draft.vision.IMAGE_ANALYSIS_NAME,
             IMAGE_ANALYSIS_BASE_URL: draft.vision.IMAGE_ANALYSIS_BASE_URL,
             IMAGE_ANALYSIS_MODEL: draft.vision.IMAGE_ANALYSIS_MODEL,
@@ -393,7 +412,6 @@ export default function SettingsPage() {
           name: presetName.trim(),
           copy_from_active: true,
           preset: {
-            name: draft.icon_image.name,
             image_model: {
               base_url: draft.icon_image.image_model.base_url,
               model: draft.icon_image.image_model.model,
@@ -451,26 +469,23 @@ export default function SettingsPage() {
       global_config: draft.global_config,
       families: {
         text: {
-          preset: {
-            name: draft.text.name,
+          ...buildFamilySavePayload("text", {
             OPENAI_BASE_URL: draft.text.OPENAI_BASE_URL,
             OPENAI_MODEL: draft.text.OPENAI_MODEL,
-          },
+          }),
           secret: buildSecretPayload(textSecret),
         },
         vision: {
           enabled: Boolean(draft.global_config.IMAGE_ANALYSIS_ENABLED),
-          preset: {
-            name: draft.vision.name,
+          ...buildFamilySavePayload("vision", {
             IMAGE_ANALYSIS_NAME: draft.vision.IMAGE_ANALYSIS_NAME,
             IMAGE_ANALYSIS_BASE_URL: draft.vision.IMAGE_ANALYSIS_BASE_URL,
             IMAGE_ANALYSIS_MODEL: draft.vision.IMAGE_ANALYSIS_MODEL,
-          },
+          }),
           secret: buildSecretPayload(visionSecret),
         },
         icon_image: {
-          preset: {
-            name: draft.icon_image.name,
+          ...buildFamilySavePayload("icon_image", {
             image_model: {
               base_url: draft.icon_image.image_model.base_url,
               model: draft.icon_image.image_model.model,
@@ -479,7 +494,7 @@ export default function SettingsPage() {
             analysis_concurrency_limit: clampConcurrencyInput(analysisConcurrencyInput, draft.icon_image.analysis_concurrency_limit),
             image_concurrency_limit: clampConcurrencyInput(imageConcurrencyInput, draft.icon_image.image_concurrency_limit),
             save_mode: draft.icon_image.save_mode,
-          },
+          }),
           secret: buildSecretPayload(iconSecret),
         },
         bg_removal: {
@@ -582,28 +597,25 @@ export default function SettingsPage() {
         family === "text"
           ? await api.testSettings({
               family,
-              preset: {
-                name: draft.text.name,
+              ...buildFamilySavePayload("text", {
                 OPENAI_BASE_URL: draft.text.OPENAI_BASE_URL,
                 OPENAI_MODEL: draft.text.OPENAI_MODEL,
-              },
+              }),
               secret: buildSecretPayload(textSecret),
             })
           : family === "vision"
             ? await api.testSettings({
                 family,
-                preset: {
-                  name: draft.vision.name,
+                ...buildFamilySavePayload("vision", {
                   IMAGE_ANALYSIS_NAME: draft.vision.IMAGE_ANALYSIS_NAME,
                   IMAGE_ANALYSIS_BASE_URL: draft.vision.IMAGE_ANALYSIS_BASE_URL,
                   IMAGE_ANALYSIS_MODEL: draft.vision.IMAGE_ANALYSIS_MODEL,
-                },
+                }),
                 secret: buildSecretPayload(visionSecret),
               })
             : await api.testSettings({
                 family,
-                preset: {
-                  name: draft.icon_image.name,
+                ...buildFamilySavePayload("icon_image", {
                   image_model: {
                     base_url: draft.icon_image.image_model.base_url,
                     model: draft.icon_image.image_model.model,
@@ -612,7 +624,7 @@ export default function SettingsPage() {
                   analysis_concurrency_limit: clampConcurrencyInput(analysisConcurrencyInput, draft.icon_image.analysis_concurrency_limit),
                   image_concurrency_limit: clampConcurrencyInput(imageConcurrencyInput, draft.icon_image.image_concurrency_limit),
                   save_mode: draft.icon_image.save_mode,
-                },
+                }),
                 secret: buildSecretPayload(iconSecret),
               });
       setTestResults((current) => ({ ...current, [family]: result }));
@@ -767,6 +779,19 @@ export default function SettingsPage() {
     );
   }
 
+  const textPresetEditable = isEditablePreset(snapshot.families.text.active_preset_id);
+  const visionPresetEditable = isEditablePreset(snapshot.families.vision.active_preset_id);
+  const iconImagePresetEditable = isEditablePreset(snapshot.families.icon_image.active_preset_id);
+
+  const renderCreatePresetHint = (label: string) => (
+    <div className="rounded-[12px] border border-dashed border-on-surface/12 bg-surface px-4 py-5">
+      <p className="text-sm font-semibold text-on-surface">请先点击 + 创建一个预设</p>
+      <p className="mt-1 text-[12px] leading-6 text-on-surface-variant/70">
+        {label} 还没有可编辑的用户预设。创建成功后再填写接口地址、模型和 API Key，保存会直接写入当前新预设。
+      </p>
+    </div>
+  );
+
   return (
     <div className="flex h-full flex-col overflow-hidden bg-surface">
       {/* Top Banner / Global Actions */}
@@ -911,24 +936,23 @@ export default function SettingsPage() {
                     <span className="font-mono text-on-surface"> https://dashscope.aliyuncs.com/compatible-mode/v1</span>。
                   </p>
                 </div>
-                <div className="grid gap-4 xl:grid-cols-2">
-                  <FieldGroup label="预设名称">
-                    <InputShell icon={Cpu}>
-                      <input value={draft.text.name} onChange={(event) => updateDraft("text", (current) => ({ ...current, name: event.target.value }))} className="w-full bg-transparent py-2 text-sm font-semibold text-on-surface outline-none" placeholder="默认文本模型" />
-                    </InputShell>
-                  </FieldGroup>
-                  <FieldGroup label="模型 ID">
-                    <InputShell icon={Terminal}>
-                      <input value={draft.text.OPENAI_MODEL} onChange={(event) => updateDraft("text", (current) => ({ ...current, OPENAI_MODEL: event.target.value }))} className="w-full bg-transparent py-2 text-sm font-semibold text-on-surface outline-none" placeholder="gpt-5.4" />
-                    </InputShell>
-                  </FieldGroup>
-                  <FieldGroup label="接口地址" hint="建议填写到 /v1，不要只填裸域名。">
-                    <InputShell icon={Globe}>
-                      <input value={draft.text.OPENAI_BASE_URL} onChange={(event) => updateDraft("text", (current) => ({ ...current, OPENAI_BASE_URL: event.target.value }))} className="w-full bg-transparent py-2 text-sm font-mono font-medium text-on-surface outline-none" placeholder="https://api.openai.com/v1" />
-                    </InputShell>
-                  </FieldGroup>
-                  <div className="xl:col-span-2">{renderSecretField("API 密钥", draft.text.secret_state, textSecret, setTextSecret)}</div>
-                </div>
+                {textPresetEditable ? (
+                  <div className="grid gap-4 xl:grid-cols-2">
+                    <FieldGroup label="模型 ID">
+                      <InputShell icon={Terminal}>
+                        <input value={draft.text.OPENAI_MODEL} onChange={(event) => updateDraft("text", (current) => ({ ...current, OPENAI_MODEL: event.target.value }))} className="w-full bg-transparent py-2 text-sm font-semibold text-on-surface outline-none" placeholder="gpt-5.4" />
+                      </InputShell>
+                    </FieldGroup>
+                    <FieldGroup label="接口地址" hint="建议填写到 /v1，不要只填裸域名。">
+                      <InputShell icon={Globe}>
+                        <input value={draft.text.OPENAI_BASE_URL} onChange={(event) => updateDraft("text", (current) => ({ ...current, OPENAI_BASE_URL: event.target.value }))} className="w-full bg-transparent py-2 text-sm font-mono font-medium text-on-surface outline-none" placeholder="https://api.openai.com/v1" />
+                      </InputShell>
+                    </FieldGroup>
+                    <div className="xl:col-span-2">{renderSecretField("API 密钥", draft.text.secret_state, textSecret, setTextSecret)}</div>
+                  </div>
+                ) : (
+                  renderCreatePresetHint("文本模型")
+                )}
               </SettingsSection>
             )}
 
@@ -972,24 +996,23 @@ export default function SettingsPage() {
                     适用于支持图片输入的 OpenAI 兼容聊天接口。测试时会发送一个极小图片探针，所以纯文本模型即使地址可达，也不会通过这里的图片理解测试。
                   </p>
                 </div>
-                <div className="grid gap-4 xl:grid-cols-2">
-                  <FieldGroup label="预设名称">
-                    <InputShell icon={Cpu}>
-                      <input value={draft.vision.name} onChange={(event) => updateDraft("vision", (current) => ({ ...current, name: event.target.value, IMAGE_ANALYSIS_NAME: event.target.value }))} className="w-full bg-transparent py-2 text-sm font-semibold text-on-surface outline-none" placeholder="默认图片模型" />
-                    </InputShell>
-                  </FieldGroup>
-                  <FieldGroup label="模型 ID">
-                    <InputShell icon={ImageIcon}>
-                      <input value={draft.vision.IMAGE_ANALYSIS_MODEL} onChange={(event) => updateDraft("vision", (current) => ({ ...current, IMAGE_ANALYSIS_MODEL: event.target.value }))} className="w-full bg-transparent py-2 text-sm font-semibold text-on-surface outline-none" placeholder="gpt-4o-mini" />
-                    </InputShell>
-                  </FieldGroup>
-                  <FieldGroup label="接口地址" hint="建议填写到 /v1，并确保该模型支持图片输入。">
-                    <InputShell icon={Globe}>
-                      <input value={draft.vision.IMAGE_ANALYSIS_BASE_URL} onChange={(event) => updateDraft("vision", (current) => ({ ...current, IMAGE_ANALYSIS_BASE_URL: event.target.value }))} className="w-full bg-transparent py-2 text-sm font-mono font-medium text-on-surface outline-none" placeholder="https://host.example/v1" />
-                    </InputShell>
-                  </FieldGroup>
-                  <div className="xl:col-span-2">{renderSecretField("图片理解密钥", draft.vision.secret_state, visionSecret, setVisionSecret)}</div>
-                </div>
+                {visionPresetEditable ? (
+                  <div className="grid gap-4 xl:grid-cols-2">
+                    <FieldGroup label="模型 ID">
+                      <InputShell icon={ImageIcon}>
+                        <input value={draft.vision.IMAGE_ANALYSIS_MODEL} onChange={(event) => updateDraft("vision", (current) => ({ ...current, IMAGE_ANALYSIS_MODEL: event.target.value }))} className="w-full bg-transparent py-2 text-sm font-semibold text-on-surface outline-none" placeholder="gpt-4o-mini" />
+                      </InputShell>
+                    </FieldGroup>
+                    <FieldGroup label="接口地址" hint="建议填写到 /v1，并确保该模型支持图片输入。">
+                      <InputShell icon={Globe}>
+                        <input value={draft.vision.IMAGE_ANALYSIS_BASE_URL} onChange={(event) => updateDraft("vision", (current) => ({ ...current, IMAGE_ANALYSIS_BASE_URL: event.target.value }))} className="w-full bg-transparent py-2 text-sm font-mono font-medium text-on-surface outline-none" placeholder="https://host.example/v1" />
+                      </InputShell>
+                    </FieldGroup>
+                    <div className="xl:col-span-2">{renderSecretField("图片理解密钥", draft.vision.secret_state, visionSecret, setVisionSecret)}</div>
+                  </div>
+                ) : (
+                  renderCreatePresetHint("图片理解")
+                )}
               </SettingsSection>
             )}
 
@@ -1025,83 +1048,87 @@ export default function SettingsPage() {
                     <span className="font-mono text-on-surface"> /images/generations</span> 端点。测试时只做最小化连通性探针，不会真的生成图片。
                   </p>
                 </div>
-                <div className="grid gap-4 xl:grid-cols-2">
-                  <FieldGroup label="生图模型 ID">
-                    <InputShell icon={Terminal}>
-                      <input value={draft.icon_image.image_model.model} onChange={(event) => updateDraft("icon_image", (current) => ({ ...current, image_model: { ...current.image_model, model: event.target.value } }))} className="w-full bg-transparent py-2 text-sm font-semibold text-on-surface outline-none" placeholder="gpt-image-1" />
-                    </InputShell>
-                  </FieldGroup>
-                  <FieldGroup label="生图接口地址" className="xl:col-span-2" hint="可填写到 /v1，或直接填写完整 /images/generations 端点。">
-                    <InputShell icon={Globe}>
-                      <input value={draft.icon_image.image_model.base_url} onChange={(event) => updateDraft("icon_image", (current) => ({ ...current, image_model: { ...current.image_model, base_url: event.target.value } }))} className="w-full bg-transparent py-2 text-sm font-mono font-medium text-on-surface outline-none" placeholder="https://host.example/v1" />
-                    </InputShell>
-                  </FieldGroup>
-                  <FieldGroup label="图片尺寸" hint="默认值为 1024x1024。">
-                    <div className="grid gap-3 md:grid-cols-3">
-                      {IMAGE_SIZE_OPTIONS.map((size) => (
-                        <StrategyOptionButton
-                          key={size}
-                          active={normalizeImageSize(draft.icon_image.image_size) === size}
-                          label={size}
-                          description={
-                            size === "1024x1024"
-                              ? "默认尺寸。"
-                              : size === "512x512"
-                                ? "可选尺寸。"
-                                : "可选尺寸。"
-                          }
-                          onClick={() =>
-                            updateDraft("icon_image", (current) => ({
-                              ...current,
-                              image_size: size,
-                            }))
-                          }
+                {iconImagePresetEditable ? (
+                  <div className="grid gap-4 xl:grid-cols-2">
+                    <FieldGroup label="生图模型 ID">
+                      <InputShell icon={Terminal}>
+                        <input value={draft.icon_image.image_model.model} onChange={(event) => updateDraft("icon_image", (current) => ({ ...current, image_model: { ...current.image_model, model: event.target.value } }))} className="w-full bg-transparent py-2 text-sm font-semibold text-on-surface outline-none" placeholder="gpt-image-1" />
+                      </InputShell>
+                    </FieldGroup>
+                    <FieldGroup label="生图接口地址" className="xl:col-span-2" hint="可填写到 /v1，或直接填写完整 /images/generations 端点。">
+                      <InputShell icon={Globe}>
+                        <input value={draft.icon_image.image_model.base_url} onChange={(event) => updateDraft("icon_image", (current) => ({ ...current, image_model: { ...current.image_model, base_url: event.target.value } }))} className="w-full bg-transparent py-2 text-sm font-mono font-medium text-on-surface outline-none" placeholder="https://host.example/v1" />
+                      </InputShell>
+                    </FieldGroup>
+                    <FieldGroup label="图片尺寸" hint="默认值为 1024x1024。">
+                      <div className="grid gap-3 md:grid-cols-3">
+                        {IMAGE_SIZE_OPTIONS.map((size) => (
+                          <StrategyOptionButton
+                            key={size}
+                            active={normalizeImageSize(draft.icon_image.image_size) === size}
+                            label={size}
+                            description={
+                              size === "1024x1024"
+                                ? "默认尺寸。"
+                                : size === "512x512"
+                                  ? "可选尺寸。"
+                                  : "可选尺寸。"
+                            }
+                            onClick={() =>
+                              updateDraft("icon_image", (current) => ({
+                                ...current,
+                                image_size: size,
+                              }))
+                            }
+                          />
+                        ))}
+                      </div>
+                    </FieldGroup>
+                    <FieldGroup label="分析并发上限" hint="控制文件夹内容分析阶段的并发数，通常可以设得比生图更高。">
+                      <InputShell icon={Cpu}>
+                        <input
+                          value={analysisConcurrencyInput}
+                          onChange={(event) => {
+                            const nextValue = event.target.value;
+                            if (/^\d*$/.test(nextValue)) {
+                              setAnalysisConcurrencyInput(nextValue);
+                            }
+                          }}
+                          onBlur={commitAnalysisConcurrencyInput}
+                          className="w-full bg-transparent py-2 text-sm font-semibold text-on-surface outline-none"
+                          placeholder="1"
+                          inputMode="numeric"
                         />
-                      ))}
-                    </div>
-                  </FieldGroup>
-                  <FieldGroup label="分析并发上限" hint="控制文件夹内容分析阶段的并发数，通常可以设得比生图更高。">
-                    <InputShell icon={Cpu}>
-                      <input
-                        value={analysisConcurrencyInput}
-                        onChange={(event) => {
-                          const nextValue = event.target.value;
-                          if (/^\d*$/.test(nextValue)) {
-                            setAnalysisConcurrencyInput(nextValue);
-                          }
-                        }}
-                        onBlur={commitAnalysisConcurrencyInput}
-                        className="w-full bg-transparent py-2 text-sm font-semibold text-on-surface outline-none"
-                        placeholder="1"
-                        inputMode="numeric"
-                      />
-                    </InputShell>
-                  </FieldGroup>
-                  <FieldGroup label="生图并发上限" hint="控制图标预览生成阶段的并发数，建议保守设置，避免触发限流。">
-                    <InputShell icon={Cpu}>
-                      <input
-                        value={imageConcurrencyInput}
-                        onChange={(event) => {
-                          const nextValue = event.target.value;
-                          if (/^\d*$/.test(nextValue)) {
-                            setImageConcurrencyInput(nextValue);
-                          }
-                        }}
-                        onBlur={commitImageConcurrencyInput}
-                        className="w-full bg-transparent py-2 text-sm font-semibold text-on-surface outline-none"
-                        placeholder="1"
-                        inputMode="numeric"
-                      />
-                    </InputShell>
-                  </FieldGroup>
-                  <FieldGroup label="保存方式" className="xl:col-span-2">
-                    <div className="grid gap-3 md:grid-cols-2">
-                      <StrategyOptionButton active={draft.icon_image.save_mode === "centralized"} label="集中保存" onClick={() => updateDraft("icon_image", (current) => ({ ...current, save_mode: "centralized" }))} description="图标资源集中写入统一目录，便于管理版本与回看。" />
-                      <StrategyOptionButton active={draft.icon_image.save_mode === "in_folder"} label="就地保存" onClick={() => updateDraft("icon_image", (current) => ({ ...current, save_mode: "in_folder" }))} description="处理后资源靠近目标文件夹，适合边做边核对。" />
-                    </div>
-                  </FieldGroup>
-                  <div className="xl:col-span-2">{renderSecretField("生图接口密钥", draft.icon_image.image_model.secret_state, iconSecret, setIconSecret)}</div>
-                </div>
+                      </InputShell>
+                    </FieldGroup>
+                    <FieldGroup label="生图并发上限" hint="控制图标预览生成阶段的并发数，建议保守设置，避免触发限流。">
+                      <InputShell icon={Cpu}>
+                        <input
+                          value={imageConcurrencyInput}
+                          onChange={(event) => {
+                            const nextValue = event.target.value;
+                            if (/^\d*$/.test(nextValue)) {
+                              setImageConcurrencyInput(nextValue);
+                            }
+                          }}
+                          onBlur={commitImageConcurrencyInput}
+                          className="w-full bg-transparent py-2 text-sm font-semibold text-on-surface outline-none"
+                          placeholder="1"
+                          inputMode="numeric"
+                        />
+                      </InputShell>
+                    </FieldGroup>
+                    <FieldGroup label="保存方式" className="xl:col-span-2">
+                      <div className="grid gap-3 md:grid-cols-2">
+                        <StrategyOptionButton active={draft.icon_image.save_mode === "centralized"} label="集中保存" onClick={() => updateDraft("icon_image", (current) => ({ ...current, save_mode: "centralized" }))} description="图标资源集中写入统一目录，便于管理版本与回看。" />
+                        <StrategyOptionButton active={draft.icon_image.save_mode === "in_folder"} label="就地保存" onClick={() => updateDraft("icon_image", (current) => ({ ...current, save_mode: "in_folder" }))} description="处理后资源靠近目标文件夹，适合边做边核对。" />
+                      </div>
+                    </FieldGroup>
+                    <div className="xl:col-span-2">{renderSecretField("生图接口密钥", draft.icon_image.image_model.secret_state, iconSecret, setIconSecret)}</div>
+                  </div>
+                ) : (
+                  renderCreatePresetHint("图标生图")
+                )}
               </SettingsSection>
             )}
 

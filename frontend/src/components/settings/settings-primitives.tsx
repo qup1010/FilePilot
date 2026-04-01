@@ -140,6 +140,8 @@ export function ToggleSwitch({
       type="button"
       onClick={onClick}
       disabled={disabled}
+      role="switch"
+      aria-checked={checked}
       className={cn(
         "relative inline-flex h-6 w-11 items-center rounded-full p-1 transition-all disabled:cursor-not-allowed disabled:opacity-50",
         checked ? "bg-primary" : "bg-surface-container-highest",
@@ -279,6 +281,9 @@ export function PresetSelector({
             type="button"
             disabled={disabled}
             onClick={() => setOpen((current) => !current)}
+            aria-expanded={open}
+            aria-haspopup="listbox"
+            aria-controls={`${label}-preset-list`}
             className={cn(
               "flex min-h-[54px] w-full items-center justify-between gap-4 rounded-[14px] border px-4 py-3 text-left transition-[border-color,background-color,box-shadow] duration-180",
               open
@@ -305,13 +310,16 @@ export function PresetSelector({
           onClick={onAdd}
           disabled={disabled}
           className="min-h-[54px] shrink-0 rounded-[14px] px-5"
+          aria-label={`新建${label}`}
         >
           <Plus className="h-4 w-4" />
-          保存预设
+          新建预设
         </Button>
       </div>
 
       <div
+        id={`${label}-preset-list`}
+        role="listbox"
         className={cn(
           "overflow-hidden rounded-[14px] border border-on-surface/8 bg-surface transition-[max-height,opacity,margin] duration-200",
           open ? "max-h-[420px] opacity-100" : "max-h-0 border-transparent opacity-0",
