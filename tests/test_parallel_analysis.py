@@ -148,7 +148,12 @@ class ParallelAnalysisTests(unittest.TestCase):
             self.assertIn(name, rendered)
         self.assertIn(("batch_split", {"total_entries": 31, "batch_count": 3, "worker_count": 3}), events)
         progress_events = [event for event in events if event[0] == "batch_progress"]
-        self.assertEqual(len(progress_events), 3)
+        self.assertEqual(len(progress_events), 4)
+        self.assertTrue(any(payload.get("status") == "failed" for _, payload in progress_events))
+        self.assertTrue(any(payload.get("status") == "retrying" for _, payload in progress_events))
+        for _, payload in progress_events:
+            if payload.get("status") == "failed":
+                self.assertLess(payload.get("completed_batches", 0), payload.get("total_batches", 0))
 
     def test_run_analysis_cycle_emits_dynamic_worker_count_for_larger_directory(self):
         entries = self._make_entries(60)

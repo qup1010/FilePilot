@@ -397,6 +397,63 @@ class OrganizerSessionServiceTests(unittest.TestCase):
             )
         )
 
+    def test_start_scan_keeps_failed_batch_out_of_completed_progress_and_marks_retrying(self):
+        service = OrganizerSessionService(self.store, scanner=ImmediateScanner())
+        (self.target_dir / "report.pdf").write_text("hello", encoding="utf-8")
+        created = service.create_session(str(self.target_dir), resume_if_exists=False)
+        session = created.session
+        assert session is not None
+
+        def fake_run_analysis_cycle(_target_dir, event_handler=None):
+            if event_handler is not None:
+                event_handler("batch_split", {"total_entries": 60, "batch_count": 4, "worker_count": 4})
+                event_handler("batch_progress", {"batch_index": 0, "total_batches": 4, "status": "completed", "completed_batches": 1, "batch_size": 15})
+                event_handler("batch_progress", {"batch_index": 1, "total_batches": 4, "status": "failed", "completed_batches": 1, "batch_size": 15})
+                event_handler("batch_progress", {"total_batches": 4, "status": "retrying", "completed_batches": 1, "batch_size": 15})
+            return "report.pdf | 文档 | A"
+
+        with mock.patch(
+            "file_organizer.app.session_service.analysis_service.run_analysis_cycle",
+            side_effect=fake_run_analysis_cycle,
+        ), mock.patch(
+            "file_organizer.app.session_service.organize_service.run_organizer_cycle",
+            return_value=("", None),
+        ):
+            service.start_scan(session.session_id)
+
+        progress_events = [
+            event for event in service.read_events(session.session_id) if event["event_type"] == "scan.progress"
+        ]
+        self.assertTrue(progress_events)
+        progress_snapshots = [event["session_snapshot"]["scanner_progress"] for event in progress_events]
+        self.assertTrue(
+            any(
+                progress["completed_batches"] == 1
+                and progress["message"] == "正在重试失败批次"
+                for progress in progress_snapshots
+            )
+        )
+
+    def test_start_scan_marks_placeholder_results_in_completion_message(self):
+        service = OrganizerSessionService(self.store, scanner=ImmediateScanner())
+        (self.target_dir / "a.txt").write_text("hello", encoding="utf-8")
+        created = service.create_session(str(self.target_dir), resume_if_exists=False)
+        session = created.session
+        assert session is not None
+
+        with mock.patch(
+            "file_organizer.app.session_service.analysis_service.run_analysis_cycle",
+            return_value="a.txt | 待判断 | 分析未覆盖，需手动确认",
+        ), mock.patch(
+            "file_organizer.app.session_service.organize_service.run_organizer_cycle",
+            return_value=("", None),
+        ):
+            service.start_scan(session.session_id)
+
+        scanned = self.store.load(session.session_id)
+        assert scanned is not None
+        self.assertEqual(scanned.scanner_progress["message"], "扫描完成，1 项分析未覆盖，已标记为待确认")
+
     def test_start_scan_writes_runtime_log_for_create_scan_and_auto_plan(self):
         log_dir = self.root / "logs" / "backend"
         setup_backend_logging(log_dir=log_dir)

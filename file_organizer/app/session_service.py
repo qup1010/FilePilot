@@ -3,6 +3,7 @@ from __future__ import annotations
 import copy
 import json
 import logging
+import threading
 import uuid
 from queue import Queue
 from pathlib import Path
@@ -197,55 +198,44 @@ class OrganizerSessionService:
         )
         self._record_event("scan.started", session)
         seen_entries: set[str] = set()
+        progress_lock = threading.Lock()
 
         def on_scan_event(event_type: str, data: dict):
-            self._forward_runtime_event("scan", session.session_id, event_type, data)
-            changed = False
-            if event_type == "batch_split":
-                batch_count = max(1, int(data.get("batch_count") or 1))
-                worker_count = max(1, int(data.get("worker_count") or batch_count))
-                session.scanner_progress["batch_count"] = batch_count
-                session.scanner_progress["completed_batches"] = 0
-                session.scanner_progress["message"] = f"文件较多，已拆分为 {batch_count} 个批次并行分析"
-                session.scanner_progress["current_item"] = f"已启动 {worker_count} 个并行分析线程"
-                changed = True
-            elif event_type == "batch_progress":
-                total_batches = max(1, int(data.get("total_batches") or session.scanner_progress.get("batch_count") or 1))
-                completed_batches = max(0, int(data.get("completed_batches") or 0))
-                batch_index = max(0, int(data.get("batch_index") or 0))
-                batch_size = max(0, int(data.get("batch_size") or 0))
-                status = data.get("status") or "completed"
-                total_count = max(0, int(session.scanner_progress.get("total_count") or 0))
-                session.scanner_progress["batch_count"] = total_batches
-                session.scanner_progress["completed_batches"] = completed_batches
-                session.scanner_progress["processed_count"] = min(
-                    total_count,
-                    int((completed_batches / total_batches) * total_count) if total_count else 0,
-                )
-                current_item = str(session.scanner_progress.get("current_item") or "")
-                if not self._is_specific_scan_target(current_item):
-                    if batch_size:
-                        session.scanner_progress["current_item"] = f"第 {min(batch_index + 1, total_batches)}/{total_batches} 批（{batch_size} 项）"
-                    else:
-                        session.scanner_progress["current_item"] = f"第 {min(batch_index + 1, total_batches)}/{total_batches} 批"
-                if status == "failed":
-                    session.scanner_progress["message"] = f"第 {batch_index + 1}/{total_batches} 批失败，正在继续汇总其余批次"
-                else:
-                    session.scanner_progress["message"] = f"已完成 {completed_batches}/{total_batches} 批并行分析"
-                changed = True
+            with progress_lock:
+                self._forward_runtime_event("scan", session.session_id, event_type, data)
+                changed = False
+                if event_type == "batch_split":
+                    batch_count = max(1, int(data.get("batch_count") or 1))
+                    worker_count = max(1, int(data.get("worker_count") or batch_count))
+                    session.scanner_progress["batch_count"] = batch_count
+                    session.scanner_progress["completed_batches"] = 0
+                    session.scanner_progress["message"] = f"文件较多，已拆分为 {batch_count} 个批次并行分析"
+                    session.scanner_progress["current_item"] = f"已启动 {worker_count} 个并行分析线程"
+                    changed = True
+                elif event_type == "batch_progress":
+                    total_batches = max(1, int(data.get("total_batches") or session.scanner_progress.get("batch_count") or 1))
+                    completed_batches = max(0, int(data.get("completed_batches") or 0))
+                    total_count = max(0, int(session.scanner_progress.get("total_count") or 0))
+                    processed_count = min(
+                        total_count,
+                        int((completed_batches / total_batches) * total_count) if total_count else 0,
+                    )
+                    if session.scanner_progress.get("processed_count") != processed_count:
+                        session.scanner_progress["processed_count"] = processed_count
+                        changed = True
 
-            if event_type != "batch_split" and self._update_single_scan_progress(
-                session,
-                target_dir,
-                seen_entries,
-                event_type,
-                data,
-            ):
-                changed = True
+                if event_type != "batch_split" and self._update_single_scan_progress(
+                    session,
+                    target_dir,
+                    seen_entries,
+                    event_type,
+                    data,
+                ):
+                    changed = True
 
-            if changed:
-                self.store.save(session)
-                self._record_event("scan.progress", session)
+                if changed:
+                    self.store.save(session)
+                    self._record_event("scan.progress", session)
 
         self.async_scanner.start(
             session_id=session.session_id,
@@ -1283,8 +1273,16 @@ class OrganizerSessionService:
                 # batch_progress
                 set_field("batch_count", data.get("total_batches"))
                 set_field("completed_batches", data.get("completed_batches"))
-                if data.get("status") == "failed":
-                    set_field("message", "当前批次正在重试")
+                status = str(data.get("status") or "completed")
+                if status == "failed":
+                    set_field("message", "有批次失败，正在准备重试")
+                elif status == "retrying":
+                    set_field("message", "正在重试失败批次")
+                    retry_size = max(0, int(data.get("batch_size") or 0))
+                    if retry_size:
+                        set_field("current_item", f"正在重试失败批次（{retry_size} 项）")
+                    else:
+                        set_field("current_item", "正在重试失败批次")
                 else:
                     set_field("message", f"已完成 {data.get('completed_batches')}/{data.get('total_batches')} 个批次")
         
@@ -1355,6 +1353,23 @@ class OrganizerSessionService:
         self._record_event("session.error", session)
         return "scan_empty_result"
 
+    @staticmethod
+    def _placeholder_scan_item_count(entries: list[dict]) -> int:
+        return sum(
+            1
+            for entry in entries
+            if str(entry.get("suggested_purpose") or "").strip() == "待判断"
+            and str(entry.get("summary") or "").strip() == "分析未覆盖，需手动确认"
+        )
+
+    def _scan_completion_message(self, entries: list[dict], *, parallel: bool, batch_count: int | None = None) -> str:
+        placeholder_count = self._placeholder_scan_item_count(entries)
+        if placeholder_count > 0:
+            return f"扫描完成，{placeholder_count} 项分析未覆盖，已标记为待确认"
+        if parallel and batch_count:
+            return f"已完成 {batch_count}/{batch_count} 批并行分析"
+        return "已完成并行扫描分析" if parallel else "已完成单线程扫描分析"
+
     def _finish_async_scan(self, session_id: str, scan_lines: str) -> None:
         session = self._load_or_raise(session_id)
         if session.stage != "scanning":
@@ -1377,9 +1392,13 @@ class OrganizerSessionService:
         }
         if existing_progress.get("batch_count"):
             session.scanner_progress["completed_batches"] = existing_progress.get("batch_count")
-            session.scanner_progress["message"] = f"已完成 {existing_progress.get('batch_count')}/{existing_progress.get('batch_count')} 批并行分析"
+            session.scanner_progress["message"] = self._scan_completion_message(
+                all_entries,
+                parallel=True,
+                batch_count=int(existing_progress.get("batch_count") or 0),
+            )
         else:
-            session.scanner_progress["message"] = "扫描分析已完成"
+            session.scanner_progress["message"] = self._scan_completion_message(all_entries, parallel=False)
         session.stage = "planning"
         
         # Initialize messages if empty
@@ -1515,7 +1534,7 @@ class OrganizerSessionService:
             "total_count": total_count,
             "current_item": recent_items[-1]["display_name"] if recent_items else None,
             "recent_analysis_items": recent_items,
-            "message": "已完成单线程扫描分析",
+            "message": self._scan_completion_message(all_entries, parallel=False),
         }
         self.store.save(session)
         self._log_runtime_event("scan.completed", session, entry_count=len(all_entries), mode="sync")

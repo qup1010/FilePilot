@@ -929,6 +929,7 @@ def run_analysis_cycle(target_dir: Path, event_handler=None, model: str | None =
     })
 
     finished_batches = 0
+    successful_batches = 0
     batch_results: list[list[AnalysisItem]] = []
     failed_entries: list[str] = []
 
@@ -954,6 +955,7 @@ def run_analysis_cycle(target_dir: Path, event_handler=None, model: str | None =
                 status = "completed"
                 batch_result_items = future.result()
                 batch_results.append(batch_result_items)
+                successful_batches += 1
             except Exception:
                 batch_result_items = []
                 status = "failed"
@@ -965,11 +967,20 @@ def run_analysis_cycle(target_dir: Path, event_handler=None, model: str | None =
                 "total_batches": len(batches),
                 "batch_size": len(batch_entries),
                 "status": status,
-                "completed_batches": finished_batches,
+                "completed_batches": successful_batches,
+                "finished_batches": finished_batches,
                 "items": [item.to_dict() for item in batch_result_items] if status == "completed" else []
             })
 
     if failed_entries:
+        emit(event_handler, "batch_progress", {
+            "total_batches": len(batches),
+            "batch_size": len(failed_entries),
+            "status": "retrying",
+            "completed_batches": successful_batches,
+            "finished_batches": finished_batches,
+            "items": [],
+        })
         retry_batch_index = len(batches)
         try:
             batch_results.append(
