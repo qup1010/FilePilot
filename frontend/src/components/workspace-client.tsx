@@ -119,6 +119,8 @@ export default function WorkspaceClient() {
       batch_count: snapshot?.scanner_progress?.batch_count,
       completed_batches: snapshot?.scanner_progress?.completed_batches,
       message: snapshot?.scanner_progress?.message || undefined,
+      is_retrying: snapshot?.scanner_progress?.is_retrying,
+      ai_thinking: snapshot?.scanner_progress?.ai_thinking,
     }),
     [snapshot?.scanner_progress],
   );

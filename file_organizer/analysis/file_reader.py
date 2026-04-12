@@ -10,6 +10,8 @@ from file_organizer.analysis.image_describer import describe_image
 DEFAULT_MAX_LEN = 300
 DEFAULT_LIST_DEPTH = 1
 DEFAULT_LIST_CHAR_LIMIT = 1800
+DIR_INSPECT_DEPTH = 2
+DIR_INSPECT_CHAR_LIMIT = 800
 LIST_TRUNCATION_NOTICE = "...[目录结果过长已截断]"
 TEXT_ENCODINGS = ["utf-8", "utf-8-sig", "gbk", "utf-16"]
 IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp", ".bmp"}
@@ -175,7 +177,8 @@ def read_local_file(filename, max_len=DEFAULT_MAX_LEN, allowed_base_dir: str | N
         if not os.path.exists(filename):
             return f"错误：文件 {filename} 不存在。"
         if os.path.isdir(filename):
-            return f"错误：{filename} 是目录，不能按文件读取。"
+            structure = list_local_files(filename, max_depth=DIR_INSPECT_DEPTH, char_limit=DIR_INSPECT_CHAR_LIMIT)
+            return f"--- 目录 [{filename}] 结构 ---\n{structure}\n--- 结构结束 ---"
 
         ext = os.path.splitext(filename)[1].lower()
         if ext == ".pdf":
@@ -199,3 +202,24 @@ def read_local_file(filename, max_len=DEFAULT_MAX_LEN, allowed_base_dir: str | N
         return "该文件可能是二进制格式或使用了非 UTF-8 编码，请检查文件后缀是否正确。"
     except Exception as exc:
         return f"无法读取文件 {filename}: {exc}"
+
+
+BATCH_READ_SEPARATOR = "\n\n"
+
+
+def read_local_files_batch(
+    filenames: list[str],
+    max_len: int = DEFAULT_MAX_LEN,
+    allowed_base_dir: str | None = None,
+) -> str:
+    """批量探查多个条目的内容摘要或目录结构，减少多次工具调用开销。"""
+    if not filenames:
+        return "错误：未提供任何文件名。"
+
+    results: list[str] = []
+    for filename in filenames:
+        result = read_local_file(filename, max_len=max_len, allowed_base_dir=allowed_base_dir)
+        results.append(result)
+
+    return BATCH_READ_SEPARATOR.join(results)
+

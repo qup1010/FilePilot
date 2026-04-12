@@ -67,6 +67,8 @@ export interface ScannerProgress {
   batch_count?: number;
   completed_batches?: number;
   message?: string;
+  is_retrying?: boolean;
+  ai_thinking?: boolean;
 }
 
 export interface PlanItem {

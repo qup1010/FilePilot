@@ -18,7 +18,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from file_organizer.app.session_service import OrganizerSessionService
 from file_organizer.app.session_store import SessionStore
-from file_organizer.shared.config import SESSIONS_DIR
+from file_organizer.shared.config import SESSIONS_DIR, SPOOF_HEADERS
 from file_organizer.shared.logging_utils import setup_backend_logging
 
 logger = logging.getLogger(__name__)
@@ -356,7 +356,7 @@ def _probe_image_generation_endpoint(base_url: str, model: str, api_key: str) ->
         url=url,
         data=json.dumps(payload).encode("utf-8"),
         headers={
-            "Accept": "application/json",
+            **SPOOF_HEADERS,
             "Content-Type": "application/json",
             "Authorization": f"Bearer {api_key}",
         },
@@ -898,7 +898,7 @@ def create_app(service: OrganizerSessionService | None = None) -> FastAPI:
                             "message": "文本模型配置不完整，请补全接口地址、模型 ID 和 API 密钥。" + (f" {hint}" if hint else ""),
                         },
                     )
-                client = OpenAI(api_key=runtime["api_key"], base_url=runtime["base_url"])
+                client = OpenAI(api_key=runtime["api_key"], base_url=runtime["base_url"], default_headers=SPOOF_HEADERS)
                 client.chat.completions.create(
                     model=runtime["model"],
                     messages=[{"role": "user", "content": "ping"}],
@@ -919,7 +919,7 @@ def create_app(service: OrganizerSessionService | None = None) -> FastAPI:
                             "message": "图片理解模型配置不完整，请补全接口地址、模型 ID 和 API 密钥。" + (f" {hint}" if hint else ""),
                         },
                     )
-                client = OpenAI(api_key=runtime["api_key"], base_url=runtime["base_url"])
+                client = OpenAI(api_key=runtime["api_key"], base_url=runtime["base_url"], default_headers=SPOOF_HEADERS)
                 client.chat.completions.create(
                     model=runtime["model"],
                     messages=[

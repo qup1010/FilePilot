@@ -63,3 +63,6 @@ desktop/.env.local
 *.log
 .gemini/
 .antigravity/
+logs/
+.history/
+test_temp_*/

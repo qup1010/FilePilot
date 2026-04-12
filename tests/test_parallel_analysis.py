@@ -30,10 +30,10 @@ class ParallelAnalysisTests(unittest.TestCase):
 
     def test_split_batches_balances_large_directory(self):
         cases = {
-            31: [11, 10, 10],
-            45: [15, 15, 15],
-            60: [15, 15, 15, 15],
-            100: [17, 17, 17, 17, 16, 16],
+            31: [16, 15],
+            45: [23, 22],
+            60: [30, 30],
+            100: [25, 25, 25, 25],
         }
         for total, expected_sizes in cases.items():
             with self.subTest(total=total):
@@ -146,9 +146,9 @@ class ParallelAnalysisTests(unittest.TestCase):
         self.assertIsNotNone(rendered)
         for name in entries:
             self.assertIn(name, rendered)
-        self.assertIn(("batch_split", {"total_entries": 31, "batch_count": 3, "worker_count": 3}), events)
+        self.assertIn(("batch_split", {"total_entries": 31, "batch_count": 2, "worker_count": 2}), events)
         progress_events = [event for event in events if event[0] == "batch_progress"]
-        self.assertEqual(len(progress_events), 4)
+        self.assertEqual(len(progress_events), 3)
         self.assertTrue(any(payload.get("status") == "failed" for _, payload in progress_events))
         self.assertTrue(any(payload.get("status") == "retrying" for _, payload in progress_events))
         for _, payload in progress_events:
@@ -179,9 +179,9 @@ class ParallelAnalysisTests(unittest.TestCase):
         self.assertIsNotNone(rendered)
         for name in entries:
             self.assertIn(name, rendered)
-        self.assertIn(("batch_split", {"total_entries": 60, "batch_count": 4, "worker_count": 4}), events)
+        self.assertIn(("batch_split", {"total_entries": 60, "batch_count": 2, "worker_count": 2}), events)
         progress_events = [event for event in events if event[0] == "batch_progress"]
-        self.assertEqual(len(progress_events), 4)
+        self.assertEqual(len(progress_events), 2)
 
     def test_missing_entries_get_placeholder_when_retry_also_fails(self):
         entries = self._make_entries(31)

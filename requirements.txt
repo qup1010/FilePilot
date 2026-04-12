@@ -4,3 +4,7 @@ python-docx
 pandas
 openpyxl
 rich
+fastapi
+uvicorn
+python-multipart
+python-dotenv

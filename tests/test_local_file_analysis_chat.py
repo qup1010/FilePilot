@@ -1,4 +1,4 @@
-﻿import shutil
+import shutil
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -18,25 +18,23 @@ class ScannerServiceTests(unittest.TestCase):
     def test_build_system_prompt_describes_local_file_and_submission_capabilities(self):
         system_prompt = scanner_service.build_system_prompt("示例文件列表")
 
-        self.assertIn("read_local_file", system_prompt)
-        self.assertIn("list_local_files", system_prompt)
-        self.assertIn("summary 要简洁", system_prompt)
+        self.assertIn("read_local_files_batch", system_prompt)
+        self.assertIn("submit_analysis_result", system_prompt)
+        self.assertIn("summary", system_prompt)
         self.assertIn("一一对应", system_prompt)
 
     def test_tool_list_contains_submission_and_reading_tools(self):
         tool_names = [tool["function"]["name"] for tool in scanner_service.tools]
 
-        self.assertIn("read_local_file", tool_names)
-        self.assertIn("list_local_files", tool_names)
+        self.assertIn("read_local_files_batch", tool_names)
         self.assertIn("submit_analysis_result", tool_names)
 
-    def test_read_local_file_tool_description_mentions_new_capabilities(self):
-        read_tool = next(tool for tool in scanner_service.tools if tool["function"]["name"] == "read_local_file")
+    def test_read_local_files_batch_tool_description_mentions_capabilities(self):
+        read_tool = next(tool for tool in scanner_service.tools if tool["function"]["name"] == "read_local_files_batch")
         description = read_tool["function"]["description"]
 
-        self.assertIn("图片", description)
+        self.assertIn("批量", description)
         self.assertIn("zip", description.lower())
-        self.assertIn("编码", description)
 
     def test_organizer_prompt_requires_diff_focus_and_unresolved_choice_tools(self):
         prompt = organizer_service.build_prompt("合同.pdf | 财务/合同 | 付款协议")

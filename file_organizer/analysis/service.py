@@ -1,12 +1,14 @@
 import json
+import logging
 import math
 import re
+import time
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from types import SimpleNamespace
 
-from file_organizer.analysis.file_reader import list_local_files, read_local_file
+from file_organizer.analysis.file_reader import list_local_files, read_local_file, read_local_files_batch
 from file_organizer.analysis.models import AnalysisItem
 from file_organizer.analysis.prompts import build_system_prompt
 from file_organizer.shared.config import ANALYSIS_MODEL_NAME, RESULT_FILE_PATH, create_openai_client, get_analysis_model_name
@@ -17,10 +19,32 @@ from file_organizer.shared.path_utils import normalize_entry_name, resolve_tool_
 MAX_ANALYSIS_RETRIES = 3
 BATCH_ANALYSIS_RETRIES = 2
 BATCH_THRESHOLD = 30
-BATCH_TARGET_SIZE = 15
-MAX_SCAN_WORKERS = 6
+BATCH_TARGET_SIZE = 30
+MAX_SCAN_WORKERS = 3
+MAX_TOOL_ROUNDS = 3
 WORKDIR_PATH = Path.cwd().resolve()
 SUBMIT_ANALYSIS_TOOL_NAME = "submit_analysis_result"
+BATCH_READ_TOOL_NAME = "read_local_files_batch"
+API_RETRY_ATTEMPTS = 2
+API_RETRY_DELAY_SECONDS = 2
+
+logger = logging.getLogger(__name__)
+
+
+def _is_retryable_error(exc: Exception) -> bool:
+    """判断 API 异常是否值得重试（网络波动、服务端临时故障等）。"""
+    retryable_types = (ConnectionError, TimeoutError, OSError)
+    if isinstance(exc, retryable_types):
+        return True
+    # openai / httpx 常见可重试异常
+    exc_name = type(exc).__name__
+    if exc_name in {"APIConnectionError", "APITimeoutError", "InternalServerError", "RateLimitError"}:
+        return True
+    # HTTP 5xx / 429 判断
+    status = getattr(exc, "status_code", None) or getattr(exc, "code", None)
+    if isinstance(status, int) and (status >= 500 or status == 429):
+        return True
+    return False
 
 
 def _write_analysis_debug_event(
@@ -104,6 +128,23 @@ def _list_current_entries(directory: Path) -> list[str]:
     return sorted(entry.name for entry in directory.iterdir() if not entry.name.startswith("."))
 
 
+def _fuzzy_match_entry(name: str, candidates: set[str]) -> str | None:
+    """尝试对特殊文件名做宽松匹配：Unicode 规范化、忽略不可见字符差异。"""
+    import unicodedata
+
+    normalized = unicodedata.normalize("NFC", name.strip())
+    for candidate in candidates:
+        if unicodedata.normalize("NFC", candidate.strip()) == normalized:
+            return candidate
+    # 退化到去除零宽字符后比较
+    stripped = re.sub(r"[\u200b-\u200f\u2028-\u202f\ufeff]", "", normalized)
+    for candidate in candidates:
+        candidate_stripped = re.sub(r"[\u200b-\u200f\u2028-\u202f\ufeff]", "", unicodedata.normalize("NFC", candidate.strip()))
+        if candidate_stripped == stripped:
+            return candidate
+    return None
+
+
 def validate_analysis_items(
     items: list[AnalysisItem] | list[dict],
     directory: Path,
@@ -116,8 +157,30 @@ def validate_analysis_items(
     counter = Counter(parsed_names)
 
     duplicates = [name for name, count in counter.items() if count > 1]
-    missing = sorted(expected - actual)
-    extra = sorted(actual - expected)
+    raw_missing = expected - actual
+    raw_extra = actual - expected
+
+    # 对 missing/extra 做模糊匹配修正
+    corrected_items: list[tuple[AnalysisItem, str]] = []  # (item, corrected_name)
+    still_missing = set(raw_missing)
+    still_extra = set(raw_extra)
+    if raw_missing and raw_extra:
+        for extra_name in list(raw_extra):
+            matched = _fuzzy_match_entry(extra_name, still_missing)
+            if matched:
+                still_missing.discard(matched)
+                still_extra.discard(extra_name)
+                # 修正 item 的 entry_name
+                for item in parsed_items:
+                    if item.entry_name == extra_name:
+                        corrected_items.append((item, matched))
+                        break
+    # 应用修正
+    for item, corrected_name in corrected_items:
+        item.entry_name = corrected_name
+
+    missing = sorted(still_missing)
+    extra = sorted(still_extra)
 
     is_valid = not (missing or extra or duplicates or invalid_lines)
     return {
@@ -205,6 +268,24 @@ def _dispatch_tool_call(target_dir: Path, name: str, args: dict):
         if filename is None:
             return "错误：仅读取目标目录内的文件，不允许访问目录外路径。"
         return read_local_file(str(filename), allowed_base_dir=str(target_dir.resolve()))
+    if name == BATCH_READ_TOOL_NAME:
+        raw_filenames = args.get("filenames") or []
+        if not raw_filenames:
+            return "错误：未提供文件名列表。"
+        resolved: list[str] = []
+        for raw in raw_filenames:
+            resolved_path = _resolve_readable_file(target_dir, raw)
+            if resolved_path is None:
+                resolved.append(f"--- 文件 [{raw}] ---\n错误：仅读取目标目录内的文件，不允许访问目录外路径。\n--- 结束 ---")
+            else:
+                resolved.append(str(resolved_path))
+        # 过滤出有效路径进行批量读取，保留错误信息
+        valid_paths = [p for p in resolved if not p.startswith("--- 文件")]
+        error_messages = [p for p in resolved if p.startswith("--- 文件")]
+        result = read_local_files_batch(valid_paths, allowed_base_dir=str(target_dir.resolve())) if valid_paths else ""
+        if error_messages:
+            result = "\n\n".join(error_messages) + ("\n\n" + result if result else "")
+        return result
     if name == "list_local_files":
         directory = _resolve_list_directory(target_dir, args.get("directory"))
         if directory is None:
@@ -219,7 +300,11 @@ def _extract_submitted_analysis(tool_calls) -> list[AnalysisItem] | None:
     for tool_call in tool_calls or []:
         if tool_call.function.name != SUBMIT_ANALYSIS_TOOL_NAME:
             continue
-        args = json.loads(tool_call.function.arguments)
+        try:
+            args = json.loads(tool_call.function.arguments)
+        except (json.JSONDecodeError, TypeError):
+            logger.warning("submit_analysis_result 工具调用参数 JSON 解析失败，跳过")
+            continue
         return _coerce_analysis_items(args.get("items", []))
     return None
 
@@ -408,8 +493,7 @@ def _emit_text_response(content: str, event_handler=None) -> None:
 def _compute_batch_count(entry_count: int) -> int:
     if entry_count <= 0:
         return 0
-    target_batch_count = max(1, math.ceil(entry_count / BATCH_TARGET_SIZE))
-    return min(target_batch_count, MAX_SCAN_WORKERS, entry_count)
+    return max(1, math.ceil(entry_count / BATCH_TARGET_SIZE))
 
 
 def _split_batches(entries: list[str]) -> list[list[str]]:
@@ -426,178 +510,6 @@ def _split_batches(entries: list[str]) -> list[list[str]]:
         batches.append(entries[cursor:cursor + size])
         cursor += size
     return batches
-
-
-def _slice_files_info_for_batch(files_info: str, batch_entries: list[str], target_dir: Path) -> str:
-    lines = [line for line in (files_info or "").splitlines() if line.strip()]
-    if not lines:
-        return files_info
-
-    batch_set = set(batch_entries)
-    normalized_root = str(target_dir).replace("\\", "/").rstrip("/")
-    filtered_lines: list[str] = []
-    header_added = False
-
-    for line in lines:
-        parts = [part.strip() for part in line.split("|", 2)]
-        if len(parts) < 3:
-            if not header_added:
-                filtered_lines.append(line)
-                header_added = True
-            continue
-
-        path_text = parts[0]
-        normalized_path = path_text.replace("\\", "/").rstrip("/")
-
-        if path_text == "路径":
-            filtered_lines.append(line)
-            header_added = True
-            continue
-
-        if normalized_path == normalized_root:
-            filtered_lines.append(re.sub(r"包含\s+\d+\s+个条目", f"包含 {len(batch_entries)} 个条目", line, count=1))
-            continue
-
-        prefix = f"{normalized_root}/"
-        if not normalized_path.startswith(prefix):
-            continue
-        relative_path = normalized_path[len(prefix):]
-        top_level_name = relative_path.split("/", 1)[0]
-        if top_level_name in batch_set:
-            filtered_lines.append(line)
-
-    if len(filtered_lines) >= 2:
-        return "\n".join(filtered_lines)
-
-    fallback_lines = ["路径 | 类型 | 说明", f"{target_dir} | dir | 包含 {len(batch_entries)} 个条目"]
-    fallback_lines.extend(f"{target_dir / entry} | entry | 批次条目" for entry in batch_entries)
-    return "\n".join(fallback_lines)
-
-
-def _dispatch_tool_call(target_dir: Path, name: str, args: dict):
-    if name == "read_local_file":
-        filename = _resolve_readable_file(target_dir, args.get("filename"))
-        if filename is None:
-            return "错误：仅读取目标目录内的文件，不允许访问目录外路径。"
-        return read_local_file(str(filename), allowed_base_dir=str(target_dir.resolve()))
-    if name == "list_local_files":
-        directory = _resolve_list_directory(target_dir, args.get("directory"))
-        if directory is None:
-            return "错误：动态扫描最多只能深入目标目录下一层。"
-        requested_depth = max(0, int(args.get("max_depth", 0)))
-        max_depth = 0 if directory == target_dir.resolve() else min(requested_depth, 1)
-        return list_local_files(str(directory), max_depth=max_depth)
-    return "Unknown tool"
-
-
-def _extract_submitted_analysis(tool_calls) -> list[AnalysisItem] | None:
-    for tool_call in tool_calls or []:
-        if tool_call.function.name != SUBMIT_ANALYSIS_TOOL_NAME:
-            continue
-        args = json.loads(tool_call.function.arguments)
-        return _coerce_analysis_items(args.get("items", []))
-    return None
-
-
-def _normalize_tool_calls(tool_calls) -> list[SimpleNamespace]:
-    normalized = []
-    for tool_call in tool_calls or []:
-        fallback_id = _synthesize_tool_call_id(len(normalized))
-        if isinstance(tool_call, dict):
-            function = tool_call.get("function") or {}
-            normalized.append(
-                SimpleNamespace(
-                    id=tool_call.get("id") or fallback_id,
-                    type=tool_call.get("type", "function"),
-                    function=SimpleNamespace(
-                        name=function.get("name", ""),
-                        arguments=function.get("arguments", "") or "",
-                    ),
-                )
-            )
-            continue
-
-        function = getattr(tool_call, "function", None)
-        if function is None:
-            continue
-        normalized.append(
-            SimpleNamespace(
-                id=getattr(tool_call, "id", None) or fallback_id,
-                type=getattr(tool_call, "type", "function"),
-                function=SimpleNamespace(
-                    name=getattr(function, "name", ""),
-                    arguments=getattr(function, "arguments", "") or "",
-                ),
-            )
-        )
-    return normalized
-
-
-def _coerce_response_message(response):
-    if hasattr(response, "choices"):
-        choices = getattr(response, "choices", None) or []
-        if not choices:
-            raise ValueError("模型响应缺少 choices")
-        message = getattr(choices[0], "message", None)
-        if message is None:
-            raise ValueError("模型响应缺少 message")
-        return SimpleNamespace(
-            content=getattr(message, "content", "") or "",
-            tool_calls=_normalize_tool_calls(getattr(message, "tool_calls", None)),
-        )
-
-    if isinstance(response, str):
-        text = response.strip()
-        if text and text[0] in "[{":
-            try:
-                return _coerce_response_message(json.loads(text))
-            except json.JSONDecodeError:
-                pass
-        return SimpleNamespace(content=text, tool_calls=[])
-
-    if isinstance(response, dict):
-        choices = response.get("choices") or []
-        if not choices:
-            raise ValueError("模型响应缺少 choices")
-        message = choices[0].get("message") or {}
-        return SimpleNamespace(
-            content=message.get("content", "") or "",
-            tool_calls=_normalize_tool_calls(message.get("tool_calls")),
-        )
-
-    if hasattr(response, "model_dump"):
-        try:
-            return _coerce_response_message(response.model_dump())
-        except Exception:
-            pass
-
-    raise TypeError(f"不支持的模型响应类型: {type(response).__name__}")
-
-
-def _serialize_assistant_message(message) -> dict:
-    tool_calls_payload = []
-    for index, tool_call in enumerate(getattr(message, "tool_calls", None) or []):
-        function = getattr(tool_call, "function", None)
-        if function is None:
-            continue
-        tool_calls_payload.append(
-            {
-                "id": getattr(tool_call, "id", None) or _synthesize_tool_call_id(index),
-                "type": getattr(tool_call, "type", "function"),
-                "function": {
-                    "name": getattr(function, "name", ""),
-                    "arguments": getattr(function, "arguments", "") or "",
-                },
-            }
-        )
-
-    payload = {
-        "role": "assistant",
-        "content": getattr(message, "content", "") or "",
-    }
-    if tool_calls_payload:
-        payload["tool_calls"] = tool_calls_payload
-    return payload
 
 
 def _slice_files_info_for_batch(files_info: str, batch_entries: list[str], target_dir: Path) -> str:
@@ -682,8 +594,12 @@ def _run_analysis_worker(
         curr_messages = list(messages)
         legacy_text = ""
         normalized_items: list[AnalysisItem] = []
+        check = {"is_valid": False, "missing": expected_entries, "extra": [], "duplicates": [], "invalid_lines": ["未能在规定工具轮次内提交结果"]}
+        rendered = ""
 
-        while True:
+        tool_round = 0
+        while tool_round < MAX_TOOL_ROUNDS:
+            tool_round += 1
             request_kwargs = {
                 "model": model,
                 "messages": curr_messages,
@@ -692,7 +608,26 @@ def _run_analysis_worker(
             }
             emit(event_handler, "model_wait_start", {"message": wait_message})
             try:
-                response = client.chat.completions.create(**request_kwargs)
+                # API 调用含可重试异常退避
+                last_api_error: Exception | None = None
+                for api_attempt in range(API_RETRY_ATTEMPTS):
+                    try:
+                        response = client.chat.completions.create(**request_kwargs)
+                        last_api_error = None
+                        break
+                    except Exception as api_exc:
+                        last_api_error = api_exc
+                        if api_attempt < API_RETRY_ATTEMPTS - 1 and _is_retryable_error(api_exc):
+                            logger.warning(
+                                "analysis API 调用失败 (attempt %d/%d)，%ds 后重试: %s",
+                                api_attempt + 1, API_RETRY_ATTEMPTS, API_RETRY_DELAY_SECONDS, api_exc,
+                            )
+                            time.sleep(API_RETRY_DELAY_SECONDS)
+                            continue
+                        raise
+                if last_api_error is not None:
+                    raise last_api_error
+
                 msg = _coerce_response_message(response)
                 response_payload = response.choices[0].message.to_dict() if hasattr(response, "choices") and hasattr(response.choices[0].message, "to_dict") else str(response)
                 mode = "non_stream"
@@ -752,7 +687,17 @@ def _run_analysis_worker(
                 name = tool_call.function.name
                 if name == SUBMIT_ANALYSIS_TOOL_NAME:
                     continue
-                args = json.loads(tool_call.function.arguments)
+                try:
+                    args = json.loads(tool_call.function.arguments)
+                except (json.JSONDecodeError, TypeError):
+                    logger.warning("工具调用 %s 参数 JSON 解析失败，跳过", name)
+                    curr_messages.append({
+                        "role": "tool",
+                        "tool_call_id": tool_call.id,
+                        "name": name,
+                        "content": "错误：工具调用参数格式异常，请重新提交。",
+                    })
+                    continue
                 emit(event_handler, "tool_start", {"name": name, "args": args})
                 result = _dispatch_tool_call(target_dir, name, args)
                 curr_messages.append({
@@ -921,7 +866,7 @@ def run_analysis_cycle(target_dir: Path, event_handler=None, model: str | None =
 
     detailed_files_info = list_local_files(str(target_dir), max_depth=1, char_limit=0)
     batches = _split_batches(entries)
-    worker_count = min(_compute_batch_count(len(entries)), len(batches))
+    worker_count = min(MAX_SCAN_WORKERS, len(batches))
     emit(event_handler, "batch_split", {
         "total_entries": len(entries),
         "batch_count": len(batches),
@@ -1042,27 +987,23 @@ tools = [
     {
         "type": "function",
         "function": {
-            "name": "read_local_file",
-            "description": "读取文件摘要，支持普通文本、PDF、Word、Excel、图片简短摘要和 zip 索引预览；文本会尝试常见中文 Windows 编码。",
-            "parameters": {
-                "type": "object",
-                "properties": {"filename": {"type": "string"}},
-                "required": ["filename"],
-            },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "list_local_files",
-            "description": "列出目标目录当前层摘要；当需要补证据时，可以对当前目录下的某个子目录额外深入一层。",
+            "name": BATCH_READ_TOOL_NAME,
+            "description": (
+                "批量探查多个条目。"
+                "传入文件名则返回内容摘要（支持文本、PDF、Word、Excel、图片描述、zip 索引）；"
+                "传入文件夹名则返回其目录结构（最多两层）。"
+                "仅在条目名称完全无法推断用途时才使用，且应一次性传入所有需要探查的条目。"
+            ),
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "directory": {"type": "string"},
-                    "max_depth": {"type": "integer"},
+                    "filenames": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "要探查的条目路径列表（文件或文件夹，相对于目标目录或绝对路径）",
+                    }
                 },
-                "required": ["directory"],
+                "required": ["filenames"],
             },
         },
     },
@@ -1070,7 +1011,10 @@ tools = [
         "type": "function",
         "function": {
             "name": SUBMIT_ANALYSIS_TOOL_NAME,
-            "description": "提交当前层条目的结构化分析结果。items 必须与当前目录当前层真实条目一一对应。",
+            "description": (
+                "提交当前层条目的结构化分析结果。"
+                "items 必须与当前目录当前层真实条目一一对应，entry_name 必须与文件名完全一致。"
+            ),
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -1079,9 +1023,18 @@ tools = [
                         "items": {
                             "type": "object",
                             "properties": {
-                                "entry_name": {"type": "string"},
-                                "suggested_purpose": {"type": "string"},
-                                "summary": {"type": "string"},
+                                "entry_name": {
+                                    "type": "string",
+                                    "description": "条目名称，必须与文件系统完全一致",
+                                },
+                                "suggested_purpose": {
+                                    "type": "string",
+                                    "description": "建议用途分类",
+                                },
+                                "summary": {
+                                    "type": "string",
+                                    "description": "不超过四十字的内容摘要",
+                                },
                             },
                             "required": [
                                 "entry_name",

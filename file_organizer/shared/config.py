@@ -49,7 +49,7 @@ def _get_bool_env(name: str, default: bool = False) -> bool:
     return value.strip().lower() in {"1", "true", "yes", "on"}
 
 
-_SPOOF_HEADERS = {
+SPOOF_HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
     "Accept": "application/json",
 }
@@ -59,7 +59,7 @@ from file_organizer.shared.config_manager import config_manager
 
 def create_openai_client() -> OpenAI:
     runtime = config_manager.service.get_runtime_family_config("text")
-    return OpenAI(api_key=runtime["api_key"], base_url=runtime["base_url"], default_headers=_SPOOF_HEADERS)
+    return OpenAI(api_key=runtime["api_key"], base_url=runtime["base_url"], default_headers=SPOOF_HEADERS)
 
 
 def get_image_analysis_settings() -> dict[str, str | bool | None]:
@@ -80,7 +80,7 @@ def create_image_analysis_client() -> OpenAI:
     return OpenAI(
         api_key=settings["api_key"],
         base_url=settings["base_url"],
-        default_headers=_SPOOF_HEADERS,
+        default_headers=SPOOF_HEADERS,
     )
 
 

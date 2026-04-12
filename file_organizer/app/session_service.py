@@ -1139,6 +1139,8 @@ class OrganizerSessionService:
             "current_item": "正在准备扫描任务",
             "recent_analysis_items": [],
             "completed_batches": 0,
+            "had_failed_batches": False,
+            "placeholder_count": 0,
             "message": "正在读取目录结构",
         }
 
@@ -1190,10 +1192,12 @@ class OrganizerSessionService:
                 changed = True
 
         if event_type == "model_wait_start":
+            set_field("ai_thinking", True)
             set_field("message", data.get("message") or "正在分析目录内容")
             if not progress.get("current_item"):
                 set_field("current_item", "正在等待模型响应")
         elif event_type == "tool_start":
+            set_field("ai_thinking", False)
             args = data.get("args") or {}
             tool_name = data.get("name") or ""
             target_name = None
@@ -1234,12 +1238,18 @@ class OrganizerSessionService:
                 seen_entries.add(target_name)
                 set_field("processed_count", min(total_count, len(seen_entries)) if total_count else len(seen_entries))
         elif event_type == "ai_streaming_start":
+            set_field("ai_thinking", False)
             set_field("message", "正在汇总扫描结果")
         elif event_type == "ai_chunk":
+            set_field("ai_thinking", False)
             set_field("message", "正在输出扫描结论")
         elif event_type == "validation_fail":
+            set_field("is_retrying", True)
             set_field("message", "扫描结果需要修正，正在重新校验")
         elif event_type == "validation_pass" or event_type == "batch_progress":
+            if event_type == "validation_pass" or (data.get("status") in ("completed", "success")):
+                set_field("is_retrying", False)
+            
             # 强化：当一个批次或单次扫描验证通过时，同步更新最近分析项为“真实结果”
             items_data = data.get("items") or []
             if items_data:
@@ -1275,8 +1285,11 @@ class OrganizerSessionService:
                 set_field("completed_batches", data.get("completed_batches"))
                 status = str(data.get("status") or "completed")
                 if status == "failed":
+                    set_field("had_failed_batches", True)
                     set_field("message", "有批次失败，正在准备重试")
                 elif status == "retrying":
+                    set_field("had_failed_batches", True)
+                    set_field("is_retrying", True)
                     set_field("message", "正在重试失败批次")
                     retry_size = max(0, int(data.get("batch_size") or 0))
                     if retry_size:
@@ -1289,6 +1302,7 @@ class OrganizerSessionService:
         elif event_type == "cycle_start" and int(data.get("attempt") or 1) > 1:
             attempt = int(data.get("attempt") or 1)
             max_attempts = int(data.get("max_attempts") or attempt)
+            set_field("is_retrying", True)
             set_field("message", f"正在进行第 {attempt}/{max_attempts} 轮校验")
 
         if changed:
@@ -1370,6 +1384,71 @@ class OrganizerSessionService:
             return f"已完成 {batch_count}/{batch_count} 批并行分析"
         return "已完成并行扫描分析" if parallel else "已完成单线程扫描分析"
 
+    def _handle_incomplete_scan_result(
+        self,
+        session: OrganizerSession,
+        entries: list[dict],
+        *,
+        total_count: int,
+        mode: str,
+    ) -> None:
+        existing_progress = dict(session.scanner_progress or {})
+        placeholder_count = self._placeholder_scan_item_count(entries)
+        had_failed_batches = bool(existing_progress.get("had_failed_batches"))
+        reasons: list[str] = []
+        if had_failed_batches:
+            reasons.append("存在失败批次")
+        if placeholder_count > 0:
+            reasons.append(f"{placeholder_count} 项未成功分析")
+        detail = "，".join(reasons) if reasons else "扫描结果不完整"
+        message = f"扫描结果不完整：{detail}。请稍后重试或降低并发后重新扫描。"
+        recent_items = entries[-5:]
+
+        session.stage = "interrupted"
+        session.last_error = message
+        session.summary = ""
+        session.pending_plan = {}
+        session.plan_snapshot = {}
+        session.assistant_message = None
+        session.integrity_flags["scan_incomplete"] = True
+        session.integrity_flags["scan_placeholder_count"] = placeholder_count
+        session.integrity_flags["scan_had_failed_batches"] = had_failed_batches
+        session.scanner_progress = {
+            **existing_progress,
+            "status": "failed",
+            "processed_count": len(entries),
+            "total_count": total_count,
+            "current_item": None,
+            "recent_analysis_items": recent_items,
+            "placeholder_count": placeholder_count,
+            "ai_thinking": False,
+            "is_retrying": False,
+            "message": message,
+        }
+        self.store.save(session)
+        self._log_runtime_event(
+            "scan.failed",
+            session,
+            level=logging.ERROR,
+            error="scan_incomplete_result",
+            mode=mode,
+            placeholder_count=placeholder_count,
+            had_failed_batches=had_failed_batches,
+        )
+        self._write_session_debug_event(
+            "scan.failed",
+            session,
+            level="ERROR",
+            payload={
+                "error": "scan_incomplete_result",
+                "mode": mode,
+                "placeholder_count": placeholder_count,
+                "had_failed_batches": had_failed_batches,
+                "recent_items": recent_items,
+            },
+        )
+        self._record_event("session.interrupted", session)
+
     def _finish_async_scan(self, session_id: str, scan_lines: str) -> None:
         session = self._load_or_raise(session_id)
         if session.stage != "scanning":
@@ -1382,6 +1461,8 @@ class OrganizerSessionService:
         session.scan_lines = scan_lines or ""
         recent_items = all_entries[-5:]
         existing_progress = dict(session.scanner_progress or {})
+        placeholder_count = self._placeholder_scan_item_count(all_entries)
+        had_failed_batches = bool(existing_progress.get("had_failed_batches"))
         session.scanner_progress = {
             **existing_progress,
             "status": "completed",
@@ -1389,6 +1470,9 @@ class OrganizerSessionService:
             "total_count": total_count,
             "current_item": recent_items[-1]["display_name"] if recent_items else None,
             "recent_analysis_items": recent_items,
+            "placeholder_count": placeholder_count,
+            "ai_thinking": False,
+            "is_retrying": False,
         }
         if existing_progress.get("batch_count"):
             session.scanner_progress["completed_batches"] = existing_progress.get("batch_count")
@@ -1399,6 +1483,16 @@ class OrganizerSessionService:
             )
         else:
             session.scanner_progress["message"] = self._scan_completion_message(all_entries, parallel=False)
+
+        if had_failed_batches or placeholder_count > 0:
+            self._handle_incomplete_scan_result(
+                session,
+                all_entries,
+                total_count=total_count,
+                mode="async",
+            )
+            return
+
         session.stage = "planning"
         
         # Initialize messages if empty

@@ -434,7 +434,7 @@ class OrganizerSessionServiceTests(unittest.TestCase):
             )
         )
 
-    def test_start_scan_marks_placeholder_results_in_completion_message(self):
+    def test_start_scan_marks_placeholder_results_as_incomplete_and_skips_auto_plan(self):
         service = OrganizerSessionService(self.store, scanner=ImmediateScanner())
         (self.target_dir / "a.txt").write_text("hello", encoding="utf-8")
         created = service.create_session(str(self.target_dir), resume_if_exists=False)
@@ -446,13 +446,49 @@ class OrganizerSessionServiceTests(unittest.TestCase):
             return_value="a.txt | 待判断 | 分析未覆盖，需手动确认",
         ), mock.patch(
             "file_organizer.app.session_service.organize_service.run_organizer_cycle",
-            return_value=("", None),
-        ):
+        ) as organizer_cycle_mock:
             service.start_scan(session.session_id)
 
         scanned = self.store.load(session.session_id)
         assert scanned is not None
-        self.assertEqual(scanned.scanner_progress["message"], "扫描完成，1 项分析未覆盖，已标记为待确认")
+        self.assertEqual(scanned.stage, "interrupted")
+        self.assertEqual(scanned.scanner_progress["status"], "failed")
+        self.assertEqual(scanned.scanner_progress["placeholder_count"], 1)
+        self.assertTrue(scanned.integrity_flags["scan_incomplete"])
+        self.assertEqual(scanned.integrity_flags["scan_placeholder_count"], 1)
+        self.assertIn("1 项未成功分析", scanned.last_error)
+        organizer_cycle_mock.assert_not_called()
+
+    def test_start_scan_marks_failed_batch_scan_as_incomplete_even_when_result_count_matches(self):
+        service = OrganizerSessionService(self.store, scanner=ImmediateScanner())
+        (self.target_dir / "report.pdf").write_text("hello", encoding="utf-8")
+        created = service.create_session(str(self.target_dir), resume_if_exists=False)
+        session = created.session
+        assert session is not None
+
+        def fake_run_analysis_cycle(_target_dir, event_handler=None):
+            if event_handler is not None:
+                event_handler("batch_split", {"total_entries": 31, "batch_count": 2, "worker_count": 2})
+                event_handler("batch_progress", {"batch_index": 0, "total_batches": 2, "status": "failed", "completed_batches": 0, "batch_size": 16})
+                event_handler("batch_progress", {"total_batches": 2, "status": "retrying", "completed_batches": 0, "batch_size": 16})
+                event_handler("batch_progress", {"batch_index": 1, "total_batches": 2, "status": "completed", "completed_batches": 1, "batch_size": 15})
+            return "report.pdf | 文档 | A"
+
+        with mock.patch(
+            "file_organizer.app.session_service.analysis_service.run_analysis_cycle",
+            side_effect=fake_run_analysis_cycle,
+        ), mock.patch(
+            "file_organizer.app.session_service.organize_service.run_organizer_cycle",
+        ) as organizer_cycle_mock:
+            service.start_scan(session.session_id)
+
+        scanned = self.store.load(session.session_id)
+        assert scanned is not None
+        self.assertEqual(scanned.stage, "interrupted")
+        self.assertEqual(scanned.scanner_progress["status"], "failed")
+        self.assertTrue(scanned.integrity_flags["scan_had_failed_batches"])
+        self.assertIn("存在失败批次", scanned.last_error)
+        organizer_cycle_mock.assert_not_called()
 
     def test_start_scan_writes_runtime_log_for_create_scan_and_auto_plan(self):
         log_dir = self.root / "logs" / "backend"
