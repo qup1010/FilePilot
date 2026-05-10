@@ -170,8 +170,19 @@ class ParallelAnalysisTests(unittest.TestCase):
     def test_failed_batch_triggers_retry_and_merges_complete_result(self):
         entries = self._make_entries(31)
 
-        def fake_analyze_batch(_target_dir, batch_entries, batch_index, _total_batches, _files_info, _model, session_id=None, event_handler=None):
-            del session_id, event_handler
+        def fake_analyze_batch(
+            _target_dir,
+            batch_entries,
+            batch_index,
+            _total_batches,
+            _files_info,
+            _model,
+            session_id=None,
+            event_handler=None,
+            entry_context=None,
+            cancel_event=None,
+        ):
+            del session_id, event_handler, entry_context, cancel_event
             if batch_index == 0:
                 raise RuntimeError("first batch failed")
             return [
@@ -184,6 +195,10 @@ class ParallelAnalysisTests(unittest.TestCase):
             analysis_service,
             "list_local_files",
             side_effect=["root-info", "detailed-info"],
+        ), mock.patch.object(
+            analysis_service,
+            "get_scan_failed_retry_abort_ratio",
+            return_value=1.1,
         ):
             rendered = analysis_service.run_analysis_cycle(
                 self.base_dir,
@@ -205,8 +220,19 @@ class ParallelAnalysisTests(unittest.TestCase):
     def test_run_analysis_cycle_emits_dynamic_worker_count_for_larger_directory(self):
         entries = self._make_entries(60)
 
-        def fake_analyze_batch(_target_dir, batch_entries, batch_index, _total_batches, _files_info, _model, session_id=None, event_handler=None):
-            del session_id, event_handler
+        def fake_analyze_batch(
+            _target_dir,
+            batch_entries,
+            batch_index,
+            _total_batches,
+            _files_info,
+            _model,
+            session_id=None,
+            event_handler=None,
+            entry_context=None,
+            cancel_event=None,
+        ):
+            del session_id, event_handler, entry_context, cancel_event
             return [
                 AnalysisItem(entry_name=name, suggested_purpose="文档", summary=f"{name} summary")
                 for name in batch_entries
@@ -233,9 +259,20 @@ class ParallelAnalysisTests(unittest.TestCase):
     def test_missing_entries_get_placeholder_when_retry_also_fails(self):
         entries = self._make_entries(31)
 
-        def fake_analyze_batch(_target_dir, batch_entries, batch_index, _total_batches, _files_info, _model, event_handler=None):
-            del event_handler
-            if batch_index in {0, 3}:
+        def fake_analyze_batch(
+            _target_dir,
+            batch_entries,
+            batch_index,
+            _total_batches,
+            _files_info,
+            _model,
+            session_id=None,
+            event_handler=None,
+            entry_context=None,
+            cancel_event=None,
+        ):
+            del session_id, event_handler, entry_context, cancel_event
+            if batch_index in {0, 1}:
                 raise RuntimeError("batch failed")
             return [
                 AnalysisItem(entry_name=name, suggested_purpose="文档", summary=f"{name} summary")
@@ -246,6 +283,10 @@ class ParallelAnalysisTests(unittest.TestCase):
             analysis_service,
             "list_local_files",
             side_effect=["root-info", "detailed-info"],
+        ), mock.patch.object(
+            analysis_service,
+            "get_scan_failed_retry_abort_ratio",
+            return_value=1.1,
         ):
             rendered = analysis_service.run_analysis_cycle(self.base_dir)
 

@@ -4,10 +4,10 @@ from pathlib import Path
 def build_system_prompt(files_info: str, target_dir: Path | None = None, *, vision_enabled: bool = False) -> str:
     vision_guidance = (
         "- 对于图片条目：先根据文件名判断用途；只有当图片文件名不足以稳妥判断内容时，你才可以使用 read_local_files_batch 查看图片识别结果。\n"
-        "- 不要为了求稳就对所有图片都看图；如果文件名已经足够清楚，就不要额外去探查该图片的内容。\n"
+        "- 不要为了求稳对所有图片都看图；如果文件名已经足够清楚，就不要额外去探查该图片的内容。\n"
         if vision_enabled
         else
-        "- 对于图片条目：当前未开启图片理解，图片格式文件请只根据文件名和扩展名判断用途\n"
+        "- 对于图片条目：当前未开启图片理解，图片格式文件请只根据文件名和扩展名判断用途，不要为了图片内容再调用工具探查。\n"
     )
     return (
         "你是一个文件分析专家，负责对目标目录当前层的每个条目做用途摘要。\n"
