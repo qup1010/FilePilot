@@ -101,7 +101,7 @@ describe("Icon workbench primitives", () => {
     expect(screen.getByText(/{{subject}}/i)).toBeInTheDocument();
     expect(screen.getByText(/{{folder_name}}/i)).toBeInTheDocument();
     expect(screen.getByText(/{{category}}/i)).toBeInTheDocument();
-    expect(screen.getByText("系统模板可选用，但不能直接覆盖保存。请先复制为自定义模板后再修改。")).toBeInTheDocument();
+    expect(screen.getByText("系统内置模板不可修改。若需调整，请新建自定义模板。")).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: /插入 主题/i }));
 

@@ -69,7 +69,23 @@ FilePilot 用本地工作台把“扫描文件 -> 生成整理方案 -> 预检 -
 
 ## 界面截图
 
-![FilePilot Screenshot](./frontend/public/screenshots/filepilot-screenshot.png)
+### 启动工作台
+
+进入桌面版后，可以直接继续已有任务，或开始一次新的整理。
+
+![启动工作台](./frontend/public/screenshots/启动工作台.png)
+
+### 扫描与分析
+
+扫描阶段会先读取来源结构，再逐步建立分析结果；长任务可以在后台等待完成。
+
+![扫描与分析](./frontend/public/screenshots/扫描.png)
+
+### 方案确认
+
+整理方案生成后，可以在执行前查看结构预览、待处理项和确认入口。
+
+![整理方案确认](./frontend/public/screenshots/整理页.png)
 
 ## 下载安装
 

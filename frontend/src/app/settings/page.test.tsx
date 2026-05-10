@@ -356,7 +356,7 @@ describe("SettingsPage preset flow", () => {
   it("shows launch placement default controls in the launch settings tab", async () => {
     render(<SettingsPage />);
 
-    await clickSettingsCategory("启动默认值");
+    await clickSettingsCategory("整理策略配置");
     await clickSettingsCategory("放置规则");
 
     expect(await screen.findByText("默认放置规则")).toBeInTheDocument();
@@ -379,7 +379,7 @@ describe("SettingsPage preset flow", () => {
 
     render(<SettingsPage />);
 
-    await clickSettingsCategory("启动默认值");
+    await clickSettingsCategory("整理策略配置");
     await clickSettingsCategory("目标目录");
 
     expect(await screen.findByText("目标目录配置")).toBeInTheDocument();

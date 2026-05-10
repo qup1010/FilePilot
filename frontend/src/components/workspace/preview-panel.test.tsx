@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { optionDirectoryForTarget, optionIdentityForTarget, PreviewPanel } from "./preview-panel";
@@ -7,6 +7,7 @@ vi.mock("motion/react", () => ({
   AnimatePresence: ({ children }: { children: React.ReactNode }) => <>{children}</>,
   motion: {
     div: ({ children, ...props }: React.ComponentProps<"div">) => <div {...props}>{children}</div>,
+    button: ({ children, ...props }: React.ComponentProps<"button">) => <button {...props}>{children}</button>,
   },
 }));
 
@@ -106,7 +107,7 @@ describe("PreviewPanel", () => {
     );
 
     expect(screen.getByText("待处理队列")).toBeInTheDocument();
-    expect(screen.getByText("待人工核对")).toBeInTheDocument();
+    expect(screen.getAllByText("important_invoice_301.exe").length).toBeGreaterThan(0);
 
     fireEvent.click(screen.getByRole("button", { name: "收起" }));
 
@@ -116,7 +117,7 @@ describe("PreviewPanel", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "展开列表" }));
 
-    expect(screen.getByText("待人工核对")).toBeInTheDocument();
+    expect(screen.getAllByText("important_invoice_301.exe").length).toBeGreaterThan(0);
   });
 
   it("shows pending-review state instead of syncing when review items still need checking", () => {
@@ -293,6 +294,10 @@ describe("PreviewPanel", () => {
     );
 
     expect(screen.getByRole("button", { name: "全部保留在待确认区" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "先处理待处理项" })).toBeDisabled();
+
+    fireEvent.click(screen.getByRole("button", { name: "全部保留在待确认区" }));
+
     expect(screen.getByRole("button", { name: "检查移动风险" })).toBeEnabled();
   });
 
@@ -732,7 +737,7 @@ describe("PreviewPanel", () => {
     expect(screen.queryByText("F001")).not.toBeInTheDocument();
   });
 
-  it("blocks Windows drive-relative manual target paths", () => {
+  it("blocks Windows drive-relative manual target paths", async () => {
     const onUpdateItem = vi.fn();
 
     render(
@@ -779,8 +784,16 @@ describe("PreviewPanel", () => {
       />,
     );
 
-    fireEvent.click(screen.getAllByRole("button", { name: /contract\.pdf.*Review/ })[1]);
-    fireEvent.click(screen.getByRole("button", { name: "+ 手动指定其他路径" }));
+    fireEvent.click(screen.getByRole("button", { name: /contract\.pdf.*待确认区.*待核对/ }));
+    const editButton = screen
+      .getAllByRole("button")
+      .find((button) => (button.textContent || "").trim() === "");
+    expect(editButton).toBeDefined();
+    fireEvent.click(editButton!);
+    await waitFor(() => {
+      expect(screen.getByText("独立确认")).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByText(/\+ 手动指定其他路径/).closest("button")!);
     fireEvent.change(screen.getByPlaceholderText("如: 新专题/归档"), {
       target: { value: "D:" },
     });
