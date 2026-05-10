@@ -1,0 +1,8 @@
+{
+  "base_url": "http://127.0.0.1:8765",
+  "host": "127.0.0.1",
+  "port": 8765,
+  "pid": 12345,
+  "started_at": "2026-03-21T00:00:00Z",
+  "instance_id": "desktop-instance"
+}

@@ -1,0 +1,2149 @@
+import json
+import logging
+import re
+import threading
+import time
+from collections import Counter, defaultdict
+from copy import deepcopy
+from pathlib import Path
+from types import SimpleNamespace
+from typing import Any
+
+from file_pilot.analysis.file_reader import read_local_file
+from file_pilot.organize.models import (
+    FinalPlan,
+    PendingPlan,
+    PlanDiff,
+    PlanDirectoryRename,
+    PlanDisplayRequest,
+    PlanMove,
+    derive_directories_from_moves,
+)
+from file_pilot.organize.prompts import build_prompt
+from file_pilot.shared.config import (
+    RESULT_FILE_PATH,
+    create_openai_client,
+    get_organizer_model_name,
+    get_text_stream_max_seconds,
+)
+from file_pilot.shared.events import emit
+from file_pilot.shared.logging_utils import append_debug_event
+from file_pilot.shared.model_response import (
+    extract_message_text as extract_model_message_text,
+    normalize_non_stream_response as normalize_model_non_stream_response,
+)
+from file_pilot.shared.path_utils import normalize_source_name, split_relative_parts
+
+
+COMMANDS_BLOCK_RE = re.compile(r"<COMMANDS>(.*?)</COMMANDS>", flags=re.S | re.I)
+MOVE_LINE_RE = re.compile(r'^\s*MOVE\s+"(.*?)"\s+"(.*?)"\s*$', flags=re.I)
+MKDIR_LINE_RE = re.compile(r'^\s*MKDIR\s+"(.*?)"\s*$', flags=re.I)
+PLAN_DIFF_TOOL_NAME = "submit_plan_diff"
+INSPECT_ENTRY_TOOL_NAME = "inspect_entry_content"
+REPAIR_FINAL_PLAN_TOOL_NAME = "repair_commit_final_plan"
+PLANNING_CANCELLED_ERROR = "planning_cancelled"
+MODEL_WAIT_MESSAGE = "正在等待模型回复..."
+SYNTHETIC_PLAN_REPLY = "我已经更新了整理计划，请您查看。"
+INTERNAL_ID_RE = re.compile(r"\b[FD]\d{3,}\b")
+INTERNAL_FIELD_RE = re.compile(r"\b(?:item_id|target_slot_id|target_slot|source_ref_id)\b", flags=re.I)
+MAX_INSPECT_ITEMS_PER_CALL = 5
+MAX_INSPECT_TOOL_ROUNDS = 2
+INSPECT_MAX_LEN = 800
+
+logger = logging.getLogger(__name__)
+
+
+def _base_plan_diff_tool_description() -> str:
+    return (
+        "提交待定整理计划的增量变更，只提交本轮发生变化的字段。"
+        "字段含义：directory_renames=目录改名，move_updates=条目去向更新，"
+        "unresolved_adds=新增待确认条目，unresolved_removals=已确认并移出待确认的条目。"
+        "约束：所有 item_id 都必须来自当前规划范围；move_updates 优先使用 target_slot，必要时再使用 target_dir；"
+        "target_dir 只写相对新目录生成位置的目录路径，不要拼接文件名，也不要输出绝对路径或 Review 路径；"
+        "拿不准的条目只加入 unresolved_adds，系统会自动放入待确认区，不要再为该项提交 move_updates。"
+    )
+
+
+def _incremental_plan_diff_tool_description(
+    target_directories: list[str],
+    target_slots: list[dict],
+    blocked_root_dirs: list[str],
+) -> str:
+    target_hint = "；已选目标目录：" + "、".join(target_directories) if target_directories else ""
+    slot_hint = (
+        "；可复用目标槽位："
+        + "、".join(
+            f"{str(item.get('slot_id') or '').strip()}={str(item.get('relpath') or item.get('display_name') or '').strip()}"
+            for item in target_slots
+        )
+        if target_slots
+        else ""
+    )
+    blocked_hint = "；禁止使用的既有顶级目录：" + "、".join(blocked_root_dirs) if blocked_root_dirs else ""
+    return (
+        "提交待定整理计划的增量变更。当前任务类型为“归入已有目录”。"
+        "字段含义：directory_renames=目录改名，move_updates=条目去向更新，"
+        "unresolved_adds=新增待确认条目，unresolved_removals=已确认并移出待确认的条目。"
+        "约束：所有 item_id 都必须来自当前已选规划范围；禁止 directory_renames；"
+        "move_updates 只能放入已选目标目录，不能创建新目标目录；"
+        "禁止移动到未选中的既有顶级目录；优先使用 target_slot，只有没有合适槽位时才使用 target_dir；"
+        "target_dir 必须精确等于某个已选目标目录，不要拼接文件名，也不要输出绝对路径或 Review 路径；"
+        "拿不准的条目只加入 unresolved_adds，系统会自动放入待确认区。"
+        + target_hint
+        + slot_hint
+        + blocked_hint
+    )
+
+
+def _inspect_entry_tool_description() -> str:
+    return (
+        "查看指定条目的详细内容。"
+        "仅在当前 summary 不足以判断归类时使用，不要批量查看全部条目。"
+        "传入 item_id 列表，系统会返回每个条目的内容摘录或目录结构摘要。"
+        "当你需要查看条目内容时，应先调用此工具，等看到结果后再继续提交 submit_plan_diff。"
+    )
+
+
+def _target_directory_details_from_context(planning_context: dict | None = None) -> dict[str, dict]:
+    details: dict[str, dict] = {}
+    for item in (planning_context or {}).get("target_directory_details") or []:
+        if not isinstance(item, dict):
+            continue
+        path = str(item.get("path") or "").strip()
+        if not path:
+            continue
+        details[path] = {
+            "label": str(item.get("label") or "").strip(),
+            "description": str(item.get("description") or "").strip(),
+        }
+    return details
+
+
+def _format_target_directory_for_prompt(path: str, planning_context: dict | None = None) -> str:
+    detail = _target_directory_details_from_context(planning_context).get(str(path).strip(), {})
+    label = str(detail.get("label") or "").strip()
+    description = str(detail.get("description") or "").strip()
+    if label and description:
+        return f"{path}（标签：{label}；说明：{description}）"
+    if label:
+        return f"{path}（标签：{label}）"
+    if description:
+        return f"{path}（说明：{description}）"
+    return str(path).strip()
+
+
+def get_scan_content() -> str:
+    if not RESULT_FILE_PATH.exists():
+        raise FileNotFoundError(f"未找到扫描结果：{RESULT_FILE_PATH}")
+    return RESULT_FILE_PATH.read_text(encoding="utf-8").strip()
+
+
+def _build_initial_request_text(user_constraints: list[str] | None = None) -> str:
+    lines = [
+        "请基于上述的目录扫描结果和整理规则，为我生成整理计划。按系统要求的 Markdown 结构简要说明判断，不要在自然语言里暴露内部编号或字段名。"
+    ]
+    if user_constraints:
+        lines.append("本次已确认的补充偏好：")
+        lines.extend(f"- {item}" for item in user_constraints)
+    return "\n".join(lines)
+
+
+def render_planner_scan_lines(planner_items: list[dict] | None) -> str:
+    lines: list[str] = []
+    for item in planner_items or []:
+        item_id = str(item.get("planner_id") or "").strip()
+        if not item_id:
+            continue
+        entry_type = str(item.get("entry_type") or "").strip().lower() or "item"
+        display_name = str(item.get("display_name") or Path(str(item.get("source_relpath") or "")).name or item_id).strip()
+        purpose = str(item.get("suggested_purpose") or "").strip() or "待判断"
+        summary = str(item.get("summary") or "").strip()
+        parent_hint = str(item.get("parent_hint") or "").strip()
+        if parent_hint:
+            purpose = f"{purpose}（{parent_hint}）"
+        lines.append(f"{item_id} | {entry_type} | {display_name} | {purpose} | {summary}".rstrip())
+    return "\n".join(lines)
+
+
+def build_initial_messages(
+    scan_lines: str,
+    strategy: dict | None = None,
+    user_constraints: list[str] | None = None,
+    planner_items: list[dict] | None = None,
+    planning_context: dict | None = None,
+) -> list:
+    prompt_scan_lines = render_planner_scan_lines(planner_items) if planner_items else scan_lines
+    return [
+        {"role": "system", "content": build_prompt(prompt_scan_lines, strategy, planning_context)},
+        {"role": "user", "content": _build_initial_request_text(user_constraints)},
+    ]
+
+
+def _scope_sources(scan_lines: str, planner_items: list[dict] | None = None, planning_context: dict | None = None) -> list[str]:
+    context_sources = [normalize_source_name(item) for item in (planning_context or {}).get("scope_sources", []) or [] if normalize_source_name(item)]
+    if context_sources:
+        return context_sources
+    if planner_items:
+        sources = [
+            normalize_source_name(str(item.get("source_relpath") or ""))
+            for item in planner_items
+            if normalize_source_name(str(item.get("source_relpath") or ""))
+        ]
+        if sources:
+            return sources
+    return extract_scan_items(scan_lines)
+
+
+def _serialize_tool_call(tool_call) -> dict:
+    if isinstance(tool_call, dict):
+        function = tool_call.get("function", {}) or {}
+        return {
+            "id": tool_call.get("id"),
+            "type": tool_call.get("type", "function"),
+            "function": {
+                "name": function.get("name", "") or "",
+                "arguments": function.get("arguments", "") or "",
+            },
+        }
+
+    function = getattr(tool_call, "function", None)
+    return {
+        "id": getattr(tool_call, "id", None),
+        "type": getattr(tool_call, "type", "function"),
+        "function": {
+            "name": getattr(function, "name", "") or "",
+            "arguments": getattr(function, "arguments", "") or "",
+        },
+    }
+
+
+def _serialize_tool_calls(tool_calls) -> list[dict]:
+    return [_serialize_tool_call(tool_call) for tool_call in (tool_calls or [])]
+
+
+def _serialize_tool_call_delta(tool_call_delta) -> dict:
+    function = getattr(tool_call_delta, "function", None)
+    return {
+        "index": getattr(tool_call_delta, "index", None),
+        "id": getattr(tool_call_delta, "id", None),
+        "type": getattr(tool_call_delta, "type", "function"),
+        "function": {
+            "name": getattr(function, "name", None),
+            "arguments": getattr(function, "arguments", None),
+        },
+    }
+
+
+def _extract_message_text(message_content: Any) -> str:
+    return extract_model_message_text(message_content)
+
+
+def _normalize_tool_calls(tool_calls: Any) -> list[dict]:
+    normalized: list[dict] = []
+    for tool_call in tool_calls or []:
+        if hasattr(tool_call, "function") or isinstance(tool_call, dict):
+            normalized.append(_serialize_tool_call(tool_call))
+    return normalized
+
+
+def _normalize_non_stream_response(response: Any) -> tuple[SimpleNamespace, Any]:
+    return normalize_model_non_stream_response(
+        response,
+        text_extractor=_extract_message_text,
+        tool_call_normalizer=_normalize_tool_calls,
+        include_finish_reason=True,
+    )
+
+
+def _is_stream_like_response(response: Any) -> bool:
+    if hasattr(response, "choices"):
+        return False
+    if isinstance(response, (str, bytes, bytearray, dict)):
+        return False
+    return hasattr(response, "__iter__")
+
+
+def _close_stream_response(response: Any) -> None:
+    close = getattr(response, "close", None)
+    if callable(close):
+        try:
+            close()
+        except Exception:
+            logger.debug("organizer.stream_close_failed", exc_info=True)
+
+
+def _raise_if_planning_cancelled(cancel_event: threading.Event | None) -> None:
+    if cancel_event is not None and cancel_event.is_set():
+        raise RuntimeError(PLANNING_CANCELLED_ERROR)
+
+
+def _build_assistant_message(
+    content: str,
+    tool_calls=None,
+    blocks: list[dict] | None = None,
+    reasoning_content: str | None = None,
+) -> dict:
+    message = {"role": "assistant", "content": content or ""}
+    serialized_tool_calls = _serialize_tool_calls(tool_calls)
+    if serialized_tool_calls:
+        message["tool_calls"] = serialized_tool_calls
+    if reasoning_content:
+        message["reasoning_content"] = reasoning_content
+    if blocks:
+        message["blocks"] = list(blocks)
+    return message
+
+
+def _sanitize_assistant_display_content(content: str) -> str:
+    text = str(content or "")
+    text = INTERNAL_ID_RE.sub("", text)
+    text = INTERNAL_FIELD_RE.sub("内部字段", text)
+    text = re.sub(r"[ \t]{2,}", " ", text)
+    text = re.sub(r"\(\s*\)", "", text)
+    text = re.sub(r"（\s*）", "", text)
+    return text.strip()
+
+def _build_tool_result_message(tool_call_id: str | None, name: str, content: dict) -> dict:
+    return {
+        "role": "tool",
+        "tool_call_id": tool_call_id,
+        "name": name,
+        "content": json.dumps(content, ensure_ascii=False),
+    }
+
+
+def _build_tool_result_messages(
+    message,
+    *,
+    plan_diff=None,
+    diff_errors: list[str] | None = None,
+    validation: dict | None = None,
+) -> list[dict]:
+    tool_messages = []
+    for tool_call in getattr(message, "tool_calls", None) or []:
+        name = getattr(tool_call.function, "name", "")
+        if name == PLAN_DIFF_TOOL_NAME:
+            payload = {
+                "ok": not bool(diff_errors),
+                "errors": diff_errors or [],
+            }
+        elif name == REPAIR_FINAL_PLAN_TOOL_NAME:
+            payload = {
+                "ok": bool(validation and validation.get("is_valid")),
+                "validation": validation,
+            }
+        else:
+            payload = {"ok": True}
+
+        tool_messages.append(
+            _build_tool_result_message(getattr(tool_call, "id", None), name, payload)
+        )
+    return tool_messages
+
+
+def _inspection_context_by_item_id(planning_context: dict | None = None) -> dict[str, dict]:
+    context: dict[str, dict] = {}
+    for item_id, payload in dict((planning_context or {}).get("inspection_context") or {}).items():
+        normalized_id = str(item_id or "").strip()
+        if normalized_id and isinstance(payload, dict):
+            context[normalized_id] = dict(payload)
+    return context
+
+
+def _parse_tool_call_arguments(tool_call) -> dict:
+    raw_arguments = getattr(tool_call.function, "arguments", "") or "{}"
+    try:
+        parsed = json.loads(raw_arguments)
+    except json.JSONDecodeError:
+        return {}
+    return parsed if isinstance(parsed, dict) else {}
+
+
+def _compress_inspection_item(item: dict) -> dict:
+    item_id = str(item.get("item_id") or "").strip()
+    display_name = str(item.get("display_name") or item_id).strip()
+    entry_type = str(item.get("entry_type") or "file").strip()
+    truncated = bool(item.get("truncated"))
+    error = str(item.get("error") or "").strip()
+    if error:
+        summary = "读取失败"
+    else:
+        summary = "已查看详细内容（截断）" if truncated else "已查看详细内容"
+    return {
+        "item_id": item_id,
+        "display_name": display_name,
+        "entry_type": entry_type,
+        "summary": summary,
+        "truncated": truncated,
+        "error": error,
+    }
+
+
+def _execute_inspection_tool(
+    item_ids: list[str],
+    *,
+    planning_context: dict | None = None,
+) -> tuple[dict, dict]:
+    context_by_id = _inspection_context_by_item_id(planning_context)
+    items: list[dict] = []
+    normalized_ids = [str(item_id or "").strip() for item_id in item_ids if str(item_id or "").strip()]
+    if not normalized_ids:
+        runtime_payload = {"ok": False, "error": "INSPECTION_ITEMS_REQUIRED", "items": []}
+        return runtime_payload, runtime_payload
+
+    if len(normalized_ids) > MAX_INSPECT_ITEMS_PER_CALL:
+        runtime_payload = {
+            "ok": False,
+            "error": f"INSPECTION_ITEM_LIMIT_EXCEEDED: 单次最多查看 {MAX_INSPECT_ITEMS_PER_CALL} 个条目。",
+            "items": [],
+        }
+        return runtime_payload, runtime_payload
+
+    for item_id in normalized_ids:
+        context_item = context_by_id.get(item_id)
+        if not context_item:
+            items.append(
+                {
+                    "item_id": item_id,
+                    "display_name": item_id,
+                    "entry_type": "unknown",
+                    "content": "",
+                    "truncated": False,
+                    "error": "ITEM_NOT_FOUND",
+                }
+            )
+            continue
+
+        content = read_local_file(
+            str(context_item.get("absolute_path") or ""),
+            max_len=INSPECT_MAX_LEN,
+            allowed_base_dir=str(context_item.get("allowed_base_dir") or ""),
+        )
+        items.append(
+            {
+                "item_id": item_id,
+                "display_name": str(context_item.get("display_name") or item_id),
+                "entry_type": str(context_item.get("entry_type") or "file"),
+                "content": content,
+                "truncated": "...[内容过长已截断]" in content or "...[目录结果过长已截断]" in content,
+                "error": "" if not str(content).startswith(("错误：", "无法读取文件", "读取 PDF 失败", "读取 Word 失败", "读取 Excel 失败")) else str(content),
+            }
+        )
+
+    runtime_payload = {"ok": all(not item["error"] for item in items), "items": items}
+    persisted_payload = {
+        "ok": runtime_payload["ok"],
+        "items": [_compress_inspection_item(item) for item in items],
+    }
+    return runtime_payload, persisted_payload
+
+
+def _inject_synthetic_plan_reply(
+    content: str,
+    *,
+    plan_diff: PlanDiff | None = None,
+    final_plan: FinalPlan | None = None,
+    event_handler=None,
+) -> tuple[str, bool]:
+    if content or (plan_diff is None and final_plan is None):
+        return content, False
+
+    synthetic_content = SYNTHETIC_PLAN_REPLY
+    emit(event_handler, "ai_chunk", {"content": synthetic_content})
+    return synthetic_content, True
+
+
+def _render_blocks_for_llm(blocks: list[dict] | None) -> str:
+    return ""
+
+
+def _sanitize_messages_for_llm(messages: list[dict]) -> list[dict]:
+    sanitized: list[dict] = []
+    for message in messages or []:
+        if not isinstance(message, dict):
+            continue
+        role = str(message.get("role") or "").strip()
+        if not role:
+            continue
+
+        content = str(message.get("content") or "")
+        block_context = _render_blocks_for_llm(message.get("blocks"))
+        if block_context:
+            content = f"{content}\n\n{block_context}".strip() if content.strip() else block_context
+
+        if role in {"system", "user"}:
+            sanitized.append({"role": role, "content": content})
+            continue
+
+        if role == "assistant":
+            assistant_message = {"role": "assistant", "content": content}
+            reasoning_content = str(message.get("reasoning_content") or "")
+            if reasoning_content:
+                assistant_message["reasoning_content"] = reasoning_content
+            serialized_tool_calls = _serialize_tool_calls(message.get("tool_calls"))
+            if serialized_tool_calls:
+                assistant_message["tool_calls"] = serialized_tool_calls
+            sanitized.append(assistant_message)
+            continue
+
+        if role == "tool":
+            tool_message = {
+                "role": "tool",
+                "content": content,
+                "tool_call_id": message.get("tool_call_id"),
+            }
+            sanitized.append(tool_message)
+            continue
+
+        sanitized.append({"role": role, "content": content})
+    return sanitized
+
+
+def _debug_enabled() -> bool:
+    import os
+
+    from file_pilot.shared.config import config_manager
+
+    return config_manager.get("DEBUG_MODE", False) or os.getenv("DEBUG_MODE") == "True"
+
+
+def _write_planning_debug_event(kind: str, payload: dict | None = None, session_id: str | None = None, target_dir: str | None = None) -> None:
+    append_debug_event(
+        kind=kind,
+        session_id=session_id,
+        target_dir=target_dir,
+        stage="planning",
+        payload=payload or {},
+    )
+
+
+def _stream_enabled() -> bool:
+    import os
+
+    raw = os.getenv("ORGANIZER_CHAT_STREAM")
+    if raw is None:
+        return True
+    return raw.strip().lower() not in {"0", "false", "no", "off"}
+
+
+def _load_debug_history(debug_log) -> list:
+    if not debug_log.exists():
+        return []
+    try:
+        with open(debug_log, "r", encoding="utf-8") as file:
+            history = json.load(file)
+        return history if isinstance(history, list) else []
+    except Exception:
+        return []
+
+
+def _write_debug_history(debug_log, history: list) -> None:
+    with open(debug_log, "w", encoding="utf-8") as file:
+        json.dump(history, file, indent=2, ensure_ascii=False)
+
+
+def _update_debug_log_response(
+    *,
+    raw_content: str,
+    display_content: str,
+    tool_calls: list[dict],
+    chunks: list[dict] | None = None,
+    synthetic_content_used: bool,
+    response_mode: str | None = None,
+    raw_response=None,
+    session_id: str | None = None,
+    target_dir: str | None = None,
+) -> None:
+    from file_pilot.shared.config import RUNTIME_DIR
+
+    if not _debug_enabled():
+        return
+
+    debug_log = RUNTIME_DIR / "debug_prompt.json"
+    history = _load_debug_history(debug_log)
+    if not history:
+        return
+
+    try:
+        existing_response = history[-1].get("response")
+        existing_chunks = []
+        if isinstance(existing_response, dict):
+            existing_chunks = existing_response.get("chunks", []) or []
+        history[-1]["response"] = {
+            "raw_content": raw_content,
+            "display_content": display_content,
+            "tool_calls": tool_calls,
+            "chunks": existing_chunks if chunks is None else chunks,
+            "synthetic_content_used": synthetic_content_used,
+            "response_mode": response_mode,
+            "raw_response": raw_response,
+        }
+        _write_debug_history(debug_log, history)
+        _write_planning_debug_event(
+            "organizer.response",
+            {
+                "raw_content": raw_content,
+                "display_content": display_content,
+                "tool_calls": tool_calls,
+                "chunks": chunks,
+                "synthetic_content_used": synthetic_content_used,
+                "response_mode": response_mode,
+                "raw_response": raw_response,
+            },
+            session_id=session_id,
+            target_dir=target_dir,
+        )
+        logger.info("organizer.response_recorded round=%s", len(history))
+    except Exception:
+        logger.exception("organizer.response_record_failed")
+
+
+def chat_one_round(
+    messages: list,
+    event_handler=None,
+    model: str | None = None,
+    tools=None,
+    tool_choice="auto",
+    return_message=False,
+    session_id: str | None = None,
+    target_dir: str | None = None,
+    cancel_event: threading.Event | None = None,
+):
+    from file_pilot.shared.config import RUNTIME_DIR, config_manager
+    from datetime import datetime
+
+    model = model or get_organizer_model_name()
+
+    # 动态获取状态
+    is_debug = config_manager.get("DEBUG_MODE", False) or _debug_enabled()
+    stream_enabled = _stream_enabled()
+    debug_log = RUNTIME_DIR / "debug_prompt.json"
+    
+    request_messages = _sanitize_messages_for_llm(messages)
+
+    if is_debug:
+        history = []
+        # 如果是起始消息（系统提示+第一条提问），则清空之前的日志
+        is_first_round = len(request_messages) <= 2
+        
+        if not is_first_round and debug_log.exists():
+            history = _load_debug_history(debug_log)
+        
+        current_round = len(history) + 1
+        new_entry = {
+            "round": current_round,
+            "timestamp": datetime.now().strftime("%H:%M:%S"),
+            "request": request_messages,
+            "request_meta": {
+                "stream": stream_enabled,
+                "tool_choice": tool_choice,
+                "tool_count": len(tools or organizer_tools),
+            },
+            "response": "processing..."
+        }
+        history.append(new_entry)
+        
+        try:
+            _write_debug_history(debug_log, history)
+            _write_planning_debug_event(
+                "organizer.request",
+                {
+                    "round": current_round,
+                    "model": model,
+                    "request": request_messages,
+                    "request_meta": new_entry["request_meta"],
+                },
+                session_id=session_id,
+                target_dir=target_dir,
+            )
+        except Exception:
+            logger.exception("organizer.request_record_failed")
+
+    client = create_openai_client()
+    
+    emit(event_handler, "model_wait_start", {"message": MODEL_WAIT_MESSAGE})
+    _raise_if_planning_cancelled(cancel_event)
+    
+    # 启用流式传输以获得更好的 UI 体验
+    full_content = ""
+    full_reasoning_content = ""
+    full_tool_calls_raw = []
+    chunk_records = []
+    response_mode = "stream" if stream_enabled else "non_stream"
+    raw_response = None
+    
+    try:
+        stream = client.chat.completions.create(
+            model=model,
+            messages=request_messages,
+            tools=tools or organizer_tools,
+            tool_choice=tool_choice,
+            stream=stream_enabled
+        )
+    except Exception as exc:
+        logger.exception("organizer.request_failed model=%s stream=%s", model, stream_enabled)
+        _write_planning_debug_event(
+            "organizer.request_failed",
+            {
+                "model": model,
+                "stream": stream_enabled,
+                "request_meta": {
+                    "tool_choice": tool_choice,
+                    "tool_count": len(tools or organizer_tools),
+                },
+                "error": {"type": type(exc).__name__, "message": str(exc)},
+            },
+            session_id=session_id,
+            target_dir=target_dir,
+        )
+        emit(event_handler, "model_wait_end")
+        raise
+    if not _is_stream_like_response(stream):
+        try:
+            message, raw_response = _normalize_non_stream_response(stream)
+            full_content = getattr(message, "content", "") or ""
+            full_reasoning_content = getattr(message, "reasoning_content", "") or ""
+            full_tool_calls_raw.extend(_normalize_tool_calls(getattr(message, "tool_calls", None)))
+            response_mode = "non_stream"
+            chunk_records.append({
+                "delta_content": full_content or None,
+                "delta_tool_calls": full_tool_calls_raw or None,
+                "finish_reason": getattr(message, "finish_reason", None),
+            })
+        finally:
+            emit(event_handler, "model_wait_end")
+
+        emit(event_handler, "ai_streaming_start")
+        if full_content:
+            emit(event_handler, "ai_chunk", {"content": full_content})
+        emit(event_handler, "ai_streaming_end", {"full_content": full_content})
+    else:
+        emit(event_handler, "ai_streaming_start")
+        stream_started = time.monotonic()
+        stream_max_seconds = get_text_stream_max_seconds()
+        try:
+            _raise_if_planning_cancelled(cancel_event)
+            for chunk in stream:
+                _raise_if_planning_cancelled(cancel_event)
+                elapsed = time.monotonic() - stream_started
+                if elapsed > stream_max_seconds:
+                    error_message = f"模型流式响应超过 {stream_max_seconds} 秒仍未结束。"
+                    _write_planning_debug_event(
+                        "organizer.stream_timeout",
+                        {
+                            "model": model,
+                            "elapsed_seconds": round(elapsed, 2),
+                            "stream_max_seconds": stream_max_seconds,
+                        },
+                        session_id=session_id,
+                        target_dir=target_dir,
+                    )
+                    raise TimeoutError(error_message)
+                if isinstance(chunk, dict):
+                    choices = chunk.get("choices") or []
+                else:
+                    choices = getattr(chunk, "choices", None) or []
+                if not choices:
+                    continue
+                choice = choices[0]
+                delta = getattr(choice, "delta", None)
+                if delta is None and isinstance(choice, dict):
+                    delta = choice.get("delta") or {}
+                chunk_records.append({
+                    "delta_content": (getattr(delta, "content", None) if not isinstance(delta, dict) else delta.get("content")),
+                    "delta_tool_calls": [
+                        _serialize_tool_call_delta(tc_delta)
+                        for tc_delta in (
+                            (getattr(delta, "tool_calls", None) if not isinstance(delta, dict) else delta.get("tool_calls")) or []
+                        )
+                    ] or None,
+                    "finish_reason": getattr(choice, "finish_reason", None) if not isinstance(choice, dict) else choice.get("finish_reason"),
+                })
+
+                delta_content = getattr(delta, "content", None) if not isinstance(delta, dict) else delta.get("content")
+                delta_reasoning_content = getattr(delta, "reasoning_content", None) if not isinstance(delta, dict) else delta.get("reasoning_content")
+                if delta_content:
+                    full_content += delta_content
+                    emit(event_handler, "ai_chunk", {"content": delta_content})
+                if delta_reasoning_content:
+                    full_reasoning_content += delta_reasoning_content
+
+                delta_tool_calls = getattr(delta, "tool_calls", None) if not isinstance(delta, dict) else delta.get("tool_calls")
+                if delta_tool_calls:
+                    for tc_delta in delta_tool_calls:
+                        idx = getattr(tc_delta, "index", None) if not isinstance(tc_delta, dict) else tc_delta.get("index")
+                        if idx is None:
+                            continue
+                        while len(full_tool_calls_raw) <= idx:
+                            full_tool_calls_raw.append({"id": None, "type": "function", "function": {"name": "", "arguments": ""}})
+
+                        tc_id = getattr(tc_delta, "id", None) if not isinstance(tc_delta, dict) else tc_delta.get("id")
+                        tc_function = getattr(tc_delta, "function", None) if not isinstance(tc_delta, dict) else (tc_delta.get("function") or {})
+                        tc_name = getattr(tc_function, "name", None) if not isinstance(tc_function, dict) else tc_function.get("name")
+                        tc_arguments = getattr(tc_function, "arguments", None) if not isinstance(tc_function, dict) else tc_function.get("arguments")
+                        if tc_id:
+                            full_tool_calls_raw[idx]["id"] = tc_id
+                        if tc_name:
+                            full_tool_calls_raw[idx]["function"]["name"] += tc_name
+                        if tc_arguments:
+                            full_tool_calls_raw[idx]["function"]["arguments"] += tc_arguments
+        except Exception:
+            _close_stream_response(stream)
+            emit(event_handler, "model_wait_end")
+            raise
+        else:
+            _close_stream_response(stream)
+            emit(event_handler, "ai_streaming_end", {"full_content": full_content})
+            emit(event_handler, "model_wait_end")
+
+    _update_debug_log_response(
+        raw_content=full_content,
+        display_content=full_content,
+        tool_calls=full_tool_calls_raw,
+        chunks=chunk_records,
+        synthetic_content_used=False,
+        response_mode=response_mode,
+        raw_response=raw_response,
+        session_id=session_id,
+        target_dir=target_dir,
+    )
+
+    # 构造兼容的 Message 对象供后续解析
+    tool_calls = []
+    for tc in full_tool_calls_raw:
+        if tc["function"]["name"]:
+            tool_calls.append(SimpleNamespace(
+                id=tc["id"],
+                type="function",
+                function=SimpleNamespace(name=tc["function"]["name"], arguments=tc["function"]["arguments"])
+            ))
+            
+    message = SimpleNamespace(
+        content=full_content,
+        reasoning_content=full_reasoning_content,
+        tool_calls=tool_calls if tool_calls else None,
+    )
+    if return_message:
+        return message
+    return full_content
+
+
+def extract_commands(content: str) -> str | None:
+    match = re.search(r"<COMMANDS>(.*?)</COMMANDS>", content or "", flags=re.S | re.I)
+    return match.group(1).strip() if match else None
+
+
+def extract_scan_items(scan_lines: str) -> list[str]:
+    items = []
+    for raw_line in scan_lines.splitlines():
+        line = raw_line.strip()
+        if not line or re.match(r"^分析目录路径[:：]", line):
+            continue
+        if "|" not in line:
+            continue
+
+        name = normalize_source_name(line.split("|", 1)[0].strip())
+        if name:
+            items.append(name)
+    return items
+
+
+def render_final_plan_commands(final_plan: FinalPlan | dict) -> str:
+    plan = final_plan if isinstance(final_plan, FinalPlan) else FinalPlan.from_dict(final_plan)
+    lines = ["<COMMANDS>"]
+    for directory in plan.directories:
+        lines.append(f'MKDIR "{directory}"')
+    for move in plan.moves:
+        lines.append(move.to_move_command())
+    lines.append("</COMMANDS>")
+    return "\n".join(lines)
+
+
+def _final_plan_to_parsed(plan: FinalPlan) -> dict:
+    commands = []
+    mkdirs = []
+    moves = []
+    for directory in plan.directories:
+        raw = f'MKDIR "{directory}"'
+        mkdirs.append(directory)
+        commands.append({"type": "MKDIR", "name": directory, "raw": raw})
+    for move in plan.moves:
+        raw = move.to_move_command()
+        move_dict = {"source": move.source, "target": move.target, "raw": raw}
+        moves.append(move_dict)
+        commands.append({"type": "MOVE", **move_dict})
+    return {
+        "has_commands": bool(commands),
+        "mkdirs": mkdirs,
+        "moves": moves,
+        "invalid_lines": [],
+        "raw_lines": [command["raw"] for command in commands],
+        "commands": commands,
+        "parse_errors": [],
+    }
+
+
+def parse_commands_block(content: str) -> dict:
+    blocks = COMMANDS_BLOCK_RE.findall(content or "")
+    result = {
+        "has_commands": bool(blocks),
+        "mkdirs": [],
+        "moves": [],
+        "invalid_lines": [],
+        "raw_lines": [],
+        "commands": [],
+        "parse_errors": [],
+    }
+
+    if not blocks:
+        return result
+    if len(blocks) != 1:
+        result["parse_errors"].append("必须且只能有一个 <COMMANDS> 块")
+        return result
+
+    for raw_line in blocks[0].splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+
+        result["raw_lines"].append(line)
+
+        move_match = MOVE_LINE_RE.match(raw_line)
+        if move_match:
+            move = {
+                "source": move_match.group(1),
+                "target": move_match.group(2),
+                "raw": line,
+            }
+            result["moves"].append(move)
+            result["commands"].append({"type": "MOVE", **move})
+            continue
+
+        mkdir_match = MKDIR_LINE_RE.match(raw_line)
+        if mkdir_match:
+            mkdir_name = mkdir_match.group(1)
+            result["mkdirs"].append(mkdir_name)
+            result["commands"].append({"type": "MKDIR", "name": mkdir_name, "raw": line})
+            continue
+
+        result["invalid_lines"].append(line)
+    return result
+
+
+
+def validate_final_plan(
+    scan_lines: str,
+    final_plan: FinalPlan | dict,
+    *,
+    planner_items: list[dict] | None = None,
+    planning_context: dict | None = None,
+) -> dict:
+    plan = final_plan if isinstance(final_plan, FinalPlan) else FinalPlan.from_dict(final_plan)
+    context = planning_context or {}
+    organize_mode = str(context.get("organize_mode") or "initial").strip().lower()
+    selected_target_dirs = {
+        str(path).strip()
+        for path in (context.get("target_directories") or [])
+        if str(path).strip()
+    }
+    existing_root_dirs = {
+        str(path).strip()
+        for path in (context.get("root_directory_options") or [])
+        if str(path).strip()
+    }
+
+    def is_incremental_target_dir_allowed(target_dir: str) -> bool:
+        normalized = str(target_dir or "").strip().strip("/\\").replace("\\", "/")
+        if not normalized or normalized == "Review":
+            return True
+        if split_relative_parts(normalized) is not None:
+            return True
+        for root in selected_target_dirs:
+            root_normalized = str(root).strip().replace("\\", "/").rstrip("/")
+            if normalized == root_normalized or normalized.startswith(f"{root_normalized}/"):
+                return True
+        for root in existing_root_dirs:
+            root_normalized = str(root).strip().replace("\\", "/").rstrip("/")
+            if normalized == root_normalized or normalized.startswith(f"{root_normalized}/"):
+                return False
+        return True
+    parsed = _final_plan_to_parsed(plan)
+    result = {
+        "is_valid": False,
+        "missing": [],
+        "extra": [],
+        "duplicates": [],
+        "order_errors": [],
+        "invalid_lines": list(parsed["parse_errors"]),
+        "path_errors": [],
+        "rename_errors": [],
+        "duplicate_mkdirs": [],
+        "missing_mkdirs": [],
+        "unused_mkdirs": [],
+        "conflicting_targets": [],
+        "mode_errors": [],
+        "unresolved_items": list(plan.unresolved_items),
+    }
+
+    scan_items = _scope_sources(scan_lines, planner_items, planning_context)
+    expected_set = set(scan_items)
+    expected_lower_map = {item.lower(): item for item in scan_items}
+    actual_sources = []
+    required_mkdirs = set()
+    normalized_targets = defaultdict(set)
+
+    mkdir_counter = Counter(plan.directories)
+    result["duplicate_mkdirs"] = sorted(name for name, count in mkdir_counter.items() if count > 1)
+
+    for move in plan.moves:
+        source_name = normalize_source_name(move.source)
+        if not source_name:
+            result["path_errors"].append(f"非法源路径: {move.to_move_command()}")
+            continue
+
+        lower_source = source_name.lower()
+        if lower_source in expected_lower_map:
+            source_name = expected_lower_map[lower_source]
+
+        actual_sources.append(source_name)
+        if source_name not in expected_set:
+            continue
+
+        target_parts = split_relative_parts(move.target)
+        if not target_parts:
+            if Path(str(move.target or "")).is_absolute():
+                normalized_target = str(move.target or "").replace("\\", "/")
+                target_dir = str(Path(str(move.target)).parent).replace("\\", "/")
+                if Path(str(move.target)).name.lower() != source_name.lower():
+                    result["rename_errors"].append(f"{source_name} -> {normalized_target}")
+                    continue
+            else:
+                result["path_errors"].append(f"非法目标路径: {move.to_move_command()}")
+                continue
+        else:
+            if target_parts[-1].lower() == source_name.lower():
+                target_parts[-1] = source_name
+
+            normalized_target = "/".join(target_parts)
+            if len(target_parts) > 1 and target_parts[0] == source_name:
+                result["path_errors"].append(f"不能移动到自身子路径: {move.to_move_command()}")
+                continue
+
+            if target_parts[-1] != source_name:
+                result["rename_errors"].append(f"{source_name} -> {normalized_target}")
+                continue
+
+        # 最终提交不允许存在待确认区路径；待确认项由结构化 unresolved 流程处理。
+        if normalized_target.lower().startswith("review/") or normalized_target.lower() == "review":
+            result["path_errors"].append(f"最终计划中不允许存在待确认区目录：{source_name} -> {normalized_target}")
+            continue
+
+        if target_parts:
+            target_dir = "/".join(target_parts[:-1]) if len(target_parts) > 1 else ""
+        if organize_mode == "incremental" and target_dir and not is_incremental_target_dir_allowed(target_dir):
+            result["mode_errors"].append(f"“归入已有目录”任务的目标目录不在允许范围内：{source_name} -> {target_dir}")
+            continue
+
+        normalized_targets[normalized_target].add(source_name)
+        if len(target_parts) > 1:
+            for i in range(1, len(target_parts)):
+                required_mkdirs.add("/".join(target_parts[:i]))
+
+    actual_set = set(actual_sources)
+    actual_counter = Counter(actual_sources)
+    result["duplicates"] = sorted(name for name, count in actual_counter.items() if count > 1)
+    result["missing"] = sorted(expected_set - actual_set)
+    result["extra"] = sorted(actual_set - expected_set)
+
+    for index, expected_name in enumerate(scan_items):
+        if index >= len(actual_sources):
+            break
+        actual_name = actual_sources[index]
+        if expected_name != actual_name:
+            result["order_errors"].append(f"第 {index + 1} 项应为 {expected_name}，实际为 {actual_name}")
+
+    mkdir_set = set(plan.directories)
+    result["missing_mkdirs"] = sorted(required_mkdirs - mkdir_set)
+    result["unused_mkdirs"] = sorted(mkdir_set - required_mkdirs)
+    result["conflicting_targets"] = sorted(target for target, sources in normalized_targets.items() if len(sources) > 1)
+
+    if plan.unresolved_items:
+        result["invalid_lines"].append(f"仍有待确认条目: {plan.unresolved_items}")
+
+    result["is_valid"] = not any(
+        [
+            result["missing"],
+            result["extra"],
+            result["duplicates"],
+            result["order_errors"],
+            result["invalid_lines"],
+            result["path_errors"],
+            result["rename_errors"],
+            result["duplicate_mkdirs"],
+            result["missing_mkdirs"],
+            result["unused_mkdirs"],
+            result["conflicting_targets"],
+            result["mode_errors"],
+        ]
+    )
+    return result
+
+
+def validate_command_flow(scan_lines: str, content: str) -> dict:
+    parsed = parse_commands_block(content)
+    if not parsed["has_commands"]:
+        return {
+            "is_valid": False,
+            "missing": [],
+            "extra": [],
+            "duplicates": [],
+            "order_errors": [],
+            "invalid_lines": ["缺少 <COMMANDS> 块"],
+            "path_errors": [],
+            "rename_errors": [],
+            "duplicate_mkdirs": [],
+            "missing_mkdirs": [],
+            "unused_mkdirs": [],
+            "conflicting_targets": [],
+            "unresolved_items": [],
+        }
+
+    plan = FinalPlan(
+        directories=list(parsed["mkdirs"]),
+        moves=[PlanMove(source=move["source"], target=move["target"], raw=move["raw"]) for move in parsed["moves"]],
+        unresolved_items=[],
+    )
+    validation = validate_final_plan(scan_lines, plan)
+    validation["invalid_lines"] = list(parsed["invalid_lines"]) + list(parsed["parse_errors"]) + list(validation["invalid_lines"])
+    validation["is_valid"] = validation["is_valid"] and not parsed["invalid_lines"] and not parsed["parse_errors"]
+    return validation
+
+
+def _copy_pending_plan(plan: PendingPlan) -> PendingPlan:
+    return PendingPlan(
+        directories=list(plan.directories),
+        moves=[PlanMove(source=move.source, target=move.target, raw=move.raw) for move in plan.moves],
+        user_constraints=list(plan.user_constraints),
+        unresolved_items=list(plan.unresolved_items),
+        summary=plan.summary,
+    ).with_derived_directories()
+ 
+
+def _rename_target_root(target: str, from_name: str, to_name: str) -> str:
+    target_parts = split_relative_parts(target)
+    if not target_parts or len(target_parts) <= 1 or target_parts[0].lower() != from_name.lower():
+        return target
+    target_parts[0] = to_name
+    return "/".join(target_parts)
+
+
+def _build_plan_change_summary(previous: PendingPlan, updated: PendingPlan) -> list[str]:
+    diff_summary: list[str] = []
+
+    previous_dirs = set(previous.directories)
+    updated_dirs = set(updated.directories)
+    for directory in sorted(updated_dirs - previous_dirs):
+        diff_summary.append(f"新增目录：{directory}")
+    for directory in sorted(previous_dirs - updated_dirs):
+        diff_summary.append(f"移除目录：{directory}")
+
+    previous_moves = {move.source: move.target for move in previous.moves}
+    updated_moves = {move.source: move.target for move in updated.moves}
+    for source in sorted(updated_moves):
+        old_target = previous_moves.get(source)
+        new_target = updated_moves[source]
+        if old_target != new_target:
+            if old_target is None:
+                diff_summary.append(f"新增移动：{source} -> {new_target}")
+            else:
+                diff_summary.append(f"调整移动：{source} -> {new_target}")
+    for source in sorted(previous_moves.keys() - updated_moves.keys()):
+        diff_summary.append(f"移除移动：{source}")
+
+    previous_unresolved = set(previous.unresolved_items)
+    updated_unresolved = set(updated.unresolved_items)
+    for item in sorted(previous_unresolved - updated_unresolved):
+        diff_summary.append(f"已解决待确认项：{item}")
+    for item in sorted(updated_unresolved - previous_unresolved):
+        diff_summary.append(f"新增待确认项：{item}")
+
+    if updated.summary:
+        diff_summary.insert(0, updated.summary)
+    return diff_summary or ["计划未发生结构性变化"]
+
+
+def _system_pending_summary(plan: PendingPlan) -> str:
+    total_moves = len(plan.moves or [])
+    unresolved_count = len(plan.unresolved_items or [])
+    classified_count = max(0, total_moves - unresolved_count)
+    return f"已分类 {classified_count} 项，调整 {total_moves} 项，仍剩 {unresolved_count} 项待定"
+
+
+def apply_plan_diff(
+    current_plan: PendingPlan | None,
+    patch_diff: PlanDiff | dict,
+    valid_sources: list[str] | None = None,
+    *,
+    planning_context: dict | None = None,
+) -> tuple[PendingPlan, list[str], list[str]]:
+    previous = (current_plan or PendingPlan()).with_derived_directories()
+    diff = patch_diff if isinstance(patch_diff, PlanDiff) else PlanDiff.from_dict(patch_diff)
+    context = planning_context or {}
+    organize_mode = str(context.get("organize_mode") or "initial").strip().lower()
+    selected_target_dirs = {
+        str(path).strip()
+        for path in (context.get("target_directories") or [])
+        if str(path).strip()
+    }
+    existing_root_dirs = {
+        str(path).strip()
+        for path in (context.get("root_directory_options") or [])
+        if str(path).strip()
+    }
+
+    def is_incremental_target_dir_allowed(target_dir: str) -> bool:
+        normalized = str(target_dir or "").strip().strip("/\\").replace("\\", "/")
+        if not normalized or normalized == "Review":
+            return True
+        if split_relative_parts(normalized) is not None:
+            return True
+        for root in selected_target_dirs:
+            root_normalized = str(root).strip().replace("\\", "/").rstrip("/")
+            if normalized == root_normalized or normalized.startswith(f"{root_normalized}/"):
+                return True
+        for root in existing_root_dirs:
+            root_normalized = str(root).strip().replace("\\", "/").rstrip("/")
+            if normalized == root_normalized or normalized.startswith(f"{root_normalized}/"):
+                return False
+        return True
+
+    errors = []
+    valid_lower_map = {s.lower(): s for s in valid_sources} if valid_sources is not None else None
+
+    previous_moves = [PlanMove(source=move.source, target=move.target, raw=move.raw) for move in previous.moves]
+    move_order = [move.source for move in previous_moves]
+    moves_by_source = {move.source: move for move in previous_moves}
+
+    for rename in diff.directory_renames:
+        if organize_mode == "incremental":
+            errors.append("“归入已有目录”任务禁止目录改名")
+            continue
+        for source, move in list(moves_by_source.items()):
+            moves_by_source[source] = PlanMove(
+                source=move.source,
+                target=_rename_target_root(move.target, rename.from_name, rename.to_name),
+                raw="",
+            )
+
+    for move in diff.move_updates:
+        src = move.source
+        if valid_lower_map is not None:
+            if src.lower() not in valid_lower_map:
+                errors.append(f"无法移动不存在的源文件或目录: {src}")
+                continue
+            src = valid_lower_map[src.lower()]
+            
+            target_parts = split_relative_parts(move.target)
+            if target_parts and target_parts[-1].lower() == src.lower():
+                target_parts[-1] = src
+                move.target = "/".join(target_parts)
+            if target_parts is not None:
+                target_dir = "/".join(target_parts[:-1]) if len(target_parts) > 1 else ""
+            elif Path(str(move.target or "")).is_absolute():
+                target_dir = str(Path(str(move.target)).parent).replace("\\", "/")
+            else:
+                target_dir = ""
+            if organize_mode == "incremental" and target_dir and not is_incremental_target_dir_allowed(target_dir):
+                errors.append(f"“归入已有目录”任务的目标目录不在允许范围内: {src} -> {target_dir}")
+                continue
+
+        if src not in move_order:
+            move_order.append(src)
+        moves_by_source[src] = PlanMove(source=src, target=move.target, raw=move.raw)
+        
+        # [漏洞 1 修复]：如果 AI 手动分配了具体目录（非 Review/），则自动视为已确认
+        target_path = move.target.lower().replace("\\", "/")
+        if not target_path.startswith("review/") and target_path != "review":
+            # 将其加入临时移除集合
+            diff.unresolved_removals.append(src)
+
+    if valid_sources is not None:
+        for original_source in valid_sources:
+            if original_source not in moves_by_source:
+                moves_by_source[original_source] = PlanMove(source=original_source, target=original_source, raw="")
+                move_order.append(original_source)
+
+    updated_moves = [moves_by_source[source] for source in move_order if source in moves_by_source]
+
+    unresolved_order = list(previous.unresolved_items)
+    unresolved_set = set(previous.unresolved_items)
+    
+    # 支持模糊删除（只要待清理的 removal 字符串是现有选项的前缀或者包含在其内，就删除）
+    for removal in diff.unresolved_removals:
+        to_remove = set()
+        for item in unresolved_set:
+            if item.startswith(removal) or removal in item or item.split(" ")[0].startswith(removal.split(" ")[0]) or item.split("（")[0].startswith(removal.split("（")[0]):
+                to_remove.add(item)
+        unresolved_set.difference_update(to_remove)
+
+    for item in diff.unresolved_adds:
+        if item not in moves_by_source:
+            moves_by_source[item] = PlanMove(source=item, target=_compose_target_from_dir(item, "Review"), raw="")
+            move_order.append(item)
+        if item not in unresolved_set:
+            unresolved_order.append(item)
+            unresolved_set.add(item)
+    updated_unresolved = [item for item in unresolved_order if item in unresolved_set]
+
+    updated = PendingPlan(
+        directories=derive_directories_from_moves(updated_moves),
+        moves=updated_moves,
+        user_constraints=list(previous.user_constraints),
+        unresolved_items=updated_unresolved,
+        summary="",
+    )
+    updated.summary = _system_pending_summary(updated)
+    return updated, _build_plan_change_summary(previous, updated), errors
+
+
+def _pending_from_final(final_plan: FinalPlan) -> PendingPlan:
+    pending = PendingPlan(
+        directories=list(final_plan.directories),
+        moves=[PlanMove(source=move.source, target=move.target, raw=move.raw) for move in final_plan.moves],
+        user_constraints=[],
+        unresolved_items=list(final_plan.unresolved_items),
+        summary="",
+    ).with_derived_directories()
+    pending.summary = _system_pending_summary(pending)
+    return pending
+
+
+def build_command_retry_message(
+    validation: dict,
+    scan_lines: str | None = None,
+    user_constraints: list[str] | None = None,
+    planner_items: list[dict] | None = None,
+    planning_context: dict | None = None,
+) -> str:
+    details = [
+        "刚才提交的整理计划未通过结构化校验，请重新提交完整计划。",
+        "请直接修正结构化结果，不要重复解释。",
+        "硬规则：每个条目必须且只能对应一个去向；目录列表只包含真正会被使用的目录；目标路径必须是相对路径且保留原始名称。",
+    ]
+
+    if scan_lines:
+        details.append("当前规划范围权威条目：")
+        if planner_items:
+            details.extend(f"- {line}" for line in render_planner_scan_lines(planner_items).splitlines() if line.strip())
+        else:
+            details.extend(f"- {item}" for item in _scope_sources(scan_lines, planner_items, planning_context))
+    if user_constraints:
+        details.append("已确认用户偏好：")
+        details.extend(f"- {item}" for item in user_constraints)
+    if (planning_context or {}).get("organize_mode") == "incremental":
+        target_directories = [str(item).strip() for item in (planning_context or {}).get("target_directories", []) if str(item).strip()]
+        target_slots = [
+            dict(item)
+            for item in (planning_context or {}).get("target_slots", [])
+            if isinstance(item, dict) and str(item.get("slot_id") or "").strip()
+        ]
+        details.append("当前任务类型为“归入已有目录”的硬性限制：")
+        details.append("- 禁止目录改名")
+        details.append("- 只能放入显式配置的目标目录，或交给系统放入待确认区")
+        details.append("- 父目录不会自动授权子目录；子目录必须单独配置后才能作为目标")
+        details.append("- 禁止新建目标目录，禁止移动到未显式配置的目录")
+        details.append("- 优先使用 target_slot 指向现有 D-ID")
+        if target_directories:
+            details.append("已选目标目录：")
+            details.extend(
+                f"- {_format_target_directory_for_prompt(item, planning_context)}"
+                for item in target_directories
+            )
+        if target_slots:
+            details.append("可用目标槽位：")
+            details.extend(
+                f"- {str(item.get('slot_id') or '').strip()} -> {str(item.get('relpath') or item.get('display_name') or '').strip()}"
+                for item in target_slots
+            )
+
+    if planner_items:
+        translated = {
+            "missing": [_planner_id_from_source(item, planner_items) for item in validation.get("missing", [])],
+            "extra": [_planner_id_from_source(item, planner_items) for item in validation.get("extra", [])],
+            "duplicates": [_planner_id_from_source(item, planner_items) for item in validation.get("duplicates", [])],
+        }
+        if translated["missing"]:
+            details.append(f"缺少 MOVE：{translated['missing']}")
+        if translated["extra"]:
+            details.append(f"多余 MOVE：{translated['extra']}")
+        if translated["duplicates"]:
+            details.append(f"重复处理：{translated['duplicates']}")
+        if validation.get("order_errors"):
+            details.append(f"顺序错误：共 {len(validation['order_errors'])} 处")
+        for key, label in [
+            ("invalid_lines", "非法计划"),
+            ("path_errors", "路径错误"),
+            ("rename_errors", "禁止重命名"),
+            ("duplicate_mkdirs", "重复目录"),
+            ("missing_mkdirs", "缺少目录"),
+            ("unused_mkdirs", "未使用目录"),
+            ("conflicting_targets", "目标冲突"),
+        ]:
+            if validation.get(key):
+                details.append(f"{label}：共 {len(validation[key])} 项")
+    else:
+        for key, label in [
+            ("missing", "缺少 MOVE"),
+            ("extra", "多余 MOVE"),
+            ("duplicates", "重复处理"),
+            ("order_errors", "顺序错误"),
+            ("invalid_lines", "非法计划"),
+            ("path_errors", "路径错误"),
+            ("rename_errors", "禁止重命名"),
+            ("duplicate_mkdirs", "重复目录"),
+            ("missing_mkdirs", "缺少目录"),
+            ("unused_mkdirs", "未使用目录"),
+            ("conflicting_targets", "目标冲突"),
+        ]:
+            if validation[key]:
+                details.append(f"{label}：{validation[key]}")
+
+    details.append("请重新提交完整结构化计划，不要遗漏任何当前规划范围条目。")
+    return "\n".join(details)
+
+
+def _build_repair_messages(
+    scan_lines: str,
+    user_constraints: list[str],
+    validation: dict,
+    strategy_instructions: str | None = None,
+    planner_items: list[dict] | None = None,
+    planning_context: dict | None = None,
+) -> list[dict]:
+    repair_prompt = [
+        "进入修复模式。",
+        "请忽略之前失败的输出，只根据以下权威信息重新提交最终计划。",
+        "当前规划范围条目：",
+        render_planner_scan_lines(planner_items) if planner_items else scan_lines,
+    ]
+    if strategy_instructions:
+        repair_prompt.append("当前固定整理策略：")
+        repair_prompt.append(strategy_instructions)
+    if user_constraints:
+        repair_prompt.append("已确认用户偏好：")
+        repair_prompt.extend(f"- {item}" for item in user_constraints)
+    if (planning_context or {}).get("organize_mode") == "incremental":
+        target_directories = [str(item).strip() for item in (planning_context or {}).get("target_directories", []) if str(item).strip()]
+        target_slots = [
+            dict(item)
+            for item in (planning_context or {}).get("target_slots", [])
+            if isinstance(item, dict) and str(item.get("slot_id") or "").strip()
+        ]
+        repair_prompt.append("“归入已有目录”任务的硬性限制：")
+        repair_prompt.append("- 禁止目录改名")
+        repair_prompt.append("- 只能放入显式配置的目标目录，或交给系统放入待确认区")
+        repair_prompt.append("- 父目录不会自动授权子目录；子目录必须单独配置后才能作为目标")
+        repair_prompt.append("- 禁止新建目标目录，禁止移动到未显式配置的目录")
+        repair_prompt.append("- 优先使用 target_slot 指向已有 D-ID")
+        if target_directories:
+            repair_prompt.append("已选目标目录：")
+            repair_prompt.extend(
+                f"- {_format_target_directory_for_prompt(item, planning_context)}"
+                for item in target_directories
+            )
+        if target_slots:
+            repair_prompt.append("可用目标槽位：")
+            repair_prompt.extend(
+                f"- {str(item.get('slot_id') or '').strip()} -> {str(item.get('relpath') or item.get('display_name') or '').strip()}"
+                for item in target_slots
+            )
+    repair_prompt.append("最近一次失败原因：")
+    repair_prompt.append(
+        build_command_retry_message(
+            validation,
+            planner_items=planner_items,
+            planning_context=planning_context,
+        )
+    )
+    return [
+        {
+            "role": "system",
+            "content": "你处于整理计划修复模式，只能提交一个完整且可执行的最终计划。不要补充候选项，不要输出摘要统计。",
+        },
+        {"role": "user", "content": "\n".join(repair_prompt)},
+    ]
+
+
+def _planner_lookups(planner_items: list[dict] | None) -> tuple[dict[str, dict], dict[str, dict]]:
+    by_id = {
+        str(item.get("planner_id") or "").strip(): dict(item)
+        for item in (planner_items or [])
+        if str(item.get("planner_id") or "").strip()
+    }
+    by_source = {
+        str(item.get("source_relpath") or "").replace("\\", "/").strip(): dict(item)
+        for item in (planner_items or [])
+        if str(item.get("source_relpath") or "").strip()
+    }
+    return by_id, by_source
+
+
+def _planner_source_from_item_id(item_id: str, planner_items: list[dict] | None) -> str:
+    raw_id = str(item_id or "").strip()
+    if not raw_id:
+        return ""
+    by_id, by_source = _planner_lookups(planner_items)
+    if raw_id in by_id:
+        return str(by_id[raw_id].get("source_relpath") or "").replace("\\", "/").strip()
+    if raw_id.replace("\\", "/") in by_source:
+        return raw_id.replace("\\", "/")
+    return raw_id
+
+
+def _planner_id_from_source(source: str, planner_items: list[dict] | None) -> str:
+    source_key = str(source or "").replace("\\", "/").strip()
+    _, by_source = _planner_lookups(planner_items)
+    return str(by_source.get(source_key, {}).get("planner_id") or source_key)
+
+
+def _target_slot_lookup(planning_context: dict | None = None) -> dict[str, dict]:
+    lookup: dict[str, dict] = {}
+    for item in (planning_context or {}).get("target_slots") or []:
+        if not isinstance(item, dict):
+            continue
+        slot_id = str(item.get("slot_id") or "").strip()
+        if slot_id:
+            lookup[slot_id] = dict(item)
+    return lookup
+
+
+def _target_dir_from_slot(slot_id: str, planning_context: dict | None = None) -> str:
+    raw_slot_id = str(slot_id or "").strip()
+    if not raw_slot_id:
+        return ""
+    if raw_slot_id == "Review":
+        return "Review"
+    slot = _target_slot_lookup(planning_context).get(raw_slot_id)
+    if not slot:
+        return ""
+    candidate = str(slot.get("relpath") or "").strip()
+    if not candidate:
+        candidate = str(slot.get("real_path") or "").strip()
+    return candidate.replace("\\", "/")
+
+
+def _compose_target_from_dir(source: str, target_dir: str | None) -> str:
+    filename = Path(str(source or "")).name
+    normalized_dir = str(target_dir or "").strip().strip("/\\").replace("\\", "/")
+    return f"{normalized_dir}/{filename}" if normalized_dir else filename
+
+
+def _target_dir_from_target(source: str, target: str) -> str:
+    source_name = Path(str(source or "")).name
+    target_parts = split_relative_parts(target)
+    if not target_parts:
+        return ""
+    if target_parts[-1].lower() == source_name.lower():
+        return "/".join(target_parts[:-1])
+    return "/".join(target_parts)
+
+
+def _resolve_move_target_dir(move: dict, source: str, planning_context: dict | None = None) -> str:
+    target_slot = move.get("target_slot")
+    if target_slot is not None:
+        resolved = _target_dir_from_slot(str(target_slot), planning_context)
+        if resolved or str(target_slot).strip() == "Review":
+            return resolved
+    target_dir = move.get("target_dir")
+    if target_dir is not None:
+        return str(target_dir or "")
+    if move.get("target") is not None:
+        return _target_dir_from_target(source, str(move.get("target") or ""))
+    return ""
+
+
+def _translate_plan_diff_args(args: dict, planner_items: list[dict] | None, planning_context: dict | None = None) -> PlanDiff:
+    translated_moves: list[PlanMove] = []
+    for move in args.get("move_updates", []) or []:
+        if not isinstance(move, dict):
+            continue
+        raw_item_id = str(move.get("item_id") or move.get("source") or "").strip()
+        source = _planner_source_from_item_id(raw_item_id, planner_items)
+        if not source:
+            continue
+        target_dir = _resolve_move_target_dir(move, source, planning_context)
+        translated_moves.append(
+            PlanMove(
+                source=source,
+                target=_compose_target_from_dir(source, str(target_dir or "")),
+                raw="",
+            )
+        )
+    return PlanDiff(
+        directory_renames=[PlanDirectoryRename.from_dict(item) for item in args.get("directory_renames", [])],
+        move_updates=translated_moves,
+        unresolved_adds=[
+            _planner_source_from_item_id(str(item), planner_items)
+            for item in args.get("unresolved_adds", []) or []
+            if _planner_source_from_item_id(str(item), planner_items)
+        ],
+        unresolved_removals=[
+            _planner_source_from_item_id(str(item), planner_items)
+            for item in args.get("unresolved_removals", []) or []
+            if _planner_source_from_item_id(str(item), planner_items)
+        ],
+    )
+
+
+def _translate_final_plan_args(args: dict, planner_items: list[dict] | None, planning_context: dict | None = None) -> FinalPlan:
+    translated_moves: list[PlanMove] = []
+    for move in args.get("moves", []) or []:
+        if not isinstance(move, dict):
+            continue
+        raw_item_id = str(move.get("item_id") or move.get("source") or "").strip()
+        source = _planner_source_from_item_id(raw_item_id, planner_items)
+        if not source:
+            continue
+        target_dir = _resolve_move_target_dir(move, source, planning_context)
+        translated_moves.append(
+            PlanMove(
+                source=source,
+                target=_compose_target_from_dir(source, str(target_dir or "")),
+                raw="",
+            )
+        )
+    return FinalPlan(
+        directories=list(args.get("directories", [])),
+        moves=translated_moves,
+        unresolved_items=[
+            _planner_source_from_item_id(str(item), planner_items)
+            for item in args.get("unresolved_items", []) or []
+            if _planner_source_from_item_id(str(item), planner_items)
+        ],
+    )
+
+
+def _extract_plan_submissions(
+    message,
+    planner_items: list[dict] | None = None,
+    planning_context: dict | None = None,
+) -> tuple[str, PlanDiff | None, FinalPlan | None, list[str] | None]:
+    content = getattr(message, "content", "") or ""
+    plan_diff = None
+    final_plan = None
+    inspect_item_ids: list[str] | None = None
+    for tool_call in getattr(message, "tool_calls", None) or []:
+        args = _parse_tool_call_arguments(tool_call)
+        if tool_call.function.name == PLAN_DIFF_TOOL_NAME:
+            plan_diff = _translate_plan_diff_args(args, planner_items, planning_context) if planner_items else PlanDiff.from_dict(args)
+        elif tool_call.function.name == REPAIR_FINAL_PLAN_TOOL_NAME:
+            final_plan = _translate_final_plan_args(args, planner_items, planning_context) if planner_items else FinalPlan.from_dict(args)
+        elif tool_call.function.name == INSPECT_ENTRY_TOOL_NAME:
+            inspect_item_ids = [str(item_id or "").strip() for item_id in args.get("item_ids", []) or [] if str(item_id or "").strip()]
+
+    if inspect_item_ids and (plan_diff is not None or final_plan is not None):
+        plan_diff = None
+        final_plan = None
+        content += "\n[系统提示: 你本轮先请求了条目内容回查。系统已优先执行 inspect_entry_content，请在查看结果后重新提交计划变更。]"
+    elif plan_diff is not None and final_plan is not None:
+        final_plan = None
+        content += "\n[系统提示: 你在同一轮回复中既提交了 plan_diff 增量更新，又提交了 final_plan 最终计划。系统已优先执行 plan_diff 更新状态。]"
+
+    return content, plan_diff, final_plan, inspect_item_ids
+
+
+def run_organizer_cycle(
+    messages: list,
+    scan_lines: str,
+    planner_items: list[dict] | None = None,
+    pending_plan: PendingPlan | None = None,
+    user_constraints: list[str] | None = None,
+    strategy_instructions: str | None = None,
+    planning_context: dict | None = None,
+    event_handler=None,
+    model: str | None = None,
+    max_retries: int = 3,
+    session_id: str | None = None,
+    target_dir: str | None = None,
+    cancel_event: threading.Event | None = None,
+) -> tuple[str, dict | None]:
+    current_pending = pending_plan or PendingPlan()
+    current_constraints = list(user_constraints or [])
+    scope_sources = _scope_sources(scan_lines, planner_items, planning_context)
+    tools = build_organizer_tools(planning_context)
+
+    llm_messages = list(messages)
+    persisted_inspection_messages: list[dict] = []
+    
+    # NOTE: 采用循环机制实现后台自动修正。若 AI 提交的指令（如 FINAL_PLAN）校验失败，
+    # 系统会根据失败细节构造反馈消息并触发下一次尝试，直到达到最大重试次数。
+    for attempt in range(1, max_retries + 1):
+        inspection_rounds = 0
+        while True:
+            if inspection_rounds > MAX_INSPECT_TOOL_ROUNDS + 1:
+                raise RuntimeError("INSPECTION_TOOL_LOOP_EXCEEDED")
+
+            message = chat_one_round(
+                llm_messages,
+                event_handler=event_handler,
+                model=model,
+                tools=tools,
+                return_message=True,
+                session_id=session_id,
+                target_dir=target_dir,
+                cancel_event=cancel_event,
+            )
+            raw_content = getattr(message, "content", "") or ""
+            content, plan_diff, final_plan, inspect_item_ids = _extract_plan_submissions(
+                message,
+                planner_items=planner_items,
+                planning_context=planning_context,
+            )
+            tool_calls = list(getattr(message, "tool_calls", None) or [])
+            inspect_tool_calls = [
+                tool_call
+                for tool_call in tool_calls
+                if getattr(getattr(tool_call, "function", None), "name", "") == INSPECT_ENTRY_TOOL_NAME
+            ]
+            assistant_context_message = _build_assistant_message(
+                raw_content,
+                inspect_tool_calls if inspect_item_ids else tool_calls,
+                reasoning_content=getattr(message, "reasoning_content", "") or None,
+            )
+            if inspect_item_ids is not None:
+                inspection_rounds += 1
+                if inspection_rounds > MAX_INSPECT_TOOL_ROUNDS:
+                    runtime_payload = {
+                        "ok": False,
+                        "error": f"INSPECTION_ROUND_LIMIT_EXCEEDED: 本轮最多查看 {MAX_INSPECT_TOOL_ROUNDS} 轮内容。",
+                        "items": [],
+                    }
+                    persisted_payload = runtime_payload
+                else:
+                    runtime_payload, persisted_payload = _execute_inspection_tool(
+                        inspect_item_ids,
+                        planning_context=planning_context,
+                    )
+
+                runtime_assistant_message = dict(assistant_context_message)
+                runtime_assistant_message["visibility"] = "internal"
+                persisted_assistant_message = dict(assistant_context_message)
+                persisted_assistant_message["visibility"] = "internal"
+                runtime_tool_messages = [
+                    _build_tool_result_message(getattr(tool_call, "id", None), INSPECT_ENTRY_TOOL_NAME, runtime_payload)
+                    for tool_call in inspect_tool_calls
+                ]
+                persisted_tool_messages = [
+                    _build_tool_result_message(getattr(tool_call, "id", None), INSPECT_ENTRY_TOOL_NAME, persisted_payload)
+                    for tool_call in inspect_tool_calls
+                ]
+                llm_messages.extend([runtime_assistant_message, *runtime_tool_messages])
+                persisted_inspection_messages.extend([persisted_assistant_message, *persisted_tool_messages])
+                continue
+
+            break
+
+        content, synthetic_content_used = _inject_synthetic_plan_reply(
+            content,
+            plan_diff=plan_diff,
+            final_plan=final_plan,
+            event_handler=event_handler,
+        )
+        content = _sanitize_assistant_display_content(content)
+
+        assistant_display_message = _build_assistant_message(
+            content,
+            getattr(message, "tool_calls", None),
+        )
+        _update_debug_log_response(
+            raw_content=raw_content,
+            display_content=content,
+            tool_calls=_serialize_tool_calls(getattr(message, "tool_calls", None)),
+            chunks=None,
+            synthetic_content_used=synthetic_content_used,
+            session_id=session_id,
+            target_dir=target_dir,
+        )
+
+        if plan_diff is not None:
+            updated_pending, diff_summary, diff_errors = apply_plan_diff(
+                current_pending,
+                plan_diff,
+                valid_sources=scope_sources,
+                planning_context=planning_context,
+            )
+            tool_result_messages = _build_tool_result_messages(
+                message,
+                plan_diff=plan_diff,
+                diff_errors=diff_errors,
+            )
+            assistant_context_messages = [*persisted_inspection_messages, assistant_context_message, *tool_result_messages]
+            
+            if diff_errors:
+                _write_planning_debug_event(
+                    "plan.diff_failed",
+                    {
+                        "attempt": attempt,
+                        "errors": diff_errors,
+                    },
+                )
+                if attempt < max_retries:
+                    err_msg = "增量更新未通过校验：\n" + "\n".join(f"- {e}" for e in diff_errors) + "\n请务必只处理当前规划范围内的 item_id，并遵守当前模式的目录限制。"
+                    llm_messages.extend([assistant_context_message, *tool_result_messages])
+                    llm_messages.append({"role": "user", "content": err_msg})
+                    continue
+                else:
+                    return content, None
+
+            return content, {
+                "is_valid": False,
+                "pending_plan": updated_pending,
+                "diff_summary": diff_summary,
+                "display_plan": PlanDisplayRequest(
+                    focus="summary",
+                    summary=updated_pending.summary or "请先看整理摘要",
+                ).to_dict(),
+                "final_plan": None,
+                "repair_mode": False,
+                "user_constraints": current_constraints,
+                "assistant_message": assistant_display_message,
+                "assistant_context_message": assistant_context_message,
+                "assistant_context_messages": assistant_context_messages,
+            }
+
+        # 场景 B: AI 仅回复文字说明，未发起任何方案层面的增量修改或最终提交
+        if final_plan is None:
+            updated_pending = current_pending
+            diff_summary = []
+
+            tool_result_messages = _build_tool_result_messages(
+                message,
+            )
+            return content, {
+                "is_valid": False,
+                "pending_plan": updated_pending,
+                "diff_summary": diff_summary,
+                "display_plan": None,
+                "final_plan": None,
+                "repair_mode": False,
+                "user_constraints": current_constraints,
+                "assistant_message": assistant_display_message,
+                "assistant_context_message": assistant_context_message,
+                "assistant_context_messages": [*persisted_inspection_messages, assistant_context_message, *tool_result_messages],
+            }
+
+        # 场景 C: AI 尝试提交最终可执行方案
+        # NOTE: 严苛校验是防止 AI 幻觉引发文件丢失/错误操作的最后防线。
+        validation = validate_final_plan(
+            scan_lines,
+            final_plan,
+            planner_items=planner_items,
+            planning_context=planning_context,
+        )
+        tool_result_messages = _build_tool_result_messages(
+            message,
+            validation=validation,
+        )
+        assistant_context_messages = [*persisted_inspection_messages, assistant_context_message, *tool_result_messages]
+        if validation["is_valid"]:
+            emit(event_handler, "command_validation_pass", {"attempt": attempt, "details": validation})
+            _write_planning_debug_event(
+                "plan.validation_pass",
+                {
+                    "attempt": attempt,
+                    "validation": validation,
+                },
+            )
+            updated_pending = _pending_from_final(final_plan)
+            diff_summary = _build_plan_change_summary((current_pending or PendingPlan()).with_derived_directories(), updated_pending)
+            return content, {
+                "is_valid": True,
+                "pending_plan": updated_pending,
+                "diff_summary": diff_summary,
+                "display_plan": None,
+                "final_plan": final_plan,
+                "repair_mode": False,
+                "user_constraints": current_constraints,
+                "validation": validation,
+                "assistant_message": assistant_display_message,
+                "assistant_context_message": assistant_context_message,
+                "assistant_context_messages": assistant_context_messages,
+            }
+
+        # 如果最终方案校验失败（例如 AI 忽略了部分文件或生成了错误的 mkdir 路径），则反馈具体原因并递归重试。
+        emit(event_handler, "command_validation_fail", {"attempt": attempt, "details": validation})
+        _write_planning_debug_event(
+            "plan.validation_fail",
+            {
+                "attempt": attempt,
+                "validation": validation,
+            },
+        )
+        if attempt < max_retries:
+            llm_messages.extend([assistant_context_message, *tool_result_messages])
+            llm_messages.append(
+                {
+                    "role": "user",
+                    "content": build_command_retry_message(
+                        validation,
+                        scan_lines,
+                        current_constraints,
+                        planner_items=planner_items,
+                        planning_context=planning_context,
+                    ),
+                }
+            )
+            continue
+
+        # 极限情况：标准重试次数耗尽，仍无法给出合法方案。此时开启“修复模式”。
+        # NOTE: 修复模式旨在通过“权威隔离”消除长对话中的上下文噪声。我们丢弃多轮对话历史，
+        # 并给 AI 一个极其简短、严厉且唯一的指令，强制其根据当前的 scan_lines 重新生成 FinalPlan。
+        emit(event_handler, "command_retry_exhausted", {"attempt": attempt, "details": validation})
+        emit(event_handler, "repair_mode_start", {"attempt": attempt, "details": validation})
+        _write_planning_debug_event(
+            "plan.repair_mode_start",
+            {
+                "attempt": attempt,
+                "validation": validation,
+            },
+        )
+        repair_message = chat_one_round(
+            _build_repair_messages(
+                scan_lines,
+                current_constraints,
+                validation,
+                strategy_instructions,
+                planner_items=planner_items,
+                planning_context=planning_context,
+            ),
+            event_handler=event_handler,
+            model=model,
+            tools=[repair_final_plan_tool],
+            return_message=True,
+            session_id=session_id,
+            target_dir=target_dir,
+            cancel_event=cancel_event,
+        )
+        repair_content, _, repaired_plan, _ = _extract_plan_submissions(
+            repair_message,
+            planner_items=planner_items,
+            planning_context=planning_context,
+        )
+        repair_content, repair_synthetic_content_used = _inject_synthetic_plan_reply(
+            repair_content,
+            final_plan=repaired_plan,
+            event_handler=event_handler,
+        )
+        repair_validation = validate_final_plan(
+            scan_lines,
+            repaired_plan or FinalPlan(),
+            planner_items=planner_items,
+            planning_context=planning_context,
+        )
+        if repaired_plan is not None and repair_validation["is_valid"]:
+            emit(event_handler, "command_validation_pass", {"attempt": attempt + 1, "details": repair_validation})
+            _write_planning_debug_event(
+                "plan.repair_validation_pass",
+                {
+                    "attempt": attempt + 1,
+                    "validation": repair_validation,
+                },
+            )
+            updated_pending = _pending_from_final(repaired_plan)
+            diff_summary = _build_plan_change_summary((current_pending or PendingPlan()).with_derived_directories(), updated_pending)
+            repair_raw_content = getattr(repair_message, "content", "") or ""
+            repair_display_message = _build_assistant_message(repair_content, getattr(repair_message, "tool_calls", None))
+            repair_context_message = _build_assistant_message(
+                repair_raw_content,
+                getattr(repair_message, "tool_calls", None),
+                reasoning_content=getattr(repair_message, "reasoning_content", "") or None,
+            )
+            repair_tool_messages = _build_tool_result_messages(
+                repair_message,
+                validation=repair_validation,
+            )
+            _update_debug_log_response(
+                raw_content=repair_raw_content,
+                display_content=repair_content,
+                tool_calls=_serialize_tool_calls(getattr(repair_message, "tool_calls", None)),
+                chunks=None,
+                synthetic_content_used=repair_synthetic_content_used,
+            )
+            return repair_content, {
+                "is_valid": True,
+                "pending_plan": updated_pending,
+                "diff_summary": diff_summary,
+                "display_plan": None,
+                "final_plan": repaired_plan,
+                "repair_mode": True,
+                "user_constraints": current_constraints,
+                "validation": repair_validation,
+                "assistant_message": repair_display_message,
+                "assistant_context_message": repair_context_message,
+                "assistant_context_messages": [repair_context_message, *repair_tool_messages],
+            }
+
+        repair_raw_content = getattr(repair_message, "content", "") or ""
+        repair_display_message = _build_assistant_message(repair_content, getattr(repair_message, "tool_calls", None))
+        repair_context_message = _build_assistant_message(
+            repair_raw_content,
+            getattr(repair_message, "tool_calls", None),
+            reasoning_content=getattr(repair_message, "reasoning_content", "") or None,
+        )
+        repair_tool_messages = _build_tool_result_messages(
+            repair_message,
+            validation=repair_validation,
+        )
+        _update_debug_log_response(
+            raw_content=repair_raw_content,
+            display_content=repair_content,
+            tool_calls=_serialize_tool_calls(getattr(repair_message, "tool_calls", None)),
+            chunks=None,
+            synthetic_content_used=repair_synthetic_content_used,
+        )
+        _write_planning_debug_event(
+            "plan.repair_validation_fail",
+            {
+                "attempt": attempt + 1,
+                "validation": repair_validation,
+            },
+        )
+        return repair_content, {
+            "is_valid": False,
+            "pending_plan": current_pending,
+            "diff_summary": [],
+            "display_plan": None,
+            "final_plan": None,
+            "repair_mode": True,
+            "user_constraints": current_constraints,
+            "validation": repair_validation,
+            "assistant_message": repair_display_message,
+            "assistant_context_message": repair_context_message,
+            "assistant_context_messages": [repair_context_message, *repair_tool_messages],
+        }
+
+    return "", None
+
+
+repair_final_plan_tool = {
+    "type": "function",
+    "function": {
+        "name": REPAIR_FINAL_PLAN_TOOL_NAME,
+        "description": "仅在修复模式下提交完整最终方案，用于根据校验错误重建一份可执行的 FinalPlan。必须覆盖当前规划范围内的全部条目。",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "directories": {"type": "array", "items": {"type": "string"}},
+                "moves": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "item_id": {"type": "string"},
+                            "target_slot": {"type": "string"},
+                            "target_dir": {"type": "string"},
+                            "target": {"type": "string"},
+                        },
+                        "required": ["item_id"],
+                    },
+                },
+                "unresolved_items": {"type": "array", "items": {"type": "string"}},
+            },
+            "required": ["directories", "moves", "unresolved_items"],
+        },
+    },
+}
+
+
+_BASE_ORGANIZER_TOOLS = [
+    {
+        "type": "function",
+        "function": {
+            "name": PLAN_DIFF_TOOL_NAME,
+            "description": _base_plan_diff_tool_description(),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "directory_renames": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "from": {"type": "string"},
+                                "to": {"type": "string"},
+                            },
+                            "required": ["from", "to"],
+                        },
+                    },
+                    "move_updates": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "item_id": {"type": "string"},
+                                "target_slot": {"type": "string"},
+                                "target_dir": {"type": "string"},
+                                "target": {"type": "string"},
+                            },
+                            "required": ["item_id"],
+                        },
+                    },
+                    "unresolved_adds": {"type": "array", "items": {"type": "string"}},
+                    "unresolved_removals": {"type": "array", "items": {"type": "string"}},
+                },
+                "required": ["directory_renames", "move_updates", "unresolved_adds", "unresolved_removals"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": INSPECT_ENTRY_TOOL_NAME,
+            "description": _inspect_entry_tool_description(),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "item_ids": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "要查看详细内容的条目 item_id 列表",
+                    }
+                },
+                "required": ["item_ids"],
+            },
+        },
+    },
+]
+
+
+def build_organizer_tools(planning_context: dict | None = None) -> list[dict]:
+    context = planning_context or {}
+    organize_mode = str(context.get("organize_mode") or "initial").strip().lower()
+    tools = deepcopy(_BASE_ORGANIZER_TOOLS)
+    if organize_mode != "incremental":
+        return tools
+
+    target_directories = [str(path).strip() for path in (context.get("target_directories") or []) if str(path).strip()]
+    target_slots = [
+        dict(item)
+        for item in (context.get("target_slots") or [])
+        if isinstance(item, dict) and str(item.get("slot_id") or "").strip()
+    ]
+    blocked_root_dirs = [
+        str(path).strip()
+        for path in (context.get("root_directory_options") or [])
+        if str(path).strip() and str(path).strip() not in target_directories
+    ]
+    tools[0]["function"]["description"] = _incremental_plan_diff_tool_description(
+        target_directories=target_directories,
+        target_slots=target_slots,
+        blocked_root_dirs=blocked_root_dirs,
+    )
+    return tools
+
+
+organizer_tools = build_organizer_tools()
+
+# 兼容旧模块内部辅助函数命名
+_normalize_source_name = normalize_source_name
+_split_relative_parts = split_relative_parts

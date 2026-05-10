@@ -1,0 +1,253 @@
+from __future__ import annotations
+
+import json
+import shutil
+from pathlib import Path
+
+import file_pilot.shared.config as config
+from file_pilot.execution.models import ExecutionJournal
+from file_pilot.execution.service import load_execution_journal
+from file_pilot.rollback.models import (
+    RollbackAction,
+    RollbackItemResult,
+    RollbackPlan,
+    RollbackPrecheckResult,
+    RollbackReport,
+)
+from file_pilot.shared.history_store import build_journal_path, read_latest_index, write_latest_index
+
+
+def _history_paths() -> tuple[Path, Path]:
+    return config.LATEST_BY_DIRECTORY_PATH, config.EXECUTION_LOG_DIR
+
+
+def save_execution_journal(journal: ExecutionJournal) -> None:
+    _, executions_dir = _history_paths()
+    build_journal_path(journal.execution_id, executions_dir).write_text(
+        json.dumps(journal.to_dict(), ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+
+
+def load_latest_execution_for_directory(target_dir: Path | str) -> ExecutionJournal | None:
+    normalized_dir = str(Path(target_dir).resolve())
+    latest_index_path, executions_dir = _history_paths()
+    latest_index = read_latest_index(latest_index_path, executions_dir)
+    execution_id = latest_index.get(normalized_dir)
+    if not execution_id:
+        return None
+    return load_execution_journal(execution_id)
+
+
+def build_rollback_plan(journal: ExecutionJournal) -> RollbackPlan:
+    actions: list[RollbackAction] = []
+
+    for item in reversed(journal.items):
+        if item.status != "success":
+            continue
+
+        if item.action_type == "MOVE" and item.source_before and item.target_after:
+            source_before_path = Path(item.source_before).resolve()
+            target_after_path = Path(item.target_after).resolve()
+            if source_before_path == target_after_path:
+                continue
+
+            actions.append(
+                RollbackAction(
+                    type="MOVE",
+                    source=target_after_path,
+                    target=source_before_path,
+                    raw=item.raw,
+                    item_id=str(item.item_id or ""),
+                    source_ref_id=str(item.source_ref_id or ""),
+                    target_slot_id=str(item.target_slot_id or ""),
+                    display_name=str(item.display_name or ""),
+                )
+            )
+        elif item.action_type == "MKDIR" and item.created_path:
+            created_path = Path(item.created_path).resolve()
+            actions.append(
+                RollbackAction(
+                    type="RMDIR",
+                    source=created_path,
+                    target=created_path,
+                    raw=item.raw,
+                    item_id=str(item.item_id or ""),
+                    source_ref_id=str(item.source_ref_id or ""),
+                    target_slot_id=str(item.target_slot_id or ""),
+                    display_name=str(item.display_name or ""),
+                )
+            )
+
+    return RollbackPlan(
+        execution_id=journal.execution_id,
+        target_dir=Path(journal.target_dir).resolve(),
+        actions=actions,
+    )
+
+
+def validate_rollback_preconditions(plan: RollbackPlan) -> RollbackPrecheckResult:
+    blocking_errors: list[str] = []
+    simulated_removed: set[Path] = set()
+    simulated_created: set[Path] = set()
+
+    def path_exists(path: Path) -> bool:
+        if path in simulated_removed:
+            return False
+        if path in simulated_created:
+            return True
+        return path.exists()
+
+    def directory_has_contents(path: Path) -> bool:
+        for child in path.iterdir():
+            if path_exists(child):
+                return True
+        return any(created.parent == path for created in simulated_created)
+
+    for action in plan.actions:
+        if not path_exists(action.source):
+            blocking_errors.append(f"回退源不存在: {action.source.as_posix()}")
+            continue
+
+        if action.type == "MOVE":
+            if path_exists(action.target):
+                blocking_errors.append(f"回退目标已存在: {action.target.as_posix()}")
+                continue
+            simulated_removed.add(action.source)
+            simulated_created.add(action.target)
+        elif action.type == "RMDIR":
+            if not action.source.is_dir():
+                blocking_errors.append(f"待删除目录无效: {action.source.as_posix()}")
+            elif directory_has_contents(action.source):
+                blocking_errors.append(f"回退目录非空: {action.source.as_posix()}")
+            else:
+                simulated_removed.add(action.source)
+
+    return RollbackPrecheckResult(
+        can_execute=not blocking_errors,
+        blocking_errors=blocking_errors,
+        warnings=[],
+    )
+
+
+def render_rollback_preview(plan: RollbackPlan, precheck: RollbackPrecheckResult) -> str:
+    lines = ["即将回退最近一次执行：", ""]
+    lines.append(f"- 执行 ID：{plan.execution_id}")
+    lines.append(f"- 目录：{plan.target_dir.as_posix()}")
+    lines.append(f"- 回退动作：{len(plan.actions)} 个")
+    lines.append("")
+    lines.append("动作列表：")
+
+    if plan.actions:
+        for index, action in enumerate(plan.actions, start=1):
+            display_label = str(action.display_name or action.item_id or "").strip()
+            label_prefix = f"[{display_label}] " if display_label else ""
+            if action.type == "MOVE":
+                lines.append(f'{index}. {label_prefix}MOVE "{action.source.as_posix()}" -> "{action.target.as_posix()}"')
+            else:
+                lines.append(f'{index}. {label_prefix}RMDIR "{action.source.as_posix()}"')
+    else:
+        lines.append("- 无可回退动作")
+
+    if precheck.blocking_errors:
+        lines.append("")
+        lines.append("阻断问题：")
+        lines.extend(f"- {item}" for item in precheck.blocking_errors)
+
+    return "\n".join(lines)
+
+
+def execute_rollback_plan(plan: RollbackPlan) -> RollbackReport:
+    results: list[RollbackItemResult] = []
+    success_count = 0
+    failure_count = 0
+
+    for action in plan.actions:
+        try:
+            if action.type == "MOVE":
+                shutil.move(str(action.source), str(action.target))
+                message = "回退移动成功"
+            else:
+                action.source.rmdir()
+                message = "空目录已删除"
+            results.append(RollbackItemResult(action=action, status="success", message=message))
+            success_count += 1
+        except Exception as exc:
+            results.append(RollbackItemResult(action=action, status="failed", message=str(exc)))
+            failure_count += 1
+
+    return RollbackReport(
+        success_count=success_count,
+        failure_count=failure_count,
+        results=results,
+    )
+
+
+def render_rollback_report(report: RollbackReport) -> str:
+    lines = ["回退结果：", ""]
+    lines.append(f"- 成功：{report.success_count}")
+    lines.append(f"- 失败：{report.failure_count}")
+    lines.append("")
+
+    for item in report.results:
+        action = item.action
+        if action.type == "MOVE":
+            lines.append(
+                f"[{item.status}] MOVE {action.source.as_posix()} -> {action.target.as_posix()} - {item.message}"
+            )
+        else:
+            lines.append(f"[{item.status}] RMDIR {action.source.as_posix()} - {item.message}")
+
+    return "\n".join(lines)
+
+
+def finalize_rollback_state(journal: ExecutionJournal, report: RollbackReport) -> None:
+    journal = load_execution_journal(journal.execution_id) or journal
+    journal.rollback_attempts.append(
+        {
+            "success_count": report.success_count,
+            "failure_count": report.failure_count,
+            "results": [
+                {
+                    "action_type": item.action.type,
+                    "source": item.action.source.as_posix(),
+                    "target": item.action.target.as_posix(),
+                    "status": item.status,
+                    "message": item.message,
+                    "item_id": item.action.item_id or None,
+                    "source_ref_id": item.action.source_ref_id or None,
+                    "target_slot_id": item.action.target_slot_id or None,
+                    "display_name": item.action.display_name or None,
+                }
+                for item in report.results
+            ],
+        }
+    )
+
+    latest_index_path, executions_dir = _history_paths()
+    latest_index = read_latest_index(latest_index_path, executions_dir)
+    if report.failure_count == 0:
+        journal.status = "rolled_back"
+        latest_index.pop(journal.target_dir, None)
+        _write_latest_index(latest_index)
+    else:
+        journal.status = "rollback_partial_failure"
+
+    save_execution_journal(journal)
+
+
+
+def _read_latest_index() -> dict[str, str]:
+    latest_index_path, executions_dir = _history_paths()
+    return read_latest_index(latest_index_path, executions_dir)
+
+
+def _write_latest_index(index: dict[str, str]) -> None:
+    latest_index_path, executions_dir = _history_paths()
+    write_latest_index(index, latest_index_path, executions_dir)
+
+
+def _journal_path(execution_id: str) -> Path:
+    _, executions_dir = _history_paths()
+    return build_journal_path(execution_id, executions_dir)
+

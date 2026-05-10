@@ -1,0 +1,30 @@
+{
+  "global_config": {
+    "LAUNCH_DEFAULT_CAUTION_LEVEL": "balanced",
+    "LAUNCH_DEFAULT_NOTE": "",
+    "LAUNCH_SKIP_STRATEGY_PROMPT": false,
+    "LAUNCH_DEFAULT_TEMPLATE_ID": "general_downloads",
+    "LAUNCH_DEFAULT_NAMING_STYLE": "zh",
+    "IMAGE_ANALYSIS_ENABLED": false,
+    "DEBUG_MODE": false
+  },
+  "text_presets": {
+    "default": {
+      "name": "默认文本模型",
+      "OPENAI_BASE_URL": "https://your-text-endpoint/v1",
+      "OPENAI_MODEL": "gpt-5.2",
+      "OPENAI_API_KEY": "your_text_api_key_here"
+    }
+  },
+  "vision_presets": {
+    "default": {
+      "name": "可选图片理解模型",
+      "IMAGE_ANALYSIS_NAME": "可选图片理解模型",
+      "IMAGE_ANALYSIS_BASE_URL": "https://your-vision-endpoint/v1",
+      "IMAGE_ANALYSIS_MODEL": "gpt-5.2",
+      "IMAGE_ANALYSIS_API_KEY": "your_vision_api_key_here"
+    }
+  },
+  "active_text_preset_id": "default",
+  "active_vision_preset_id": "default"
+}

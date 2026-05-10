@@ -1,0 +1,11 @@
+openai
+httpx
+pypdf
+python-docx
+pandas
+openpyxl
+fastapi
+uvicorn
+python-multipart
+python-dotenv
+Pillow

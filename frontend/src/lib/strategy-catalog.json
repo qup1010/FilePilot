@@ -1,0 +1,681 @@
+{
+  "defaults": {
+    "templateId": "general_downloads",
+    "language": "zh",
+    "density": "normal",
+    "prefixStyle": "none",
+    "cautionLevel": "balanced"
+  },
+  "strategyTemplates": [
+    {
+      "id": "general_downloads",
+      "label": "通用下载",
+      "description": "适合下载目录、桌面暂存区等混合文件场景。",
+      "applicableScenarios": "下载文件夹、桌面离散文件、回收站前的暂存区",
+      "defaultLanguage": "zh",
+      "defaultDensity": "normal",
+      "defaultPrefixStyle": "none",
+      "defaultCautionLevel": "balanced",
+      "directorySets": {
+        "normal": [
+          {
+            "id": "projects",
+            "labels": {
+              "zh": "项目资料",
+              "en": "Projects"
+            },
+            "categoryLabels": {
+              "zh": "项目",
+              "en": "Project"
+            }
+          },
+          {
+            "id": "finance",
+            "labels": {
+              "zh": "财务票据",
+              "en": "Finance"
+            },
+            "categoryLabels": {
+              "zh": "财务",
+              "en": "Finance"
+            }
+          },
+          {
+            "id": "study",
+            "labels": {
+              "zh": "学习资料",
+              "en": "Study"
+            },
+            "categoryLabels": {
+              "zh": "学习",
+              "en": "Study"
+            }
+          },
+          {
+            "id": "installers",
+            "labels": {
+              "zh": "安装程序",
+              "en": "Installers"
+            },
+            "categoryLabels": {
+              "zh": "安装",
+              "en": "Installers"
+            }
+          }
+        ],
+        "minimal": [
+          {
+            "id": "docs",
+            "labels": {
+              "zh": "文档",
+              "en": "Docs"
+            },
+            "categoryLabels": {
+              "zh": "文档",
+              "en": "Docs"
+            }
+          },
+          {
+            "id": "media",
+            "labels": {
+              "zh": "媒体",
+              "en": "Media"
+            },
+            "categoryLabels": {
+              "zh": "媒体",
+              "en": "Media"
+            }
+          },
+          {
+            "id": "installers",
+            "labels": {
+              "zh": "安装程序",
+              "en": "Installers"
+            },
+            "categoryLabels": {
+              "zh": "安装",
+              "en": "Installers"
+            }
+          },
+          {
+            "id": "archives",
+            "labels": {
+              "zh": "归档",
+              "en": "Archives"
+            },
+            "categoryLabels": {
+              "zh": "归档",
+              "en": "Archives"
+            }
+          }
+        ]
+      },
+      "promptFragment": "场景重点：这是一个混合下载目录或零散收纳目录。\n优先目标：快速把杂乱文件按实际用途归到清晰的大类，而不是过度细分。\n优先考虑的目录语义：项目资料、财务票据、学习资料、安装程序、截图记录、媒体素材、历史归档。"
+    },
+    {
+      "id": "project_workspace",
+      "label": "项目资料",
+      "description": "适合项目工作目录、交付目录、设计与代码并存的场景。",
+      "applicableScenarios": "工作项目根目录、GitHub 仓库、客户交付件汇总",
+      "defaultLanguage": "en",
+      "defaultDensity": "normal",
+      "defaultPrefixStyle": "none",
+      "defaultCautionLevel": "balanced",
+      "directorySets": {
+        "normal": [
+          {
+            "id": "projects",
+            "labels": {
+              "zh": "项目资料",
+              "en": "Projects"
+            },
+            "categoryLabels": {
+              "zh": "项目",
+              "en": "Project"
+            }
+          },
+          {
+            "id": "docs",
+            "labels": {
+              "zh": "项目文档",
+              "en": "Docs"
+            },
+            "categoryLabels": {
+              "zh": "文档",
+              "en": "Docs"
+            }
+          },
+          {
+            "id": "deliverables",
+            "labels": {
+              "zh": "交付物",
+              "en": "Deliverables"
+            },
+            "categoryLabels": {
+              "zh": "交付",
+              "en": "Deliverable"
+            }
+          },
+          {
+            "id": "assets",
+            "labels": {
+              "zh": "素材资源",
+              "en": "Assets"
+            },
+            "categoryLabels": {
+              "zh": "素材",
+              "en": "Assets"
+            }
+          }
+        ],
+        "minimal": [
+          {
+            "id": "projects",
+            "labels": {
+              "zh": "项目",
+              "en": "Projects"
+            },
+            "categoryLabels": {
+              "zh": "项目",
+              "en": "Project"
+            }
+          },
+          {
+            "id": "docs",
+            "labels": {
+              "zh": "文档",
+              "en": "Docs"
+            },
+            "categoryLabels": {
+              "zh": "文档",
+              "en": "Docs"
+            }
+          },
+          {
+            "id": "assets",
+            "labels": {
+              "zh": "素材",
+              "en": "Assets"
+            },
+            "categoryLabels": {
+              "zh": "素材",
+              "en": "Assets"
+            }
+          },
+          {
+            "id": "archives",
+            "labels": {
+              "zh": "归档",
+              "en": "Archives"
+            },
+            "categoryLabels": {
+              "zh": "归档",
+              "en": "Archives"
+            }
+          }
+        ]
+      },
+      "promptFragment": "场景重点：这是一个项目工作目录，可能同时包含代码、文档、设计稿、导出物和素材。\n优先目标：尽量按项目语义和交付流程整理，不要把同一项目相关文件按扩展名拆散。\n优先考虑的目录语义：Projects、Docs、Deliverables、Assets、Archives。"
+    },
+    {
+      "id": "study_materials",
+      "label": "学习资料",
+      "description": "适合课程讲义、笔记、作业、截图和参考材料。",
+      "applicableScenarios": "网课下载目录、考研/考证资料、学生作业文件夹",
+      "defaultLanguage": "zh",
+      "defaultDensity": "normal",
+      "defaultPrefixStyle": "none",
+      "defaultCautionLevel": "balanced",
+      "directorySets": {
+        "normal": [
+          {
+            "id": "courses",
+            "labels": {
+              "zh": "课程资料",
+              "en": "Courses"
+            },
+            "categoryLabels": {
+              "zh": "课程",
+              "en": "Courses"
+            }
+          },
+          {
+            "id": "notes",
+            "labels": {
+              "zh": "笔记讲义",
+              "en": "Notes"
+            },
+            "categoryLabels": {
+              "zh": "笔记",
+              "en": "Notes"
+            }
+          },
+          {
+            "id": "assignments",
+            "labels": {
+              "zh": "作业练习",
+              "en": "Assignments"
+            },
+            "categoryLabels": {
+              "zh": "作业",
+              "en": "Assignments"
+            }
+          },
+          {
+            "id": "reference",
+            "labels": {
+              "zh": "参考资料",
+              "en": "Reference"
+            },
+            "categoryLabels": {
+              "zh": "参考",
+              "en": "Reference"
+            }
+          }
+        ],
+        "minimal": [
+          {
+            "id": "study",
+            "labels": {
+              "zh": "学习",
+              "en": "Study"
+            },
+            "categoryLabels": {
+              "zh": "学习",
+              "en": "Study"
+            }
+          },
+          {
+            "id": "notes",
+            "labels": {
+              "zh": "笔记",
+              "en": "Notes"
+            },
+            "categoryLabels": {
+              "zh": "笔记",
+              "en": "Notes"
+            }
+          },
+          {
+            "id": "reference",
+            "labels": {
+              "zh": "参考",
+              "en": "Reference"
+            },
+            "categoryLabels": {
+              "zh": "参考",
+              "en": "Reference"
+            }
+          },
+          {
+            "id": "archives",
+            "labels": {
+              "zh": "归档",
+              "en": "Archives"
+            },
+            "categoryLabels": {
+              "zh": "归档",
+              "en": "Archives"
+            }
+          }
+        ]
+      },
+      "promptFragment": "场景重点：这是一个学习资料目录，通常包含课件、讲义、笔记、作业、截图和参考材料。\n优先目标：按学习用途整理，让课程资料、笔记、作业和参考材料彼此分离。\n优先考虑的目录语义：课程资料、笔记讲义、作业练习、参考资料、学习截图。"
+    },
+    {
+      "id": "office_admin",
+      "label": "办公事务",
+      "description": "适合合同、报表、发票、通知、表格等正式办公资料。",
+      "applicableScenarios": "行政办公室、财务报销单据、企业合同管理",
+      "defaultLanguage": "en",
+      "defaultDensity": "normal",
+      "defaultPrefixStyle": "none",
+      "defaultCautionLevel": "balanced",
+      "directorySets": {
+        "normal": [
+          {
+            "id": "finance",
+            "labels": {
+              "zh": "财务票据",
+              "en": "Finance"
+            },
+            "categoryLabels": {
+              "zh": "财务",
+              "en": "Finance"
+            }
+          },
+          {
+            "id": "contracts",
+            "labels": {
+              "zh": "合同协议",
+              "en": "Contracts"
+            },
+            "categoryLabels": {
+              "zh": "合同",
+              "en": "Contracts"
+            }
+          },
+          {
+            "id": "reports",
+            "labels": {
+              "zh": "报告报表",
+              "en": "Reports"
+            },
+            "categoryLabels": {
+              "zh": "报表",
+              "en": "Reports"
+            }
+          },
+          {
+            "id": "forms",
+            "labels": {
+              "zh": "流程表单",
+              "en": "Forms"
+            },
+            "categoryLabels": {
+              "zh": "表单",
+              "en": "Forms"
+            }
+          }
+        ],
+        "minimal": [
+          {
+            "id": "docs",
+            "labels": {
+              "zh": "文档",
+              "en": "Docs"
+            },
+            "categoryLabels": {
+              "zh": "文档",
+              "en": "Docs"
+            }
+          },
+          {
+            "id": "finance",
+            "labels": {
+              "zh": "财务",
+              "en": "Finance"
+            },
+            "categoryLabels": {
+              "zh": "财务",
+              "en": "Finance"
+            }
+          },
+          {
+            "id": "archives",
+            "labels": {
+              "zh": "归档",
+              "en": "Archives"
+            },
+            "categoryLabels": {
+              "zh": "归档",
+              "en": "Archives"
+            }
+          }
+        ]
+      },
+      "promptFragment": "场景重点：这是一个办公事务目录，常见内容包括合同、发票、通知、报表、流程文档和表格。\n优先目标：优先保证财务、合同和正式文档的可检索性与稳定性。\n优先考虑的目录语义：Finance、Contracts、Reports、Forms、Archives。\n遇到票据、合同、付款或报销相关内容时，优先按财务/合同语义归类。"
+    },
+    {
+      "id": "personal_archive",
+      "label": "个人资料",
+      "description": "适合证件扫描件、账单、生活记录、聊天导出和个人留档资料。",
+      "applicableScenarios": "个人文档柜、家庭资料、生活归档、证件与账单整理",
+      "defaultLanguage": "zh",
+      "defaultDensity": "normal",
+      "defaultPrefixStyle": "none",
+      "defaultCautionLevel": "balanced",
+      "directorySets": {
+        "normal": [
+          {
+            "id": "identity",
+            "labels": {
+              "zh": "证件资料",
+              "en": "Identity"
+            },
+            "categoryLabels": {
+              "zh": "证件",
+              "en": "Identity"
+            }
+          },
+          {
+            "id": "bills",
+            "labels": {
+              "zh": "账单票据",
+              "en": "Bills"
+            },
+            "categoryLabels": {
+              "zh": "账单",
+              "en": "Bills"
+            }
+          },
+          {
+            "id": "life",
+            "labels": {
+              "zh": "生活记录",
+              "en": "Life"
+            },
+            "categoryLabels": {
+              "zh": "生活",
+              "en": "Life"
+            }
+          },
+          {
+            "id": "archives",
+            "labels": {
+              "zh": "历史归档",
+              "en": "Archives"
+            },
+            "categoryLabels": {
+              "zh": "归档",
+              "en": "Archives"
+            }
+          }
+        ],
+        "minimal": [
+          {
+            "id": "personal",
+            "labels": {
+              "zh": "个人资料",
+              "en": "Personal"
+            },
+            "categoryLabels": {
+              "zh": "个人",
+              "en": "Personal"
+            }
+          },
+          {
+            "id": "bills",
+            "labels": {
+              "zh": "账单",
+              "en": "Bills"
+            },
+            "categoryLabels": {
+              "zh": "账单",
+              "en": "Bills"
+            }
+          },
+          {
+            "id": "archives",
+            "labels": {
+              "zh": "归档",
+              "en": "Archives"
+            },
+            "categoryLabels": {
+              "zh": "归档",
+              "en": "Archives"
+            }
+          }
+        ]
+      },
+      "promptFragment": "场景重点：这是一个个人资料与生活记录目录，常见内容包括证件扫描件、账单、申请材料、聊天导出、生活记录和历史留档。\n优先目标：优先按资料用途和长期检索需求整理，而不是只按文件格式拆分。\n优先考虑的目录语义：证件资料、账单票据、生活记录、历史归档。"
+    },
+    {
+      "id": "media_assets",
+      "label": "媒体素材",
+      "description": "适合截图、照片、视频、音频、设计源文件和内容创作素材。",
+      "applicableScenarios": "截图堆积目录、内容创作素材库、设计与剪辑资源目录",
+      "defaultLanguage": "en",
+      "defaultDensity": "minimal",
+      "defaultPrefixStyle": "none",
+      "defaultCautionLevel": "balanced",
+      "directorySets": {
+        "normal": [
+          {
+            "id": "shots",
+            "labels": {
+              "zh": "截图记录",
+              "en": "Screenshots"
+            },
+            "categoryLabels": {
+              "zh": "截图",
+              "en": "Shots"
+            }
+          },
+          {
+            "id": "images",
+            "labels": {
+              "zh": "图片素材",
+              "en": "Images"
+            },
+            "categoryLabels": {
+              "zh": "图片",
+              "en": "Images"
+            }
+          },
+          {
+            "id": "video_audio",
+            "labels": {
+              "zh": "视频音频",
+              "en": "Video-Audio"
+            },
+            "categoryLabels": {
+              "zh": "影音",
+              "en": "Media"
+            }
+          },
+          {
+            "id": "design",
+            "labels": {
+              "zh": "设计源文件",
+              "en": "Design"
+            },
+            "categoryLabels": {
+              "zh": "设计",
+              "en": "Design"
+            }
+          }
+        ],
+        "minimal": [
+          {
+            "id": "shots",
+            "labels": {
+              "zh": "截图",
+              "en": "Shots"
+            },
+            "categoryLabels": {
+              "zh": "截图",
+              "en": "Shots"
+            }
+          },
+          {
+            "id": "media",
+            "labels": {
+              "zh": "媒体",
+              "en": "Media"
+            },
+            "categoryLabels": {
+              "zh": "媒体",
+              "en": "Media"
+            }
+          },
+          {
+            "id": "design",
+            "labels": {
+              "zh": "设计",
+              "en": "Design"
+            },
+            "categoryLabels": {
+              "zh": "设计",
+              "en": "Design"
+            }
+          },
+          {
+            "id": "archives",
+            "labels": {
+              "zh": "归档",
+              "en": "Archives"
+            },
+            "categoryLabels": {
+              "zh": "归档",
+              "en": "Archives"
+            }
+          }
+        ]
+      },
+      "promptFragment": "场景重点：这是一个媒体与创作素材目录，通常包含截图、照片、视频、音频、设计稿、导出图和零散创作资源。\n优先目标：按素材用途和创作流程整理，不要把同一批创作资产仅按扩展名拆散。\n优先考虑的目录语义：Screenshots、Images、Video-Audio、Design、Archives。"
+    }
+  ],
+  "languages": [
+    {
+      "id": "zh",
+      "label": "中文目录",
+      "description": "目录名更自然，适合个人资料和学习资料场景。",
+      "promptFragment": "目录语言：优先使用简洁、自然、统一的中文目录名。\n避免中英混搭；同一套方案中的目录语言保持一致。"
+    },
+    {
+      "id": "en",
+      "label": "英文目录",
+      "description": "目录名更规范，适合项目协作和办公场景。",
+      "promptFragment": "目录语言：优先使用清晰稳定的英文目录名，适合项目和办公协作场景。\n尽量采用常见英文分类词，不要同时混用中文同义目录。"
+    }
+  ],
+  "densities": [
+    {
+      "id": "normal",
+      "label": "常规分类",
+      "description": "保留较清晰的常规分类层级，适合大多数整理任务。",
+      "promptFragment": "分类粒度：常规。\n保留清晰、易理解的常规目录层级，不要为了整齐而过度细分。"
+    },
+    {
+      "id": "minimal",
+      "label": "极简分类",
+      "description": "目录更少更宽泛，减少层级和分类粒度。",
+      "promptFragment": "分类粒度：极简。\n优先使用更少、更宽泛的目录层级，减少目录数量和分类粒度。"
+    }
+  ],
+  "prefixStyles": [
+    {
+      "id": "none",
+      "label": "无前缀",
+      "description": "直接使用目录名，不额外添加编号或类别标签。",
+      "promptFragment": "目录前缀：无。\n直接使用目录基础名称，不要添加编号、日期或类别前缀。"
+    },
+    {
+      "id": "numeric",
+      "label": "数字前缀",
+      "description": "使用 01_、02_ 这类顺序编号，便于排序。",
+      "promptFragment": "目录前缀：数字前缀。\n使用两位数字顺序前缀，例如 01_、02_，保持排序清晰稳定。"
+    },
+    {
+      "id": "category",
+      "label": "类别前缀",
+      "description": "使用方括号类别标签，例如 [项目] 项目资料。",
+      "promptFragment": "目录前缀：类别标签前缀。\n使用方括号类别标签，例如 [项目] 项目资料、[财务] Finance；标签简洁固定，不要自创复杂样式。"
+    }
+  ],
+  "cautionLevels": [
+    {
+      "id": "conservative",
+      "label": "保守",
+      "description": "只自动处理高置信度文件，模糊项优先进入待确认区。",
+      "promptFragment": "整理保守度：保守。\n只有在用途较明确时才自动归类；模糊项优先进入待确认区。\n尽量减少新目录数量，优先保证可解释性和可回退性。"
+    },
+    {
+      "id": "balanced",
+      "label": "平衡",
+      "description": "常规项自动归类，明显不确定的文件再保留待确认。",
+      "promptFragment": "整理保守度：平衡。\n对高置信度和中高置信度项目都可以直接归类，只把真正拿不准的项放入待确认区。\n允许为清晰结构创建适量目录，但不要过度细分。"
+    }
+  ]
+}

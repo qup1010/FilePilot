@@ -1,0 +1,89 @@
+__pycache__/
+*.py[cod]
+*$py.class
+FolderPainter
+logs/*
+need-oranganize-folder/
+.playwright-cli/
+# 环境与配置
+.venv/
+venv/
+env/
+.env
+.env.*
+!.env.example
+config.json
+.claude/
+.spec-workflow/
+
+# 临时数据与结果
+dist/*
+!dist/backend/
+dist/backend/*
+!dist/backend/.gitkeep
+output/
+result.txt
+test_out.txt
+test_folder/
+legacy_drafts/
+.worktrees/
+.tmp/
+tmp/
+tmp_debug_scan_progress/
+
+# 缓存与调试
+.pytest_cache/
+.mypy_cache/
+.DS_Store
+.idea/
+.vscode/
+
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+.npm/
+
+# Frontend (Next.js)
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/build/
+frontend/.vercel
+frontend/.turbo
+frontend/.env.local
+frontend/.env.development.local
+frontend/.env.test.local
+frontend/.env.production.local
+
+# Desktop (Tauri/Rust)
+desktop/src-tauri/target/
+desktop/src-tauri/gen/
+desktop/node_modules/
+desktop/src-tauri/binaries/
+desktop/.env.local
+
+# 内部文档与研发辅助
+docs/
+CLAUDE.md
+AGENTS.md
+GEMINI.md
+scratch/
+probe_compat_tool_calling.py
+logo icon.png
+
+# System / Logs
+.tmp-tauri-stdout.log
+*.log
+backend/logs/debug.json
+backend/logs/debug.jsonl
+logs/backend/debug.json
+logs/backend/debug.jsonl
+.gemini/
+.antigravity/
+logs/
+.history/
+test_temp_*/
+logs/backend/*

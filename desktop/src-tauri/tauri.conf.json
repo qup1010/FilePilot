@@ -1,0 +1,44 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "FilePilot",
+  "version": "0.1.0",
+  "identifier": "com.filepilot.desktop",
+  "build": {
+    "beforeDevCommand": "npm.cmd --prefix ../frontend run dev -- --hostname 127.0.0.1 --port 3000",
+    "beforeBuildCommand": "npm.cmd --prefix ../frontend run build",
+    "frontendDist": "../../frontend/out",
+    "devUrl": "http://127.0.0.1:3000"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "FilePilot",
+        "width": 1100,
+        "height": 720,
+        "minWidth": 960,
+        "minHeight": 640,
+        "center": true,
+        "resizable": true,
+        "decorations": false
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "resources": {
+      "../../dist/backend": "backend"
+    },
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ]
+  }
+}
