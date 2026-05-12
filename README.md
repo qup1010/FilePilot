@@ -219,11 +219,13 @@ cd desktop
 npm run tauri:dev
 ```
 
-
+**友情链接** · [**LINUX DO**](https://linux.do/)
 
 
 ## License
 
 [MIT](./LICENSE)
+
+
 
 
