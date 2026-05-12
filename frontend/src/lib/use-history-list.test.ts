@@ -71,7 +71,7 @@ describe("use-history-list helpers", () => {
   });
 
   it("uses created time as the history entry name", () => {
-    expect(getHistoryEntryName(createHistoryItem({ created_at: "2026-04-21T08:30:00+08:00" }))).toBe("2026/04/21 08:30");
+    expect(getHistoryEntryName(createHistoryItem({ created_at: "2026-04-21T08:30:00" }))).toBe("2026/04/21 08:30");
   });
 
   it("uses explicit delete prompts for unfinished sessions and execution records", () => {

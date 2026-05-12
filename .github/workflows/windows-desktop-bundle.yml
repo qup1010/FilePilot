@@ -18,6 +18,50 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v5
 
+      - name: Validate desktop version files
+        shell: pwsh
+        run: |
+          $package = Get-Content 'desktop/package.json' -Raw -Encoding utf8 | ConvertFrom-Json
+          $tauri = Get-Content 'desktop/src-tauri/tauri.conf.json' -Raw -Encoding utf8 | ConvertFrom-Json
+          $cargoVersion = Select-String -Path 'desktop/src-tauri/Cargo.toml' -Pattern '^\s*version\s*=\s*"(?<version>[^"]+)"' | Select-Object -First 1
+
+          if (-not $cargoVersion) {
+            throw 'Version field was not found in desktop/src-tauri/Cargo.toml.'
+          }
+
+          $versions = @{
+            'desktop/package.json' = [string]$package.version
+            'desktop/src-tauri/tauri.conf.json' = [string]$tauri.version
+            'desktop/src-tauri/Cargo.toml' = [string]$cargoVersion.Matches[0].Groups['version'].Value
+          }
+
+          $distinctVersions = @($versions.Values | Sort-Object -Unique)
+          if ($distinctVersions.Count -ne 1) {
+            $details = $versions.GetEnumerator() |
+              Sort-Object Name |
+              ForEach-Object { "$($_.Name) => $($_.Value)" }
+            throw "Desktop version files are out of sync.`n$($details -join \"`n\")"
+          }
+
+          Write-Output "Desktop version files are synchronized: $($distinctVersions[0])"
+
+      - name: Validate tag matches desktop version
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        run: |
+          $package = Get-Content 'desktop/package.json' -Raw -Encoding utf8 | ConvertFrom-Json
+          $expectedVersion = [string]$package.version
+          $tagVersion = '${{ github.ref_name }}'
+          if ($tagVersion.StartsWith('v')) {
+            $tagVersion = $tagVersion.Substring(1)
+          }
+
+          if ($tagVersion -ne $expectedVersion) {
+            throw "Tag version mismatch. Tag=${{ github.ref_name }}, desktop version=$expectedVersion"
+          }
+
+          Write-Output "Tag matches desktop version: $expectedVersion"
+
       - name: Set up Node.js
         uses: actions/setup-node@v5
         with:

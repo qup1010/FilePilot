@@ -97,6 +97,11 @@ window.__FILE_PILOT_RUNTIME__
 - 当前支持两种触发方式：
   - GitHub Actions 页面手动触发
   - 推送 `v*` tag 后自动创建 Release
+- tag 发布前会校验：
+  - `desktop/package.json`
+  - `desktop/src-tauri/tauri.conf.json`
+  - `desktop/src-tauri/Cargo.toml`
+  三处桌面版本号必须一致，且必须与 tag（去掉前缀 `v` 后）一致
 
 推荐发版顺序：
 
