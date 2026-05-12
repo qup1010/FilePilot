@@ -40,7 +40,8 @@ jobs:
             $details = $versions.GetEnumerator() |
               Sort-Object Name |
               ForEach-Object { "$($_.Name) => $($_.Value)" }
-            throw "Desktop version files are out of sync.`n$($details -join \"`n\")"
+            $detailText = $details -join [Environment]::NewLine
+            throw "Desktop version files are out of sync.$([Environment]::NewLine)$detailText"
           }
 
           Write-Output "Desktop version files are synchronized: $($distinctVersions[0])"
