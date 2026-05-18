@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { ChevronDown, ChevronRight, FileText, Folder, Edit2 } from "lucide-react";
+import { ChevronDown, ChevronRight, Folder, Edit2 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { cn } from "@/lib/utils";
 import type { PlacementConfig, PlanItem } from "@/types/session";
@@ -12,7 +12,8 @@ import {
   normalizeEntryKind, 
   isItemChanged, 
   displayDirectoryLabel, 
-  fileExtension 
+  fileExtension,
+  getFileIcon
 } from "./preview-utils";
 
 interface TreeBranchProps {
@@ -47,7 +48,7 @@ export function TreeBranch({
   if (node.kind === "file") {
     if (node.item) {
       const status = itemStatusMeta(node.item, acceptedReviewItemIds);
-      const ItemIcon = normalizeEntryKind(node.item.entry_type) === "directory" ? Folder : FileText;
+      const ItemIcon = getFileIcon(node.item.display_name, node.item.entry_type);
       const active = selectedItemId === node.item.item_id;
       const hasMoved = viewMode === "after" && isItemChanged(node.item, targetSlotById, placement);
 
@@ -168,7 +169,10 @@ export function TreeBranch({
             style={{ left: 16 + idx * 16 }}
           />
         ))}
-        <FileText className="h-3.5 w-3.5 shrink-0 text-on-surface-variant/20" />
+        {(() => {
+          const ItemIcon = getFileIcon(node.sourceEntry?.display_name || node.name, node.sourceEntry?.entry_type);
+          return <ItemIcon className="h-3.5 w-3.5 shrink-0 text-on-surface-variant/20" />;
+        })()}
         <div className="min-w-0 flex-1">
           <p className="truncate font-mono text-[12px] font-black tracking-tight text-on-surface/50">{node.sourceEntry?.display_name || node.name}</p>
           <p className="truncate text-[10px] font-bold uppercase tracking-wider text-ui-muted opacity-30">Original Item</p>

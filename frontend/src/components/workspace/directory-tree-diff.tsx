@@ -1,9 +1,10 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
-import { ChevronDown, ChevronRight, File, FileWarning, Folder, FolderOpen, Layers } from "lucide-react";
+import { ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, File, FileWarning, Folder, FolderOpen, Layers } from "lucide-react";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
+import { getFileIcon } from "./preview/preview-utils";
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -209,10 +210,19 @@ function statusBadge(status: DirectoryTreeLeafStatus | undefined) {
   return null;
 }
 
-function DirectoryTreePanel({ column, filter = "all" }: { column: DirectoryTreeColumnData; filter?: DirectoryTreeFilter }) {
-  const tree = useMemo(() => buildTree(column, filter), [column, filter]);
-  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
-
+function DirectoryTreePanel({ 
+  column, 
+  filter = "all",
+  tree,
+  expanded,
+  setExpanded,
+}: { 
+  column: DirectoryTreeColumnData; 
+  filter?: DirectoryTreeFilter;
+  tree: DirectoryTreeNode[];
+  expanded: Record<string, boolean>;
+  setExpanded: React.Dispatch<React.SetStateAction<Record<string, boolean>>>;
+}) {
   useEffect(() => {
     setExpanded((prev) => {
       const next = { ...prev };
@@ -223,7 +233,7 @@ function DirectoryTreePanel({ column, filter = "all" }: { column: DirectoryTreeC
       }
       return next;
     });
-  }, [tree]);
+  }, [tree, setExpanded]);
 
   const toggle = (path: string) => {
     setExpanded((prev) => ({ ...prev, [path]: !prev[path] }));
@@ -249,14 +259,18 @@ function DirectoryTreePanel({ column, filter = "all" }: { column: DirectoryTreeC
           <div className="absolute left-[-1px] top-0 bottom-0 w-[1px] bg-on-surface/5" 
                style={{ left: `${6 + depth * 16}px` }} />
           
-          {isReviewFile ? (
-            <FileWarning className="h-3.5 w-3.5 shrink-0 text-warning/70" />
-          ) : (
-            <File className={cn(
-              "h-3.5 w-3.5 shrink-0 transition-colors",
-              isAdded ? "text-success/50" : isFailed ? "text-error/50" : "text-on-surface-variant/25"
-            )} />
-          )}
+          {(() => {
+            const ItemIcon = getFileIcon(node.name);
+            return (
+              <ItemIcon className={cn(
+                "h-3.5 w-3.5 shrink-0 transition-colors",
+                isReviewFile ? "text-warning/70" :
+                isAdded ? "text-success/50" :
+                isFailed ? "text-error/50" :
+                "text-on-surface-variant/25"
+              )} />
+            );
+          })()}
           <span 
             title={node.name}
             className={cn(
@@ -352,10 +366,104 @@ function DirectoryTreePanel({ column, filter = "all" }: { column: DirectoryTreeC
 }
 
 export function DirectoryTreeDiff({ before, after, filter = "all" }: DirectoryTreeDiffProps) {
+  const [expandedBefore, setExpandedBefore] = useState<Record<string, boolean>>({});
+  const [expandedAfter, setExpandedAfter] = useState<Record<string, boolean>>({});
+
+  const beforeTree = useMemo(() => buildTree(before, filter), [before, filter]);
+  const afterTree = useMemo(() => buildTree(after, filter), [after, filter]);
+
+  const handleCollapseAll = () => {
+    const nextBefore: Record<string, boolean> = {};
+    const nextAfter: Record<string, boolean> = {};
+    
+    const traverse = (nodes: DirectoryTreeNode[], next: Record<string, boolean>) => {
+      nodes.forEach((n) => {
+        if (n.kind === "directory") {
+          next[n.path] = false;
+          traverse(n.children, next);
+        }
+      });
+    };
+    
+    traverse(beforeTree, nextBefore);
+    traverse(afterTree, nextAfter);
+    setExpandedBefore(nextBefore);
+    setExpandedAfter(nextAfter);
+  };
+
+  const handleExpandAll = () => {
+    const nextBefore: Record<string, boolean> = {};
+    const nextAfter: Record<string, boolean> = {};
+    
+    const traverse = (nodes: DirectoryTreeNode[], next: Record<string, boolean>) => {
+      nodes.forEach((n) => {
+        if (n.kind === "directory") {
+          next[n.path] = true;
+          traverse(n.children, next);
+        }
+      });
+    };
+    
+    traverse(beforeTree, nextBefore);
+    traverse(afterTree, nextAfter);
+    setExpandedBefore(nextBefore);
+    setExpandedAfter(nextAfter);
+  };
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.altKey && event.key.toLowerCase() === "e") {
+        event.preventDefault();
+        handleExpandAll();
+      } else if ((event.ctrlKey || event.metaKey) && event.altKey && event.key.toLowerCase() === "c") {
+        event.preventDefault();
+        handleCollapseAll();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [beforeTree, afterTree]);
+
   return (
-    <div className="grid gap-6 lg:grid-cols-2">
-      <DirectoryTreePanel column={before} filter={filter} />
-      <DirectoryTreePanel column={after} filter={filter} />
+    <div className="space-y-4">
+      {/* Controls Bar */}
+      <div className="flex items-center justify-end gap-1.5 border-b border-on-surface/5 pb-3">
+        <button
+          type="button"
+          title="全部收起 (Ctrl+Alt+C)"
+          onClick={handleCollapseAll}
+          className="flex h-7 px-2.5 items-center gap-1.5 rounded-[6px] border border-on-surface/8 bg-surface text-[11px] font-black text-ui-muted hover:bg-on-surface/5 active:scale-95 transition-all select-none"
+        >
+          <ChevronsDownUp className="h-3.5 w-3.5" />
+          <span>全部收起</span>
+        </button>
+        <button
+          type="button"
+          title="全部展开 (Ctrl+Alt+E)"
+          onClick={handleExpandAll}
+          className="flex h-7 px-2.5 items-center gap-1.5 rounded-[6px] border border-on-surface/8 bg-surface text-[11px] font-black text-ui-muted hover:bg-on-surface/5 active:scale-95 transition-all select-none"
+        >
+          <ChevronsUpDown className="h-3.5 w-3.5" />
+          <span>全部展开</span>
+        </button>
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-2">
+        <DirectoryTreePanel 
+          column={before} 
+          filter={filter} 
+          tree={beforeTree}
+          expanded={expandedBefore}
+          setExpanded={setExpandedBefore}
+        />
+        <DirectoryTreePanel 
+          column={after} 
+          filter={filter} 
+          tree={afterTree}
+          expanded={expandedAfter}
+          setExpanded={setExpandedAfter}
+        />
+      </div>
     </div>
   );
 }

@@ -65,6 +65,28 @@ function displayNameFromPath(path: string): string {
   return normalized.split(/[\\/]/).pop() || "未知条目";
 }
 
+function formatDirName(path: string | null | undefined): string {
+  const trimmed = String(path || "").trim();
+  if (!trimmed) {
+    return "当前任务";
+  }
+  try {
+    const decoded = decodeURIComponent(trimmed);
+    if (/^[a-zA-Z]:[\\/]?$/.test(decoded)) {
+      const letter = decoded[0].toUpperCase();
+      return `${letter}:\\`;
+    }
+    if (decoded === "/" || decoded === "\\") {
+      return "/";
+    }
+    const normalized = decoded.replace(/[\\/]$/, "");
+    return normalized.split(/[\\/]/).pop() || "当前任务";
+  } catch {
+    const normalized = trimmed.replace(/[\\/]$/, "");
+    return normalized.split(/[\\/]/).pop() || "当前任务";
+  }
+}
+
 function deriveWorkspacePipeline(stageView: ReturnType<typeof getSessionStageView>, progressPhase: WorkspaceProgressPhase): WorkspacePipelineStep[] {
   const isRecovery = stageView.isRecovery;
   return [
@@ -383,7 +405,7 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
   const effectiveComposerMode = isReadOnly ? "hidden" : composerMode;
   const targetPath = snapshot?.target_dir || dirParam || "";
   const targetDirName = useMemo(
-    () => targetPath.replace(/[\\/]$/, "").split(/[\\/]/).pop() || "当前任务",
+    () => formatDirName(targetPath),
     [targetPath],
   );
   const reviewMoveCount = useMemo(
@@ -1009,7 +1031,7 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
     }
     const targetPath = snapshot?.target_dir || dirParam || "";
     const hasTargetPath = Boolean(targetPath);
-    const dirName = hasTargetPath ? targetPath.replace(/[\\/]$/, "").split(/[\\/]/).pop() || "当前任务" : "当前任务";
+    const dirName = snapshot?.session_title || formatDirName(targetPath);
     window.localStorage.setItem(
       WORKSPACE_CONTEXT_KEY,
       JSON.stringify({
@@ -1020,7 +1042,7 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
       }),
     );
     window.dispatchEvent(new Event(APP_CONTEXT_EVENT));
-  }, [APP_CONTEXT_EVENT, WORKSPACE_CONTEXT_KEY, dirParam, sessionIdParam, snapshot?.target_dir, stage]);
+  }, [APP_CONTEXT_EVENT, WORKSPACE_CONTEXT_KEY, dirParam, sessionIdParam, snapshot?.target_dir, snapshot?.session_title, stage]);
 
   React.useEffect(() => {
     if (view !== "plan") {

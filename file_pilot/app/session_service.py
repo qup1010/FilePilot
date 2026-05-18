@@ -379,6 +379,37 @@ class OrganizerSessionService:
         )
 
     @classmethod
+    def _session_title_for(cls, session: OrganizerSession) -> str:
+        sources = session.source_collection
+        if not sources:
+            target_path = Path(session.target_dir)
+            name = target_path.name or str(target_path)
+            import re
+            trimmed = name.strip()
+            if re.match(r"^[a-zA-Z]:[\\/]?$", trimmed):
+                return f"{trimmed[0].upper()}:\\"
+            return name
+
+        def format_source_display_name(path_str: str) -> str:
+            trimmed = str(path_str or "").strip()
+            if not trimmed:
+                return "当前任务"
+            import re
+            if re.match(r"^[a-zA-Z]:[\\/]?$", trimmed):
+                return f"{trimmed[0].upper()}:\\"
+            p = Path(trimmed)
+            name = p.name
+            if not name:
+                name = str(p)
+            return name
+
+        if len(sources) == 1:
+            return format_source_display_name(sources[0].path)
+        else:
+            first_name = format_source_display_name(sources[0].path)
+            return f"{first_name} 等 {len(sources)} 项"
+
+    @classmethod
     def _derive_session_root_dir(
         cls,
         source_collection: list[SourceCollectionItem],
@@ -2902,6 +2933,7 @@ class OrganizerSessionService:
         incremental_selection = self._incremental_selection_snapshot(session)
         return {
             "session_id": session.session_id,
+            "session_title": self._session_title_for(session),
             "target_dir": str(session.target_dir),
             "placement": copy.deepcopy(self._placement_payload(session.placement).__dict__),
             "stage": session.stage,

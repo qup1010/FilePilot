@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, ArrowRight, CheckCircle2, ChevronDown, ChevronRight, ChevronUp, FileText, Folder, FolderOpen, Layers, Search, Sparkles, Edit2, Info, ChevronsDownUp, ChevronsUpDown } from "lucide-react";
+import { AlertTriangle, ArrowRight, CheckCircle2, ChevronDown, ChevronRight, ChevronUp, FileText, Folder, FolderOpen, Layers, Search, Sparkles, Edit2, Info, ChevronsDownUp, ChevronsUpDown, FileImage, FileVideo, FileAudio, FileSpreadsheet, FileCode, FileArchive, FileSymlink } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { MarkdownProse } from "./markdown-prose";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogClose } from "@/components/ui/dialog";
@@ -127,6 +127,21 @@ function escapesRelativeRoot(path: string | null | undefined): boolean {
 function normalizeEntryKind(entryType: string | null | undefined): "directory" | "file" {
   return ["dir", "directory", "folder"].includes(String(entryType || "").toLowerCase()) ? "directory" : "file";
 }
+
+const getFileIcon = (filename: string, entryType?: string) => {
+  if (entryType === "dir" || entryType === "directory" || entryType === "folder") {
+    return Folder;
+  }
+  const ext = filename.split(".").pop()?.toLowerCase() || "";
+  if (["jpg", "jpeg", "png", "gif", "svg", "webp", "bmp", "ico", "heic"].includes(ext)) return FileImage;
+  if (["mp4", "mkv", "avi", "mov", "flv", "wmv", "webm"].includes(ext)) return FileVideo;
+  if (["mp3", "wav", "flac", "aac", "ogg", "m4a", "wma"].includes(ext)) return FileAudio;
+  if (["xls", "xlsx", "csv", "ods"].includes(ext)) return FileSpreadsheet;
+  if (["html", "css", "js", "jsx", "ts", "tsx", "json", "py", "java", "cpp", "c", "cs", "go", "rs", "php", "rb", "sh", "bat", "cmd", "yaml", "yml", "xml", "ini"].includes(ext)) return FileCode;
+  if (["zip", "rar", "7z", "tar", "gz", "bz2", "xz", "iso"].includes(ext)) return FileArchive;
+  if (["lnk", "url"].includes(ext)) return FileSymlink;
+  return FileText;
+};
 
 function fileExtension(item: Pick<PlanItem | SourceTreeEntry, "display_name" | "source_relpath" | "entry_type">): string {
   if (normalizeEntryKind(item.entry_type) === "directory") return "目录";
@@ -369,7 +384,7 @@ function TreeBranch({
   if (node.kind === "file") {
     if (node.item) {
       const status = itemStatusMeta(node.item, acceptedReviewItemIds);
-      const ItemIcon = normalizeEntryKind(node.item.entry_type) === "directory" ? Folder : FileText;
+      const ItemIcon = getFileIcon(node.item.display_name, node.item.entry_type);
       const active = selectedItemId === node.item.item_id;
       const hasMoved = viewMode === "after" && isItemChanged(node.item, targetSlotById, placement);
 
@@ -476,7 +491,10 @@ function TreeBranch({
             style={{ left: 16 + idx * 16 }}
           />
         ))}
-        <FileText className="h-3.5 w-3.5 shrink-0 text-on-surface-variant/20" />
+        {(() => {
+          const ItemIcon = getFileIcon(node.sourceEntry?.display_name || node.name, node.sourceEntry?.entry_type);
+          return <ItemIcon className="h-3.5 w-3.5 shrink-0 text-on-surface-variant/20" />;
+        })()}
         <div className="min-w-0 flex-1">
           <p className="truncate font-mono text-[12.5px] tracking-tight text-on-surface/50">{node.sourceEntry?.display_name || node.name}</p>
           <p className="truncate text-[10px] font-bold uppercase tracking-wider text-ui-muted opacity-30">Original Item</p>
@@ -607,7 +625,10 @@ function IncrementalMappingPanel({
                   : "border-transparent bg-transparent hover:bg-on-surface/[0.025] hover:border-on-surface/8",
               )}
             >
-              <FileText className={cn("h-3.5 w-3.5 shrink-0 transition-colors", active ? "text-primary/70" : "text-on-surface-variant/30")} />
+              {(() => {
+                const ItemIcon = getFileIcon(item.display_name, item.entry_type);
+                return <ItemIcon className={cn("h-3.5 w-3.5 shrink-0 transition-colors", active ? "text-primary/70" : "text-on-surface-variant/30")} />;
+              })()}
               <div className="min-w-0 flex-1 py-0.5">
                 <p className={cn("truncate text-[13px] font-black tracking-tight", active ? "text-primary" : "text-on-surface/90")}>{item.display_name}</p>
                 <div className="mt-1 flex items-center gap-1.5 overflow-hidden">
@@ -650,6 +671,57 @@ function IncrementalMappingPanel({
       </div>
     </section>
   );
+}
+
+function syncExpandedStates(
+  fromTree: TreeNode[],
+  toTree: TreeNode[],
+  fromExpanded: Record<string, boolean>
+): Record<string, boolean> {
+  const nextExpanded: Record<string, boolean> = {};
+  
+  const collectDirs = (nodes: TreeNode[]) => {
+    const byName = new Map<string, string[]>();
+    const allPaths = new Set<string>();
+    
+    const traverse = (n: TreeNode) => {
+      if (n.kind === "directory") {
+        allPaths.add(n.path);
+        const existing = byName.get(n.name) || [];
+        existing.push(n.path);
+        byName.set(n.name, existing);
+        n.children.forEach(traverse);
+      }
+    };
+    nodes.forEach(traverse);
+    return { byName, allPaths };
+  };
+
+  const fromData = collectDirs(fromTree);
+  const toData = collectDirs(toTree);
+
+  toData.allPaths.forEach((toPath) => {
+    if (fromData.allPaths.has(toPath)) {
+      if (fromExpanded[toPath] !== undefined) {
+        nextExpanded[toPath] = fromExpanded[toPath];
+        return;
+      }
+    }
+    
+    const lastSegment = toPath.split("/").pop();
+    if (lastSegment) {
+      const fromPaths = fromData.byName.get(lastSegment);
+      if (fromPaths && fromPaths.length > 0) {
+        const matchedState = fromPaths.find(p => fromExpanded[p] !== undefined);
+        if (matchedState !== undefined) {
+          nextExpanded[toPath] = fromExpanded[matchedState];
+          return;
+        }
+      }
+    }
+  });
+
+  return nextExpanded;
 }
 
 export function PreviewPanel(props: PreviewPanelProps) {
@@ -695,16 +767,6 @@ export function PreviewPanel(props: PreviewPanelProps) {
   const [acceptedReviewItemIds, setAcceptedReviewItemIds] = useState<string[]>([]);
   const previousPlannerRunKeyRef = useRef<string | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if ((event.ctrlKey || event.metaKey) && event.key === "k") {
-        event.preventDefault();
-        searchInputRef.current?.focus();
-      }
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, []);
   const queuePanelRef = useRef<HTMLDivElement | null>(null);
 
   const unresolvedItems = useMemo(() => allItems.filter((item) => item.status === "unresolved"), [allItems]);
@@ -788,6 +850,60 @@ export function PreviewPanel(props: PreviewPanelProps) {
     [filteredItems, mkdirPreview, placement, sourceTreeEntries, targetSlotById],
   );
   const currentTree = viewMode === "before" ? beforeTree : afterTree;
+
+  const handleCollapseAll = () => {
+    const next: Record<string, boolean> = {};
+    const traverse = (nodes: any[]) => {
+      nodes.forEach((n) => {
+        if (n.kind === "directory") {
+          next[n.path] = false;
+          traverse(n.children);
+        }
+      });
+    };
+    traverse(currentTree);
+    setExpanded(next);
+  };
+
+  const handleExpandAll = () => {
+    const next: Record<string, boolean> = {};
+    const traverse = (nodes: any[]) => {
+      nodes.forEach((n) => {
+        if (n.kind === "directory") {
+          next[n.path] = true;
+          traverse(n.children);
+        }
+      });
+    };
+    traverse(currentTree);
+    setExpanded(next);
+  };
+
+  const handleSwitchView = (nextMode: "before" | "after") => {
+    if (nextMode === viewMode) return;
+    const fromTree = viewMode === "before" ? beforeTree : afterTree;
+    const toTree = nextMode === "before" ? beforeTree : afterTree;
+    setExpanded((prev) => syncExpandedStates(fromTree, toTree, prev));
+    setViewMode(nextMode);
+  };
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.key === "k") {
+        event.preventDefault();
+        searchInputRef.current?.focus();
+      } else if ((event.ctrlKey || event.metaKey) && event.altKey && event.key.toLowerCase() === "e") {
+        event.preventDefault();
+        handleExpandAll();
+      } else if ((event.ctrlKey || event.metaKey) && event.altKey && event.key.toLowerCase() === "c") {
+        event.preventDefault();
+        handleCollapseAll();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [currentTree]);
+
   const groupedByTargetSlot = useMemo(() => groupItemsByTargetSlot(allItems, targetSlotById, placement), [allItems, placement, targetSlotById]);
   const availableTargetOptions = useMemo<AvailableTargetOption[]>(() => {
     const options = new Map<string, AvailableTargetOption>();
@@ -1047,26 +1163,40 @@ export function PreviewPanel(props: PreviewPanelProps) {
             <div className="border-b border-on-surface/8 bg-on-surface/[0.02] px-4 py-2">
               <div className="flex flex-wrap items-center gap-3">
                 {/* View Switcher: Mechanical Style */}
-                <div className="flex shrink-0 items-center rounded-md border border-on-surface/10 bg-on-surface/[0.02] p-0.5">
+                <div className="flex shrink-0 items-center rounded-md border border-on-surface/10 bg-on-surface/[0.02] p-0.5 relative">
                   <button
                     type="button"
-                    onClick={() => setViewMode("before")}
+                    onClick={() => handleSwitchView("before")}
                     className={cn(
-                      "flex items-center gap-1.5 rounded-[4px] px-3 py-1 text-[10px] font-black uppercase tracking-widest transition-all",
-                      viewMode === "before" ? "bg-on-surface/10 text-on-surface" : "text-on-surface/40 hover:bg-on-surface/5"
+                      "relative flex items-center gap-1.5 rounded-[4px] px-3 py-1 text-[10px] font-black uppercase tracking-widest transition-colors duration-200 z-10 select-none",
+                      viewMode === "before" ? "text-on-surface" : "text-on-surface/40 hover:text-on-surface/60"
                     )}
                   >
+                    {viewMode === "before" && (
+                      <motion.span
+                        layoutId="preview-panel-view-mode-pill"
+                        className="absolute inset-0 rounded-[4px] bg-on-surface/10 -z-10"
+                        transition={{ type: "spring", stiffness: 380, damping: 30 }}
+                      />
+                    )}
                     <span className={cn("opacity-40", viewMode === "before" && "opacity-60")}>RAW</span>
                     <span className="hidden @sm:inline">原始</span>
                   </button>
                   <button
                     type="button"
-                    onClick={() => setViewMode("after")}
+                    onClick={() => handleSwitchView("after")}
                     className={cn(
-                      "flex items-center gap-1.5 rounded-[4px] px-3 py-1 text-[10px] font-black uppercase tracking-widest transition-all",
-                      viewMode === "after" ? "bg-primary/10 text-primary font-black" : "text-on-surface/40 hover:bg-on-surface/5"
+                      "relative flex items-center gap-1.5 rounded-[4px] px-3 py-1 text-[10px] font-black uppercase tracking-widest transition-colors duration-200 z-10 select-none",
+                      viewMode === "after" ? "text-primary font-black" : "text-on-surface/40 hover:text-on-surface/60"
                     )}
                   >
+                    {viewMode === "after" && (
+                      <motion.span
+                        layoutId="preview-panel-view-mode-pill"
+                        className="absolute inset-0 rounded-[4px] bg-primary/10 -z-10"
+                        transition={{ type: "spring", stiffness: 380, damping: 30 }}
+                      />
+                    )}
                     <span className={cn("opacity-40", viewMode === "after" && "opacity-60")}>PLAN</span>
                     <span className="hidden @sm:inline">建议</span>
                   </button>
@@ -1152,40 +1282,16 @@ export function PreviewPanel(props: PreviewPanelProps) {
                   <div className="flex items-center gap-1">
                     <button
                       type="button"
-                      title="全部收起"
-                      onClick={() => {
-                        const next: Record<string, boolean> = {};
-                        const traverse = (nodes: any[]) => {
-                          nodes.forEach((n) => {
-                            if (n.kind === "directory") {
-                              next[n.path] = false;
-                              traverse(n.children);
-                            }
-                          });
-                        };
-                        traverse(currentTree);
-                        setExpanded(next);
-                      }}
+                      title="全部收起 (Ctrl+Alt+C)"
+                      onClick={handleCollapseAll}
                       className="flex h-7 w-7 items-center justify-center rounded-[6px] border border-on-surface/8 bg-surface text-ui-muted hover:bg-on-surface/5 active:scale-95 transition-all"
                     >
                       <ChevronsDownUp className="h-3.5 w-3.5" />
                     </button>
                     <button
                       type="button"
-                      title="全部展开"
-                      onClick={() => {
-                        const next: Record<string, boolean> = {};
-                        const traverse = (nodes: any[]) => {
-                          nodes.forEach((n) => {
-                            if (n.kind === "directory") {
-                              next[n.path] = true;
-                              traverse(n.children);
-                            }
-                          });
-                        };
-                        traverse(currentTree);
-                        setExpanded(next);
-                      }}
+                      title="全部展开 (Ctrl+Alt+E)"
+                      onClick={handleExpandAll}
                       className="flex h-7 w-7 items-center justify-center rounded-[6px] border border-on-surface/8 bg-surface text-ui-muted hover:bg-on-surface/5 active:scale-95 transition-all"
                     >
                       <ChevronsUpDown className="h-3.5 w-3.5" />

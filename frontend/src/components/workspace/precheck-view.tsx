@@ -8,6 +8,7 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { PathDiffViewer } from "./path-diff-viewer";
+import { getFileIcon } from "./preview/preview-utils";
 
 interface PrecheckViewProps {
     summary: PrecheckSummary | null;
@@ -254,6 +255,21 @@ export function PrecheckView({
                                             )}
                                         >
                                             <div className="flex items-start gap-3 p-3">
+                                                {(() => {
+                                                    const ItemIcon = getFileIcon(move.display_name);
+                                                    return (
+                                                        <div className={cn(
+                                                            "flex h-7 w-7 shrink-0 items-center justify-center rounded-[6px] border transition-colors",
+                                                            isReview
+                                                                ? "border-warning/15 bg-warning/8 text-warning"
+                                                                : riskMessages.length > 0
+                                                                    ? "border-error/15 bg-error/8 text-error"
+                                                                    : "border-on-surface/8 bg-on-surface/[0.03] text-on-surface-variant/40 group-hover:border-primary/20 group-hover:bg-primary/5 group-hover:text-primary"
+                                                        )}>
+                                                            <ItemIcon className="h-3.5 w-3.5" />
+                                                        </div>
+                                                    );
+                                                })()}
                                                 <div className="min-w-0 flex-1">
                                                     <div className="flex items-center gap-2">
                                                         <p className="truncate text-[12px] font-black text-on-surface tracking-tight font-mono" title={move.display_name}>

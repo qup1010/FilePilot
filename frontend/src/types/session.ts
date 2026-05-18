@@ -315,6 +315,7 @@ export type IntegrityFlags = Record<string, unknown> & {
 export interface SessionSnapshot {
   session_id: string;
   target_dir: string;
+  session_title?: string;
   placement?: PlacementConfig;
   stage: SessionStage;
   summary: string;

@@ -1,10 +1,10 @@
 "use client";
 
 import React from "react";
-import { FileText, ArrowRight, Edit2 } from "lucide-react";
+import { ArrowRight, Edit2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { PlanItem } from "@/types/session";
-import { statusMeta } from "./preview-utils";
+import { statusMeta, getFileIcon } from "./preview-utils";
 
 interface IncrementalMappingListProps {
   items: PlanItem[];
@@ -77,7 +77,10 @@ export function IncrementalMappingList({
                   : "border-transparent bg-transparent hover:bg-on-surface/[0.025] hover:border-on-surface/8",
               )}
             >
-              <FileText className={cn("h-3.5 w-3.5 shrink-0 transition-colors", active ? "text-primary/70" : "text-on-surface-variant/30")} />
+              {(() => {
+                const ItemIcon = getFileIcon(item.display_name, item.entry_type);
+                return <ItemIcon className={cn("h-3.5 w-3.5 shrink-0 transition-colors", active ? "text-primary/70" : "text-on-surface-variant/30")} />;
+              })()}
               <div className="min-w-0 flex-1 py-0.5">
                 <p className={cn("truncate text-[13px] font-black tracking-tight", active ? "text-primary" : "text-on-surface/90")}>{item.display_name}</p>
                 <div className="mt-1 flex items-center gap-1.5 overflow-hidden">

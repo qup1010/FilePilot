@@ -25,6 +25,28 @@ function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+function formatDirName(path: string | null | undefined): string {
+  const trimmed = String(path || "").trim();
+  if (!trimmed) {
+    return "当前任务";
+  }
+  try {
+    const decoded = decodeURIComponent(trimmed);
+    if (/^[a-zA-Z]:[\\/]?$/.test(decoded)) {
+      const letter = decoded[0].toUpperCase();
+      return `${letter}:\\`;
+    }
+    if (decoded === "/" || decoded === "\\") {
+      return "/";
+    }
+    const normalized = decoded.replace(/[\\/]$/, "");
+    return normalized.split(/[\\/]/).pop() || "当前任务";
+  } catch {
+    const normalized = trimmed.replace(/[\\/]$/, "");
+    return normalized.split(/[\\/]/).pop() || "当前任务";
+  }
+}
+
 function readStoredContext(key: string) {
   if (typeof window === "undefined") {
     return null;
@@ -79,9 +101,9 @@ function getBaseModuleLabel(pathname: string, searchParams: URLSearchParams) {
     if (sessionId && !dirParam) {
       return getWorkspaceLoadingLabel();
     }
-    const dirName = dirParam
+    const dirName = formatDirName(dirParam); /*
       ? decodeURIComponent(dirParam).replace(/[\\/]$/, "").split(/[\\/]/).pop() || "当前任务"
-      : "当前任务";
+      : "当前任务"; */
     return {
       title: dirName,
       detail: "当前整理任务",
@@ -117,7 +139,7 @@ function getStoredModuleLabel(pathname: string, searchParams: URLSearchParams) {
     const dirParam = searchParams.get("dir");
     const sessionId = searchParams.get("session_id");
     if (dirParam) {
-      const dirName = decodeURIComponent(dirParam).replace(/[\\/]$/, "").split(/[\\/]/).pop() || "当前任务";
+      const dirName = formatDirName(dirParam);
       return {
         title: dirName,
         detail: stored?.stage || "当前整理任务",
@@ -281,7 +303,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
         </div>
 
-        <nav className="flex items-center justify-center rounded-[10px] bg-on-surface/[0.035] p-1">
+        <nav className="flex items-center justify-center rounded-[10px] bg-on-surface/[0.035] p-1 relative">
           {navItems.map((item) => {
             const isActive = isNavActive(item.href);
             return (
@@ -289,12 +311,19 @@ export function AppShell({ children }: { children: ReactNode }) {
                 key={item.href}
                 href={item.href}
                 className={cn(
-                  "relative inline-flex h-7.5 items-center gap-2 rounded-[7px] px-3 text-[11.5px] font-black tracking-tight transition-all duration-200",
+                  "relative inline-flex h-7.5 items-center gap-2 rounded-[7px] px-3 text-[11.5px] font-black tracking-tight transition-colors duration-200 z-10 select-none",
                   isActive
-                    ? "bg-surface-container-lowest text-primary shadow-[0_1px_3px_rgba(0,0,0,0.06)]"
-                    : "text-on-surface/40 hover:bg-on-surface/[0.045] hover:text-on-surface/80",
+                    ? "text-primary font-black"
+                    : "text-on-surface/40 hover:text-on-surface/80",
                 )}
               >
+                {isActive && (
+                  <motion.span
+                    layoutId="app-shell-active-pill"
+                    className="absolute inset-0 rounded-[7px] bg-surface-container-lowest shadow-[0_1px_3px_rgba(0,0,0,0.06)] -z-10"
+                    transition={{ type: "spring", stiffness: 380, damping: 30 }}
+                  />
+                )}
                 <item.icon className={cn("h-3.5 w-3.5 transition-colors", isActive ? "text-primary" : "text-current")} />
                 <span className="hidden lg:inline">{item.label}</span>
               </Link>

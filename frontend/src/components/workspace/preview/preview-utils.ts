@@ -4,6 +4,48 @@ import type {
   PlanTargetSlot, 
   SourceTreeEntry 
 } from "@/types/session";
+import { 
+  FileText, 
+  FileImage, 
+  FileVideo, 
+  FileAudio, 
+  FileSpreadsheet, 
+  FileCode, 
+  FileArchive, 
+  FileSymlink,
+  Folder,
+  type LucideIcon
+} from "lucide-react";
+
+export function getFileIcon(filename: string, entryType?: string): LucideIcon {
+  if (entryType === "dir" || entryType === "directory" || entryType === "folder") {
+    return Folder;
+  }
+  const ext = filename.split(".").pop()?.toLowerCase() || "";
+  
+  if (["jpg", "jpeg", "png", "gif", "svg", "webp", "bmp", "ico", "heic"].includes(ext)) {
+    return FileImage;
+  }
+  if (["mp4", "mkv", "avi", "mov", "flv", "wmv", "webm"].includes(ext)) {
+    return FileVideo;
+  }
+  if (["mp3", "wav", "flac", "aac", "ogg", "m4a", "wma"].includes(ext)) {
+    return FileAudio;
+  }
+  if (["xls", "xlsx", "csv", "ods"].includes(ext)) {
+    return FileSpreadsheet;
+  }
+  if (["html", "css", "js", "jsx", "ts", "tsx", "json", "py", "java", "cpp", "c", "cs", "go", "rs", "php", "rb", "sh", "bat", "cmd", "yaml", "yml", "xml", "ini"].includes(ext)) {
+    return FileCode;
+  }
+  if (["zip", "rar", "7z", "tar", "gz", "bz2", "xz", "iso"].includes(ext)) {
+    return FileArchive;
+  }
+  if (["lnk", "url"].includes(ext)) {
+    return FileSymlink;
+  }
+  return FileText;
+}
 
 export type PreviewFilter = "all" | "changed" | "unresolved" | "review" | "invalidated";
 
