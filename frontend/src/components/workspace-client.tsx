@@ -203,6 +203,7 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
   const scanPreviewTimerRef = React.useRef<number | null>(null);
   const autoScanRequestedRef = React.useRef(false);
   const previousScannerStatusRef = React.useRef("idle");
+  const lastNavigatedRouteRef = React.useRef<string | null>(null);
   const taskNotificationRef = React.useRef({
     initialized: false,
     wasScanning: false,
@@ -386,7 +387,7 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
     [targetPath],
   );
   const reviewMoveCount = useMemo(
-    () => precheck?.move_preview.filter((move) => move.target.split(/[\\/]/).some((part) => part.toLowerCase() === "review")).length ?? 0,
+    () => (precheck?.move_preview || []).filter((move) => move.target.split(/[\\/]/).some((part) => part.toLowerCase() === "review")).length,
     [precheck],
   );
   const interruptedDuring = String(snapshot?.integrity_flags?.interrupted_during || "").trim().toLowerCase();
@@ -615,7 +616,12 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
       readonly: isReadOnly,
     });
     if (!nextRoute.startsWith(`/workspace/${view}`)) {
-      router.replace(nextRoute);
+      if (lastNavigatedRouteRef.current !== nextRoute) {
+        lastNavigatedRouteRef.current = nextRoute;
+        router.replace(nextRoute);
+      }
+    } else {
+      lastNavigatedRouteRef.current = null;
     }
   }, [dirParam, isReadOnly, router, sessionIdParam, snapshot, view]);
 
