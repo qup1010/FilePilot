@@ -2,7 +2,7 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { AlertCircle, FolderOpen, LoaderCircle, Sparkles, Palette, FolderPlus, Plus, X } from "lucide-react";
+import { AlertCircle, FolderOpen, LoaderCircle, Sparkles, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 import { Button } from "@/components/ui/button";
@@ -13,7 +13,13 @@ import { createApiClient } from "@/lib/api";
 import { createIconWorkbenchApiClient } from "@/lib/icon-workbench-api";
 import { createIconWorkbenchEventStream, type IconWorkbenchEventStream } from "@/lib/icon-workbench-sse";
 import { getApiBaseUrl, getApiToken, inspectPathsWithTauri, invokeTauriCommand, isTauriDesktop, openDirectoryWithTauri, pickDirectoriesWithTauri } from "@/lib/runtime";
-import { findDropZoneForPosition, listenToTauriDragDrop } from "@/lib/tauri-drag-drop";
+import {
+  findDropZoneForPosition,
+  isTauriDragDropPayload,
+  isTauriDragLeavePayload,
+  isTauriDragOverPayload,
+  listenToTauriDragDrop,
+} from "@/lib/tauri-drag-drop";
 import { cn } from "@/lib/utils";
 import type {
   ApplyIconResult,
@@ -443,6 +449,61 @@ export default function IconWorkbenchV2() {
     const paths = Array.from(event.dataTransfer.files).map((f) => (f as any).path || f.name).filter(Boolean);
     if (paths.length) await appendTargetPaths(paths);
   }, [appendTargetPaths]);
+
+  const appendTargetPathsRef = useRef(appendTargetPaths);
+  useEffect(() => {
+    appendTargetPathsRef.current = appendTargetPaths;
+  }, [appendTargetPaths]);
+
+  useEffect(() => {
+    let cancelled = false;
+    let unlisten: (() => void) | null = null;
+
+    void listenToTauriDragDrop((event) => {
+      const payload = event.payload;
+      if (isTauriDragLeavePayload(payload)) {
+        setIsTargetDropActive(false);
+        setIsDraggingGlobal(false);
+        return;
+      }
+
+      const zone = findDropZoneForPosition(payload.position, [
+        { key: "target", element: targetDropZoneRef.current },
+      ]);
+
+      if (isTauriDragOverPayload(payload)) {
+        setIsDraggingGlobal(true);
+        setIsTargetDropActive(zone === "target");
+        return;
+      }
+
+      if (!isTauriDragDropPayload(payload)) {
+        return;
+      }
+
+      setIsDraggingGlobal(false);
+      setIsTargetDropActive(false);
+
+      if (zone === "target") {
+        if (payload.paths && payload.paths.length > 0) {
+          void appendTargetPathsRef.current(payload.paths);
+        }
+      }
+    }).then((dispose) => {
+      if (cancelled) {
+        dispose?.();
+        return;
+      }
+      unlisten = dispose;
+    });
+
+    return () => {
+      cancelled = true;
+      setIsTargetDropActive(false);
+      setIsDraggingGlobal(false);
+      unlisten?.();
+    };
+  }, []);
 
   const handleResetWorkbench = async () => {
     if (!session) {

@@ -40,7 +40,13 @@ import {
   pickDirectoryWithTauri,
   pickFilesWithTauri,
 } from "@/lib/runtime";
-import { findDropZoneForPosition, listenToTauriDragDrop } from "@/lib/tauri-drag-drop";
+import {
+  findDropZoneForPosition,
+  isTauriDragDropPayload,
+  isTauriDragLeavePayload,
+  isTauriDragOverPayload,
+  listenToTauriDragDrop,
+} from "@/lib/tauri-drag-drop";
 import { getSessionStageView } from "@/lib/session-view-model";
 import { deriveWorkspaceRoot } from "@/lib/path-normalization";
 import { buildWorkspaceRoute, getWorkspaceRouteForHistoryEntry, getWorkspaceRouteForSnapshot } from "@/lib/workspace-routes";
@@ -73,6 +79,7 @@ import type {
 import { ErrorAlert } from "@/components/ui/error-alert";
 import { ModelConfigBanner } from "@/components/ui/model-config-banner";
 import { Button } from "@/components/ui/button";
+import { DropZoneOverlay, getDropZoneSurfaceClassName } from "@/components/ui/drop-zone-feedback";
 import {
   Dialog,
   DialogContent,
@@ -1014,13 +1021,26 @@ export function SessionLauncherShell() {
     return Array.from(unique.values());
   }, []);
 
+  const dragCallbacksRef = useRef({
+    resolveNativeDroppedSources,
+    addSources,
+    resolveNativeDirectoryPaths,
+  });
+  useEffect(() => {
+    dragCallbacksRef.current = {
+      resolveNativeDroppedSources,
+      addSources,
+      resolveNativeDirectoryPaths,
+    };
+  }, [resolveNativeDroppedSources, addSources, resolveNativeDirectoryPaths]);
+
   useEffect(() => {
     let cancelled = false;
     let unlisten: (() => void) | null = null;
 
     void listenToTauriDragDrop((event) => {
       const payload = event.payload;
-      if (payload.type === "leave") {
+      if (isTauriDragLeavePayload(payload)) {
         setIsDropActive(false);
         setIsTargetDropActive(false);
         setIsDraggingGlobal(false);
@@ -1032,10 +1052,14 @@ export function SessionLauncherShell() {
         { key: "target", element: targetDropZoneRef.current },
       ]);
 
-      if (payload.type === "over") {
+      if (isTauriDragOverPayload(payload)) {
         setIsDraggingGlobal(true);
         setIsDropActive(zone === "source");
         setIsTargetDropActive(zone === "target");
+        return;
+      }
+
+      if (!isTauriDragDropPayload(payload)) {
         return;
       }
 
@@ -1044,20 +1068,20 @@ export function SessionLauncherShell() {
       setIsTargetDropActive(false);
 
       if (zone === "source") {
-        void resolveNativeDroppedSources(payload.paths).then((droppedSources) => {
+        void dragCallbacksRef.current.resolveNativeDroppedSources(payload.paths).then((droppedSources) => {
           if (cancelled) return;
           if (!droppedSources.length) {
             setError("当前环境暂时无法从拖拽内容里读取本地绝对路径。你可以改用“移动整个文件夹”“添加单个文件”或手动输入路径。");
             return;
           }
-          addSources(droppedSources);
+          dragCallbacksRef.current.addSources(droppedSources);
           setError(null);
         });
         return;
       }
 
       if (zone === "target") {
-        void resolveNativeDirectoryPaths(payload.paths).then((dirs) => {
+        void dragCallbacksRef.current.resolveNativeDirectoryPaths(payload.paths).then((dirs) => {
           if (cancelled) return;
           if (!dirs.length) {
             setError("只能拖拽文件夹（目录）作为目标目录配置，已忽略文件。若路径识别失败请改用手动输入。");
@@ -1088,7 +1112,7 @@ export function SessionLauncherShell() {
       setIsTargetDropActive(false);
       unlisten?.();
     };
-  }, [addSources, resolveNativeDirectoryPaths, resolveNativeDroppedSources]);
+  }, []);
 
   function removeSource(path: string, sourceType: SessionSourceSelection["source_type"]) {
     setSources((previous) => {
@@ -1124,6 +1148,15 @@ export function SessionLauncherShell() {
     const keysToRemove = new Set(group.item_keys);
     setSources((previous) => previous.filter((item) => !keysToRemove.has(sourceSelectionKey(item))));
     setSourceImportGroups((previous) => previous.filter((item) => item.group_id !== groupId));
+  }
+
+  function clearAllSources() {
+    setSources([]);
+    setSourceImportGroups([]);
+    setSourceFeedback(null);
+    setShowManualInput(false);
+    setSourceDraftPath("");
+    setError(null);
   }
 
   function addManualSource() {
@@ -2023,12 +2056,12 @@ export function SessionLauncherShell() {
                               scale: isDropActive ? 1.01 : 1,
                             }}
                             className={cn(
-                              "group mt-1 flex flex-col items-center justify-center rounded-[8px] border border-dashed px-6 py-8 text-center transition-all duration-300",
-                              isDropActive
-                                ? "border-primary/50 bg-primary/10"
-                                : isDraggingGlobal
-                                  ? "border-primary/40 bg-primary/[0.02]"
-                                  : "border-on-surface/10 bg-on-surface/[0.015] hover:bg-on-surface/[0.03]"
+                              getDropZoneSurfaceClassName({
+                                isActive: isDropActive,
+                                isDraggingGlobal,
+                                idleClassName: "border-on-surface/10 bg-on-surface/[0.015] hover:bg-on-surface/[0.03]",
+                                className: "group mt-1 flex flex-col items-center justify-center rounded-[8px] px-6 py-8 text-center",
+                              }),
                             )}
                           >
                             <motion.div
@@ -2139,13 +2172,13 @@ export function SessionLauncherShell() {
                               animate={{
                                 scale: isDropActive ? 1.01 : 1,
                               }}
-                              className={cn(
-                                "flex flex-col items-center justify-center gap-2 rounded-[10px] border border-dashed px-4 py-4 text-on-surface transition-all duration-300 group/add-more",
-                                isDropActive
-                                  ? "border-primary/45 bg-primary/8 text-primary ring-1 ring-primary/15"
-                                  : isDraggingGlobal
-                                    ? "border-primary/30 bg-primary/[0.025]"
-                                    : "border-on-surface/8 bg-on-surface/[0.015]"
+                            className={cn(
+                                getDropZoneSurfaceClassName({
+                                  isActive: isDropActive,
+                                  isDraggingGlobal,
+                                  idleClassName: "border-on-surface/8 bg-on-surface/[0.015]",
+                                  className: "group/add-more flex flex-col items-center justify-center gap-2 rounded-[10px] px-4 py-4 text-on-surface",
+                                }),
                               )}
                             >
                               <div className="flex flex-wrap items-center justify-center gap-3">
@@ -2187,15 +2220,27 @@ export function SessionLauncherShell() {
 
                             <div className="overflow-hidden rounded-[10px] border border-on-surface/8 bg-surface-container-lowest">
                               <div className="flex items-center justify-between border-b border-on-surface/6 px-3 py-2">
-                                <div className="flex items-center gap-2">
+                              <div className="flex items-center gap-2">
                                   <span className="flex h-6 w-6 items-center justify-center rounded-[6px] bg-on-surface/5 text-primary">
                                     <ListTree className="h-3.5 w-3.5" />
                                   </span>
                                   <span className="text-[11px] font-black tracking-widest text-ui-muted">已加入来源</span>
                                 </div>
-                                <span className="text-[10.5px] font-bold text-ui-muted/55">
-                                  文件夹 {sourceStats.directoryCount} · 文件 {sourceStats.fileCount}
-                                </span>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-[10.5px] font-bold text-ui-muted/55">
+                                    文件夹 {sourceStats.directoryCount} · 文件 {sourceStats.fileCount}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={clearAllSources}
+                                    disabled={loading || sources.length === 0}
+                                    className="inline-flex items-center gap-1 rounded-[6px] border border-on-surface/8 bg-surface px-2.5 py-1 text-[10.5px] font-bold text-on-surface/55 transition-colors hover:border-error/20 hover:bg-error/5 hover:text-error disabled:opacity-40"
+                                    title="一键清空当前来源列表"
+                                  >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                    清空来源
+                                  </button>
+                                </div>
                               </div>
                               <div className="max-h-[42vh] min-h-[180px] overflow-y-auto p-2 scrollbar-thin">
                                 <div className="grid gap-2">
@@ -2468,7 +2513,26 @@ export function SessionLauncherShell() {
                         </div>
 
                         {isAssignExisting ? (
-                          <div className="rounded-[8px] border border-on-surface/8 bg-surface p-4">
+                          <div 
+                            ref={targetDropZoneRef}
+                            onDrop={handleTargetDrop}
+                            onDragOver={handleTargetDragOver}
+                            onDragLeave={handleTargetDragLeave}
+                            className={getDropZoneSurfaceClassName({
+                              isActive: isTargetDropActive,
+                              isDraggingGlobal,
+                              idleClassName: "border-on-surface/8 bg-surface",
+                              className: "relative overflow-hidden rounded-[8px] p-4",
+                            })}
+                          >
+                            {isTargetDropActive && (
+                              <DropZoneOverlay
+                                icon={FolderPlus}
+                                title="松手即可添加为目标候选"
+                                detail="这里只接受文件夹，文件会被自动忽略"
+                                className="inset-0 rounded-[8px]"
+                              />
+                            )}
                             <div className="mb-2 flex items-center justify-between gap-3">
                               <div className="flex items-center gap-2">
                                 <div className="flex h-6 w-6 items-center justify-center rounded-[4px] bg-primary/10 text-primary">
@@ -2584,36 +2648,36 @@ export function SessionLauncherShell() {
                                 </div>
                               )}
 
-                              <motion.div
-                                ref={targetDropZoneRef}
-                                onDrop={handleTargetDrop}
-                                onDragOver={handleTargetDragOver}
-                                onDragLeave={handleTargetDragLeave}
-                                animate={{
-                                  scale: isTargetDropActive ? 1.01 : 1,
-                                }}
-                                className={cn(
-                                  "flex flex-col items-center justify-center rounded-[10px] border-2 border-dashed px-4 py-6 transition-all duration-300 sm:flex-row sm:justify-between sm:py-2.5",
-                                  isTargetDropActive
-                                    ? "border-primary/25 bg-primary/5 text-primary"
-                                    : isDraggingGlobal
-                                      ? "border-primary/40 bg-primary/[0.04]"
-                                      : "border-on-surface/10 bg-surface-container-lowest hover:border-on-surface/20"
-                                )}
+                              <div
+
+
+
+
+
+
+
+                                className="flex flex-col items-center justify-center rounded-[10px] border border-dashed border-on-surface/10 bg-surface-container-lowest px-4 py-6 transition-all duration-300 sm:flex-row sm:justify-between sm:py-2.5 hover:border-on-surface/20"
+
+
+
+
+
+
+
                               >
                                 <div className="flex items-center gap-2 text-[13px] font-bold text-on-surface/60 mb-3 sm:mb-0">
-                                  <Plus className={cn("hidden h-4 w-4 transition-colors sm:block", isTargetDropActive ? "text-primary" : "opacity-20")} />
-                                  {isTargetDropActive ? "松手即刻作为目标候选" : "拖拽文件夹作为目标候选，或者"}
+                                  <Plus className="hidden h-4 w-4 text-on-surface/20 sm:block" />
+                                  拖拽文件夹作为目标候选，或者
                                   <button type="button" onClick={() => void handleAddTargetDirectories()} className="mx-1 font-black text-primary hover:underline underline-offset-4 decoration-2">点击选择</button>
                                 </div>
                                 <button
                                   type="button"
                                   onClick={() => setShowManualTargetInput(!showManualTargetInput)}
-                                  className={cn("text-[11px] font-black uppercase tracking-wider transition-colors", isTargetDropActive ? "text-primary/40" : "text-ui-muted opacity-30 hover:text-primary hover:opacity-100")}
+                                  className="text-[11px] font-black uppercase tracking-wider text-ui-muted opacity-30 hover:text-primary hover:opacity-100 transition-colors"
                                 >
                                   {showManualTargetInput ? "[ 收起手动输入 ]" : "[ 手填路径 ]"}
                                 </button>
-                              </motion.div>
+                              </div>
 
                               {showManualTargetInput && (
                                 <div className="animate-in fade-in slide-in-from-top-2 duration-200">

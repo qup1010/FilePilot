@@ -4,8 +4,7 @@ import React, { useMemo } from "react";
 import { FolderOpen, FolderPlus, Palette, Plus, Sparkles } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
-import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
+import { DropZoneOverlay, getDropZoneSurfaceClassName } from "@/components/ui/drop-zone-feedback";
 import type { FolderIconCandidate, IconPreviewVersion } from "@/types/icon-workbench";
 import { IconWorkbenchFolderCard } from "./icon-workbench-folder-card";
 
@@ -77,7 +76,32 @@ export function IconWorkbenchFolderList({
 
   return (
     <div className="flex flex-1 flex-col min-h-0 overflow-hidden">
-      <div className="flex-1 relative min-h-0 overflow-y-auto px-4 py-3 scrollbar-thin">
+      <div 
+        ref={dropZoneRef}
+        onDrop={onTargetDrop}
+        onDragOver={onTargetDragOver}
+        onDragLeave={onTargetDragLeave}
+        className={getDropZoneSurfaceClassName({
+          isActive: isTargetDropActive,
+          isDraggingGlobal,
+          idleClassName: "border-transparent bg-transparent",
+          activeClassName: "border-primary/40 bg-primary/[0.04] ring-1 ring-primary/10",
+          draggingClassName: "border-primary/25 bg-primary/[0.015]",
+          className: "relative flex-1 min-h-0 overflow-y-auto rounded-[12px] px-4 py-3 scrollbar-thin",
+        })}
+      >
+        {isTargetDropActive && (
+          <DropZoneOverlay
+            icon={FolderPlus}
+            title="松手即可追加目标文件夹"
+            detail="支持一次拖入多个文件夹"
+            className="inset-3 rounded-[16px] border-primary/18 bg-primary/[0.025] backdrop-blur-0"
+            panelClassName="rounded-[22px] border border-primary/15 bg-surface/96 px-8 py-7 shadow-[0_18px_60px_rgba(15,23,42,0.12)]"
+            iconWrapClassName="h-14 w-14 rounded-[16px] bg-primary/10"
+            titleClassName="tracking-[0.18em]"
+            detailClassName="text-on-surface-variant/70"
+          />
+        )}
         {/* 精简版：风格配置提醒 */}
         {!hasSelectedStyle && folders.length > 0 && !hasReadyVersions && (
           <div className="mb-3 flex animate-in fade-in slide-in-from-top-2 duration-500 items-center gap-3 rounded-lg border border-primary/20 bg-primary/[0.03] px-4 py-2">
@@ -122,18 +146,16 @@ export function IconWorkbenchFolderList({
               </button>
               
               <div 
-                ref={dropZoneRef}
-                onDrop={onTargetDrop}
-                onDragOver={onTargetDragOver}
-                onDragLeave={onTargetDragLeave}
-                className={cn(
-                   "flex h-10 w-full items-center justify-center rounded-lg border border-dashed text-[11px] font-bold transition-all",
-                   isTargetDropActive 
-                     ? "border-primary bg-primary/10 text-primary" 
-                     : "border-on-surface/10 bg-on-surface/[0.02] text-on-surface/30 px-3 truncate"
-                )}
+                className={getDropZoneSurfaceClassName({
+                  isActive: isTargetDropActive,
+                  isDraggingGlobal,
+                  idleClassName: "border-on-surface/10 bg-on-surface/[0.02] text-on-surface/30 hover:bg-on-surface/[0.04]",
+                  activeClassName: "border-primary/35 bg-primary/[0.06] text-primary",
+                  draggingClassName: "border-primary/20 bg-primary/[0.015] text-on-surface/50",
+                  className: "flex h-10 w-full items-center justify-center rounded-lg px-3 text-[11px] font-bold truncate",
+                })}
               >
-                {isTargetDropActive ? "释放以载入" : "或将文件夹拖放至此"}
+                {isTargetDropActive ? "松手即可追加目标文件夹" : "或将文件夹拖放至此"}
               </div>
             </div>
           </motion.div>
@@ -141,26 +163,19 @@ export function IconWorkbenchFolderList({
           <div className="flex flex-col gap-1.5 pb-20">
             {/* 紧凑型追加按钮 */}
             <motion.div
-              ref={dropZoneRef}
-              onDrop={onTargetDrop}
-              onDragOver={onTargetDragOver}
-              onDragLeave={onTargetDragLeave}
-              className={cn(
-                "mb-2 flex items-center justify-center gap-2 rounded-lg border border-dashed py-2.5 transition-all group/add-more",
-                isTargetDropActive 
-                  ? "border-primary bg-primary/5" 
-                  : "border-on-surface/5 bg-on-surface/[0.02] hover:border-primary/10 hover:bg-on-surface/[0.04]"
-              )}
+              onClick={onAddTargets}
+              className={getDropZoneSurfaceClassName({
+                isActive: isTargetDropActive,
+                isDraggingGlobal,
+                idleClassName: "border-on-surface/5 bg-on-surface/[0.02] hover:border-primary/10 hover:bg-on-surface/[0.04]",
+                activeClassName: "border-primary/30 bg-primary/[0.05] ring-1 ring-primary/10",
+                draggingClassName: "border-primary/20 bg-primary/[0.015]",
+                className: "group/add-more mb-2 flex cursor-pointer items-center justify-center gap-2 rounded-lg py-2.5",
+              })}
             >
-              <Plus className={cn(
-                "h-3 w-3 transition-colors",
-                isTargetDropActive ? "text-primary" : "text-on-surface/20 group-hover/add-more:text-primary"
-              )} />
-              <span className={cn(
-                "text-[11px] font-black uppercase tracking-widest transition-colors",
-                isTargetDropActive ? "text-primary" : "text-on-surface/30 group-hover/add-more:text-primary/60"
-              )}>
-                {isTargetDropActive ? "释放以追加" : "追加目标文件夹"}
+              <Plus className="h-3.5 w-3.5 text-on-surface/20 group-hover/add-more:text-primary transition-colors" />
+              <span className="text-[11.5px] font-black uppercase tracking-widest text-on-surface/30 group-hover/add-more:text-primary/60 transition-colors">
+                追加目标文件夹
               </span>
             </motion.div>
 

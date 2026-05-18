@@ -62,6 +62,8 @@ let latestStreamOptions: null | {
   onEvent: (event: any) => void;
   onError?: (error: Event) => void;
 } = null;
+let tauriDragDropHandler: null | ((event: any) => void) = null;
+const findDropZoneForPositionMock = vi.fn(() => "target");
 
 vi.mock("framer-motion", () => ({
   AnimatePresence: ({ children }: { children: React.ReactNode }) => <>{children}</>,
@@ -90,6 +92,19 @@ vi.mock("@/lib/runtime", () => ({
   invokeTauriCommand: vi.fn(),
   openDirectoryWithTauri: vi.fn(),
   pickDirectoriesWithTauri: vi.fn(),
+}));
+
+vi.mock("@/lib/tauri-drag-drop", () => ({
+  listenToTauriDragDrop: vi.fn(async (handler: (event: any) => void) => {
+    tauriDragDropHandler = handler;
+    return () => {
+      tauriDragDropHandler = null;
+    };
+  }),
+  findDropZoneForPosition: vi.fn(() => findDropZoneForPositionMock()),
+  isTauriDragDropPayload: (payload: { type?: string }) => payload?.type === "drop",
+  isTauriDragLeavePayload: (payload: { type?: string }) => payload?.type === "leave",
+  isTauriDragOverPayload: (payload: { type?: string }) => payload?.type === "over",
 }));
 
 vi.mock("@/lib/api", () => ({
@@ -308,9 +323,12 @@ function createDirectoryDropData(path: string) {
 }
 
 describe("IconWorkbenchV2", () => {
-  beforeEach(() => {
-    latestStreamOptions = null;
-    localStorage.clear();
+beforeEach(() => {
+  latestStreamOptions = null;
+  tauriDragDropHandler = null;
+  findDropZoneForPositionMock.mockReset();
+  findDropZoneForPositionMock.mockReturnValue("target");
+  localStorage.clear();
     Object.values(iconApiMock).forEach((mockFn) => mockFn.mockReset());
     vi.mocked(isTauriDesktop).mockReturnValue(false);
     vi.mocked(invokeTauriCommand).mockReset();
@@ -526,6 +544,83 @@ describe("IconWorkbenchV2", () => {
       });
     });
     expect(screen.getByTestId("folder-count")).toHaveTextContent("1");
+  });
+
+  it("does not append folders on tauri enter-like drag events before drop", async () => {
+    vi.mocked(isTauriDesktop).mockReturnValue(true);
+    localStorage.setItem("icons_workspace_state", JSON.stringify({
+      sessionId: "icon-session-1",
+      selectedTemplateId: "",
+      expandedFolderId: null,
+    }));
+
+    render(<IconWorkbenchV2 />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("folder-count")).toHaveTextContent("1");
+    });
+
+    expect(tauriDragDropHandler).toBeTypeOf("function");
+
+    act(() => {
+      tauriDragDropHandler?.({
+        payload: {
+          type: "enter",
+          paths: ["D:/Icons/Beta"],
+          position: { x: 20, y: 20 },
+        },
+      });
+    });
+
+    expect(iconApiMock.updateTargets).not.toHaveBeenCalled();
+    expect(screen.getByTestId("icon-target-dropzone")).toHaveTextContent("dropzone:false");
+  });
+
+  it("appends folders only on tauri drop events", async () => {
+    vi.mocked(isTauriDesktop).mockReturnValue(true);
+    localStorage.setItem("icons_workspace_state", JSON.stringify({
+      sessionId: "icon-session-1",
+      selectedTemplateId: "",
+      expandedFolderId: null,
+    }));
+
+    render(<IconWorkbenchV2 />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("folder-count")).toHaveTextContent("1");
+    });
+
+    expect(tauriDragDropHandler).toBeTypeOf("function");
+
+    act(() => {
+      tauriDragDropHandler?.({
+        payload: {
+          type: "over",
+          position: { x: 20, y: 20 },
+        },
+      });
+    });
+
+    expect(screen.getByTestId("icon-target-dropzone")).toHaveTextContent("dropzone:true");
+    expect(iconApiMock.updateTargets).not.toHaveBeenCalled();
+
+    act(() => {
+      tauriDragDropHandler?.({
+        payload: {
+          type: "drop",
+          paths: ["D:/Icons/Beta"],
+          position: { x: 20, y: 20 },
+        },
+      });
+    });
+
+    await waitFor(() => {
+      expect(iconApiMock.updateTargets).toHaveBeenCalledWith("icon-session-1", {
+        target_paths: ["D:/Icons/Beta"],
+        mode: "append",
+      });
+    });
+    expect(screen.getByTestId("icon-target-dropzone")).toHaveTextContent("dropzone:false");
   });
 
   it("derives preview applied state from applied_version_id instead of current_version_id", async () => {

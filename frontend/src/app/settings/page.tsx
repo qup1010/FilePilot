@@ -721,6 +721,8 @@ export default function SettingsPage() {
     };
   }, [targetProfileSelectorOpen]);
 
+  const addDirectoriesRef = useRef<(profileId: string, paths: string[]) => void>(null as any);
+
   useEffect(() => {
     let disposed = false;
     let unlisten: (() => void) | null = null;
@@ -747,7 +749,7 @@ export default function SettingsPage() {
         );
         setDragTargetProfileId(null);
         if (profileId) {
-          void addDirectoriesToTargetProfile(profileId, event.payload.paths);
+          void addDirectoriesRef.current(profileId, event.payload.paths);
         }
       }
     }).then((nextUnlisten) => {
@@ -762,7 +764,7 @@ export default function SettingsPage() {
       disposed = true;
       unlisten?.();
     };
-  }, [targetProfileDrafts]);
+  }, []);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -930,6 +932,10 @@ export default function SettingsPage() {
     const directories = [...draft.directories, ...additions];
     updateTargetProfileDraft(profileId, (current) => ({ ...current, directories, newPath: "", newLabel: "", newDescription: "" }));
   };
+
+  useEffect(() => {
+    addDirectoriesRef.current = addDirectoriesToTargetProfile;
+  }, [addDirectoriesToTargetProfile]);
 
   const saveTargetProfileDrafts = async () => {
     const entries = Object.entries(targetProfileDrafts);

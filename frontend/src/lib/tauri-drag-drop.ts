@@ -23,6 +23,24 @@ export type TauriDragDropEvent = {
   payload: TauriDragDropPayload;
 };
 
+export function isTauriDragOverPayload(
+  payload: TauriDragDropPayload,
+): payload is Extract<TauriDragDropPayload, { type: "over" }> {
+  return payload.type === "over";
+}
+
+export function isTauriDragDropPayload(
+  payload: TauriDragDropPayload,
+): payload is Extract<TauriDragDropPayload, { type: "drop" }> {
+  return payload.type === "drop";
+}
+
+export function isTauriDragLeavePayload(
+  payload: TauriDragDropPayload,
+): payload is Extract<TauriDragDropPayload, { type: "leave" }> {
+  return payload.type === "leave";
+}
+
 export async function listenToTauriDragDrop(
   handler: (event: TauriDragDropEvent) => void,
 ): Promise<(() => void) | null> {

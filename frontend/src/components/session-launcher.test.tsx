@@ -487,6 +487,23 @@ describe("SessionLauncher", () => {
     });
   });
 
+  it("clears all selected sources from the launcher in one action", async () => {
+    render(<SessionLauncher />);
+
+    await screen.findByText("本次整理对象");
+    addSource("D:/incoming");
+    addSource("D:/incoming/readme.txt", "file");
+
+    expect(screen.getByText("D:/incoming")).toBeInTheDocument();
+    expect(screen.getByText("D:/incoming/readme.txt")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /清空来源/ }));
+
+    expect(screen.queryByText("D:/incoming")).not.toBeInTheDocument();
+    expect(screen.queryByText("D:/incoming/readme.txt")).not.toBeInTheDocument();
+    expect(screen.getByText("请将想要整理的文件或文件夹拖放到此")).toBeVisible();
+  });
+
   it("opens advanced settings in a dialog instead of expanding inline", async () => {
     render(<SessionLauncher />);
 
