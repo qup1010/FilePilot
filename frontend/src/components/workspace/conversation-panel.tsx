@@ -368,8 +368,9 @@ export function ConversationPanel({
             return (
               <motion.div
                 key={message.id}
-                initial={justFinalizedRef.current.has(message.id) ? false : { opacity: 0, x: isAssistant ? -8 : 8 }}
-                animate={{ opacity: 1, x: 0 }}
+                initial={justFinalizedRef.current.has(message.id) ? false : { opacity: 0, y: 6, x: isAssistant ? -4 : 4 }}
+                animate={{ opacity: 1, y: 0, x: 0 }}
+                transition={{ type: "spring", stiffness: 300, damping: 28 }}
                 className={cn(
                   "relative grid w-full gap-3",
                   isAssistant ? "grid-cols-[28px_minmax(0,1fr)]" : "grid-cols-[minmax(0,1fr)_28px]",
@@ -391,7 +392,7 @@ export function ConversationPanel({
                         "transition-all leading-relaxed",
                         isAssistant
                           ? "px-1 pt-[1px] text-on-surface"
-                          : "rounded-lg bg-on-surface/[0.03] px-3.5 py-2.5 text-[13px] text-on-surface/80"
+                          : "rounded-lg bg-on-surface/[0.035] border border-on-surface/[0.03] px-3.5 py-2.5 text-[13px] text-on-surface/80 backdrop-blur-sm shadow-[0_1px_2px_rgba(0,0,0,0.015)]"
                       )}
                     >
                       {isAssistant ? (

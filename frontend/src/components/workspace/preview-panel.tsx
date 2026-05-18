@@ -388,6 +388,13 @@ function TreeBranch({
             )}
             style={{ paddingLeft: 12 + depth * 16 }}
           >
+            {Array.from({ length: depth }).map((_, idx) => (
+              <div
+                key={idx}
+                className="absolute top-0 bottom-0 w-[1px] bg-on-surface/[0.03] group-hover:bg-primary/10 transition-colors pointer-events-none"
+                style={{ left: 16 + idx * 16 }}
+              />
+            ))}
             <ItemIcon className={cn("h-3.5 w-3.5 shrink-0 transition-colors", active ? "text-primary/70" : "text-on-surface-variant/30")} />
             <div className="min-w-0 flex-1 py-0.5">
               <div className="flex items-center gap-2">
@@ -459,9 +466,16 @@ function TreeBranch({
 
     return (
       <div
-        className="flex w-full items-center gap-3 border-b border-on-surface/[0.04] py-2 pr-3 text-left"
+        className="group relative flex w-full items-center gap-3 border-b border-on-surface/[0.04] py-2 pr-3 text-left"
         style={{ paddingLeft: 12 + depth * 16 }}
       >
+        {Array.from({ length: depth }).map((_, idx) => (
+          <div
+            key={idx}
+            className="absolute top-0 bottom-0 w-[1px] bg-on-surface/[0.03] group-hover:bg-primary/10 transition-colors pointer-events-none"
+            style={{ left: 16 + idx * 16 }}
+          />
+        ))}
         <FileText className="h-3.5 w-3.5 shrink-0 text-on-surface-variant/20" />
         <div className="min-w-0 flex-1">
           <p className="truncate font-mono text-[12.5px] tracking-tight text-on-surface/50">{node.sourceEntry?.display_name || node.name}</p>
@@ -477,9 +491,16 @@ function TreeBranch({
       <button
         type="button"
         onClick={() => onToggle(node.path)}
-        className="group flex w-full items-center gap-2.5 py-1.5 pr-2 text-left transition-colors hover:bg-on-surface/[0.035]"
+        className="group relative flex w-full items-center gap-2.5 py-1.5 pr-2 text-left transition-colors hover:bg-on-surface/[0.035]"
         style={{ paddingLeft: 8 + depth * 16 }}
       >
+        {Array.from({ length: depth }).map((_, idx) => (
+          <div
+            key={idx}
+            className="absolute top-0 bottom-0 w-[1px] bg-on-surface/[0.03] group-hover:bg-primary/10 transition-colors pointer-events-none"
+            style={{ left: 16 + idx * 16 }}
+          />
+        ))}
         <div className="flex h-4 w-4 shrink-0 items-center justify-center">
           {isExpanded ? (
             <ChevronDown className="h-3 w-3 text-on-surface-variant/40" />
@@ -673,6 +694,17 @@ export function PreviewPanel(props: PreviewPanelProps) {
   const [queueCollapsed, setQueueCollapsed] = useState(false);
   const [acceptedReviewItemIds, setAcceptedReviewItemIds] = useState<string[]>([]);
   const previousPlannerRunKeyRef = useRef<string | null>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.key === "k") {
+        event.preventDefault();
+        searchInputRef.current?.focus();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
   const queuePanelRef = useRef<HTMLDivElement | null>(null);
 
   const unresolvedItems = useMemo(() => allItems.filter((item) => item.status === "unresolved"), [allItems]);
@@ -1044,13 +1076,19 @@ export function PreviewPanel(props: PreviewPanelProps) {
 
                 <div className="flex min-w-0 flex-1 items-center gap-2">
                   <div className="relative flex min-w-0 flex-1 items-center group">
-                    <Search className="absolute left-2.5 h-3.5 w-3.5 text-ui-muted pointer-events-none opacity-40 group-focus-within:text-primary transition-colors" />
+                    <Search className="absolute left-2.5 h-3.5 w-3.5 text-ui-muted pointer-events-none opacity-40 group-focus-within:text-primary group-focus-within:scale-90 group-focus-within:rotate-3 transition-all duration-200" />
                     <input
+                      ref={searchInputRef}
                       value={search}
                       onChange={(event) => setSearch(event.target.value)}
                       placeholder="搜索节点..."
-                      className="h-8 w-full rounded-md border border-on-surface/8 bg-surface-container-lowest pl-8 pr-2.5 text-[11px] font-black text-on-surface outline-none transition-all placeholder:text-ui-muted/50 focus:border-primary/40 focus:ring-1 focus:ring-primary/10"
+                      className="h-8 w-full rounded-md border border-on-surface/8 bg-surface-container-lowest pl-8 pr-12 text-[11px] font-black text-on-surface outline-none transition-all placeholder:text-ui-muted/50 focus:border-primary/40 focus:ring-1 focus:ring-primary/10"
                     />
+                    {!search && (
+                      <kbd className="pointer-events-none absolute right-2.5 hidden h-4 select-none items-center gap-0.5 rounded border border-on-surface/10 bg-on-surface/[0.04] px-1.5 font-mono text-[9px] font-black text-ui-muted opacity-40 transition-opacity group-focus-within:opacity-0 sm:flex">
+                        Ctrl K
+                      </kbd>
+                    )}
                   </div>
 
                   <div className="relative flex shrink-0 items-center">

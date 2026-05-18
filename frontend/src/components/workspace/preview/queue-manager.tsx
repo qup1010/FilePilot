@@ -49,10 +49,10 @@ export function QueueCard({
             type="button"
             onClick={() => onSelectItem(item.item_id)}
             className={cn(
-              "group relative flex w-full items-center justify-between gap-3 rounded-[7px] border px-3 py-2 text-left transition-all",
+              "group relative flex w-full items-center justify-between gap-3 rounded-[7px] border px-3 py-2 text-left transition-all duration-200",
               selectedItemId === item.item_id 
-                ? "border-primary/25 bg-primary/[0.035] ring-1 ring-primary/10" 
-                : "border-on-surface/6 bg-surface-container-lowest/35 hover:border-on-surface/12 hover:bg-on-surface/[0.025]",
+                ? "border-primary/45 bg-primary/[0.045] shadow-[0_2px_8px_rgba(59,130,246,0.06)] ring-1 ring-primary/20 scale-[1.01]" 
+                : "border-on-surface/6 bg-surface-container-lowest/35 hover:border-on-surface/12 hover:bg-on-surface/[0.025] hover:scale-[1.005]",
             )}
           >
             <div className="min-w-0 flex-1">
@@ -149,13 +149,13 @@ export function QueuePanel({
             >
               <div className="flex flex-wrap gap-2 px-4 py-3">
                 {invalidatedCount > 0 ? (
-                  <span className="rounded-md border border-error/15 bg-error/5 px-2 py-1 text-[10px] font-black uppercase tracking-wider text-error">需重新确认 {invalidatedCount}</span>
+                  <span className="rounded-md border border-error/15 bg-error/5 px-2 py-1 text-[10px] font-black uppercase tracking-wider text-error animate-[pulse_4s_infinite] shadow-[0_0_6px_rgba(239,68,68,0.05)]">需重新确认 {invalidatedCount}</span>
                 ) : null}
                 {unresolvedCount > 0 ? (
-                  <span className="rounded-md border border-warning/20 bg-warning/5 px-2 py-1 text-[10px] font-black uppercase tracking-wider text-warning-dim">待决策 {unresolvedCount}</span>
+                  <span className="rounded-md border border-warning/20 bg-warning/5 px-2 py-1 text-[10px] font-black uppercase tracking-wider text-warning-dim animate-[pulse_3.5s_infinite] shadow-[0_0_6px_rgba(245,158,11,0.05)]">待决策 {unresolvedCount}</span>
                 ) : null}
                 {reviewCount > 0 ? (
-                  <span className="rounded-md border border-primary/15 bg-primary/5 px-2 py-1 text-[10px] font-black uppercase tracking-wider text-primary">待核对 {reviewCount}</span>
+                  <span className="rounded-md border border-primary/15 bg-primary/5 px-2 py-1 text-[10px] font-black uppercase tracking-wider text-primary animate-[pulse_4.5s_infinite] shadow-[0_0_6px_rgba(59,130,246,0.05)]">待核对 {reviewCount}</span>
                 ) : null}
               </div>
             </motion.div>

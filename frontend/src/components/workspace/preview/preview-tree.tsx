@@ -68,6 +68,13 @@ export function TreeBranch({
             title="双击编辑条目"
             style={{ paddingLeft: 12 + depth * 16 }}
           >
+            {Array.from({ length: depth }).map((_, idx) => (
+              <div
+                key={idx}
+                className="absolute top-0 bottom-0 w-[1px] bg-on-surface/[0.03] group-hover:bg-primary/10 transition-colors pointer-events-none"
+                style={{ left: 16 + idx * 16 }}
+              />
+            ))}
             <ItemIcon className={cn("h-3.5 w-3.5 shrink-0 transition-colors", active ? "text-primary/70" : "text-on-surface-variant/30")} />
             <div className="min-w-0 flex-1 py-0.5">
               <div className="flex items-center gap-2">
@@ -151,9 +158,16 @@ export function TreeBranch({
 
     return (
       <div
-        className="flex w-full items-center gap-3 border-b border-on-surface/[0.04] py-2 pr-3 text-left"
+        className="group relative flex w-full items-center gap-3 border-b border-on-surface/[0.04] py-2 pr-3 text-left"
         style={{ paddingLeft: 12 + depth * 16 }}
       >
+        {Array.from({ length: depth }).map((_, idx) => (
+          <div
+            key={idx}
+            className="absolute top-0 bottom-0 w-[1px] bg-on-surface/[0.03] group-hover:bg-primary/10 transition-colors pointer-events-none"
+            style={{ left: 16 + idx * 16 }}
+          />
+        ))}
         <FileText className="h-3.5 w-3.5 shrink-0 text-on-surface-variant/20" />
         <div className="min-w-0 flex-1">
           <p className="truncate font-mono text-[12px] font-black tracking-tight text-on-surface/50">{node.sourceEntry?.display_name || node.name}</p>
@@ -170,9 +184,16 @@ export function TreeBranch({
       <button
         type="button"
         onClick={() => onToggle(node.path)}
-        className="group flex w-full items-center gap-2.5 py-1.5 pr-2 text-left transition-colors hover:bg-on-surface/[0.035]"
+        className="group relative flex w-full items-center gap-2.5 py-1.5 pr-2 text-left transition-colors hover:bg-on-surface/[0.035]"
         style={{ paddingLeft: 8 + depth * 16 }}
       >
+        {Array.from({ length: depth }).map((_, idx) => (
+          <div
+            key={idx}
+            className="absolute top-0 bottom-0 w-[1px] bg-on-surface/[0.03] group-hover:bg-primary/10 transition-colors pointer-events-none"
+            style={{ left: 16 + idx * 16 }}
+          />
+        ))}
         <div className="flex h-4 w-4 shrink-0 items-center justify-center">
             {isExpanded ? (
                 <ChevronDown className="h-3 w-3 text-on-surface-variant/40" />
