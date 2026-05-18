@@ -7,6 +7,7 @@ import { DirectoryTreeDiff, type DirectoryTreeLeafEntry, type DirectoryTreeFilte
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
+import { PathDiffViewer } from "./path-diff-viewer";
 
 interface PrecheckViewProps {
     summary: PrecheckSummary | null;
@@ -286,12 +287,8 @@ export function PrecheckView({
                                                     </div>
                                                 </div>
                                             </div>
-                                            <div className="flex items-center gap-3 border-t border-on-surface/5 bg-on-surface/[0.01] px-3 py-2 text-[10px]">
-                                                <div className="flex-1 min-w-0 flex items-center gap-2">
-                                                    <span className="truncate opacity-30 font-mono" title={move.source}>{move.source.split(/[\\/]/).pop()}</span>
-                                                    <ArrowRight className="h-2.5 w-2.5 shrink-0 opacity-10" />
-                                                    <span className={cn("truncate font-mono font-bold tracking-tight", isReview ? "text-warning/70" : "text-primary/70")} title={targetLabel}>{targetLabel}</span>
-                                                </div>
+                                            <div className="border-t border-on-surface/5 bg-on-surface/[0.01]/30 p-3">
+                                                <PathDiffViewer source={move.source} target={move.target} />
                                             </div>
                                         </motion.div>
                                     );

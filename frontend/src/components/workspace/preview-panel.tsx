@@ -394,9 +394,9 @@ function TreeBranch({
                 <p className={cn("truncate font-mono text-[12.5px] tracking-tight transition-colors", active ? "text-primary font-bold" : "text-on-surface/80")}>
                   {node.item.display_name}
                 </p>
-                {hasMoved && (
+                {hasMoved && node.item.source_relpath.replace(/\\/g, "/").split('/').slice(0, -1).pop() && (
                   <span className="truncate text-[9px] font-bold uppercase tracking-tighter text-ui-muted opacity-25 group-hover:opacity-50 transition-opacity whitespace-nowrap">
-                    ← {node.item.source_relpath.split('/').slice(0, -1).pop() || "ROOT"}
+                    ← {node.item.source_relpath.replace(/\\/g, "/").split('/').slice(0, -1).pop()}
                   </span>
                 )}
               </div>

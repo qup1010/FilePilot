@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import type { RollbackPrecheckSummary } from "@/types/session";
 import { motion } from "framer-motion";
+import { PathDiffViewer } from "./path-diff-viewer";
 
 interface RollbackPreviewDialogProps {
   open: boolean;
@@ -82,10 +83,8 @@ export function RollbackPreviewDialog({
                         {action.type}
                       </span>
                     </div>
-                    <div className="flex items-center gap-2 text-[10px] font-medium text-ui-muted/50">
-                      <span className="truncate max-w-[200px]" title={action.source}>{formatPath(action.source)}</span>
-                      <ArrowRight className="h-3 w-3 shrink-0 opacity-40" />
-                      <span className="truncate max-w-[200px] text-success-dim" title={action.target}>{formatPath(action.target)}</span>
+                    <div className="mt-2 border-t border-on-surface/5 pt-2">
+                      <PathDiffViewer source={action.source} target={action.target} compact={true} />
                     </div>
                   </motion.div>
                 ))}

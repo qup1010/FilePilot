@@ -74,12 +74,12 @@ export function TreeBranch({
                 <p className={cn("truncate font-mono text-[12px] font-black tracking-tight transition-colors", active ? "text-primary font-bold" : "text-on-surface/80")}>
                   {node.item.display_name}
                 </p>
-                {hasMoved && (
+                {hasMoved && node.item.source_relpath.replace(/\\/g, "/").split('/').slice(0, -1).pop() && (
                    <span
                      className="truncate text-[9px] font-semibold tracking-normal text-ui-muted opacity-20 transition-opacity group-hover:opacity-45 whitespace-nowrap"
-                     title="整理后将直接位于目标根目录下"
+                     title={`原本位于源目录下的 ${node.item.source_relpath.replace(/\\/g, "/").split('/').slice(0, -1).pop()} 文件夹中`}
                    >
-                      ← {node.item.source_relpath.split('/').slice(0, -1).pop() || "根目录"}
+                      ← {node.item.source_relpath.replace(/\\/g, "/").split('/').slice(0, -1).pop()}
                    </span>
                 )}
               </div>
