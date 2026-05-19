@@ -33,6 +33,7 @@ import {
 } from "@/lib/use-history-list";
 
 import { EmptyState } from "@/components/ui/empty-state";
+import { FileRadarIllustration } from "@/components/ui/svg-illustrations";
 
 export function SessionHistory({ maxItems }: { maxItems?: number }) {
   const router = useRouter();
@@ -140,7 +141,7 @@ export function SessionHistory({ maxItems }: { maxItems?: number }) {
       <div className="flex-1 min-h-0 overflow-y-auto pr-1 scrollbar-thin">
         {history.length === 0 ? (
           <EmptyState
-            icon={HistoryIcon}
+            illustration={FileRadarIllustration}
             title="还没有记录"
             description="完成第一次目录整理后，相关任务、执行结果和回退记录会出现在这里。"
             className="h-full py-12"

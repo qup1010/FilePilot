@@ -11,6 +11,7 @@ import { useSession } from "@/lib/use-session";
 import { getFriendlyStage } from "@/lib/utils";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { EmptyState } from "@/components/ui/empty-state";
+import { FileRadarIllustration } from "@/components/ui/svg-illustrations";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { createApiClient } from "@/lib/api";
 import { localizeSessionLastError } from "@/lib/user-facing-copy";
@@ -1243,7 +1244,7 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
               if (stageView.isDraftLike) {
                 return (
                   <EmptyState
-                    icon={Layers}
+                    illustration={FileRadarIllustration}
                     title="等待读取目录"
                     description="开始后会先只读扫描目录，再生成第一版整理方案。"
                     className="mx-auto h-[70vh] max-w-[1360px]"
@@ -1335,7 +1336,7 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
               if (isEmptyCompleted) {
                 return (
                   <EmptyState
-                    icon={FolderTree}
+                    illustration={FileRadarIllustration}
                     title="当前目录为空"
                     description="这次扫描没有发现需要整理的内容。你可以返回首页，或在目录内容更新后重新扫描并重建方案。"
                     className="mx-auto h-full max-w-[1360px]"
@@ -1414,7 +1415,7 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
             if (stageView.isDraftLike) {
               return (
                 <EmptyState
-                  icon={Layers}
+                  illustration={FileRadarIllustration}
                   title="等待读取目录"
                   description="开始后会先只读扫描目录，再在这里显示整理建议。"
                   className="mx-auto h-[70vh] max-w-[1360px]"
@@ -1443,7 +1444,7 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
                 <div className="flex-1 overflow-hidden">
                   {isInterruptedDuringScan ? (
                     <EmptyState
-                      icon={FolderTree}
+                      illustration={FileRadarIllustration}
                       title="扫描中断，尚未形成方案"
                       description="这次任务还没有得到可确认的整理建议。建议先重新扫描，确认目录内容后再继续。"
                       className="mx-auto h-full max-w-[1360px]"

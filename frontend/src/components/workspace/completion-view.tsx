@@ -9,6 +9,7 @@ import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { MarkdownProse } from "./markdown-prose";
+import { FileRadarIllustration } from "@/components/ui/svg-illustrations";
 
 
 interface CompletionViewProps {
@@ -65,8 +66,8 @@ export function CompletionView({
 
   if (!journal) {
     return (
-      <div className="rounded-lg border border-on-surface/12 bg-surface-container-lowest p-12 text-center">
-        <History className="mx-auto mb-4 h-12 w-12 text-on-surface-variant/20" />
+      <div className="rounded-lg border border-on-surface/12 bg-surface-container-lowest p-12 text-center flex flex-col items-center justify-center min-h-[360px]">
+        <FileRadarIllustration className="w-40 h-40 mb-4 opacity-75" />
         <p className="text-sm font-medium text-on-surface-variant">这里暂时还没有可显示的结果。</p>
       </div>
     );
