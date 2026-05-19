@@ -547,7 +547,7 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
 
   const handleExitWorkbench = () => {
     setShowExitMenu(false);
-    if (isReadOnly || stageView.isCompleted) {
+    if (isReadOnly) {
       if (typeof window !== "undefined" && sessionIdParam) {
         const storedRoute = window.localStorage.getItem(ACTIVE_WORKSPACE_ROUTE_KEY);
         if (getSessionIdFromWorkspaceRoute(storedRoute) === sessionIdParam) {
@@ -1756,9 +1756,13 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
       </ErrorBoundary>
       <ConfirmDialog
         open={exitConfirmOpen}
-        title="返回首页？"
-        description="当前的整理进度会自动保存。之后你可以从首页继续这项任务。"
-        confirmLabel="确认退出"
+        title={stageView.isCompleted ? "结束本次整理？" : "暂存并退出当前任务？"}
+        description={
+          stageView.isCompleted
+            ? "本次整理已顺利执行完毕，进度已安全归档，现在可以安全关闭工作台并返回首页。"
+            : "当前的整理进度会自动保存。之后你可以随时从首页恢复并继续这项任务。"
+        }
+        confirmLabel={stageView.isCompleted ? "结束并返回" : "暂存并退出"}
         cancelLabel="留在工作台"
         tone="primary"
         loading={loading}

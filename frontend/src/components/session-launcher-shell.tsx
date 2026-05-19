@@ -20,6 +20,7 @@ import {
   FolderPlus,
   FilePlus,
   LogOut,
+  ChevronDown,
   ShieldAlert,
 } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
@@ -542,6 +543,7 @@ export function SessionLauncherShell() {
   const [isTargetDropActive, setIsTargetDropActive] = useState(false);
   const [isDraggingGlobal, setIsDraggingGlobal] = useState(false);
   const [isDesktopEnvironment, setIsDesktopEnvironment] = useState(false);
+  const [isSourceDropdownOpen, setIsSourceDropdownOpen] = useState(false);
   const sourceDropZoneRef = useRef<HTMLDivElement | null>(null);
   const targetDropZoneRef = useRef<HTMLDivElement | null>(null);
 
@@ -2084,27 +2086,76 @@ export function SessionLauncherShell() {
                             </h3>
                             <div className={cn("mt-6 flex flex-col items-center gap-3 transition-opacity", isDropActive ? "opacity-20 pointer-events-none" : "opacity-100")}>
                               {isDesktopEnvironment ? (
-                                <Button
-                                  variant="primary"
-                                  onClick={() => void handleImportDirectoryEntries()}
-                                  disabled={loading}
-                                  className="h-11 rounded-[8px] px-8 text-[14px] font-black border border-primary/20 bg-primary active:scale-95 transition-all"
-                                >
-                                  整理文件夹内容 <Layers3 className="ml-2 h-4 w-4" />
-                                </Button>
-                              ) : null}
+                                <div className="relative flex flex-col items-center">
+                                  <div className="flex items-stretch rounded-[8px] overflow-hidden bg-primary border border-primary/20 shadow-sm transition-all hover:shadow active:scale-[0.99]">
+                                    <button
+                                      type="button"
+                                      disabled={loading}
+                                      onClick={() => void handleImportDirectoryEntries()}
+                                      className="h-11 px-6 text-[14.5px] font-black text-white hover:bg-white/10 active:bg-white/15 transition-colors flex items-center gap-2"
+                                    >
+                                      <span>整理文件夹内容</span>
+                                      <Layers3 className="h-4 w-4 opacity-80" />
+                                    </button>
+                                    <div className="w-[1px] bg-white/20 my-2" />
+                                    <button
+                                      type="button"
+                                      disabled={loading}
+                                      onClick={() => setIsSourceDropdownOpen(!isSourceDropdownOpen)}
+                                      className="px-3 hover:bg-white/10 active:bg-white/15 transition-colors flex items-center justify-center text-white"
+                                    >
+                                      <ChevronDown className={cn("h-4 w-4 transition-transform duration-200", isSourceDropdownOpen && "rotate-180")} />
+                                    </button>
+                                  </div>
 
-                              <div className="flex flex-wrap justify-center gap-3">
-                                <Button variant="secondary" onClick={() => void handleChooseDirectories()} disabled={loading} className="h-9 rounded-[6px] border border-on-surface/8 bg-surface px-5 text-[12px] font-bold text-on-surface/70 hover:bg-on-surface/[0.04] hover:text-on-surface active:scale-95 transition-all">
-                                  移动整个文件夹
-                                </Button>
-                                <Button variant="secondary" onClick={() => void handleChooseFiles()} disabled={loading} className="h-9 rounded-[6px] border border-on-surface/8 bg-surface px-5 text-[12px] font-bold text-on-surface/70 hover:bg-on-surface/[0.04] hover:text-on-surface active:scale-95 transition-all">
-                                  添加单个文件
-                                </Button>
-                              </div>
-                              <p className="max-w-lg text-[11px] font-medium leading-5 text-ui-muted/55">
-                                前者会整理文件夹里的内容；如果想保留文件夹本身不变，就选择“移动整个文件夹”。
+                                  {isSourceDropdownOpen && (
+                                    <>
+                                      <div className="fixed inset-0 z-40" onClick={() => setIsSourceDropdownOpen(false)} />
+                                      <div className="absolute top-12 left-1/2 -translate-x-1/2 z-50 min-w-[200px] rounded-[10px] border border-on-surface/8 bg-surface p-1 shadow-lg animate-in fade-in slide-in-from-top-2 duration-200">
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setIsSourceDropdownOpen(false);
+                                            void handleChooseDirectories();
+                                          }}
+                                          className="w-full text-left px-4 py-2.5 rounded-[6px] text-[12px] font-bold text-on-surface hover:bg-on-surface/[0.04] transition-colors flex items-center justify-between"
+                                        >
+                                          <span>移动整个文件夹</span>
+                                          <span className="text-[10px] text-ui-muted opacity-50 font-normal">保留外壳</span>
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setIsSourceDropdownOpen(false);
+                                            void handleChooseFiles();
+                                          }}
+                                          className="w-full text-left px-4 py-2.5 rounded-[6px] text-[12px] font-bold text-on-surface hover:bg-on-surface/[0.04] transition-colors flex items-center justify-between"
+                                        >
+                                          <span>添加单个文件</span>
+                                          <span className="text-[10px] text-ui-muted opacity-50 font-normal">单个导入</span>
+                                        </button>
+                                      </div>
+                                    </>
+                                  )}
+                                </div>
+                              ) : (
+                                <div className="flex flex-wrap justify-center gap-3">
+                                  <Button variant="secondary" onClick={() => void handleChooseDirectories()} disabled={loading} className="h-9 rounded-[6px] border border-on-surface/8 bg-surface px-5 text-[12px] font-bold text-on-surface/70 hover:bg-on-surface/[0.04] hover:text-on-surface active:scale-95 transition-all">
+                                    移动整个文件夹
+                                  </Button>
+                                  <Button variant="secondary" onClick={() => void handleChooseFiles()} disabled={loading} className="h-9 rounded-[6px] border border-on-surface/8 bg-surface px-5 text-[12px] font-bold text-on-surface/70 hover:bg-on-surface/[0.04] hover:text-on-surface active:scale-95 transition-all">
+                                    添加单个文件
+                                  </Button>
+                                </div>
+                              )}
+                              <p className="max-w-lg text-[11px] font-medium leading-relaxed text-ui-muted/55 text-center px-4">
+                                {isDesktopEnvironment ? "“整理文件夹内容”会分析并提取其中的文件；您也可以点击右侧下拉菜单，选择移动整个文件夹或添加单个文件。" : "“移动整个文件夹”会保留文件夹结构本身，“添加单个文件”仅整理选中的文件。"}
                               </p>
+                              {isDesktopEnvironment && (
+                                <div className="rounded-[6px] border border-on-surface/6 bg-on-surface/[0.015] px-4 py-2 text-[10px] font-mono leading-relaxed text-ui-muted/50 max-w-md text-center mt-1">
+                                  * Windows 原生限制：如需单次混选文件与文件夹，请直接拖拽至上方区域 *
+                                </div>
+                              )}
                             </div>
 
 

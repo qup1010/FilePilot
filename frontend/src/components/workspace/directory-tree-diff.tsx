@@ -33,6 +33,7 @@ interface DirectoryTreeDiffProps {
   before: DirectoryTreeColumnData;
   after: DirectoryTreeColumnData;
   filter?: DirectoryTreeFilter;
+  onOpenExplorer?: (path: string) => void;
 }
 
 interface DirectoryTreeNode {
@@ -216,7 +217,9 @@ function DirectoryTreePanel({
   tree,
   expanded,
   setExpanded,
+  onOpenExplorer,
 }: { 
+  onOpenExplorer?: (path: string) => void;
   column: DirectoryTreeColumnData; 
   filter?: DirectoryTreeFilter;
   tree: DirectoryTreeNode[];
@@ -234,6 +237,13 @@ function DirectoryTreePanel({
       return next;
     });
   }, [tree, setExpanded]);
+
+  const getPhysicalPath = (nodePath: string) => {
+    if (!column.basePath) return "";
+    const relative = relativePathFromBase(nodePath, column.baseLabel);
+    if (!relative) return column.basePath;
+    return `${column.basePath.replace(/[\\/]+$/, "")}/${relative}`;
+  };
 
   const toggle = (path: string) => {
     setExpanded((prev) => ({ ...prev, [path]: !prev[path] }));
@@ -282,6 +292,19 @@ function DirectoryTreePanel({
           )}>
             {node.name}
           </span>
+          {onOpenExplorer && column.basePath && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onOpenExplorer(getPhysicalPath(node.path));
+              }}
+              title="在物理资源管理器中显示"
+              className="opacity-0 group-hover:opacity-100 flex h-5 w-5 shrink-0 items-center justify-center rounded-[4px] hover:bg-on-surface/5 text-ui-muted hover:text-primary transition-all active:scale-90"
+            >
+              <FolderOpen className="h-3 w-3" />
+            </button>
+          )}
           {badge && (
             <span className={cn("shrink-0 rounded-[3px] border px-1.5 py-0.5 text-[9px] font-black uppercase tracking-widest whitespace-nowrap opacity-80", badge.className)}>
               {badge.label}
@@ -323,6 +346,18 @@ function DirectoryTreePanel({
           <span className="shrink-0 font-mono text-[10px] font-bold text-ui-muted opacity-40">
             {node.descendantFileCount}
           </span>
+          {onOpenExplorer && column.basePath && (
+            <span
+              onClick={(e) => {
+                e.stopPropagation();
+                onOpenExplorer(getPhysicalPath(node.path));
+              }}
+              title="在物理资源管理器中打开该文件夹"
+              className="opacity-0 group-hover:opacity-100 flex h-5 w-5 shrink-0 items-center justify-center rounded-[4px] hover:bg-on-surface/5 text-ui-muted hover:text-primary transition-all active:scale-90 cursor-pointer"
+            >
+              <FolderOpen className="h-3 w-3" />
+            </span>
+          )}
           {isReviewDirectory ? (
             <span className="shrink-0 rounded-full border border-warning/20 bg-warning/10 px-2 py-0.5 text-[9px] font-black uppercase tracking-widest text-warning-dim/80">
               待确认
@@ -365,7 +400,7 @@ function DirectoryTreePanel({
   );
 }
 
-export function DirectoryTreeDiff({ before, after, filter = "all" }: DirectoryTreeDiffProps) {
+export function DirectoryTreeDiff({ before, after, filter = "all", onOpenExplorer }: DirectoryTreeDiffProps) {
   const [expandedBefore, setExpandedBefore] = useState<Record<string, boolean>>({});
   const [expandedAfter, setExpandedAfter] = useState<Record<string, boolean>>({});
 
@@ -455,6 +490,7 @@ export function DirectoryTreeDiff({ before, after, filter = "all" }: DirectoryTr
           tree={beforeTree}
           expanded={expandedBefore}
           setExpanded={setExpandedBefore}
+          onOpenExplorer={onOpenExplorer}
         />
         <DirectoryTreePanel 
           column={after} 
@@ -462,6 +498,7 @@ export function DirectoryTreeDiff({ before, after, filter = "all" }: DirectoryTr
           tree={afterTree}
           expanded={expandedAfter}
           setExpanded={setExpandedAfter}
+          onOpenExplorer={onOpenExplorer}
         />
       </div>
     </div>

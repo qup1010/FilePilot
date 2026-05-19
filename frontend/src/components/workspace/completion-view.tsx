@@ -271,7 +271,7 @@ export function CompletionView({
           </div>
           
           <div className="rounded-lg border border-on-surface/8 bg-transparent overflow-hidden">
-            <DirectoryTreeDiff before={beforeTree} after={afterTree} filter={filter} />
+            <DirectoryTreeDiff before={beforeTree} after={afterTree} filter={filter} onOpenExplorer={onOpenExplorer} />
           </div>
         </section>
 
