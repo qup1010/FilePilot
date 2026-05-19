@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
-import { motion } from "motion/react";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   AlertTriangle,
   Bot,
@@ -212,55 +212,7 @@ export function ConversationPanel({
     setIsPinnedToBottom(true);
   };
 
-  const renderNotice = notice ? (
-    <div
-      className={cn(
-        "rounded-xl border p-4",
-        notice.tone === "danger" && "border-error/20 bg-error/[0.03]",
-        notice.tone === "warning" && "border-warning/20 bg-warning/[0.03]",
-        notice.tone === "info" && "border-primary/12 bg-surface-container-lowest",
-      )}
-    >
-      <div className="flex gap-4">
-        <div className={cn(
-           "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border",
-           notice.tone === "danger" && "bg-error text-white border-error/20",
-           notice.tone === "warning" && "bg-warning text-white border-warning/20",
-           notice.tone === "info" && "bg-primary text-white border-primary/20",
-        )}>
-           <AlertTriangle className="h-5 w-5" />
-        </div>
-        <div className="flex-1 space-y-3 min-w-0">
-          <div>
-            <h3 className="text-[14px] font-black text-on-surface tracking-tight">{notice.title}</h3>
-            <p className="mt-1 text-[13px] font-medium leading-relaxed text-ui-muted opacity-80">{notice.description}</p>
-          </div>
-          {(notice.primaryAction || notice.secondaryAction) && (
-            <div className="flex flex-wrap gap-2">
-              {notice.primaryAction && (
-                <button
-                  type="button"
-                  onClick={notice.primaryAction.onClick}
-                  className="rounded-[6px] bg-primary px-4 py-2 text-[12px] font-black text-white transition-all hover:bg-primary-dim active:scale-95"
-                >
-                  {notice.primaryAction.label}
-                </button>
-              )}
-              {notice.secondaryAction && (
-                <button
-                  type="button"
-                  onClick={notice.secondaryAction.onClick}
-                  className="rounded-[6px] border border-on-surface/10 bg-surface-container-lowest px-4 py-2 text-[12px] font-black text-on-surface transition-all hover:bg-on-surface/5 active:scale-95"
-                >
-                  {notice.secondaryAction.label}
-                </button>
-              )}
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  ) : null;
+  // notice is rendered dynamically below with AnimatePresence
 
   const scanningView = React.useMemo(
     () => deriveScannerProgressViewModel(scanner || {}, progressPercent),
@@ -270,7 +222,65 @@ export function ConversationPanel({
   return (
     <div className="flex h-full min-h-0 flex-col bg-surface">
       <div ref={scrollContainerRef} onScroll={handleScroll} className="relative min-h-0 flex-1 overflow-y-auto px-6 pt-5 pb-4 scroll-smooth scrollbar-thin">
-        {renderNotice && <div className="mb-2">{renderNotice}</div>}
+        <AnimatePresence>
+          {notice && (
+            <motion.div
+              initial={{ height: 0, opacity: 0, y: -8 }}
+              animate={{ height: "auto", opacity: 1, y: 0 }}
+              exit={{ height: 0, opacity: 0, y: -8 }}
+              transition={{ duration: 0.22, ease: "easeInOut" }}
+              className="overflow-hidden mb-3"
+            >
+              <div
+                className={cn(
+                  "rounded-xl border p-4",
+                  notice.tone === "danger" && "border-error/20 bg-error/[0.03]",
+                  notice.tone === "warning" && "border-warning/20 bg-warning/[0.03]",
+                  notice.tone === "info" && "border-primary/12 bg-surface-container-lowest",
+                )}
+              >
+                <div className="flex gap-4">
+                  <div className={cn(
+                     "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border",
+                     notice.tone === "danger" && "bg-error text-white border-error/20",
+                     notice.tone === "warning" && "bg-warning text-white border-warning/20",
+                     notice.tone === "info" && "bg-primary text-white border-primary/20",
+                  )}>
+                     <AlertTriangle className="h-5 w-5" />
+                  </div>
+                  <div className="flex-1 space-y-3 min-w-0">
+                    <div>
+                      <h3 className="text-[14px] font-black text-on-surface tracking-tight">{notice.title}</h3>
+                      <p className="mt-1 text-[13px] font-medium leading-relaxed text-ui-muted opacity-80">{notice.description}</p>
+                    </div>
+                    {(notice.primaryAction || notice.secondaryAction) && (
+                      <div className="flex flex-wrap gap-2">
+                        {notice.primaryAction && (
+                          <button
+                            type="button"
+                            onClick={notice.primaryAction.onClick}
+                            className="rounded-[6px] bg-primary px-4 py-2 text-[12px] font-black text-white transition-all hover:bg-primary-dim active:scale-95"
+                          >
+                            {notice.primaryAction.label}
+                          </button>
+                        )}
+                        {notice.secondaryAction && (
+                          <button
+                            type="button"
+                            onClick={notice.secondaryAction.onClick}
+                            className="rounded-[6px] border border-on-surface/10 bg-surface-container-lowest px-4 py-2 text-[12px] font-black text-on-surface transition-all hover:bg-on-surface/5 active:scale-95"
+                          >
+                            {notice.secondaryAction.label}
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {stageView.isDraftLike && !notice && (
           <motion.div 
@@ -368,12 +378,12 @@ export function ConversationPanel({
             return (
               <motion.div
                 key={message.id}
-                initial={justFinalizedRef.current.has(message.id) ? false : { opacity: 0, y: 6, x: isAssistant ? -4 : 4 }}
-                animate={{ opacity: 1, y: 0, x: 0 }}
-                transition={{ type: "spring", stiffness: 300, damping: 28 }}
+                initial={justFinalizedRef.current.has(message.id) ? false : { opacity: 0, y: 8, scale: 0.97 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                transition={{ type: "spring", stiffness: 350, damping: 30 }}
                 className={cn(
                   "relative grid w-full gap-3",
-                  isAssistant ? "grid-cols-[28px_minmax(0,1fr)]" : "grid-cols-[minmax(0,1fr)_28px]",
+                  isAssistant ? "grid-cols-[28px_minmax(0,1fr)] origin-bottom-left" : "grid-cols-[minmax(0,1fr)_28px] origin-bottom-right",
                   isGrouped ? "mt-1" : isFirstVisibleMessage ? "mt-0" : "mt-2.5",
                 )}
               >
@@ -417,9 +427,10 @@ export function ConversationPanel({
           {assistantDraft && (
             <motion.div
               key="assistant-streaming-bubble"
-              initial={{ opacity: 0, x: -8 }}
-              animate={{ opacity: 1, x: 0 }}
-              className="relative mt-2.5 grid w-full grid-cols-[28px_minmax(0,1fr)] gap-3"
+              initial={{ opacity: 0, y: 8, scale: 0.97 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              transition={{ type: "spring", stiffness: 350, damping: 30 }}
+              className="relative mt-2.5 grid w-full grid-cols-[28px_minmax(0,1fr)] gap-3 origin-bottom-left"
             >
               <div className="col-start-1 row-start-1">
                 <MessageAvatar role="assistant" />

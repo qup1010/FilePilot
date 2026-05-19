@@ -343,9 +343,9 @@ export default function HistoryPage() {
   const sessionRecoveryCopy = getSessionRecoveryCopy(selectedEntry, sessionDetail);
   const sessionDetailInterior = (
     <div className="space-y-4">
-      <div className="flex items-center justify-between gap-4 rounded-xl border border-primary/20 bg-primary/5 p-4">
+      <div className="group flex items-center justify-between gap-4 rounded-xl border border-primary/18 bg-gradient-to-r from-primary/[0.045] to-primary/[0.01] p-4 shadow-sm">
         <div className="flex items-center gap-4">
-          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary text-white border border-primary/25">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary text-white border border-primary/25 shadow-md shadow-primary/10 transition-transform group-hover:scale-105">
             <PlayCircle className="h-6 w-6" />
           </div>
           <div className="min-w-0">
@@ -527,10 +527,10 @@ export default function HistoryPage() {
                     key={item.id}
                     onClick={() => setFilter(item.id)}
                     className={cn(
-                      "flex items-center gap-2 rounded-md px-2.5 py-1.5 transition-all outline-none",
+                      "flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[12px] border transition-all duration-200 outline-none select-none active:scale-[0.97]",
                       filter === item.id
-                        ? "bg-primary/10"
-                        : "bg-on-surface/[0.03] hover:bg-on-surface/[0.06]"
+                        ? "bg-primary/[0.05] border-primary/20 text-primary shadow-[0_2px_8px_rgba(var(--primary-rgb),0.04)]"
+                        : "bg-on-surface/[0.015] border-on-surface/5 hover:bg-on-surface/[0.035] hover:border-on-surface/8 text-ui-muted"
                     )}
                   >
                     <div className={cn("text-[12px] font-black tabular-nums leading-none", item.color)}>

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { ArrowRightLeft, FolderTree, Inbox, Layers3, ScanSearch } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 
 import type { SourceTreeEntry } from "@/types/session";
 import { cn } from "@/lib/utils";
@@ -110,8 +111,8 @@ export function IncrementalSelectionView({
                   className={cn(
                     "flex cursor-pointer items-start gap-3 rounded-xl border p-4 transition-all active:scale-[0.98]",
                     checked
-                      ? "border-primary/40 bg-primary/5 ring-1 ring-primary/10"
-                      : "border-on-surface/8 bg-surface hover:border-primary/20 hover:bg-on-surface/[0.01]",
+                      ? "border-primary/30 bg-primary/[0.035] ring-1 ring-primary/10 shadow-sm"
+                      : "border-on-surface/8 bg-surface hover:border-primary/20 hover:bg-on-surface/[0.015] hover:shadow-[0_4px_12px_rgba(0,0,0,0.015)]",
                   )}
                 >
                   <input
@@ -177,25 +178,40 @@ export function IncrementalSelectionView({
             </div>
             <div className="max-h-[480px] overflow-y-auto scrollbar-thin">
               <div className="flex flex-col divide-y divide-on-surface/[0.03]">
-                {pendingEntries.length > 0 ? pendingEntries.map((entry) => {
-                  const relpath = normalizePath(entry.source_relpath);
-                  const isDirectory = ["dir", "directory", "folder"].includes(String(entry.entry_type || "").toLowerCase());
-                  return (
-                    <div key={relpath} className="group flex items-center gap-3 px-4 py-2.5 transition-colors hover:bg-on-surface/[0.015]">
-                      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-on-surface/5 text-on-surface/30 group-hover:bg-primary/5 group-hover:text-primary/60 transition-colors">
-                        {isDirectory ? <FolderTree className="h-3.5 w-3.5" /> : <Inbox className="h-3.5 w-3.5" />}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <span className="truncate font-mono text-[11.5px] font-black text-on-surface/70 group-hover:text-on-surface transition-colors">{entry.display_name}</span>
-                        <div className="mt-0.5 truncate font-mono text-[9.5px] text-ui-muted opacity-40 uppercase tracking-tighter">{relpath}</div>
-                      </div>
-                    </div>
-                  );
-                }) : (
-                  <div className="px-6 py-12 text-center">
-                    <p className="text-[11px] font-black uppercase tracking-widest text-success-dim/50">没有待整理项</p>
-                  </div>
-                )}
+                <AnimatePresence initial={false}>
+                  {pendingEntries.length > 0 ? pendingEntries.map((entry) => {
+                    const relpath = normalizePath(entry.source_relpath);
+                    const isDirectory = ["dir", "directory", "folder"].includes(String(entry.entry_type || "").toLowerCase());
+                    return (
+                      <motion.div
+                        key={relpath}
+                        layout
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: "auto" }}
+                        exit={{ opacity: 0, height: 0 }}
+                        transition={{ type: "spring", stiffness: 450, damping: 35 }}
+                        className="group flex items-center gap-3 px-4 py-2.5 transition-colors hover:bg-on-surface/[0.015] overflow-hidden"
+                      >
+                        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-on-surface/5 text-on-surface/30 group-hover:bg-primary/5 group-hover:text-primary/60 transition-colors">
+                          {isDirectory ? <FolderTree className="h-3.5 w-3.5" /> : <Inbox className="h-3.5 w-3.5" />}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <span className="truncate font-mono text-[11.5px] font-black text-on-surface/70 group-hover:text-on-surface transition-colors">{entry.display_name}</span>
+                          <div className="mt-0.5 truncate font-mono text-[9.5px] text-ui-muted opacity-40 uppercase tracking-tighter">{relpath}</div>
+                        </div>
+                      </motion.div>
+                    );
+                  }) : (
+                    <motion.div
+                      key="empty"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      className="px-6 py-12 text-center"
+                    >
+                      <p className="text-[11px] font-black uppercase tracking-widest text-success-dim/50">没有待整理项</p>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
             </div>
           </div>

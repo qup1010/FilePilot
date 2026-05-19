@@ -1741,18 +1741,18 @@ export function SessionLauncherShell() {
   }
 
   const renderLaunchWorkbench = () => (
-    <section className="rounded-[10px] border border-on-surface/8 bg-surface-container-lowest px-4 py-3">
+    <section className="rounded-lg border border-on-surface/8 bg-surface-container-lowest px-5 py-4">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-on-surface/6 pb-3">
         <div className="min-w-0">
-          <div className="text-[12px] font-bold text-ui-muted/70">启动工作台</div>
-          <h2 className="mt-0.5 text-[17px] font-black tracking-tight text-on-surface">
+          <span className="text-[9px] font-black uppercase tracking-[0.2em] text-ui-muted opacity-40">主控制台</span>
+          <h2 className="mt-0.5 text-[16px] font-black tracking-tight text-on-surface">
             继续手头任务，或开始一次新的整理
           </h2>
         </div>
         <div className="flex items-center gap-2">
           <span
             className={cn(
-              "inline-flex items-center gap-1.5 rounded-[6px] border px-2.5 py-1 text-[12px] font-bold",
+              "inline-flex items-center gap-1.5 rounded-[6px] border px-2.5 py-1 text-[11px] font-black uppercase tracking-wider",
               textModelConfigured
                 ? "border-success/16 bg-success/[0.05] text-success-dim"
                 : "border-warning/18 bg-warning/8 text-warning",
@@ -1764,47 +1764,48 @@ export function SessionLauncherShell() {
           <Button
             variant="secondary"
             onClick={() => router.push("/settings?tab=text")}
-            className="h-8 rounded-[7px] px-3 text-[12px] font-bold"
+            className="h-8 rounded-[7px] px-3 text-[11px] font-black uppercase tracking-wider"
           >
             模型设置
           </Button>
         </div>
       </div>
 
-      <div className="grid gap-3 pt-3">
-        <div className="space-y-2">
+      <div className="grid gap-4 pt-4">
+        <div className="space-y-3">
           {activeWorkspaceTask ? (
             <button
               type="button"
               onClick={() => router.push(activeWorkspaceTask.route)}
-              className="group grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 rounded-[8px] border border-primary/18 bg-primary/[0.055] px-3 py-3 text-left transition-colors hover:bg-primary/[0.08]"
+              className="group grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3.5 rounded-lg border border-primary/20 bg-primary/[0.03] px-4 py-3 text-left transition-all hover:bg-primary/[0.06] hover:shadow-[0_4px_12px_rgba(var(--primary-rgb),0.03)]"
             >
-              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[8px] bg-primary text-white">
-                <Activity className="h-4.5 w-4.5" />
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary text-white shadow-sm transition-transform group-hover:scale-105">
+                <Activity className="h-4.5 w-4.5 animate-pulse" />
               </span>
               <div className="min-w-0">
-                <p className="text-[13px] font-black text-on-surface">返回当前任务</p>
-                <p className="mt-0.5 block max-w-full truncate font-mono text-[11.5px] font-medium text-ui-muted/65">
+                <p className="text-[13px] font-black text-on-surface">返回挂起中的任务</p>
+                <p className="mt-0.5 block max-w-full truncate font-mono text-[11.5px] font-medium text-ui-muted/60">
                   {activeWorkspaceTask.route}
                 </p>
               </div>
-              <span className="shrink-0 rounded-[6px] bg-primary px-3 py-1.5 text-[12px] font-black text-white transition-transform group-hover:translate-x-0.5">
-                打开
+              <span className="shrink-0 flex items-center justify-center h-7 rounded-md bg-primary px-3 text-[11px] font-black text-white uppercase tracking-wider transition-transform group-hover:translate-x-0.5">
+                继续执行
               </span>
             </button>
           ) : (
-            <div className="flex items-center gap-3 rounded-[8px] border border-on-surface/8 bg-on-surface/[0.018] px-3 py-3">
-              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[8px] bg-on-surface/5 text-on-surface/35">
-                <Activity className="h-4.5 w-4.5" />
+            <div className="flex items-center gap-3.5 rounded-lg border border-on-surface/6 bg-on-surface/[0.012] px-4 py-3 relative overflow-hidden select-none">
+              <div className="absolute inset-0 bg-[radial-gradient(#00000003_1px,transparent_1px)] [background-size:12px_12px] opacity-40 pointer-events-none" />
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-on-surface/5 text-on-surface/30">
+                <Activity className="h-4.5 w-4.5 opacity-60" />
               </span>
               <div>
-                <p className="text-[13px] font-black text-on-surface">当前没有挂起任务</p>
-                <p className="mt-0.5 text-[12px] font-medium text-ui-muted/65">添加来源后即可开始一次新的整理。</p>
+                <p className="text-[13px] font-black text-on-surface/80">当前没有挂起的会话</p>
+                <p className="mt-0.5 text-[11.5px] font-medium text-ui-muted/50">主工作台处于闲置状态，添加整理来源即可唤起新任务。</p>
               </div>
             </div>
           )}
 
-          <div className="grid gap-2 sm:grid-cols-3">
+          <div className="grid gap-3 sm:grid-cols-3">
             <button
               type="button"
               onClick={() => {
@@ -1812,49 +1813,57 @@ export function SessionLauncherShell() {
                 setShowManualInput(false);
                 setLaunchFlowOpen(true);
               }}
-              className="rounded-[8px] border border-on-surface/8 bg-surface px-3 py-2 text-left transition-colors hover:border-primary/20 hover:bg-primary/[0.035]"
+              className="group relative flex flex-col items-start rounded-lg border border-on-surface/8 bg-surface p-4 text-left transition-all hover:border-primary/20 hover:bg-on-surface/[0.01] hover:shadow-[0_4px_16px_rgba(0,0,0,0.02)] active:scale-[0.98]"
             >
-              <Plus className="mb-2 h-4 w-4 text-primary" />
-              <p className="text-[13px] font-black text-on-surface">新建整理</p>
-              <p className="mt-0.5 text-[12px] leading-5 text-ui-muted/65">拖入文件或文件夹开始。</p>
+              <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary/8 text-primary transition-all group-hover:scale-110 group-hover:bg-primary/12">
+                <Plus className="h-4.5 w-4.5" />
+              </div>
+              <p className="mt-3 text-[13px] font-black text-on-surface tracking-tight">新建整理</p>
+              <p className="mt-1 text-[11.5px] font-medium leading-relaxed text-ui-muted/60">拖入或混选本地文件与文件夹，由 AI 自动推导分类目录结构。</p>
             </button>
             <button
               type="button"
               onClick={() => router.push("/history")}
-              className="rounded-[8px] border border-on-surface/8 bg-surface px-3 py-2 text-left transition-colors hover:border-primary/20 hover:bg-primary/[0.035]"
+              className="group relative flex flex-col items-start rounded-lg border border-on-surface/8 bg-surface p-4 text-left transition-all hover:border-primary/20 hover:bg-on-surface/[0.01] hover:shadow-[0_4px_16px_rgba(0,0,0,0.02)] active:scale-[0.98]"
             >
-              <History className="mb-2 h-4 w-4 text-primary" />
-              <p className="text-[13px] font-black text-on-surface">整理历史</p>
-              <p className="mt-0.5 text-[12px] leading-5 text-ui-muted/65">查看结果或恢复任务。</p>
+              <div className="flex h-8 w-8 items-center justify-center rounded-md bg-sky-500/8 text-sky-600 transition-all group-hover:scale-110 group-hover:bg-sky-500/12 dark:text-sky-400">
+                <History className="h-4.5 w-4.5" />
+              </div>
+              <p className="mt-3 text-[13px] font-black text-on-surface tracking-tight">整理历史</p>
+              <p className="mt-1 text-[11.5px] font-medium leading-relaxed text-ui-muted/60">检索以往的历史整理方案与操作归档，并可在此一键安全回退。</p>
             </button>
             <button
               type="button"
               onClick={() => router.push("/icons")}
-              className="rounded-[8px] border border-on-surface/8 bg-surface px-3 py-2 text-left transition-colors hover:border-primary/20 hover:bg-primary/[0.035]"
+              className="group relative flex flex-col items-start rounded-lg border border-on-surface/8 bg-surface p-4 text-left transition-all hover:border-primary/20 hover:bg-on-surface/[0.01] hover:shadow-[0_4px_16px_rgba(0,0,0,0.02)] active:scale-[0.98]"
             >
-              <Sparkles className="mb-2 h-4 w-4 text-primary" />
-              <p className="text-[13px] font-black text-on-surface">图标工坊</p>
-              <p className="mt-0.5 text-[12px] leading-5 text-ui-muted/65">继续美化文件夹图标。</p>
+              <div className="flex h-8 w-8 items-center justify-center rounded-md bg-amber-500/8 text-amber-600 transition-all group-hover:scale-110 group-hover:bg-amber-500/12 dark:text-amber-400">
+                <Sparkles className="h-4.5 w-4.5" />
+              </div>
+              <p className="mt-3 text-[13px] font-black text-on-surface tracking-tight">图标工坊</p>
+              <p className="mt-1 text-[11.5px] font-medium leading-relaxed text-ui-muted/60">为新建出来的文件夹智能应用各种精美图标，提升文件视觉辨识度。</p>
             </button>
           </div>
         </div>
 
-        <div className="rounded-[8px] border border-on-surface/8 bg-surface px-3 py-3">
-          <div className="mb-2 flex items-center justify-between gap-2">
-            <div>
-              <p className="text-[13px] font-black text-on-surface">最近记录</p>
+        <div className="rounded-lg border border-on-surface/8 bg-surface p-4">
+          <div className="mb-3 flex items-center justify-between gap-2">
+            <div className="flex items-center gap-1.5">
+              <span className="text-[9px] font-black uppercase tracking-[0.2em] text-ui-muted opacity-40">历史轨迹</span>
+              <span className="h-0.5 w-0.5 rounded-full bg-on-surface/10" />
+              <h3 className="text-[12px] font-black text-on-surface uppercase tracking-tight">最近记录</h3>
             </div>
             <button
               type="button"
               onClick={() => router.push("/history")}
-              className="rounded-[6px] px-2 py-1 text-[12px] font-bold text-primary hover:bg-primary/8"
+              className="rounded-md px-2.5 py-1 text-[11px] font-black text-primary hover:bg-primary/8 uppercase tracking-wider transition-colors"
             >
-              全部
+              全部记录
             </button>
           </div>
-          <div className="grid gap-1 lg:grid-cols-2">
+          <div className="grid gap-2 lg:grid-cols-2">
             {historyLoading ? (
-              <div className="flex items-center gap-2 py-5 text-[12px] font-bold text-ui-muted/60">
+              <div className="col-span-full flex items-center gap-2 py-5 text-[11.5px] font-black text-ui-muted/60">
                 <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
                 正在读取最近记录
               </div>
@@ -1864,27 +1873,27 @@ export function SessionLauncherShell() {
                   key={entry.execution_id}
                   type="button"
                   onClick={() => router.push(isHistorySessionLike(entry) ? getHistoryRoute(entry) : `/history?entry_id=${entry.execution_id}`)}
-                  className="group flex w-full items-center justify-between gap-2 rounded-[7px] px-2 py-2 text-left transition-colors hover:bg-on-surface/[0.035]"
+                  className="group flex w-full items-center justify-between gap-3 rounded-lg border border-on-surface/[0.04] bg-on-surface/[0.005] px-3 py-2.5 text-left transition-all hover:border-primary/10 hover:bg-on-surface/[0.02]"
                 >
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className={cn(
-                        "h-1.5 w-1.5 shrink-0 rounded-full",
-                        isHistorySessionLike(entry) ? "bg-primary" : entry.status === "partial_failure" ? "bg-warning" : "bg-success",
-                      )} />
-                      <p className="truncate text-[12.5px] font-black text-on-surface/85">{getHistoryDisplayName(entry)}</p>
+                  <div className="min-w-0 flex-1 flex items-start gap-2.5">
+                    <span className={cn(
+                      "mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full",
+                      isHistorySessionLike(entry) ? "bg-primary animate-pulse" : entry.status === "partial_failure" ? "bg-warning" : "bg-success-dim",
+                    )} />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-[12.5px] font-black text-on-surface/85 group-hover:text-on-surface transition-colors">{getHistoryDisplayName(entry)}</p>
+                      <p className="mt-0.5 truncate text-[11px] font-medium text-ui-muted/50">
+                        {getHistoryStatusLabel(entry)} · {formatDisplayDate(entry.created_at)}
+                      </p>
                     </div>
-                    <p className="mt-0.5 truncate text-[11.5px] font-medium text-ui-muted/60">
-                      {getHistoryStatusLabel(entry)} · {formatDisplayDate(entry.created_at)}
-                    </p>
                   </div>
-                  <span className="shrink-0 rounded-[5px] px-2 py-1 text-[11.5px] font-bold text-primary opacity-0 transition-opacity group-hover:opacity-100">
+                  <span className="shrink-0 flex items-center justify-center rounded px-2 py-1 text-[10px] font-black text-primary bg-primary/5 opacity-0 translate-x-2 transition-all duration-200 group-hover:opacity-100 group-hover:translate-x-0 uppercase tracking-widest">
                     {getHistoryActionLabel(entry)}
                   </span>
                 </button>
               ))
             ) : (
-              <div className="py-5 text-[12px] font-medium text-ui-muted/60">还没有整理记录。</div>
+              <div className="col-span-full py-5 text-[12px] font-medium text-ui-muted/60">还没有整理记录。</div>
             )}
           </div>
         </div>

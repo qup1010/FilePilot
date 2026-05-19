@@ -143,7 +143,7 @@ export function IconWorkbenchFolderCard({
 
       <AnimatePresence>
         {isExpanded && (
-          <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.2 }} className="border-t border-on-surface/5 bg-on-surface/[0.01]">
+          <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.2 }} className="border-t border-on-surface/5 bg-on-surface/[0.01] overflow-hidden">
             <div className="p-3 space-y-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">

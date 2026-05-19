@@ -318,8 +318,9 @@ export function MinimalScanningView({
                         return (
                           <motion.div
                             key={item.item_id}
-                            initial={{ opacity: 0, x: 10 }}
-                            animate={{ opacity: 1, x: 0 }}
+                            initial={{ opacity: 0, y: 8, scale: 0.98 }}
+                            animate={{ opacity: 1, y: 0, scale: 1 }}
+                            transition={{ type: "spring", stiffness: 350, damping: 30 }}
                             className="flex items-center gap-3 rounded-lg border border-transparent p-2 transition-colors hover:border-on-surface/5 hover:bg-on-surface/[0.02]"
                           >
                             <div className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-on-surface/5 bg-on-surface/3 shadow-none", style.bg)}>

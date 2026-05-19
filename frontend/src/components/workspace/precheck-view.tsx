@@ -176,7 +176,13 @@ export function PrecheckView({
                                 { label: "将新建目录", value: summary.mkdir_preview.length, icon: FolderPlus, color: "text-sky-500", bg: "bg-sky-500/5" },
                                 { label: "待确认", value: reviewCount, icon: AlertCircle, color: reviewCount > 0 ? "text-warning" : "text-success-dim", bg: reviewCount > 0 ? "bg-warning/5" : "bg-success/5" }
                             ].map((stat, i) => (
-                                <div key={i} className="flex flex-col gap-1 rounded-md border border-on-surface/5 bg-on-surface/[0.02] p-3 transition-colors hover:bg-on-surface/[0.04]">
+                                <motion.div 
+                                    key={i}
+                                    initial={{ opacity: 0, scale: 0.95, y: 4 }}
+                                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                                    transition={{ type: "spring", stiffness: 350, damping: 28, delay: i * 0.05 }}
+                                    className="flex flex-col gap-1 rounded-md border border-on-surface/5 bg-on-surface/[0.02] p-3 transition-colors hover:bg-on-surface/[0.04]"
+                                >
                                     <div className="flex items-center justify-between">
                                         <stat.icon className={cn("h-3 w-3 opacity-60", stat.color)} style={{ transform: stat.iconRotate ? `rotate(${stat.iconRotate})` : undefined }} />
                                         <div className={cn("text-[16px] font-black tabular-nums leading-none", stat.color)}>
@@ -186,7 +192,7 @@ export function PrecheckView({
                                     <div className="text-[9px] font-black uppercase tracking-widest text-ui-muted opacity-40">
                                         {stat.label}
                                     </div>
-                                </div>
+                                </motion.div>
                             ))}
                         </div>
                     </section>

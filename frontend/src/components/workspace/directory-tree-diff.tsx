@@ -5,6 +5,7 @@ import { ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, File, FileWa
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 import { getFileIcon } from "./preview/preview-utils";
+import { AnimatePresence, motion } from "framer-motion";
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -365,11 +366,19 @@ function DirectoryTreePanel({
           ) : null}
         </button>
 
-        {isExpanded ? (
-          <div className="flex flex-col">
-            {node.children.map((child) => renderNode(child, depth + 1))}
-          </div>
-        ) : null}
+        <AnimatePresence initial={false}>
+          {isExpanded && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: "auto", opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.18, ease: "easeInOut" }}
+              className="flex flex-col overflow-hidden"
+            >
+              {node.children.map((child) => renderNode(child, depth + 1))}
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     );
   };

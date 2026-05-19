@@ -200,7 +200,13 @@ export function CompletionView({
                 { label: "待确认区", count: reviewItems.length, icon: Layers, color: "text-warning", bg: "bg-warning/5" },
                 { label: "处理总数", count: journal.item_count || 0, icon: History, color: "text-primary", bg: "bg-primary/5" },
             ].map((stat, i) => (
-                <div key={i} className="flex flex-col gap-0.5 rounded-lg border border-on-surface/6 bg-on-surface/[0.015] p-2.5 transition-all hover:bg-on-surface/[0.03]">
+                <motion.div 
+                    key={i} 
+                    initial={{ opacity: 0, scale: 0.95, y: 4 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    transition={{ type: "spring", stiffness: 350, damping: 28, delay: i * 0.05 }}
+                    className="flex flex-col gap-0.5 rounded-lg border border-on-surface/6 bg-on-surface/[0.015] p-2.5 transition-all hover:bg-on-surface/[0.03]"
+                >
                     <div className="flex items-center justify-between">
                         <stat.icon className={cn("h-3 w-3 opacity-40", stat.color)} />
                         <div className={cn("text-[17px] font-black tabular-nums leading-none tracking-tighter", stat.color)}>
@@ -210,13 +216,18 @@ export function CompletionView({
                     <div className="text-[9px] font-black uppercase tracking-widest text-ui-muted opacity-40">
                         {stat.label}
                     </div>
-                </div>
+                </motion.div>
             ))}
         </div>
 
         {/* Action Suggestion: Beautify Icons - Promoted to Card */}
         {canBeautifyCreatedDirs ? (
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center justify-between rounded-lg border border-primary/20 bg-primary/[0.01] p-3.5 transition-colors hover:bg-primary/[0.02]">
+        <motion.div 
+           initial={{ opacity: 0, y: 8, scale: 0.98 }}
+           animate={{ opacity: 1, y: 0, scale: 1 }}
+           transition={{ type: "spring", stiffness: 300, damping: 26, delay: 0.25 }}
+           className="flex flex-col gap-4 sm:flex-row sm:items-center justify-between rounded-lg border border-primary/20 bg-primary/[0.01] p-3.5 transition-colors hover:bg-primary/[0.02]"
+        >
            <div className="flex items-center gap-4">
               <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
                  <Palette className="h-4.5 w-4.5" />
@@ -237,7 +248,7 @@ export function CompletionView({
               <Palette className="h-3.5 w-3.5" />
               去生成文件夹图标
            </button>
-        </div>
+        </motion.div>
         ) : null}
 
         {/* Structure Visualization */}

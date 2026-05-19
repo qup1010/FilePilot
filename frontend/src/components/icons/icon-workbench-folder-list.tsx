@@ -121,9 +121,13 @@ export function IconWorkbenchFolderList({
             <div className="relative mb-6 flex h-20 w-20 items-center justify-center">
               <div className="relative flex h-20 w-20 items-center justify-center rounded-[22px] border border-on-surface/8 bg-surface-container-lowest shadow-sm">
                 <FolderOpen className="h-8 w-8 text-on-surface/10" />
-                <div className="absolute -right-0.5 -top-0.5 flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                <motion.div 
+                  animate={{ y: [0, -3, 0] }}
+                  transition={{ repeat: Infinity, duration: 3, ease: "easeInOut" }}
+                  className="absolute -right-1 -top-1 flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10 text-primary shadow-[0_2px_8px_rgba(var(--primary-rgb),0.08)]"
+                >
                   <Sparkles className="h-3.5 w-3.5" />
-                </div>
+                </motion.div>
               </div>
             </div>
 
@@ -139,9 +143,9 @@ export function IconWorkbenchFolderList({
             <div className="flex flex-col gap-3 w-full max-w-[200px]">
               <button
                 onClick={onAddTargets}
-                className="flex h-11 w-full items-center justify-center gap-3 rounded-lg border border-primary/25 bg-primary px-6 text-[13px] font-black uppercase tracking-wider text-white transition-all hover:bg-primary-dim active:scale-95"
+                className="group/btn flex h-11 w-full items-center justify-center gap-3 rounded-lg border border-primary/25 bg-primary px-6 text-[13px] font-black uppercase tracking-wider text-white transition-all hover:bg-primary-dim active:scale-95 shadow-sm hover:shadow-[0_4px_12px_rgba(var(--primary-rgb),0.15)]"
               >
-                <Plus className="h-4 w-4 stroke-[3]" />
+                <Plus className="h-4 w-4 stroke-[3] transition-transform group-hover/btn:rotate-90 group-hover/btn:scale-110 duration-300" />
                 <span>载入目标</span>
               </button>
               
@@ -149,10 +153,10 @@ export function IconWorkbenchFolderList({
                 className={getDropZoneSurfaceClassName({
                   isActive: isTargetDropActive,
                   isDraggingGlobal,
-                  idleClassName: "border-on-surface/10 bg-on-surface/[0.02] text-on-surface/30 hover:bg-on-surface/[0.04]",
+                  idleClassName: "border-on-surface/8 bg-on-surface/[0.015] border-dashed text-on-surface/30 hover:bg-on-surface/[0.035] hover:border-on-surface/12",
                   activeClassName: "border-primary/35 bg-primary/[0.06] text-primary",
                   draggingClassName: "border-primary/20 bg-primary/[0.015] text-on-surface/50",
-                  className: "flex h-10 w-full items-center justify-center rounded-lg px-3 text-[11px] font-bold truncate",
+                  className: "flex h-10 w-full items-center justify-center rounded-lg px-3 text-[11px] font-bold truncate select-none transition-all",
                 })}
               >
                 {isTargetDropActive ? "松手即可追加目标文件夹" : "或将文件夹拖放至此"}
