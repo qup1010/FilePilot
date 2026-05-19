@@ -285,7 +285,7 @@ function DirectoryTreePanel({
           <span 
             title={node.name}
             className={cn(
-            "min-w-0 flex-1 truncate font-mono text-[11.5px] tracking-tight transition-colors",
+            "min-w-0 flex-1 truncate font-mono text-[12.5px] font-bold tracking-tight transition-colors",
             isReviewFile ? "text-warning font-black" : 
             isAdded ? "text-success-dim/80 font-bold" :
             isFailed ? "text-error/70 font-bold" :
@@ -476,7 +476,7 @@ export function DirectoryTreeDiff({ before, after, filter = "all", onOpenExplore
           type="button"
           title="全部收起 (Ctrl+Alt+C)"
           onClick={handleCollapseAll}
-          className="flex h-7 px-2.5 items-center gap-1.5 rounded-[6px] border border-on-surface/8 bg-surface text-[11px] font-black text-ui-muted hover:bg-on-surface/5 active:scale-95 transition-all select-none"
+          className="flex h-7 px-2.5 items-center gap-1.5 rounded-md border border-on-surface/8 bg-surface text-[11px] font-black text-ui-muted hover:bg-on-surface/5 active:scale-95 transition-all select-none"
         >
           <ChevronsDownUp className="h-3.5 w-3.5" />
           <span>全部收起</span>
@@ -485,7 +485,7 @@ export function DirectoryTreeDiff({ before, after, filter = "all", onOpenExplore
           type="button"
           title="全部展开 (Ctrl+Alt+E)"
           onClick={handleExpandAll}
-          className="flex h-7 px-2.5 items-center gap-1.5 rounded-[6px] border border-on-surface/8 bg-surface text-[11px] font-black text-ui-muted hover:bg-on-surface/5 active:scale-95 transition-all select-none"
+          className="flex h-7 px-2.5 items-center gap-1.5 rounded-md border border-on-surface/8 bg-surface text-[11px] font-black text-ui-muted hover:bg-on-surface/5 active:scale-95 transition-all select-none"
         >
           <ChevronsUpDown className="h-3.5 w-3.5" />
           <span>全部展开</span>

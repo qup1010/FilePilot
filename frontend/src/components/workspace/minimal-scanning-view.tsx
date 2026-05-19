@@ -386,7 +386,7 @@ export function MinimalScanningView({
             </div>
             
             {!isModelConfigured && (
-              <Link href="/settings" className="m-4 rounded-lg border border-warning/20 bg-warning/5 p-4 transition-all hover:bg-warning/8">
+              <Link href="/settings" className="m-4 rounded-lg border border-warning/20 bg-warning/5 p-4 transition-all hover:bg-warning/8 active:scale-[0.98]">
                 <div className="flex gap-3">
                   <AlertCircle className="h-4 w-4 shrink-0 text-warning" />
                   <div className="space-y-1">

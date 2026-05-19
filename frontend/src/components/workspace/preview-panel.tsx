@@ -1168,7 +1168,7 @@ export function PreviewPanel(props: PreviewPanelProps) {
                     type="button"
                     onClick={() => handleSwitchView("before")}
                     className={cn(
-                      "relative flex items-center gap-1.5 rounded-[4px] px-3 py-1 text-[10px] font-black uppercase tracking-widest transition-colors duration-200 z-10 select-none",
+                      "relative flex items-center gap-1.5 rounded-[4px] px-3 py-1 text-[10px] font-black uppercase tracking-widest transition-all active:scale-95 duration-200 z-10 select-none",
                       viewMode === "before" ? "text-on-surface" : "text-on-surface/40 hover:text-on-surface/60"
                     )}
                   >
@@ -1186,7 +1186,7 @@ export function PreviewPanel(props: PreviewPanelProps) {
                     type="button"
                     onClick={() => handleSwitchView("after")}
                     className={cn(
-                      "relative flex items-center gap-1.5 rounded-[4px] px-3 py-1 text-[10px] font-black uppercase tracking-widest transition-colors duration-200 z-10 select-none",
+                      "relative flex items-center gap-1.5 rounded-[4px] px-3 py-1 text-[10px] font-black uppercase tracking-widest transition-all active:scale-95 duration-200 z-10 select-none",
                       viewMode === "after" ? "text-primary font-black" : "text-on-surface/40 hover:text-on-surface/60"
                     )}
                   >
@@ -1361,7 +1361,7 @@ export function PreviewPanel(props: PreviewPanelProps) {
                           onClick={() => {
                             void acceptAllReviewItems();
                           }}
-                          className="inline-flex h-8 items-center rounded-[7px] border border-primary/15 bg-primary/[0.05] px-3 text-[11px] font-black text-primary transition-colors hover:bg-primary/[0.08]"
+                          className="inline-flex h-8 items-center rounded-[7px] border border-primary/15 bg-primary/[0.05] px-3 text-[11px] font-black text-primary transition-all hover:bg-primary/[0.08] active:scale-95"
                         >
                           全部保留在待确认区
                         </button>
@@ -1595,9 +1595,10 @@ export function PreviewPanel(props: PreviewPanelProps) {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -4 }}
               transition={{ duration: 0.2 }}
+              whileTap={{ scale: 0.98 }}
               type="button"
               onClick={focusQueue}
-              className="mb-2 flex w-full items-center justify-between gap-3 rounded-[8px] px-2 py-1.5 text-left text-[13px] text-on-surface transition-colors hover:bg-warning/8"
+              className="mb-2 flex w-full items-center justify-between gap-3 rounded-[8px] px-2 py-1.5 text-left text-[13px] text-on-surface transition-all hover:bg-warning/8 active:scale-[0.99]"
             >
               <div className="flex min-w-0 items-center gap-2">
                 <AlertTriangle className="h-4 w-4 shrink-0 text-warning" />

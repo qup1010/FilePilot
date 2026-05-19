@@ -136,7 +136,7 @@ export function ToggleSwitch({
       role="switch"
       aria-checked={checked}
       className={cn(
-        "relative inline-flex h-6 w-11 items-center rounded-full p-1 transition-all disabled:cursor-not-allowed disabled:opacity-50",
+        "relative inline-flex h-6 w-11 items-center rounded-full p-1 transition-all active:scale-95 disabled:cursor-not-allowed disabled:opacity-50",
         checked ? "bg-primary" : "bg-surface-container-highest",
       )}
     >

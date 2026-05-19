@@ -95,9 +95,9 @@ export function IconWorkbenchFolderList({
             icon={FolderPlus}
             title="松手即可追加目标文件夹"
             detail="支持一次拖入多个文件夹"
-            className="inset-3 rounded-[16px] border-primary/18 bg-primary/[0.025] backdrop-blur-0"
-            panelClassName="rounded-[22px] border border-primary/15 bg-surface/96 px-8 py-7 shadow-[0_18px_60px_rgba(15,23,42,0.12)]"
-            iconWrapClassName="h-14 w-14 rounded-[16px] bg-primary/10"
+            className="inset-3 rounded-2xl border-primary/18 bg-primary/[0.025] backdrop-blur-0"
+            panelClassName="rounded-2xl border border-primary/15 bg-surface/96 px-8 py-7 shadow-[0_8px_32px_rgba(0,0,0,0.08)]"
+            iconWrapClassName="h-14 w-14 rounded-2xl bg-primary/10"
             titleClassName="tracking-[0.18em]"
             detailClassName="text-on-surface-variant/70"
           />
@@ -119,7 +119,7 @@ export function IconWorkbenchFolderList({
           >
             {/* 视觉图形组：更简约的单层风格 */}
             <div className="relative mb-6 flex h-20 w-20 items-center justify-center">
-              <div className="relative flex h-20 w-20 items-center justify-center rounded-[22px] border border-on-surface/8 bg-surface-container-lowest shadow-sm">
+              <div className="relative flex h-20 w-20 items-center justify-center rounded-2xl border border-on-surface/8 bg-surface-container-lowest shadow-sm">
                 <FolderOpen className="h-8 w-8 text-on-surface/10" />
                 <motion.div 
                   animate={{ y: [0, -3, 0] }}
@@ -167,6 +167,7 @@ export function IconWorkbenchFolderList({
           <div className="flex flex-col gap-1.5 pb-20">
             {/* 紧凑型追加按钮 */}
             <motion.div
+              whileTap={{ scale: 0.98 }}
               onClick={onAddTargets}
               className={getDropZoneSurfaceClassName({
                 isActive: isTargetDropActive,

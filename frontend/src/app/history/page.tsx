@@ -343,9 +343,9 @@ export default function HistoryPage() {
   const sessionRecoveryCopy = getSessionRecoveryCopy(selectedEntry, sessionDetail);
   const sessionDetailInterior = (
     <div className="space-y-4">
-      <div className="group flex items-center justify-between gap-4 rounded-xl border border-primary/18 bg-gradient-to-r from-primary/[0.045] to-primary/[0.01] p-4 shadow-sm">
+      <div className="group flex items-center justify-between gap-4 rounded-xl border border-primary/18 bg-gradient-to-r from-primary/[0.045] to-primary/[0.01] p-4">
         <div className="flex items-center gap-4">
-          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary text-white border border-primary/25 shadow-md shadow-primary/10 transition-transform group-hover:scale-105">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary text-white border border-primary/25 transition-transform group-hover:scale-105">
             <PlayCircle className="h-6 w-6" />
           </div>
           <div className="min-w-0">
@@ -643,7 +643,7 @@ export default function HistoryPage() {
                           event.stopPropagation();
                           requestDelete(entry.execution_id);
                         }}
-                        className="absolute right-1 top-1/2 -translate-y-1/2 rounded-[5px] p-1.5 text-error/45 opacity-0 transition-all hover:bg-error/8 hover:text-error group-hover:opacity-100 focus:opacity-100"
+                        className="absolute right-1 top-1/2 -translate-y-1/2 rounded-[5px] p-1.5 text-error/45 opacity-0 transition-all hover:bg-error/8 hover:text-error active:scale-90 group-hover:opacity-100 focus:opacity-100"
                       >
                         <Trash2 className="h-3.5 w-3.5" />
                       </button>

@@ -36,7 +36,7 @@ function MessageAvatar({ role, hidden = false }: { role: "assistant" | "user"; h
   return (
     <div
       className={cn(
-        "mt-[1px] flex h-7 w-7 shrink-0 items-center justify-center rounded-[8px] transition-opacity",
+        "mt-[1px] flex h-7 w-7 shrink-0 items-center justify-center rounded-lg transition-opacity",
         isAssistant
           ? "border border-primary/10 bg-primary/[0.045] text-primary"
           : "border border-on-surface/8 bg-surface-container-low text-on-surface/45",
@@ -259,7 +259,7 @@ export function ConversationPanel({
                           <button
                             type="button"
                             onClick={notice.primaryAction.onClick}
-                            className="rounded-[6px] bg-primary px-4 py-2 text-[12px] font-black text-white transition-all hover:bg-primary-dim active:scale-95"
+                            className="rounded-md bg-primary px-4 py-2 text-[12px] font-black text-white transition-all hover:bg-primary-dim active:scale-95"
                           >
                             {notice.primaryAction.label}
                           </button>
@@ -268,7 +268,7 @@ export function ConversationPanel({
                           <button
                             type="button"
                             onClick={notice.secondaryAction.onClick}
-                            className="rounded-[6px] border border-on-surface/10 bg-surface-container-lowest px-4 py-2 text-[12px] font-black text-on-surface transition-all hover:bg-on-surface/5 active:scale-95"
+                            className="rounded-md border border-on-surface/10 bg-surface-container-lowest px-4 py-2 text-[12px] font-black text-on-surface transition-all hover:bg-on-surface/5 active:scale-95"
                           >
                             {notice.secondaryAction.label}
                           </button>

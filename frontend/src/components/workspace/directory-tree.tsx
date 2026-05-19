@@ -229,7 +229,7 @@ function FolderNode({
                     
                     <div className="flex items-center gap-2.5 py-0.5 transition-colors hover:bg-on-surface/[0.02]">
                       <Icon className="h-3.5 w-3.5 shrink-0 opacity-30 group-hover/item:opacity-60 transition-opacity" />
-                      <span className="truncate flex-1 font-mono text-[11.5px] tracking-tight text-on-surface/70 group-hover/item:text-on-surface">{item.display_name}</span>
+                      <span className="truncate flex-1 font-mono text-[12.5px] font-bold tracking-tight text-on-surface/70 group-hover/item:text-on-surface">{item.display_name}</span>
 
                       {!readOnly && onEdit && onMoveToReview && (
                         <div className="flex items-center gap-1 transition-all duration-300 opacity-0 pointer-events-none group-hover/item:opacity-100 group-hover/item:pointer-events-auto mr-1">
@@ -238,7 +238,7 @@ function FolderNode({
                               e.stopPropagation();
                               onEdit(item.item_id, node.path || "");
                             }}
-                            className="p-1.5 rounded-md bg-on-surface/5 text-on-surface/30 hover:bg-primary/10 hover:text-primary transition-colors"
+                            className="p-1.5 rounded-md bg-on-surface/5 text-on-surface/30 hover:bg-primary/10 hover:text-primary transition-colors active:scale-90"
                             title="修改文件名"
                           >
                             <Edit2 className="w-3 h-3" />
@@ -248,7 +248,7 @@ function FolderNode({
                               e.stopPropagation();
                               onMoveToReview(item.item_id);
                             }}
-                            className="p-1.5 rounded-md bg-on-surface/5 text-on-surface/30 hover:bg-warning/10 hover:text-warning transition-colors"
+                            className="p-1.5 rounded-md bg-on-surface/5 text-on-surface/30 hover:bg-warning/10 hover:text-warning transition-colors active:scale-90"
                             title="移动至待核对"
                           >
                             <ArrowRight className="w-3 h-3" />

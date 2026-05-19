@@ -2377,7 +2377,7 @@ export default function SettingsPage() {
 
                           <div
                             className={cn(
-                              "absolute left-0 right-0 top-[calc(100%+6px)] z-30 overflow-hidden rounded-[10px] border border-on-surface/10 bg-surface-container-lowest shadow-xl shadow-black/20 transition-[opacity,transform,max-height]",
+                              "absolute left-0 right-0 top-[calc(100%+6px)] z-30 overflow-hidden rounded-[10px] border border-on-surface/10 bg-surface-container-lowest shadow-[0_8px_24px_rgba(0,0,0,0.12)] transition-[opacity,transform,max-height]",
                               targetProfileSelectorOpen ? "max-h-[280px] translate-y-0 opacity-100" : "pointer-events-none max-h-0 -translate-y-1 opacity-0",
                             )}
                           >

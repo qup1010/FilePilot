@@ -134,9 +134,9 @@ export function IconWorkbenchFolderCard({
         {/* Quick Actions */}
         <div className={cn("flex items-center gap-1", !isExpanded && "opacity-0 group-hover:opacity-100 transition-opacity")}>
           {!isExpanded && currentVersion?.status === "ready" && (
-            <button onClick={(e) => { e.stopPropagation(); onApplyVersion(currentVersion); }} disabled={isProcessing || !desktopReady} className="h-6 items-center rounded bg-primary/10 px-2 text-[9px] font-black uppercase text-primary hover:bg-primary/20 disabled:opacity-30 hidden lg:flex">一键应用</button>
+            <button onClick={(e) => { e.stopPropagation(); onApplyVersion(currentVersion); }} disabled={isProcessing || !desktopReady} className="h-6 items-center rounded bg-primary/10 px-2 text-[9px] font-black uppercase text-primary hover:bg-primary/20 active:scale-95 disabled:opacity-30 hidden lg:flex transition-all">一键应用</button>
           )}
-          <button onClick={(e) => { e.stopPropagation(); onRemoveTarget(); }} className="h-7 w-7 flex items-center justify-center rounded hover:bg-error/10 text-ui-muted/40 hover:text-error"><X className="h-3 w-3" /></button>
+          <button onClick={(e) => { e.stopPropagation(); onRemoveTarget(); }} className="h-7 w-7 flex items-center justify-center rounded hover:bg-error/10 text-ui-muted/40 hover:text-error active:scale-90 transition-all"><X className="h-3 w-3" /></button>
           <div className={cn("h-7 w-7 flex items-center justify-center rounded transition-transform text-ui-muted/30", isExpanded && "rotate-180 text-primary")}><ChevronDown className="h-3.5 w-3.5" /></div>
         </div>
       </div>
@@ -151,8 +151,8 @@ export function IconWorkbenchFolderCard({
                    <span className="rounded-full bg-on-surface/5 px-1.5 py-0.5 text-[9px] font-bold text-ui-muted/60">{folder.versions.length}</span>
                 </div>
                 <div className="flex gap-1.5">
-                  <button onClick={(e) => { e.stopPropagation(); onRegenerate(); }} disabled={isProcessing || !hasSelectedStyle || !!generateBlockedReason} className="h-6 items-center rounded bg-primary px-3 text-[9px] font-black uppercase text-white hover:bg-primary-dim disabled:opacity-30 flex gap-1.5"><RefreshCw className="h-2.5 w-2.5" /> 生成预览</button>
-                  <button disabled={isProcessing || !desktopReady} onClick={(e) => { e.stopPropagation(); onRestore(); }} className="h-6 items-center rounded border border-on-surface/10 bg-surface px-3 text-[9px] font-black uppercase text-on-surface hover:bg-on-surface/5 disabled:opacity-30">恢复原有</button>
+                  <button onClick={(e) => { e.stopPropagation(); onRegenerate(); }} disabled={isProcessing || !hasSelectedStyle || !!generateBlockedReason} className="h-6 items-center rounded bg-primary px-3 text-[9px] font-black uppercase text-white hover:bg-primary-dim active:scale-95 disabled:opacity-30 flex gap-1.5 transition-all"><RefreshCw className="h-2.5 w-2.5" /> 生成预览</button>
+                  <button disabled={isProcessing || !desktopReady} onClick={(e) => { e.stopPropagation(); onRestore(); }} className="h-6 items-center rounded border border-on-surface/10 bg-surface px-3 text-[9px] font-black uppercase text-on-surface hover:bg-on-surface/5 active:scale-95 disabled:opacity-30 transition-all">恢复原有</button>
                 </div>
               </div>
 

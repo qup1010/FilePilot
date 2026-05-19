@@ -214,7 +214,7 @@ export function PrecheckView({
                                             key={btn.id}
                                             onClick={() => setFilter(btn.id as DirectoryTreeFilter)}
                                             className={cn(
-                                                "rounded-[4px] px-3 py-1.2 text-[10px] font-black uppercase tracking-widest transition-all",
+                                                "rounded-[4px] px-3 py-1 text-[10px] font-black uppercase tracking-widest transition-all active:scale-95",
                                                 filter === btn.id
                                                     ? "bg-on-surface text-surface"
                                                     : "text-ui-muted hover:text-on-surface hover:bg-on-surface/[0.03]",

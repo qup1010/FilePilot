@@ -43,7 +43,7 @@ export function RollbackPreviewDialog({
 
   return (
     <Dialog open={open} onOpenChange={(val) => !val && onCancel()}>
-      <DialogContent className="max-w-2xl gap-0 p-0 overflow-hidden border-on-surface/10 bg-surface shadow-2xl">
+      <DialogContent className="max-w-2xl gap-0 p-0 overflow-hidden border border-on-surface/10 bg-surface shadow-[0_12px_40px_rgba(0,0,0,0.12)]">
         <DialogHeader className="p-6 border-b border-on-surface/5 bg-on-surface/[0.01]">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-full bg-warning/10 text-warning">
@@ -148,7 +148,7 @@ export function RollbackPreviewDialog({
               onClick={onConfirm}
               disabled={loading || !canExecute}
               loading={loading}
-              className="h-9 rounded-[8px] px-8 text-[12px] font-black shadow-lg shadow-error/10"
+              className="h-9 rounded-[8px] px-8 text-[12px] font-black"
             >
               确认回退
             </Button>

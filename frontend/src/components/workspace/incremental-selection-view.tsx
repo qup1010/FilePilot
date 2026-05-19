@@ -112,7 +112,7 @@ export function IncrementalSelectionView({
                     "flex cursor-pointer items-start gap-3 rounded-xl border p-4 transition-all active:scale-[0.98]",
                     checked
                       ? "border-primary/30 bg-primary/[0.035] ring-1 ring-primary/10 shadow-sm"
-                      : "border-on-surface/8 bg-surface hover:border-primary/20 hover:bg-on-surface/[0.015] hover:shadow-[0_4px_12px_rgba(0,0,0,0.015)]",
+                      : "border-on-surface/8 bg-surface hover:border-primary/20 hover:bg-on-surface/[0.015]",
                   )}
                 >
                   <input
@@ -130,7 +130,7 @@ export function IncrementalSelectionView({
                   />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
-                      <span className="truncate font-mono text-[13px] font-black text-on-surface">{path}</span>
+                      <span className="truncate font-mono text-[13px] font-bold text-on-surface">{path}</span>
                     </div>
                     <div className="mt-2 flex items-center justify-between">
                        <span className="rounded-[4px] bg-on-surface/[0.05] px-1.5 py-0.5 text-[9px] font-black uppercase text-ui-muted">目标目录</span>
@@ -197,7 +197,7 @@ export function IncrementalSelectionView({
                         </div>
                         <div className="min-w-0 flex-1">
                           <span className="truncate font-mono text-[11.5px] font-black text-on-surface/70 group-hover:text-on-surface transition-colors">{entry.display_name}</span>
-                          <div className="mt-0.5 truncate font-mono text-[9.5px] text-ui-muted opacity-40 uppercase tracking-tighter">{relpath}</div>
+                          <div className="mt-0.5 truncate font-mono text-[11px] text-ui-muted opacity-40 uppercase tracking-tighter">{relpath}</div>
                         </div>
                       </motion.div>
                     );

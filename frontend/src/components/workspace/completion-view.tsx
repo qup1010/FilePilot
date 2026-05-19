@@ -51,21 +51,21 @@ export function CompletionView({
   if (loading) {
     return (
       <div className="mx-auto max-w-[1360px] animate-pulse space-y-4 py-5">
-        <div className="h-24 rounded-[8px] bg-surface-container-low" />
+        <div className="h-24 rounded-lg bg-surface-container-low" />
         <div className="grid gap-3 md:grid-cols-4">
           <div className="h-20 rounded-[10px] bg-surface-container-low" />
           <div className="h-20 rounded-[10px] bg-surface-container-low" />
           <div className="h-20 rounded-[10px] bg-surface-container-low" />
           <div className="h-20 rounded-[10px] bg-surface-container-low" />
         </div>
-        <div className="h-[420px] rounded-[8px] bg-surface-container-low" />
+        <div className="h-[420px] rounded-lg bg-surface-container-low" />
       </div>
     );
   }
 
   if (!journal) {
     return (
-      <div className="rounded-[8px] border border-on-surface/12 bg-surface-container-lowest p-12 text-center">
+      <div className="rounded-lg border border-on-surface/12 bg-surface-container-lowest p-12 text-center">
         <History className="mx-auto mb-4 h-12 w-12 text-on-surface-variant/20" />
         <p className="text-sm font-medium text-on-surface-variant">这里暂时还没有可显示的结果。</p>
       </div>
@@ -269,7 +269,7 @@ export function CompletionView({
                   key={btn.id}
                   onClick={() => setFilter(btn.id as DirectoryTreeFilter)}
                   className={cn(
-                    "rounded-[3px] px-2.5 py-1 text-[10px] font-black uppercase tracking-widest transition-all",
+                    "rounded-[3px] px-2.5 py-1 text-[10px] font-black uppercase tracking-widest transition-all active:scale-95",
                     filter === btn.id
                       ? "bg-on-surface text-surface"
                       : "text-ui-muted hover:text-on-surface hover:bg-on-surface/5",
