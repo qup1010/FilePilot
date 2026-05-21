@@ -1,7 +1,7 @@
-{
+﻿{
   "name": "file-pilot-desktop-shell",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.1.1",
   "scripts": {
     "version:set": "powershell -ExecutionPolicy Bypass -File ../scripts/set_desktop_version.ps1",
     "tauri:dev": "powershell -ExecutionPolicy Bypass -File scripts/run-tauri.ps1 dev",
@@ -12,3 +12,4 @@
     "@tauri-apps/cli": "^2.9.1"
   }
 }
+
