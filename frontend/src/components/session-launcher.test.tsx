@@ -219,7 +219,7 @@ describe("SessionLauncher", () => {
   it("keeps the new-organize flow behind the launch workbench until requested", async () => {
     render(<SessionLauncher />);
 
-    expect(await screen.findByText("启动工作台")).toBeInTheDocument();
+    expect(await screen.findByText("继续手头任务，或开始一次新的整理")).toBeInTheDocument();
     expect(screen.getByText("本次整理对象")).not.toBeVisible();
 
     fireEvent.click(screen.getByRole("button", { name: /新建整理/ }));
@@ -746,7 +746,7 @@ describe("SessionLauncher", () => {
   it("does not advance to step two when there are no sources", async () => {
     render(<SessionLauncher />);
 
-    await screen.findByText("启动工作台");
+    await screen.findByText("继续手头任务，或开始一次新的整理");
     openLaunchFlow();
     expect(screen.getByRole("button", { name: "下一步：选择整理方式" })).toBeDisabled();
   });
@@ -765,7 +765,7 @@ describe("SessionLauncher", () => {
 
     render(<SessionLauncher />);
 
-    await screen.findByText("启动工作台");
+    await screen.findByText("继续手头任务，或开始一次新的整理");
     openLaunchFlow();
     fireEvent.click(screen.getByRole("button", { name: "整理文件夹内容" }));
 
@@ -807,7 +807,7 @@ describe("SessionLauncher", () => {
 
     render(<SessionLauncher />);
 
-    await screen.findByText("启动工作台");
+    await screen.findByText("继续手头任务，或开始一次新的整理");
     openLaunchFlow();
     fireEvent.click(await screen.findByRole("button", { name: /下载/ }));
 

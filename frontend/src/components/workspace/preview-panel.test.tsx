@@ -8,6 +8,7 @@ vi.mock("motion/react", () => ({
   motion: {
     div: ({ children, ...props }: React.ComponentProps<"div">) => <div {...props}>{children}</div>,
     button: ({ children, ...props }: React.ComponentProps<"button">) => <button {...props}>{children}</button>,
+    span: ({ children, ...props }: React.ComponentProps<"span">) => <span {...props}>{children}</span>,
   },
 }));
 
