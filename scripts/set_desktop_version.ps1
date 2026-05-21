@@ -59,7 +59,7 @@ function Update-FileContent {
     $updated = & $Transform $content
 
     if ($updated -ne $content) {
-        Set-Content -LiteralPath $Path -Value $updated -Encoding utf8
+        [System.IO.File]::WriteAllText($Path, $updated, [System.Text.UTF8Encoding]::new($false))
         Write-Host "Updated $Path"
     }
     else {
