@@ -1920,7 +1920,7 @@ export function SessionLauncherShell() {
                 <Sparkles className="h-4.5 w-4.5" />
               </div>
               <p className="mt-3 text-[13px] font-black text-on-surface tracking-tight">图标工坊</p>
-              <p className="mt-1 text-[11.5px] font-medium leading-relaxed text-ui-muted/60">为新建出来的文件夹智能应用各种精美图标，提升文件视觉辨识度。</p>
+              <p className="mt-1 text-[11.5px] font-medium leading-relaxed text-ui-muted/60">为新建的文件夹匹配并应用图标，提升视觉辨识度。</p>
             </button>
           </div>
         </div>
@@ -2173,11 +2173,21 @@ export function SessionLauncherShell() {
                                 isActive: isDropActive,
                                 isDraggingGlobal,
                                 idleClassName: "border-on-surface/10 bg-on-surface/[0.015] hover:bg-on-surface/[0.03]",
-                                className: "group mt-1 flex flex-col items-center justify-center rounded-[8px] px-6 py-8 text-center transition-all duration-300",
+                                draggingClassName: "border-primary/30 bg-primary/[0.015]",
+                                activeClassName: "border-primary/45 bg-primary/8 text-primary ring-1 ring-primary/15",
+                                className: "group mt-1 flex flex-col items-center justify-center rounded-[8px] px-6 py-8 text-center transition-all duration-300 relative overflow-hidden",
                               }),
                               isDropActive && "shadow-lg shadow-primary/10 ring-2 ring-primary/20 border-primary/30 bg-primary/[0.01]"
                             )}
                           >
+                            {isDropActive && (
+                              <DropZoneOverlay
+                                icon={Upload}
+                                title="松手即可添加为整理来源"
+                                detail="支持拖入文件夹或单个文件"
+                                className="inset-0 rounded-[8px]"
+                              />
+                            )}
                             <motion.div
                               animate={{
                                 y: isDropActive ? [-2, 0, -2] : 0,
@@ -2328,11 +2338,24 @@ export function SessionLauncherShell() {
                                   isActive: isDropActive,
                                   isDraggingGlobal,
                                   idleClassName: "border-on-surface/8 bg-on-surface/[0.01] hover:bg-on-surface/[0.02] border-dashed",
-                                  className: "group/add-more flex flex-wrap items-center justify-between gap-3 rounded-[8px] px-3 py-1.5 text-on-surface transition-all duration-300",
+                                  draggingClassName: "border-primary/25 bg-primary/[0.01]",
+                                  activeClassName: "border-primary/45 bg-primary/8 text-primary ring-1 ring-primary/15",
+                                  className: "group/add-more flex flex-wrap items-center justify-between gap-3 rounded-[8px] px-3 py-1.5 text-on-surface transition-all duration-300 relative overflow-hidden",
                                 }),
                                 isDropActive && "shadow-lg shadow-primary/5 ring-1 ring-primary/10 border-primary/20 bg-primary/[0.01]"
                               )}
                             >
+                              {isDropActive && (
+                                <DropZoneOverlay
+                                  icon={Plus}
+                                  title="松手以追加整理来源"
+                                  detail=""
+                                  className="inset-0 rounded-[8px]"
+                                  panelClassName="flex-row gap-2 py-0"
+                                  iconWrapClassName="h-6 w-6 rounded-[6px]"
+                                  titleClassName="text-[11.5px] font-black tracking-normal"
+                                />
+                              )}
                               <div className="flex items-center gap-2 min-w-0">
                                 <Plus className={cn("h-4 w-4 shrink-0 transition-colors", isDropActive ? "text-primary animate-pulse" : "text-ui-muted/40 group-hover/add-more:text-primary/70")} />
                                 <span className={cn("text-[11.5px] font-bold truncate", isDropActive ? "text-primary" : "text-ui-muted opacity-55")}>
@@ -2696,7 +2719,9 @@ export function SessionLauncherShell() {
                               isActive: isTargetDropActive,
                               isDraggingGlobal,
                               idleClassName: "border-on-surface/8 bg-surface",
-                              className: "relative overflow-hidden rounded-[8px] p-4",
+                              draggingClassName: "border-success/30 bg-success/[0.015]",
+                              activeClassName: "border-success/45 bg-success/8 text-success ring-1 ring-success/15",
+                              className: "relative overflow-hidden rounded-[8px] p-4 transition-all duration-300",
                             })}
                           >
                             {isTargetDropActive && (
@@ -2705,6 +2730,7 @@ export function SessionLauncherShell() {
                                 title="松手即可添加为目标候选"
                                 detail="这里只接受文件夹，文件会被自动忽略"
                                 className="inset-0 rounded-[8px]"
+                                tone="success"
                               />
                             )}
                             <div className="mb-2 flex items-center justify-between gap-3">
@@ -3077,7 +3103,7 @@ export function SessionLauncherShell() {
                                   </h2>
 
                                   <div className="space-y-1.5">
-                                    <div className="text-[10px] font-bold uppercase tracking-wider text-ui-muted">智能归类倾向</div>
+                                    <div className="text-[10px] font-bold uppercase tracking-wider text-ui-muted">分类归档策略</div>
                                     <div className="grid grid-cols-2 gap-2">
                                       {CAUTION_LEVEL_OPTIONS.map((option) => {
                                         const active = strategy.caution_level === option.id;
@@ -3195,7 +3221,7 @@ export function SessionLauncherShell() {
           <DialogHeader className="mb-2">
             <DialogTitle className="text-[15px] font-black text-on-surface">高级设置</DialogTitle>
             <DialogDescription className="text-[11.5px] text-ui-muted/80">
-              在此微调分类粒度、智能归档倾向及附加规则说明。
+              在此微调分类粒度、归档策略及附加规则说明。
             </DialogDescription>
           </DialogHeader>
 
@@ -3238,7 +3264,7 @@ export function SessionLauncherShell() {
             <div className="space-y-1.5 rounded-[8px] border border-on-surface/6 bg-surface-container-lowest p-3.5">
               <div className="text-[11.5px] font-bold text-on-surface flex items-center gap-1.5 mb-2">
                 <Activity className="h-3.5 w-3.5 text-primary" />
-                智能归类倾向
+                分类归档策略
               </div>
               <div className="grid grid-cols-2 gap-2">
                 {CAUTION_LEVEL_OPTIONS.map((option) => {

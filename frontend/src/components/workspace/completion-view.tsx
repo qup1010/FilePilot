@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, ArrowLeft, CheckCircle2, Folder, History, Info, Layers, Palette, RotateCcw, ShieldCheck } from "lucide-react";
+import { AlertTriangle, ArrowLeft, CheckCircle2, Folder, History, Info, Layers, Loader2, Palette, RotateCcw, ShieldCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { OrganizeMethod, JournalSummary } from "@/types/session";
 import { DirectoryTreeDiff, type DirectoryTreeLeafEntry, type DirectoryTreeFilter } from "./directory-tree-diff";
@@ -48,6 +48,7 @@ export function CompletionView({
   const router = useRouter();
   const [filter, setFilter] = useState<DirectoryTreeFilter>("all");
   const [cleanupConfirmOpen, setCleanupConfirmOpen] = useState(false);
+  const [isCleaning, setIsCleaning] = useState(false);
 
   if (loading) {
     return (
@@ -374,12 +375,21 @@ export function CompletionView({
               <button
                 type="button"
                 onClick={() => setCleanupConfirmOpen(true)}
-                disabled={isBusy || cleanupCandidateCount <= 0}
-                className="flex h-8.5 items-center justify-center gap-2 rounded-lg border border-on-surface/10 bg-surface px-3.5 text-[11.5px] font-black text-on-surface/50 transition-all hover:bg-on-surface/5 active:scale-95 disabled:opacity-50"
+                disabled={isBusy || isCleaning || cleanupCandidateCount <= 0}
+                className={cn(
+                  "flex h-8.5 items-center justify-center gap-2 rounded-lg border border-on-surface/10 bg-surface px-3.5 text-[11.5px] font-black transition-all active:scale-95 disabled:opacity-40",
+                  cleanupCandidateCount > 0 && !isCleaning
+                    ? "text-on-surface/75 border-on-surface/15 hover:bg-on-surface/5 hover:text-on-surface hover:border-on-surface/25"
+                    : "text-on-surface/40"
+                )}
                 title={cleanupCandidateCount > 0 ? `将检查并清理 ${cleanupCandidateCount} 个空目录候选` : "当前没有可清理的空目录候选"}
               >
-                <CheckCircle2 className="h-3.5 w-3.5 opacity-50" />
-                清理空目录{cleanupCandidateCount > 0 ? ` (${cleanupCandidateCount})` : ""}
+                {isCleaning ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+                ) : (
+                  <CheckCircle2 className="h-3.5 w-3.5 opacity-55" />
+                )}
+                {isCleaning ? "正在清理..." : `清理空目录${cleanupCandidateCount > 0 ? ` (${cleanupCandidateCount})` : ""}`}
               </button>
               <button
                 type="button"
@@ -402,12 +412,21 @@ export function CompletionView({
         confirmLabel="开始清理"
         cancelLabel="先不清理"
         tone="primary"
-        loading={isBusy}
+        loading={isBusy || isCleaning}
         onConfirm={async () => {
-          await onCleanupDirs();
-          setCleanupConfirmOpen(false);
+          setIsCleaning(true);
+          try {
+            await onCleanupDirs();
+          } finally {
+            setIsCleaning(false);
+            setCleanupConfirmOpen(false);
+          }
         }}
-        onCancel={() => setCleanupConfirmOpen(false)}
+        onCancel={() => {
+          if (!isCleaning) {
+            setCleanupConfirmOpen(false);
+          }
+        }}
       />
     </div>
   );

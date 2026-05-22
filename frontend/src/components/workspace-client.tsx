@@ -1793,6 +1793,8 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
         cancelLabel="再看看"
         tone="primary"
         loading={loading}
+        verificationText={(precheck && ((precheck.warnings || []).length > 0 || reviewMoveCount > 0)) ? "YES" : undefined}
+        verificationPlaceholder="请输入大写 YES 确认执行"
         onConfirm={async () => {
           setExecuteConfirmOpen(false);
           await execute();

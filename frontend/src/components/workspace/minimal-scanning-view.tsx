@@ -391,7 +391,7 @@ export function MinimalScanningView({
                   <AlertCircle className="h-4 w-4 shrink-0 text-warning" />
                   <div className="space-y-1">
                     <p className="text-[12px] font-black text-warning">模型还没配置好</p>
-                    <p className="text-[11px] leading-tight text-warning/60 font-medium">当前只能读取目录结构。如需智能分类，请先到设置里配置文本模型。</p>
+                    <p className="text-[11px] leading-tight text-warning/60 font-medium">当前仅支持读取目录结构，如需进行自动分类规划，请先在设置中配置文本模型。</p>
                   </div>
                 </div>
               </Link>

@@ -71,6 +71,10 @@ export function PathDiffViewer({ source, target, compact = false }: PathDiffView
     if (compact && parts.length > 3) {
       return `${parts[0]}/.../${parts.slice(-2).join("/")}/`;
     }
+    // 非 compact 模式下，parts.length > 4 时也应用中间省略号折叠
+    if (!compact && parts.length > 4) {
+      return `${parts[0]}/.../${parts.slice(-2).join("/")}/`;
+    }
     return commonRoot + "/";
   }, [commonRoot, compact]);
 
@@ -83,7 +87,7 @@ export function PathDiffViewer({ source, target, compact = false }: PathDiffView
     return (
       <div className="flex flex-col gap-1 w-full text-[11px] font-mono leading-normal">
         {/* 源路径 */}
-        <div className="flex items-center gap-1.5 text-on-surface/40 min-w-0">
+        <div className="flex items-center gap-1.5 text-on-surface/40 min-w-0" title={source}>
           <span className="shrink-0 w-8 text-[9px] font-black uppercase tracking-wider text-ui-muted/50">FROM</span>
           <div className="truncate flex items-center">
             {displayCommonRoot && (
@@ -103,7 +107,7 @@ export function PathDiffViewer({ source, target, compact = false }: PathDiffView
         </div>
 
         {/* 目标路径 */}
-        <div className="flex items-center gap-1.5 min-w-0">
+        <div className="flex items-center gap-1.5 min-w-0" title={target}>
           <span className="shrink-0 w-8 text-[9px] font-black uppercase tracking-wider text-primary/65">TO</span>
           <div className="truncate flex items-center">
             {displayCommonRoot && (
@@ -139,7 +143,7 @@ export function PathDiffViewer({ source, target, compact = false }: PathDiffView
   return (
     <div className="grid gap-4 sm:grid-cols-2 w-full text-[11.5px] font-mono leading-relaxed">
       {/* 原始位置 */}
-      <div className="flex items-start gap-2 rounded-md border border-on-surface/5 bg-on-surface/[0.01] p-2.5 min-w-0">
+      <div className="flex items-start gap-2 rounded-md border border-on-surface/5 bg-on-surface/[0.01] p-2.5 min-w-0" title={source}>
         <div className="mt-0.5 flex h-4.5 w-4.5 shrink-0 items-center justify-center rounded bg-error/10 text-error">
           <Folder className="h-3 w-3" />
         </div>
@@ -173,6 +177,7 @@ export function PathDiffViewer({ source, target, compact = false }: PathDiffView
             ? "border-warning/20 bg-warning/[0.01]"
             : "border-primary/10 bg-primary/[0.01]"
         )}
+        title={target}
       >
         <div
           className={cn(
