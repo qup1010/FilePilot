@@ -2423,19 +2423,19 @@ export function SessionLauncherShell() {
                           <div className="flex h-6 w-6 items-center justify-center rounded-[4px] bg-primary/10 text-primary">
                             <Sparkles className="h-3.5 w-3.5" />
                           </div>
-                          <h2 className="text-[14px] font-bold text-on-surface">整理方式配置</h2>
+                          <h2 className="text-[14px] font-bold text-on-surface">选择整理方式</h2>
                         </div>
                         <div className="grid gap-4 md:grid-cols-2">
                           {[
                             {
                               method: "assign_into_existing_categories" as const,
                               title: "归入现有目录",
-                              description: "把这批内容归入你已经选定的现有目录池；拿不准的项目会进入待确认区（不会自动归入目标目录）。",
+                              description: "将文件分配至已选定的现有工作目录，未匹配的条目将放入待确认区。",
                             },
                             {
                               method: "categorize_into_new_structure" as const,
-                              title: "生成新的分类结构",
-                              description: "为这批内容生成一套新的目录结构，再写入你指定的新目录生成位置。",
+                              title: "生成新分类结构",
+                              description: "分析文件属性并生成多级分类目录，在指定位置自动创建子文件夹。",
                             },
                           ].map((option) => {
                             const active = organizeMethod === option.method;
@@ -2471,7 +2471,7 @@ export function SessionLauncherShell() {
                               <div className="flex h-6 w-6 items-center justify-center rounded-[4px] bg-primary/10 text-primary">
                                 <FolderOpen className="h-3.5 w-3.5" />
                               </div>
-                              <h2 className="text-[14px] font-bold text-on-surface">本次任务默认放置规则</h2>
+                              <h2 className="text-[14px] font-bold text-on-surface">默认放置规则</h2>
                             </div>
                             <button
                               type="button"
@@ -2484,12 +2484,12 @@ export function SessionLauncherShell() {
                           <div className="grid gap-3 md:grid-cols-2">
                             <div className="rounded-[8px] bg-surface-container-lowest px-3 py-3">
                               <div className="mb-1 text-[11px] font-bold text-on-surface">
-                                {isAssignExisting ? "未归类条目的默认放置根" : "新目录将默认生成到"}
+                                {isAssignExisting ? "未匹配条目默认根路径" : "新目录生成位置"}
                               </div>
                               <div className="break-all text-[12px] font-medium text-ui-muted">{effectiveNewDirectoryRoot || "尚未确定"}</div>
                             </div>
                             <div className="rounded-[8px] bg-surface-container-lowest px-3 py-3">
-                              <div className="mb-1 text-[11px] font-bold text-on-surface">待确认区（不会自动归入目标目录）</div>
+                              <div className="mb-1 text-[11px] font-bold text-on-surface">待确认区路径</div>
                               <div className="break-all text-[12px] font-medium text-ui-muted">{effectiveReviewRoot || "尚未确定"}</div>
                             </div>
                           </div>
@@ -2497,14 +2497,14 @@ export function SessionLauncherShell() {
                             <div className="mt-4 grid gap-4 xl:grid-cols-2">
                               <div className="rounded-[8px] border border-on-surface/8 bg-surface-container-lowest p-4">
                                 <div className="mb-3 text-[12px] font-bold text-on-surface">
-                                  {isAssignExisting ? "未归类条目的默认放置根" : "新目录生成位置"}
+                                  {isAssignExisting ? "未匹配条目默认根路径" : "新目录生成位置"}
                                 </div>
                                 <div className="flex gap-3">
                                   <input
                                     value={newDirectoryRoot}
                                     onChange={(event) => setNewDirectoryRoot(event.target.value)}
                                     disabled={loading}
-                                    placeholder={placementConfig.defaultNewDirectoryRoot || (isFullCategorize ? "默认使用本次新目录生成位置" : "默认使用当前任务工作区")}
+                                    placeholder={placementConfig.defaultNewDirectoryRoot || (isFullCategorize ? "新目录生成路径" : "当前任务工作区")}
                                     className="h-10 flex-1 rounded-[8px] border border-transparent bg-on-surface/[0.03] px-3 text-[13px] font-medium text-on-surface outline-none transition-all placeholder:text-on-surface-variant/35 focus:border-primary/40 focus:bg-surface focus:ring-4 focus:ring-primary/10"
                                   />
                                   <button
@@ -2518,13 +2518,13 @@ export function SessionLauncherShell() {
                                 </div>
                                 <p className="mt-2 text-[11px] font-medium text-ui-muted">
                                   {isAssignExisting
-                                    ? "归入已有目录不会自动创建未知目标目录；这个位置只用于推导待确认区（不会自动归入目标目录）的默认跟随路径。留空时会先使用设置页默认值；如果设置页也为空，就按当前任务类型自动推导。"
-                                    : "留空时会先使用设置页默认值；如果设置页也为空，就按当前任务类型自动推导。"}
+                                    ? "此路径用于存放未匹配的条目。留空时使用系统默认设置；若无全局默认设置，将根据任务类型自动生成。"
+                                    : "留空时使用系统默认设置；若无全局默认设置，将根据任务类型自动生成。"}
                                 </p>
                               </div>
                               <div className="rounded-[8px] border border-on-surface/8 bg-surface-container-lowest p-4">
                                 <div className="mb-3 flex items-center justify-between gap-3">
-                                  <div className="text-[12px] font-bold text-on-surface">待确认区位置</div>
+                                  <div className="text-[12px] font-bold text-on-surface">待确认区路径</div>
                                   <button
                                     type="button"
                                     onClick={() => {
@@ -2541,7 +2541,7 @@ export function SessionLauncherShell() {
                                         : "border-on-surface/8 bg-surface text-ui-muted",
                                     ].join(" ")}
                                   >
-                                    {reviewFollowsNewRoot ? "跟随新目录位置" : "独立设置"}
+                                    {reviewFollowsNewRoot ? "跟随新目录" : "独立设置"}
                                   </button>
                                 </div>
                                 <div className="flex gap-3">
@@ -2552,7 +2552,7 @@ export function SessionLauncherShell() {
                                       setReviewFollowsNewRoot(false);
                                     }}
                                     disabled={loading || reviewFollowsNewRoot}
-                                    placeholder={reviewFollowsNewRoot ? derivedReviewRoot || "会跟随新目录位置自动生成" : placementConfig.globalReviewRoot || derivedReviewRoot || "单独设置待确认区位置"}
+                                    placeholder={reviewFollowsNewRoot ? derivedReviewRoot || "跟随新目录路径自动生成" : placementConfig.globalReviewRoot || derivedReviewRoot || "独立指定待确认区路径"}
                                     className="h-10 flex-1 rounded-[8px] border border-transparent bg-on-surface/[0.03] px-3 text-[13px] font-medium text-on-surface outline-none transition-all placeholder:text-on-surface-variant/35 focus:border-primary/40 focus:bg-surface focus:ring-4 focus:ring-primary/10 disabled:opacity-60"
                                   />
                                   <button
@@ -2565,7 +2565,7 @@ export function SessionLauncherShell() {
                                   </button>
                                 </div>
                                 <p className="mt-2 text-[11px] font-medium text-ui-muted">
-                                  默认情况下，待确认区会跟随新目录根路径，自动使用 `{derivedReviewRoot || "新目录位置/Review"}`；这里不会继续生成子目录。
+                                  默认跟随新目录根路径生成 Review 子目录，不再创建更深层级的目录结构。
                                 </p>
                               </div>
                             </div>
@@ -2799,40 +2799,48 @@ export function SessionLauncherShell() {
                           </div>
                         ) : null}
 
-                        <div className="space-y-3 pt-2">
-                          <div className="flex items-start justify-between gap-4 border-b border-on-surface/10 pb-2">
-                            <div className="min-w-0">
+                        <div className={cn("grid gap-4", isFullCategorize ? "md:grid-cols-2" : "grid-cols-1")}>
+                          {/* 高级设置 */}
+                          <div className="rounded-[8px] bg-surface-container-lowest p-4 flex flex-col justify-between min-h-[120px]">
+                            <div>
                               <h2 className="text-[14px] font-bold text-on-surface">高级设置</h2>
-                              <p className="mt-1 text-[11px] font-medium leading-relaxed text-ui-muted">
-                                若需微调模板、生成语言、分类粒度等参数。
+                              <p className="mt-1 text-[11px] font-medium text-ui-muted">
+                                微调分类模板、语言及分类粒度等参数。
                               </p>
                             </div>
-                            <button
-                              type="button"
-                              onClick={() => setAdvancedSettingsDialogOpen(true)}
-                              className="shrink-0 rounded-[6px] border border-on-surface/10 bg-surface px-4 py-1.5 text-[12px] font-bold text-on-surface transition-colors hover:border-primary/20 hover:text-primary"
-                            >
-                              打开高级设置
-                            </button>
-                          </div>
-                        </div>
-
-                        {isFullCategorize ? (
-                          <div className="rounded-[8px] bg-surface-container-lowest px-4 py-4 mt-2">
-                            <div className="mb-3 text-[14px] font-bold text-on-surface">预计生成以下分类</div>
-                            <div className="flex flex-wrap gap-1.5">
-                              {currentSummary.preview_directories?.map((directory) => (
-                                <span
-                                  key={`${strategy.template_id}-${strategy.language}-${strategy.density}-${strategy.prefix_style}-${directory}`}
-                                  className="rounded-[6px] border border-on-surface/10 bg-primary/5 text-primary px-3 py-1 text-[12px] font-semibold"
-                                >
-                                  {directory}
-                                </span>
-                              ))}
+                            <div className="mt-3 flex justify-end">
+                              <button
+                                type="button"
+                                onClick={() => setAdvancedSettingsDialogOpen(true)}
+                                className="shrink-0 rounded-[6px] border border-on-surface/10 bg-surface px-4 py-1.5 text-[12px] font-bold text-on-surface transition-colors hover:border-primary/20 hover:text-primary"
+                              >
+                                打开高级设置
+                              </button>
                             </div>
-                            <p className="mt-3 text-[12px] font-medium leading-relaxed text-ui-muted">{currentTemplate.description}</p>
                           </div>
-                        ) : null}
+
+                          {/* 预计生成分类 */}
+                          {isFullCategorize ? (
+                            <div className="rounded-[8px] bg-surface-container-lowest p-4 flex flex-col justify-between min-h-[120px]">
+                              <div>
+                                <div className="mb-2 text-[14px] font-bold text-on-surface">预计生成分类</div>
+                                <div className="flex flex-wrap gap-1.5 max-h-[52px] overflow-y-auto">
+                                  {currentSummary.preview_directories?.map((directory) => (
+                                    <span
+                                      key={`${strategy.template_id}-${strategy.language}-${strategy.density}-${strategy.prefix_style}-${directory}`}
+                                      className="rounded-[6px] border border-on-surface/10 bg-primary/5 text-primary px-2.5 py-0.5 text-[11.5px] font-semibold"
+                                    >
+                                      {directory}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                              <p className="mt-2 text-[11px] font-medium leading-relaxed text-ui-muted truncate" title={currentTemplate.description}>
+                                {currentTemplate.description}
+                              </p>
+                            </div>
+                          ) : null}
+                        </div>
                       </div>
                     ) : null}
 
