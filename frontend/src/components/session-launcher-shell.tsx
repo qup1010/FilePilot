@@ -21,7 +21,9 @@ import {
   FilePlus,
   LogOut,
   ChevronDown,
+  ChevronLeft,
   ShieldAlert,
+  X,
 } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 
@@ -514,6 +516,7 @@ export function SessionLauncherShell() {
   const [sources, setSources] = useState<SessionSourceSelection[]>([]);
   const [sourceImportGroups, setSourceImportGroups] = useState<SourceImportGroup[]>([]);
   const [sourceFeedback, setSourceFeedback] = useState<SourceFeedback | null>(null);
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [sourceDraftType, setSourceDraftType] = useState<SourceDraftType>("directory");
   const [sourceDraftPath, setSourceDraftPath] = useState("");
   const [newDirectoryRoot, setNewDirectoryRoot] = useState("");
@@ -1161,6 +1164,23 @@ export function SessionLauncherShell() {
     setError(null);
   }
 
+  function handleClearSourcesWithConfirm() {
+    if (showClearConfirm) {
+      clearAllSources();
+      setShowClearConfirm(false);
+    } else {
+      setShowClearConfirm(true);
+    }
+  }
+
+  useEffect(() => {
+    if (!showClearConfirm) return;
+    const timer = setTimeout(() => {
+      setShowClearConfirm(false);
+    }, 3000);
+    return () => clearTimeout(timer);
+  }, [showClearConfirm]);
+
   function addManualSource() {
     const path = sourceDraftPath.trim();
     if (!path) {
@@ -1321,50 +1341,55 @@ export function SessionLauncherShell() {
       <div
         key={sourceSelectionKey(item)}
         className={cn(
-          "group flex items-center justify-between gap-3 rounded-lg border border-on-surface/8 bg-surface-container-lowest px-3 py-2 transition-all hover:border-on-surface/20 active:scale-[0.99]",
+          "group flex items-center justify-between gap-3 transition-all active:scale-[0.995]",
           nested
-            ? "border-on-surface/8 bg-surface px-2.5 py-2"
-            : "border-on-surface/10 bg-surface-container-lowest",
+            ? "rounded-md border border-on-surface/6 bg-surface px-2.5 py-1.5 hover:border-on-surface/16"
+            : "rounded-lg border border-on-surface/8 bg-surface-container-lowest px-3 py-2 hover:border-on-surface/20",
         )}
       >
-        <div className="flex min-w-0 items-start gap-3">
+        <div className="flex min-w-0 items-center gap-2.5">
           <div className={cn(
-            "flex shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary",
-            nested ? "h-9 w-9" : "h-10 w-10",
+            "flex shrink-0 items-center justify-center rounded bg-primary/10 text-primary",
+            nested ? "h-7.5 w-7.5" : "h-8.5 w-8.5",
           )}>
-            {isDirectory ? <FolderOpen className="h-5 w-5" /> : <FileText className="h-5 w-5" />}
+            {isDirectory ? (
+              <FolderOpen className={cn("text-primary", nested ? "h-3.5 w-3.5" : "h-4 w-4")} />
+            ) : (
+              <FileText className={cn("text-primary", nested ? "h-3.5 w-3.5" : "h-4 w-4")} />
+            )}
           </div>
           <div className="min-w-0">
-            <div className={cn("truncate font-black tracking-tight text-on-surface", nested ? "text-[13px]" : "text-[14px]")}>
-              {item.path.split(/[\\/]/).pop() || item.path}
-            </div>
-            <div className="truncate font-mono text-[10.5px] font-medium text-ui-muted opacity-40 uppercase tracking-tighter" title={item.path}>{item.path}</div>
-            <div className="mt-1.5 flex flex-wrap items-center gap-2">
-              <span className="rounded bg-on-surface/5 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-widest text-ui-muted">
+            <div className="flex items-center gap-2">
+              <span className={cn("truncate font-black tracking-tight text-on-surface", nested ? "text-[12.5px]" : "text-[13.5px]")}>
+                {item.path.split(/[\\/]/).pop() || item.path}
+              </span>
+              <span className="shrink-0 rounded bg-on-surface/5 px-1 py-0.2 text-[8px] font-black uppercase tracking-wider text-ui-muted opacity-80 scale-90 origin-left">
                 {getSourceBehaviorLabel(item)}
               </span>
-              <span className="text-[10px] font-bold text-ui-muted opacity-40">{getSourceBehaviorHint(item)}</span>
-              {isDirectory ? (
-                isAtomic ? (
+            </div>
+            <div className="flex items-center gap-1.5 mt-0.5 leading-none">
+              <span className="truncate font-mono text-[9.5px] font-medium text-ui-muted opacity-40 uppercase tracking-tighter max-w-[280px] sm:max-w-[400px]" title={item.path}>
+                {item.path}
+              </span>
+              {isDirectory && (
+                <>
+                  <span className="text-[9px] text-ui-muted opacity-25 select-none">·</span>
                   <button
                     type="button"
                     disabled={loading}
-                    onClick={() => void handleImportFromSource(item)}
-                    className="rounded-[6px] px-2 py-1 text-[10.5px] font-bold text-primary transition-colors hover:bg-primary/8"
+                    onClick={() => {
+                      if (isAtomic) {
+                        void handleImportFromSource(item);
+                      } else {
+                        updateDirectorySourceMode(item.path, "atomic");
+                      }
+                    }}
+                    className="shrink-0 text-[9.5px] font-bold text-primary hover:underline transition-colors leading-none"
                   >
-                    改为导入里面的项
+                    {isAtomic ? "导入内部项" : "改为整体移动"}
                   </button>
-                ) : (
-                  <button
-                    type="button"
-                    disabled={loading}
-                    onClick={() => updateDirectorySourceMode(item.path, "atomic")}
-                    className="rounded-[6px] px-2 py-1 text-[10.5px] font-bold text-primary transition-colors hover:bg-primary/8"
-                  >
-                    改为整体移动
-                  </button>
-                )
-              ) : null}
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -1372,10 +1397,10 @@ export function SessionLauncherShell() {
           type="button"
           onClick={() => removeSource(item.path, item.source_type)}
           disabled={loading}
-          className="shrink-0 rounded-[6px] p-2 text-on-surface-variant/50 transition-colors hover:bg-error/10 hover:text-error opacity-0 group-hover:opacity-100 focus:opacity-100"
+          className="shrink-0 rounded-[4px] p-1.5 text-on-surface-variant/40 transition-colors hover:bg-error/10 hover:text-error opacity-0 group-hover:opacity-100 focus:opacity-100"
           title="移除"
         >
-          <Trash2 className="h-4.5 w-4.5" />
+          <Trash2 className="h-4 w-4" />
         </button>
       </div>
     );
@@ -1949,33 +1974,47 @@ export function SessionLauncherShell() {
                 ) : null}
               </AnimatePresence>
 
-              {!error && sourceFeedback ? (
-                <div
-                  className={cn(
-                    "mb-6 flex items-start gap-3 rounded-[8px] border px-4 py-3",
-                    sourceFeedback.tone === "success"
-                      ? "border-success/18 bg-success/10 text-success-dim"
-                      : "border-primary/18 bg-primary/8 text-primary",
-                  )}
-                >
-                  <div className={cn(
-                    "mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full",
-                    sourceFeedback.tone === "success" ? "bg-success/12" : "bg-primary/10",
-                  )}>
-                    {sourceFeedback.tone === "success" ? (
-                      <CheckCircle2 className="h-4 w-4" />
-                    ) : (
-                      <Layers3 className="h-4 w-4" />
+              <AnimatePresence>
+                {!error && sourceFeedback ? (
+                  <motion.div
+                    initial={{ opacity: 0, y: 15, scale: 0.98 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 10, scale: 0.98 }}
+                    transition={{ duration: 0.2 }}
+                    className={cn(
+                      "fixed bottom-6 right-6 z-50 flex w-[350px] items-start gap-3 rounded-lg border p-3.5 shadow-[0_8px_32px_rgba(0,0,0,0.12)] backdrop-blur-md pointer-events-auto",
+                      sourceFeedback.tone === "success"
+                        ? "border-success/20 bg-surface/90 dark:bg-surface-container-dark/90 text-on-surface"
+                        : "border-primary/15 bg-surface/90 dark:bg-surface-container-dark/90 text-on-surface",
                     )}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-[13px] font-bold">
-                      {sourceFeedback.tone === "success" ? "来源已更新" : "来源提示"}
-                    </p>
-                    <p className="mt-1 text-[12px] font-medium leading-6">{sourceFeedback.message}</p>
-                  </div>
-                </div>
-              ) : null}
+                  >
+                    <div className={cn(
+                      "mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full",
+                      sourceFeedback.tone === "success" ? "bg-success/10 text-success" : "bg-primary/10 text-primary",
+                    )}>
+                      {sourceFeedback.tone === "success" ? (
+                        <CheckCircle2 className="h-4 w-4" />
+                      ) : (
+                        <Layers3 className="h-4 w-4" />
+                      )}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[12.5px] font-black leading-tight text-on-surface">
+                        {sourceFeedback.tone === "success" ? "来源已更新" : "导入提示"}
+                      </p>
+                      <p className="mt-1.5 text-[11.5px] font-medium leading-relaxed text-ui-muted opacity-80">{sourceFeedback.message}</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setSourceFeedback(null)}
+                      className="p-1 rounded transition-colors active:scale-95 shrink-0 self-start mt-0.5 text-on-surface/40 hover:bg-on-surface/5 hover:text-on-surface"
+                      title="关闭提示"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </motion.div>
+                ) : null}
+              </AnimatePresence>
 
               {!error && fastStartValidationMessage ? (
                 <div className="mb-4">
@@ -1998,22 +2037,17 @@ export function SessionLauncherShell() {
               {!launchFlowOpen ? renderLaunchWorkbench() : null}
 
               <div hidden={!launchFlowOpen} className={cn("flex flex-col gap-3", !launchFlowOpen && "hidden")}>
-                <div className="flex items-center justify-between rounded-[9px] border border-on-surface/8 bg-surface-container-lowest px-4 py-3">
-                  <div>
-                    <div className="text-[12px] font-bold text-ui-muted/70">新建整理</div>
-                    <h2 className="mt-0.5 text-[17px] font-black tracking-tight text-on-surface">选择来源并开始新的整理任务</h2>
-                  </div>
+                {/* Desktop Native Header & Stepper */}
+                <div className="relative mb-3 flex items-center justify-center border-b border-on-surface/5 pb-4 pt-1 w-full min-h-[44px]">
                   <button
                     type="button"
                     onClick={() => setLaunchFlowOpen(false)}
-                    className="rounded-[7px] border border-on-surface/10 bg-surface px-3 py-1.5 text-[12px] font-bold text-on-surface/70 transition-colors hover:border-primary/20 hover:text-primary"
+                    className="absolute left-0 top-1/2 -translate-y-1/2 flex items-center gap-1 text-[11px] font-black text-ui-muted hover:text-primary hover:bg-primary/5 rounded-[6px] px-2.5 py-1.5 transition-all active:scale-[0.97]"
                   >
-                    返回启动工作台
+                    <ChevronLeft className="h-3.5 w-3.5" />
+                    <span>返回</span>
                   </button>
-                </div>
 
-                {/* Desktop Native Header & Stepper */}
-                <div className="mb-3 flex flex-col items-center border-b border-on-surface/5 pb-4 pt-1">
                   <div className="flex items-center justify-center gap-2">
                     {stepItems.map((item, index) => {
                       const active = step === item.id;
@@ -2101,8 +2135,9 @@ export function SessionLauncherShell() {
                                 isActive: isDropActive,
                                 isDraggingGlobal,
                                 idleClassName: "border-on-surface/10 bg-on-surface/[0.015] hover:bg-on-surface/[0.03]",
-                                className: "group mt-1 flex flex-col items-center justify-center rounded-[8px] px-6 py-8 text-center",
+                                className: "group mt-1 flex flex-col items-center justify-center rounded-[8px] px-6 py-8 text-center transition-all duration-300",
                               }),
+                              isDropActive && "shadow-lg shadow-primary/10 ring-2 ring-primary/20 border-primary/30 bg-primary/[0.01]"
                             )}
                           >
                             <motion.div
@@ -2255,8 +2290,9 @@ export function SessionLauncherShell() {
                                   isActive: isDropActive,
                                   isDraggingGlobal,
                                   idleClassName: "border-on-surface/8 bg-on-surface/[0.01] hover:bg-on-surface/[0.02] border-dashed",
-                                  className: "group/add-more flex flex-wrap items-center justify-between gap-3 rounded-[8px] px-3 py-1.5 text-on-surface transition-all",
+                                  className: "group/add-more flex flex-wrap items-center justify-between gap-3 rounded-[8px] px-3 py-1.5 text-on-surface transition-all duration-300",
                                 }),
+                                isDropActive && "shadow-lg shadow-primary/5 ring-1 ring-primary/10 border-primary/20 bg-primary/[0.01]"
                               )}
                             >
                               <div className="flex items-center gap-2 min-w-0">
@@ -2324,13 +2360,18 @@ export function SessionLauncherShell() {
                                   </span>
                                   <button
                                     type="button"
-                                    onClick={clearAllSources}
+                                    onClick={handleClearSourcesWithConfirm}
                                     disabled={loading || sources.length === 0}
-                                    className="inline-flex items-center gap-1 rounded-[6px] border border-on-surface/8 bg-surface px-2.5 py-1 text-[10.5px] font-bold text-on-surface/55 transition-colors hover:border-error/20 hover:bg-error/5 hover:text-error disabled:opacity-40"
-                                    title="一键清空当前来源列表"
+                                    className={cn(
+                                      "inline-flex items-center gap-1 rounded-[6px] border px-2.5 py-1 text-[10.5px] font-bold transition-all disabled:opacity-40",
+                                      showClearConfirm
+                                        ? "border-error/30 bg-error/10 text-error animate-pulse"
+                                        : "border-on-surface/8 bg-surface text-on-surface/55 hover:border-error/20 hover:bg-error/5 hover:text-error"
+                                    )}
+                                    title={showClearConfirm ? "再次点击以确认清空" : "一键清空当前来源列表"}
                                   >
                                     <Trash2 className="h-3.5 w-3.5" />
-                                    清空来源
+                                    {showClearConfirm ? "确认清空？" : "清空来源"}
                                   </button>
                                 </div>
                               </div>
@@ -2352,46 +2393,47 @@ export function SessionLauncherShell() {
                                         return null;
                                       }
                                       renderedGroupIds.add(group.group_id);
-                                      const previewItems = group.expanded ? group.items : group.items.slice(0, IMPORT_GROUP_PREVIEW_LIMIT);
-                                      const remainingCount = group.items.length - previewItems.length;
                                       return (
                                         <div key={group.group_id} className="rounded-xl border border-primary/20 bg-primary/[0.04] p-3 text-on-surface/80">
-                                          <div className="flex items-start justify-between gap-3">
-                                            <div className="min-w-0">
-                                              <div className="flex items-center gap-2">
-                                                <Layers3 className="h-4 w-4 text-primary/70" />
-                                                <p className="text-[13px] font-black tracking-tight text-on-surface">
-                                                  已从 {group.source_path.split(/[\\/]/).pop()} 导入 {group.items.length} 项
+                                          <div
+                                            onClick={() => toggleImportGroupExpanded(group.group_id)}
+                                            className="flex items-start justify-between gap-3 cursor-pointer hover:bg-primary/[0.03] -m-2 p-2 rounded-lg transition-colors select-none"
+                                          >
+                                            <div className="min-w-0 flex items-start gap-2">
+                                              <div className="mt-1 shrink-0 flex items-center justify-center">
+                                                <ChevronDown className={cn("h-4 w-4 text-primary/70 transition-transform duration-200", !group.expanded && "-rotate-90")} />
+                                              </div>
+                                              <div className="min-w-0">
+                                                <div className="flex items-center gap-2">
+                                                  <Layers3 className="h-4 w-4 text-primary/70 shrink-0" />
+                                                  <p className="text-[13px] font-black tracking-tight text-on-surface">
+                                                    已从 {group.source_path.split(/[\\/]/).pop()} 导入 {group.items.length} 项
+                                                  </p>
+                                                </div>
+                                                <p className="mt-1 truncate font-mono text-[10px] font-bold text-ui-muted opacity-40 uppercase tracking-widest">
+                                                  批量导入 · {group.source_path}
                                                 </p>
                                               </div>
-                                              <p className="mt-1 truncate font-mono text-[10px] font-bold text-ui-muted opacity-40 uppercase tracking-widest">
-                                                批量导入 · {group.source_path}
-                                              </p>
                                             </div>
                                             <div className="flex shrink-0 items-center gap-1.5">
-                                              {remainingCount > 0 ? (
-                                                <button
-                                                  type="button"
-                                                  disabled={loading}
-                                                  onClick={() => toggleImportGroupExpanded(group.group_id)}
-                                                  className="rounded-[6px] px-2 py-1 text-[10.5px] font-bold text-primary transition-colors hover:bg-primary/8"
-                                                >
-                                                  {group.expanded ? "收起" : `展开其余 ${remainingCount} 项`}
-                                                </button>
-                                              ) : null}
                                               <button
                                                 type="button"
                                                 disabled={loading}
-                                                onClick={() => removeImportGroup(group.group_id)}
-                                                className="rounded-[6px] px-2 py-1 text-[10.5px] font-bold text-ui-muted/55 transition-colors hover:bg-error/10 hover:text-error"
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  removeImportGroup(group.group_id);
+                                                }}
+                                                className="rounded-[6px] px-2.5 py-1.5 text-[10.5px] font-bold text-ui-muted/55 transition-colors hover:bg-error/10 hover:text-error"
                                               >
                                                 移除整组
                                               </button>
                                             </div>
                                           </div>
-                                          <div className="mt-3 grid gap-2">
-                                            {previewItems.map((groupItem) => renderSourceRow(groupItem, { nested: true }))}
-                                          </div>
+                                          {group.expanded && (
+                                            <div className="mt-3 grid gap-2 border-t border-primary/10 pt-3">
+                                              {group.items.map((groupItem) => renderSourceRow(groupItem, { nested: true }))}
+                                            </div>
+                                          )}
                                         </div>
                                       );
                                     });
