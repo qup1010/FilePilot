@@ -146,6 +146,7 @@ export default function HistoryPage() {
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
   const [journal, setJournal] = useState<JournalSummary | null>(null);
   const [sessionDetail, setSessionDetail] = useState<SessionSnapshot | null>(null);
+  const [detailQuery, setDetailQuery] = useState("");
   const [journalLoading, setJournalLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   const [rollbackResult, setRollbackResult] = useState<{ successCount: number; failureCount: number } | null>(null);
@@ -223,6 +224,7 @@ export default function HistoryPage() {
     }
     setJournal(null);
     setSessionDetail(null);
+    setDetailQuery("");
     if (isSelectedSession) {
       void loadSessionDetail(selectedSessionId);
       return;
@@ -334,6 +336,16 @@ export default function HistoryPage() {
     ? journal.restore_items
     : journal?.items?.filter((it) => it.action_type === "MOVE") ?? [];
   const moveRowsSummary = summarizeMoveNames(moveRows);
+
+  const filteredMoveRows = moveRows.filter((item) => {
+    if (!detailQuery) return true;
+    const q = detailQuery.toLowerCase();
+    return (
+      item.display_name?.toLowerCase().includes(q) ||
+      item.source?.toLowerCase().includes(q) ||
+      item.target?.toLowerCase().includes(q)
+    );
+  });
 
   const activeCount = history.filter((item) => isHistorySessionEntry(item)).length;
   const completedCount = history.filter((item) => isHistoryCompletedEntry(item)).length;
@@ -468,37 +480,92 @@ export default function HistoryPage() {
           )}
         </div>
 
+        {/* 局部检索栏 */}
+        {moveRows.length > 0 && (
+          <div className="relative mx-1">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ui-muted opacity-50" />
+            <input
+              value={detailQuery}
+              onChange={(e) => setDetailQuery(e.target.value)}
+              placeholder="过滤明细文件名或路径..."
+              className="w-full rounded-[6px] border border-on-surface/10 bg-on-surface/[0.015] py-1.5 pl-9 pr-14 text-[12px] font-medium text-on-surface outline-none transition-all placeholder:text-ui-muted/50 focus:bg-surface focus:ring-2 focus:ring-primary/5"
+            />
+            {detailQuery && (
+              <button
+                onClick={() => setDetailQuery("")}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] font-black text-primary hover:text-primary-dark transition-colors"
+              >
+                清除
+              </button>
+            )}
+          </div>
+        )}
+
         <div className="rounded-lg border border-on-surface/8 bg-on-surface/[0.01] overflow-hidden">
           <div className="flex flex-col divide-y divide-on-surface/6">
-            {moveRows.length ? (
-              moveRows.map((item, index) => (
-                <div key={index} className="group flex flex-col p-2.5 transition-colors hover:bg-primary/[0.015]">
-                  <div className="flex items-center justify-between gap-4">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <span className="h-1.5 w-1.5 rounded-full bg-primary/45 shrink-0" />
-                      <span className="text-[12.5px] font-black text-on-surface/90 truncate" title={item.display_name}>
-                        {item.display_name}
-                      </span>
-                    </div>
-                  </div>
-                  
-                  <div className="mt-1 pl-3.5 flex items-center justify-between gap-4 text-[11px]">
-                    <div className="flex-1 min-w-0 truncate" title={item.source || ""}>
-                      <span className="text-[9.5px] font-bold uppercase tracking-wider text-ui-muted/40 mr-1.5">FROM:</span>
-                      <span className="font-mono text-ui-muted/70">{formatMovePath(item.source, journal?.target_dir || "")}</span>
+            {filteredMoveRows.length ? (
+              filteredMoveRows.map((item, index) => {
+                const isRolledBack = selectedEntry ? isHistoryRolledBackEntry(selectedEntry) : false;
+                return (
+                  <div 
+                    key={index} 
+                    className={cn(
+                      "group flex flex-col p-2.5 transition-colors",
+                      isRolledBack 
+                        ? "bg-on-surface/[0.003] opacity-60 grayscale hover:opacity-85 hover:grayscale-[50%] duration-200" 
+                        : "hover:bg-primary/[0.015]"
+                    )}
+                  >
+                    <div className="flex items-center justify-between gap-4">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className={cn(
+                          "h-1.5 w-1.5 rounded-full shrink-0",
+                          isRolledBack ? "bg-ui-muted/30" : "bg-primary/45"
+                        )} />
+                        <span className={cn(
+                          "text-[12.5px] font-black truncate",
+                          isRolledBack ? "text-ui-muted/80 line-through" : "text-on-surface/90"
+                        )} title={item.display_name}>
+                          {item.display_name}
+                        </span>
+                      </div>
                     </div>
                     
-                    <div className="flex items-center shrink-0 text-ui-muted/30 px-1">
-                      <ArrowRight className="h-3 w-3 transition-transform group-hover:translate-x-0.5 group-hover:text-primary/40" />
-                    </div>
+                    <div className="mt-1 pl-3.5 flex items-center justify-between gap-4 text-[11px]">
+                      <div className="flex-1 min-w-0 truncate" title={item.source || ""}>
+                        <span className={cn(
+                          "text-[9.5px] font-bold uppercase tracking-wider mr-1.5",
+                          isRolledBack ? "text-ui-muted/30" : "text-ui-muted/45"
+                        )}>FROM:</span>
+                        <span className="font-mono text-ui-muted/70">{formatMovePath(item.source, journal?.target_dir || "")}</span>
+                      </div>
+                      
+                      <div className="flex flex-col items-center shrink-0 text-ui-muted/30 px-2 min-w-[75px]">
+                        <ArrowRight className="h-3 w-3 transition-transform group-hover:translate-x-0.5 group-hover:text-primary/40" />
+                        {isRolledBack && (
+                          <span className="mt-0.5 text-[8.5px] font-black text-ui-muted/40 whitespace-nowrap scale-90 select-none">[已撤销复原]</span>
+                        )}
+                      </div>
 
-                    <div className="flex-1 min-w-0 truncate" title={item.target || ""}>
-                      <span className="text-[9.5px] font-bold uppercase tracking-wider text-primary/40 mr-1.5">TO:</span>
-                      <span className="font-mono font-bold text-primary/75">{formatMovePath(item.target, journal?.target_dir || "")}</span>
+                      <div className="flex-1 min-w-0 truncate" title={item.target || ""}>
+                        <span className={cn(
+                          "text-[9.5px] font-bold uppercase tracking-wider mr-1.5",
+                          isRolledBack ? "text-ui-muted/30" : "text-primary/40"
+                        )}>TO:</span>
+                        <span className={cn(
+                          "font-mono font-bold",
+                          isRolledBack ? "text-ui-muted/60" : "text-primary/75"
+                        )}>{formatMovePath(item.target, journal?.target_dir || "")}</span>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))
+                );
+              })
+            ) : moveRows.length ? (
+              <div className="flex flex-col items-center justify-center py-14 text-center opacity-30">
+                <Search className="h-7 w-7 mb-2 text-ui-muted" />
+                <p className="text-[12px] font-black text-ui-muted">未检索到匹配的明细</p>
+              </div>
             ) : (
               <div className="flex flex-col items-center justify-center py-16 text-center opacity-30">
                 <HistoryIcon className="h-8 w-8 mb-4" />
@@ -532,10 +599,10 @@ export default function HistoryPage() {
                     key={item.id}
                     onClick={() => setFilter(item.id)}
                     className={cn(
-                      "flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[12px] border transition-all duration-200 outline-none select-none active:scale-[0.97]",
+                      "flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[12px] border transition-all duration-200 outline-none select-none active:scale-[0.96]",
                       filter === item.id
-                        ? "bg-primary/[0.05] border-primary/20 text-primary shadow-[0_2px_8px_rgba(var(--primary-rgb),0.04)]"
-                        : "bg-on-surface/[0.015] border-on-surface/5 hover:bg-on-surface/[0.035] hover:border-on-surface/8 text-ui-muted"
+                        ? "bg-primary/[0.09] border-primary/35 text-primary shadow-[inset_0_1px_2px_rgba(var(--primary-rgb),0.05),0_2px_6px_rgba(var(--primary-rgb),0.06)]"
+                        : "bg-on-surface/[0.01] border-on-surface/5 hover:bg-on-surface/[0.04] hover:border-on-surface/12 hover:text-on-surface hover:scale-[1.01] text-ui-muted"
                     )}
                   >
                     <div className={cn("text-[12px] font-black tabular-nums leading-none", item.color)}>
@@ -622,7 +689,7 @@ export default function HistoryPage() {
                             {dirShortName}
                           </h3>
                         </div>
-                        <div className="flex items-center gap-1.5 shrink-0">
+                        <div className="flex items-center gap-1.5 shrink-0 transition-opacity duration-200 group-hover:opacity-0 group-hover:pointer-events-none">
                           <span className={cn(
                             "rounded-[4px] border px-1.5 py-0.5 text-[10.5px] font-bold",
                             active
@@ -642,7 +709,7 @@ export default function HistoryPage() {
                         <p className="truncate text-[11px] font-medium text-ui-muted/55 flex-1" title={entry.target_dir}>
                           {formatPath(entry.target_dir)}
                         </p>
-                        <span className="shrink-0 font-mono text-[10.5px] font-medium text-ui-muted/45">
+                        <span className="shrink-0 font-mono text-[10.5px] font-medium text-ui-muted/45 transition-opacity duration-200 group-hover:opacity-0 group-hover:pointer-events-none">
                           {formatDisplayDate(entry.created_at)}
                         </span>
                       </div>
@@ -653,7 +720,7 @@ export default function HistoryPage() {
                           event.stopPropagation();
                           requestDelete(entry.execution_id);
                         }}
-                        className="absolute right-1 top-1/2 -translate-y-1/2 rounded-[5px] p-1.5 text-error/45 opacity-0 transition-all hover:bg-error/8 hover:text-error active:scale-90 group-hover:opacity-100 focus:opacity-100"
+                        className="absolute right-3 top-1/2 -translate-y-1/2 rounded-[5px] p-1.5 text-error/45 opacity-0 transition-all duration-200 hover:bg-error/8 hover:text-error active:scale-90 group-hover:opacity-100 focus:opacity-100"
                       >
                         <Trash2 className="h-3.5 w-3.5" />
                       </button>

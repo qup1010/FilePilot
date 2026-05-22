@@ -46,7 +46,7 @@ import {
 } from "@/components/settings/settings-primitives";
 import { buildFamilySavePayload, isEditablePreset } from "@/app/settings/preset-flow";
 import { createApiClient } from "@/lib/api";
-import { getApiBaseUrl, getApiToken, invokeTauriCommand, isTauriDesktop } from "@/lib/runtime";
+import { getApiBaseUrl, getApiToken, invokeTauriCommand, isTauriDesktop, pickDirectoryWithTauri } from "@/lib/runtime";
 import { findDropZoneForPosition, listenToTauriDragDrop } from "@/lib/tauri-drag-drop";
 import {
   buildStrategySummary,
@@ -494,12 +494,11 @@ export default function SettingsPage() {
   const [pendingDeleteTargetProfileId, setPendingDeleteTargetProfileId] = useState<string | null>(null);
 
   const categories = [
-    { id: "text", label: "整理模型配置", icon: Layers3, description: "配置分析与整理的模型接口" },
-    { id: "launch", label: "整理策略配置", icon: SettingsIcon, description: "任务启动配置" },
-    { id: "icon_image", label: "生图模型配置", icon: ImageIcon, description: "配置生图模型接口" },
-    { id: "bg_removal", label: "抠图服务配置", icon: Scissors, description: "配置抠图服务接口" },
-
-    { id: "system", label: "系统与调试", icon: ShieldCheck, description: "运行状态与日志" },
+    { id: "text", label: "整理模型配置", icon: Layers3, description: "配置文本分析与图片理解模型" },
+    { id: "launch", label: "整理策略配置", icon: SettingsIcon, description: "配置任务启动默认参数与规则" },
+    { id: "icon_image", label: "生图模型配置", icon: ImageIcon, description: "配置图标生成模型参数" },
+    { id: "bg_removal", label: "抠图服务配置", icon: Scissors, description: "配置抠图模型端点与参数" },
+    { id: "system", label: "系统与调试", icon: ShieldCheck, description: "系统运行状态与调试日志" },
   ];
 
   const launchSections: Array<{
@@ -1733,7 +1732,7 @@ export default function SettingsPage() {
               <SettingsSection
                 icon={Layers3}
                 title="文本模型与图片理解"
-                description="默认只配置文本模型。开启图片理解后，可直接复用当前文本模型，也可以切换成单独的图片理解模型。"
+                description="配置文本分析模型与可选的图片理解模型。"
               >
                 <PresetSelector
                   label="文本预设"
@@ -1910,7 +1909,7 @@ export default function SettingsPage() {
               <SettingsSection
                 icon={ImageIcon}
                 title="图标生成"
-                description="配置图标工坊的生图模型及参数。文本分析能力将自动复用当前的整理模型预设。"
+                description="配置图标工坊的图像生成模型、尺寸、并发上限和保存方式。"
               >
                 <PresetSelector
                   label="图标生图预设"
@@ -2017,7 +2016,7 @@ export default function SettingsPage() {
               <SettingsSection
                 icon={Scissors}
                 title="背景处理"
-                description="桌面端图标工坊会读取这里的背景处理配置。可使用内置预设，也可切换为自定义服务。"
+                description="配置背景裁剪及抠图服务的端点和模型参数。"
               >
                 <FieldGroup label="服务模式">
                   <div className="grid gap-3 md:grid-cols-2">
@@ -2121,7 +2120,7 @@ export default function SettingsPage() {
               <SettingsSection
                 icon={SettingsIcon}
                 title="新任务默认值"
-                description="按启动策略、放置规则和目标目录分开配置，首页会读取这里的默认值。"
+                description="配置新任务的整理方式、默认模板、放置规则和归档目录。"
               >
                 <div className="rounded-[12px] border border-on-surface/8 bg-surface px-4 py-4">
                   <div className="grid gap-2 md:grid-cols-3">
@@ -2251,13 +2250,33 @@ export default function SettingsPage() {
                       </div>
                       <div className="grid gap-4 xl:grid-cols-2">
                         <FieldGroup label="默认新目录生成位置" hint="留空时，新结构任务默认使用输出目录；归入已有目录任务默认使用当前任务工作区根。">
-                          <InputShell icon={FolderOpen}>
+                          <InputShell icon={FolderOpen} className="flex items-center">
                             <input
                               value={launchDefaultNewDirectoryRoot}
                               onChange={(event) => updateGlobal("LAUNCH_DEFAULT_NEW_DIRECTORY_ROOT", event.target.value)}
-                              className="w-full bg-transparent py-2 text-sm font-semibold text-on-surface outline-none"
+                              className="flex-1 bg-transparent py-2 text-sm font-semibold text-on-surface outline-none"
                               placeholder="例如：D:/archive/sorted"
                             />
+                            <button
+                              type="button"
+                              onClick={() => {
+                                void (async () => {
+                                  try {
+                                    const selected = desktopReady
+                                      ? await pickDirectoryWithTauri()
+                                      : (await api.selectDir()).path;
+                                    if (selected) {
+                                      updateGlobal("LAUNCH_DEFAULT_NEW_DIRECTORY_ROOT", selected);
+                                    }
+                                  } catch (err) {
+                                    setError(err instanceof Error ? err.message : "选择目录失败");
+                                  }
+                                })();
+                              }}
+                              className="ml-2 shrink-0 rounded-[4px] border border-on-surface/10 bg-surface px-2.5 py-1 text-[11px] font-bold text-on-surface transition-colors hover:border-primary/20 hover:text-primary active:scale-95"
+                            >
+                              浏览...
+                            </button>
                           </InputShell>
                         </FieldGroup>
                         <FieldGroup
@@ -2268,14 +2287,35 @@ export default function SettingsPage() {
                               : "只在关闭“跟随新目录位置”后单独生效。"
                           }
                         >
-                          <InputShell icon={FolderOpen}>
+                          <InputShell icon={FolderOpen} className="flex items-center">
                             <input
                               value={launchDefaultReviewRoot}
                               onChange={(event) => updateGlobal("LAUNCH_DEFAULT_REVIEW_ROOT", event.target.value)}
                               disabled={launchReviewFollowsNewRoot}
-                              className="w-full bg-transparent py-2 text-sm font-semibold text-on-surface outline-none disabled:opacity-60"
+                              className="flex-1 bg-transparent py-2 text-sm font-semibold text-on-surface outline-none disabled:opacity-60"
                               placeholder={launchReviewFollowsNewRoot ? launchDerivedReviewRoot : "例如：D:/archive/review"}
                             />
+                            <button
+                              type="button"
+                              disabled={launchReviewFollowsNewRoot}
+                              onClick={() => {
+                                void (async () => {
+                                  try {
+                                    const selected = desktopReady
+                                      ? await pickDirectoryWithTauri()
+                                      : (await api.selectDir()).path;
+                                    if (selected) {
+                                      updateGlobal("LAUNCH_DEFAULT_REVIEW_ROOT", selected);
+                                    }
+                                  } catch (err) {
+                                    setError(err instanceof Error ? err.message : "选择目录失败");
+                                  }
+                                })();
+                              }}
+                              className="ml-2 shrink-0 rounded-[4px] border border-on-surface/10 bg-surface px-2.5 py-1 text-[11px] font-bold text-on-surface transition-colors hover:border-primary/20 hover:text-primary active:scale-95 disabled:pointer-events-none disabled:opacity-40"
+                            >
+                              浏览...
+                            </button>
                           </InputShell>
                         </FieldGroup>
                       </div>
@@ -2609,12 +2649,34 @@ export default function SettingsPage() {
                               )}
                             </div>
                             <div className="mt-3 grid gap-2 xl:grid-cols-[minmax(0,1fr)_180px_minmax(0,1fr)_auto]">
-                              <input
-                                value={profileDraft.newPath}
-                                onChange={(event) => updateTargetProfileDraft(profile.profile_id, (current) => ({ ...current, newPath: event.target.value }))}
-                                className="h-9 rounded-[8px] border border-on-surface/8 bg-surface px-3 font-mono text-[12px] text-on-surface outline-none focus:border-primary/40"
-                                placeholder="目标目录完整路径，例如 D:/archive/docs"
-                              />
+                              <div className="relative flex items-center">
+                                <input
+                                  value={profileDraft.newPath}
+                                  onChange={(event) => updateTargetProfileDraft(profile.profile_id, (current) => ({ ...current, newPath: event.target.value }))}
+                                  className="h-9 flex-1 rounded-[8px] border border-on-surface/8 bg-surface pl-3 pr-16 font-mono text-[12px] text-on-surface outline-none focus:border-primary/40"
+                                  placeholder="目标目录完整路径，例如 D:/archive/docs"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    void (async () => {
+                                      try {
+                                        const selected = desktopReady
+                                          ? await pickDirectoryWithTauri()
+                                          : (await api.selectDir()).path;
+                                        if (selected) {
+                                          updateTargetProfileDraft(profile.profile_id, (current) => ({ ...current, newPath: selected }));
+                                        }
+                                      } catch (err) {
+                                        setError(err instanceof Error ? err.message : "选择目录失败");
+                                      }
+                                    })();
+                                  }}
+                                  className="absolute right-1.5 rounded-[4px] border border-on-surface/10 bg-surface px-2 py-0.5 text-[11px] font-bold text-on-surface transition-colors hover:border-primary/20 hover:text-primary active:scale-95"
+                                >
+                                  浏览...
+                                </button>
+                              </div>
                               <input
                                 value={profileDraft.newLabel}
                                 onChange={(event) => updateTargetProfileDraft(profile.profile_id, (current) => ({ ...current, newLabel: event.target.value }))}
@@ -2648,7 +2710,7 @@ export default function SettingsPage() {
               <SettingsSection
                 icon={ShieldCheck}
                 title="运行与日志"
-                description="只保留常用的运行和日志开关，避免把这里变成调试控制台。"
+                description="运行日志输出路径与调试模式开关。"
               >
                 <div className="rounded-[12px] border border-on-surface/8 bg-surface px-4 py-4">
                   <div className="mb-4">

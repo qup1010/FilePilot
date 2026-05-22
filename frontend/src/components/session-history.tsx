@@ -180,7 +180,7 @@ export function SessionHistory({ maxItems }: { maxItems?: number }) {
                   }
                 }}
                 className={cn(
-                  "group cursor-pointer overflow-hidden rounded-xl border border-on-surface/6 bg-surface-container-lowest px-3 py-2 transition-all hover:border-primary/25 hover:bg-surface-container-low",
+                  "group relative cursor-pointer overflow-hidden rounded-xl border border-on-surface/6 bg-surface-container-lowest px-3 py-2 transition-all hover:border-primary/25 hover:bg-surface-container-low",
                   isRolledBack && "opacity-60 saturate-50 hover:opacity-90 hover:saturate-100 transition-all"
                 )}
               >
@@ -208,7 +208,7 @@ export function SessionHistory({ maxItems }: { maxItems?: number }) {
                           {dirName}
                         </h4>
                         <span className={cn(
-                          "shrink-0 rounded-[4px] px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider border",
+                          "shrink-0 rounded-[4px] px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider border transition-opacity duration-200 group-hover:opacity-0 group-hover:pointer-events-none",
                           isRolledBack
                             ? "bg-on-surface/5 border-on-surface/10 text-ui-muted"
                             : isPartialFailure
@@ -219,18 +219,6 @@ export function SessionHistory({ maxItems }: { maxItems?: number }) {
                         )}>
                           {statusLabel}
                         </span>
-                      </div>
-                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                         <button
-                          type="button"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            requestDelete(item.execution_id);
-                          }}
-                          className="rounded-md p-1 text-ui-muted hover:bg-error/5 hover:text-error transition-colors"
-                        >
-                          <Trash2 className="h-3 w-3" />
-                        </button>
                       </div>
                     </div>
 
@@ -248,10 +236,21 @@ export function SessionHistory({ maxItems }: { maxItems?: number }) {
                           <span className="font-black text-error">· {item.failure_count} 项失败</span>
                         )}
                       </div>
-                      <ArrowRight className="h-3 w-3 transition-transform group-hover:translate-x-0.5" />
+                      <ArrowRight className="h-3 w-3 transition-all duration-200 group-hover:translate-x-0.5 group-hover:opacity-0 group-hover:pointer-events-none" />
                     </div>
                   </div>
                 </div>
+
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    requestDelete(item.execution_id);
+                  }}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 rounded-[5px] p-1.5 text-error/45 opacity-0 transition-all duration-200 hover:bg-error/8 hover:text-error active:scale-90 group-hover:opacity-100 focus:opacity-100"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
               </motion.div>
             );
           })}
