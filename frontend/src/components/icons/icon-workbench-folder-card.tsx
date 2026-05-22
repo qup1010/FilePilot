@@ -11,6 +11,7 @@ import {
   RefreshCw,
   X,
   CircleDashed,
+  Sparkles,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -39,6 +40,7 @@ interface IconWorkbenchFolderCardProps {
   generateBlockedReason?: string | null;
   isProcessing?: boolean;
   isActiveProcessing?: boolean;
+  generateStage?: "analyzing" | "applying_template" | "generating" | null;
 }
 
 export function IconWorkbenchFolderCard({
@@ -62,6 +64,7 @@ export function IconWorkbenchFolderCard({
   generateBlockedReason,
   isProcessing,
   isActiveProcessing,
+  generateStage,
 }: IconWorkbenchFolderCardProps) {
   const currentVersion = useMemo(() => getCurrentVersion(folder), [folder]);
   const currentPreview = useMemo(() => resolvePreviewVersion(folder), [folder]);
@@ -75,7 +78,13 @@ export function IconWorkbenchFolderCard({
   }, [currentPreview?.version_id]);
 
   const status = useMemo(() => {
-    if (isActiveProcessing) return { label: "正在生成", color: "text-primary", icon: LoaderCircle, animate: true };
+    if (isActiveProcessing) {
+      let label = "正在处理";
+      if (generateStage === "analyzing") label = "分析目录结构";
+      else if (generateStage === "applying_template") label = "套用风格预设";
+      else if (generateStage === "generating") label = "正在绘制图标";
+      return { label, color: "text-primary", icon: LoaderCircle, animate: true };
+    }
     if (currentVersion?.status === "error") return { label: "错误", color: "text-error", icon: AlertCircle };
     if (currentVersion?.status === "ready") return { label: "已就绪", color: "text-primary", icon: CheckCircle2 };
     if (folder.last_error) return { label: "存在问题", color: "text-error", icon: AlertCircle };
@@ -88,17 +97,21 @@ export function IconWorkbenchFolderCard({
 
   return (
     <div className={cn(
-      "group flex flex-col overflow-hidden border transition-all duration-200 rounded-md",
-      isExpanded ? "border-primary/20 bg-surface" : "border-on-surface/5 bg-on-surface/[0.02] hover:border-primary/10 hover:bg-on-surface/[0.04]"
+      "group flex flex-col overflow-hidden border transition-all duration-200 rounded-[4px]",
+      isExpanded ? "border-primary/15 bg-surface" : "border-on-surface/5 bg-on-surface/[0.015] hover:border-primary/10 hover:bg-on-surface/[0.03]"
     )}>
-      <div className="flex cursor-pointer items-center gap-3 px-3 py-2" onClick={onToggleExpand}>
+      <div className="flex cursor-pointer items-center gap-3 px-3 py-1.5" onClick={onToggleExpand}>
         {/* Micro-Thumbnail */}
-        <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded bg-surface-container-low">
-          {currentPreview ? (
+        <div className="flex h-7.5 w-7.5 shrink-0 items-center justify-center overflow-hidden rounded-[3px] bg-surface-container-low border border-on-surface/5">
+          {isActiveProcessing && generateStage === "generating" ? (
+            <div className="relative flex h-full w-full items-center justify-center bg-primary/[0.03] animate-pulse">
+              <Sparkles className="h-3.5 w-3.5 text-primary/40 animate-spin" style={{ animationDuration: "3s" }} />
+            </div>
+          ) : currentPreview ? (
             <div className="relative h-full w-full">
               {!previewLoaded && !previewFailed && (
                 <div className="absolute inset-0 flex items-center justify-center bg-surface-container-low">
-                  <LoaderCircle className="h-3 w-3 animate-spin text-primary/20" />
+                  <LoaderCircle className="h-2.5 w-2.5 animate-spin text-primary/20" />
                 </div>
               )}
               {!previewFailed && (
@@ -112,7 +125,7 @@ export function IconWorkbenchFolderCard({
               )}
             </div>
           ) : (
-            <FolderOpen className="h-3.5 w-3.5 text-primary/20" />
+            <FolderOpen className="h-3 w-3 text-primary/25" />
           )}
         </div>
 
@@ -134,10 +147,10 @@ export function IconWorkbenchFolderCard({
         {/* Quick Actions */}
         <div className={cn("flex items-center gap-1", !isExpanded && "opacity-0 group-hover:opacity-100 transition-opacity")}>
           {!isExpanded && currentVersion?.status === "ready" && (
-            <button onClick={(e) => { e.stopPropagation(); onApplyVersion(currentVersion); }} disabled={isProcessing || !desktopReady} className="h-6 items-center rounded bg-primary/10 px-2 text-[9px] font-black uppercase text-primary hover:bg-primary/20 active:scale-95 disabled:opacity-30 hidden lg:flex transition-all">一键应用</button>
+            <button onClick={(e) => { e.stopPropagation(); onApplyVersion(currentVersion); }} disabled={isProcessing || !desktopReady} className="h-5.5 items-center rounded-[3px] bg-primary/10 px-2 text-[9px] font-black uppercase text-primary hover:bg-primary/20 active:scale-95 disabled:opacity-30 hidden lg:flex transition-all">一键应用</button>
           )}
-          <button onClick={(e) => { e.stopPropagation(); onRemoveTarget(); }} className="h-7 w-7 flex items-center justify-center rounded hover:bg-error/10 text-ui-muted/40 hover:text-error active:scale-90 transition-all"><X className="h-3 w-3" /></button>
-          <div className={cn("h-7 w-7 flex items-center justify-center rounded transition-transform text-ui-muted/30", isExpanded && "rotate-180 text-primary")}><ChevronDown className="h-3.5 w-3.5" /></div>
+          <button onClick={(e) => { e.stopPropagation(); onRemoveTarget(); }} className="h-6.5 w-6.5 flex items-center justify-center rounded hover:bg-error/10 text-ui-muted/40 hover:text-error active:scale-90 transition-all"><X className="h-3 w-3" /></button>
+          <div className={cn("h-6.5 w-6.5 flex items-center justify-center rounded transition-transform text-ui-muted/30", isExpanded && "rotate-180 text-primary")}><ChevronDown className="h-3.5 w-3.5" /></div>
         </div>
       </div>
 

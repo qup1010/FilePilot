@@ -75,7 +75,8 @@ export function IconWorkbenchFooterBar({
            )}>
              {isGenerating ? (generateProgressHint || "正在分析语义并生成图标方案...") :
               isRemovingBgBatch ? removingBgProgressLabel :
-              isApplying ? "Applying icons to system..." :
+              isApplying ? "正在将图标配置应用到系统..." :
+              generateBlockedReason === "先选择风格模板" ? "提示：请在右侧选择风格模板以生成预览。" :
               generateBlockedReason || "预览完成后点击应用。本地接口将修改 Windows 文件夹配置。"}
            </p>
         </div>
