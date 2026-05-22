@@ -240,6 +240,29 @@ fn open_directory(path: String) -> Result<(), String> {
     Ok(())
 }
 
+#[tauri::command]
+fn open_url(url: String) -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    {
+        let _ = std::process::Command::new("cmd")
+            .args(&["/C", "start", "", &url])
+            .spawn();
+    }
+    #[cfg(target_os = "macos")]
+    {
+        let _ = std::process::Command::new("open")
+            .arg(&url)
+            .spawn();
+    }
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
+    {
+        let _ = std::process::Command::new("xdg-open")
+            .arg(&url)
+            .spawn();
+    }
+    Ok(())
+}
+
 fn show_desktop_notification_inner(app: &tauri::AppHandle, title: String, body: String) -> Result<(), String> {
     let title = title.trim();
     if title.is_empty() {
@@ -533,6 +556,7 @@ pub fn run() {
             inspect_paths,
             list_directory_entries,
             open_directory,
+            open_url,
             save_file_as,
             show_desktop_notification,
             show_desktop_notification_when_away,

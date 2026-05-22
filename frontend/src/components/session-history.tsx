@@ -208,7 +208,7 @@ export function SessionHistory({ maxItems }: { maxItems?: number }) {
                           {dirName}
                         </h4>
                         <span className={cn(
-                          "shrink-0 rounded-[4px] px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider border transition-opacity duration-200 group-hover:opacity-0 group-hover:pointer-events-none",
+                          "shrink-0 rounded-[4px] px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider border transition-all duration-300 ease-out group-hover:opacity-0 group-hover:-translate-x-3 group-hover:scale-95 group-hover:pointer-events-none",
                           isRolledBack
                             ? "bg-on-surface/5 border-on-surface/10 text-ui-muted"
                             : isPartialFailure
@@ -236,7 +236,7 @@ export function SessionHistory({ maxItems }: { maxItems?: number }) {
                           <span className="font-black text-error">· {item.failure_count} 项失败</span>
                         )}
                       </div>
-                      <ArrowRight className="h-3 w-3 transition-all duration-200 group-hover:translate-x-0.5 group-hover:opacity-0 group-hover:pointer-events-none" />
+                      <ArrowRight className="h-3 w-3 transition-all duration-300 ease-out group-hover:-translate-x-3 group-hover:opacity-0 group-hover:pointer-events-none" />
                     </div>
                   </div>
                 </div>
@@ -247,7 +247,7 @@ export function SessionHistory({ maxItems }: { maxItems?: number }) {
                     event.stopPropagation();
                     requestDelete(item.execution_id);
                   }}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 rounded-[5px] p-1.5 text-error/45 opacity-0 transition-all duration-200 hover:bg-error/8 hover:text-error active:scale-90 group-hover:opacity-100 focus:opacity-100"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 rounded-[6px] p-1.5 text-error/55 opacity-0 scale-75 translate-x-4 transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] bg-surface-container-highest/90 border border-on-surface/4 shadow-sm backdrop-blur-sm hover:bg-error/8 hover:text-error active:scale-90 group-hover:opacity-100 group-hover:translate-x-0 group-hover:scale-100 focus:opacity-100 focus:translate-x-0 focus:scale-100"
                 >
                   <Trash2 className="h-3.5 w-3.5" />
                 </button>

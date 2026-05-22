@@ -211,3 +211,8 @@ export async function saveFileAsTauri(sourcePath: string, filename: string): Pro
   const result = await invokeTauriCommand<boolean>("save_file_as", { sourcePath, filename });
   return result ?? false;
 }
+
+export async function openUrlWithTauri(url: string): Promise<void> {
+  await invokeTauriCommand<void>("open_url", { url });
+}
+

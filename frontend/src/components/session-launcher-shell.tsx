@@ -24,6 +24,7 @@ import {
   ChevronLeft,
   ShieldAlert,
   X,
+  Info,
 } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 
@@ -2063,16 +2064,7 @@ export function SessionLauncherShell() {
                 </div>
               ) : null}
 
-              {!error && !fastStartValidationMessage && stepThreeValidationMessage ? (
-                <div className="mb-4">
-                  <ErrorAlert
-                    title="继续前请先补全当前信息"
-                    message={stepThreeValidationMessage}
-                  />
-                </div>
-              ) : null}
-
-              {!launchFlowOpen ? renderLaunchWorkbench() : null}
+               {!launchFlowOpen ? renderLaunchWorkbench() : null}
 
               <div hidden={!launchFlowOpen} className={cn("flex flex-col gap-3", !launchFlowOpen && "hidden")}>
                 {/* Desktop Native Header & Stepper */}
@@ -2742,6 +2734,16 @@ export function SessionLauncherShell() {
                               </div>
                               {targetProfilesLoading ? <Loader2 className="h-4 w-4 animate-spin text-primary" /> : null}
                             </div>
+
+                            {isAssignExisting && effectiveTargetDirectories.length === 0 && !selectedTargetProfileId.trim() && (
+                              <div className="mb-4 rounded-[8px] border border-primary/15 bg-primary/[0.02] p-3 text-[11.5px] font-medium leading-relaxed text-on-surface-variant flex items-start gap-2 animate-in fade-in slide-in-from-top-1 duration-200">
+                                <Info className="h-4 w-4 shrink-0 text-primary mt-0.5" />
+                                <div>
+                                  <span className="font-bold text-on-surface">需要目标目录：</span>
+                                  当前选择的整理方式需要至少一个目标目录。请选择一个已有目录配置，或在下方添加/拖入目标文件夹。
+                                </div>
+                              </div>
+                            )}
 
                             <div className="mb-4">
                               <div className="mb-2 text-[10px] font-bold uppercase tracking-[0.15em] text-ui-muted">已有目录配置</div>

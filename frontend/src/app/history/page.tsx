@@ -689,7 +689,7 @@ export default function HistoryPage() {
                             {dirShortName}
                           </h3>
                         </div>
-                        <div className="flex items-center gap-1.5 shrink-0 transition-opacity duration-200 group-hover:opacity-0 group-hover:pointer-events-none">
+                        <div className="flex items-center gap-1.5 shrink-0 transition-all duration-300 ease-out group-hover:opacity-0 group-hover:-translate-x-3 group-hover:scale-95 group-hover:pointer-events-none">
                           <span className={cn(
                             "rounded-[4px] border px-1.5 py-0.5 text-[10.5px] font-bold",
                             active
@@ -709,7 +709,7 @@ export default function HistoryPage() {
                         <p className="truncate text-[11px] font-medium text-ui-muted/55 flex-1" title={entry.target_dir}>
                           {formatPath(entry.target_dir)}
                         </p>
-                        <span className="shrink-0 font-mono text-[10.5px] font-medium text-ui-muted/45 transition-opacity duration-200 group-hover:opacity-0 group-hover:pointer-events-none">
+                        <span className="shrink-0 font-mono text-[10.5px] font-medium text-ui-muted/45 transition-all duration-300 ease-out group-hover:opacity-0 group-hover:-translate-x-3 group-hover:pointer-events-none">
                           {formatDisplayDate(entry.created_at)}
                         </span>
                       </div>
@@ -720,7 +720,7 @@ export default function HistoryPage() {
                           event.stopPropagation();
                           requestDelete(entry.execution_id);
                         }}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 rounded-[5px] p-1.5 text-error/45 opacity-0 transition-all duration-200 hover:bg-error/8 hover:text-error active:scale-90 group-hover:opacity-100 focus:opacity-100"
+                        className="absolute right-3 top-1/2 -translate-y-1/2 rounded-[6px] p-1.5 text-error/55 opacity-0 scale-75 translate-x-4 transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] bg-surface-container-highest/90 border border-on-surface/4 shadow-sm backdrop-blur-sm hover:bg-error/8 hover:text-error active:scale-90 group-hover:opacity-100 group-hover:translate-x-0 group-hover:scale-100 focus:opacity-100 focus:translate-x-0 focus:scale-100"
                       >
                         <Trash2 className="h-3.5 w-3.5" />
                       </button>
