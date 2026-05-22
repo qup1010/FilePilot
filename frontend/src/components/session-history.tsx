@@ -4,7 +4,6 @@ import { motion } from "framer-motion";
 import { 
   FolderOpen, 
   Activity,
-  CheckCircle2,
   Undo2,
   Clock,
   ArrowRight,
@@ -21,7 +20,6 @@ import { cn, formatDisplayDate } from "@/lib/utils";
 import {
   clearActiveWorkspaceRouteForSession,
   getHistoryEntryHref,
-  getHistoryEntryName,
   getHistoryEntrySummary,
   getHistoryDeletePrompt,
   isHistoryCompletedEntry,
@@ -34,6 +32,13 @@ import {
 
 import { EmptyState } from "@/components/ui/empty-state";
 import { FileRadarIllustration } from "@/components/ui/svg-illustrations";
+
+function getDirectoryShortName(path: string | null) {
+  if (!path) return "未指定目录";
+  const segments = path.replace(/[\\/]$/, "").split(/[\\/]/);
+  const last = segments[segments.length - 1];
+  return last || path;
+}
 
 export function SessionHistory({ maxItems }: { maxItems?: number }) {
   const router = useRouter();
@@ -154,9 +159,8 @@ export function SessionHistory({ maxItems }: { maxItems?: number }) {
             const isCompleted = isSession ? Boolean(sessionStageView?.isCompleted) : isHistoryCompletedEntry(item);
             const isRolledBack = isHistoryRolledBackEntry(item);
             const isPartialFailure = isHistoryPartialFailureEntry(item) || isHistoryRollbackPartialFailureEntry(item);
-            const dirName = getHistoryEntryName(item);
+            const dirName = getDirectoryShortName(item.target_dir);
             
-            const actionLabel = isSession ? "查看任务" : isRolledBack ? "查看回退" : "查看结果";
             const statusLabel = getHistoryEntrySummary(item);
             const hasFailures = (item.failure_count || 0) > 0;
 
@@ -175,7 +179,10 @@ export function SessionHistory({ maxItems }: { maxItems?: number }) {
                     handleContinue(item);
                   }
                 }}
-                className="group cursor-pointer overflow-hidden rounded-xl border border-on-surface/6 bg-surface-container-lowest px-3 py-2 transition-all hover:border-primary/25 hover:bg-surface-container-low"
+                className={cn(
+                  "group cursor-pointer overflow-hidden rounded-xl border border-on-surface/6 bg-surface-container-lowest px-3 py-2 transition-all hover:border-primary/25 hover:bg-surface-container-low",
+                  isRolledBack && "opacity-60 saturate-50 hover:opacity-90 hover:saturate-100 transition-all"
+                )}
               >
                 <div className="flex items-center gap-3">
                   <div className={cn(
@@ -194,7 +201,10 @@ export function SessionHistory({ maxItems }: { maxItems?: number }) {
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex min-w-0 flex-1 items-center gap-2">
-                        <h4 className="truncate text-[12.5px] font-black text-on-surface group-hover:text-primary transition-colors">
+                        <h4 className={cn(
+                          "truncate text-[12.5px] font-black text-on-surface group-hover:text-primary transition-colors",
+                          isRolledBack && "text-ui-muted line-through opacity-70"
+                        )}>
                           {dirName}
                         </h4>
                         <span className={cn(

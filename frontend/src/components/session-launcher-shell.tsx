@@ -648,6 +648,44 @@ export function SessionLauncherShell() {
       fileCount: sources.length - directoryCount,
     };
   }, [sources]);
+
+  const renderMethodExplanation = () => {
+    const isAssign = organizeMethod === "assign_into_existing_categories";
+    return (
+      <div className="mt-6 rounded-xl border border-on-surface/5 bg-on-surface/[0.01] p-4 space-y-3.5 animate-in fade-in duration-300">
+        <div className="text-[12px] font-bold text-on-surface flex items-center gap-1.5 border-b border-on-surface/[0.04] pb-2">
+          <span className="h-1.5 w-1.5 rounded-full bg-primary" />
+          <span>所选方式整理逻辑</span>
+        </div>
+        {isAssign ? (
+          <div className="space-y-2.5 text-[12px] text-ui-muted leading-relaxed">
+            <p>
+              <strong>工作机制：</strong>扫描来源文件，与您指定的已有目标文件夹（如工作资料库、各项目目录）进行名称和内容的比对分配。
+            </p>
+            <p>
+              <strong>未匹配规则：</strong>如果文件无法明确归入任何目标目录，会被统一放入“待确认区（Review）”，不会强制乱放或自动创建未知文件夹。
+            </p>
+            <p className="text-[11px] font-medium opacity-60">
+              适用场景：已有建立好、边界清晰的分类目录，只需将零乱新文件精准归档入库。
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-2.5 text-[12px] text-ui-muted leading-relaxed">
+            <p>
+              <strong>工作机制：</strong>AI 全自动分析所有文件的主题、类型和关联度，在指定的根目录下为您自动构建多级全新的分类子文件夹。
+            </p>
+            <p>
+              <strong>待确认规则：</strong>无法合理归纳的文件会被归入“待确认区（Review）”目录，不会遗失，方便您后续手动调整。
+            </p>
+            <p className="text-[11px] font-medium opacity-60">
+              适用场景：面临杂乱无章、没有预设分类的大量文件，希望能一键自动生成一套逻辑清晰的新目录结构。
+            </p>
+          </div>
+        )}
+      </div>
+    );
+  };;
+
   const displaySources = useMemo(() => sortSourcesForDisplay(sources), [sources]);
   const sourceImportGroupViews = useMemo(
     () =>
@@ -2504,12 +2542,12 @@ export function SessionLauncherShell() {
                             {
                               method: "assign_into_existing_categories" as const,
                               title: "归入现有目录",
-                              description: "将文件分配至已选定的现有工作目录，未匹配的条目将放入待确认区。",
+                              description: "根据文件名和内容，分配到您指定的文件夹中。",
                             },
                             {
                               method: "categorize_into_new_structure" as const,
                               title: "生成新分类结构",
-                              description: "分析文件属性并生成多级分类目录，在指定位置自动创建子文件夹。",
+                              description: "让 AI 根据文件自动生成新的多级文件夹并分类存放。",
                             },
                           ].map((option) => {
                             const active = organizeMethod === option.method;
@@ -2520,20 +2558,43 @@ export function SessionLauncherShell() {
                                 disabled={loading}
                                 onClick={() => updateStrategy((previous) => strategyForMethod(previous, option.method))}
                                 className={cn(
-                                  "rounded-xl border-2 px-4 py-4 text-left transition-all active:scale-[0.98] disabled:opacity-50",
+                                  "group rounded-xl border-2 px-4 py-4 text-left transition-all duration-300 active:scale-[0.98] disabled:opacity-50 hover:-translate-y-0.5",
                                   active
-                                    ? "border-primary/40 bg-primary/5 ring-1 ring-primary/10"
-                                    : "border-on-surface/8 bg-surface-container-lowest hover:border-primary/20",
+                                    ? "border-primary/40 bg-primary/[0.03] ring-1 ring-primary/10 shadow-[0_0_12px_rgba(59,130,246,0.06)]"
+                                    : "border-on-surface/8 bg-surface-container-lowest hover:border-primary/20 hover:bg-surface hover:shadow-sm",
                                 )}
                               >
                                 <div className="flex items-center justify-between gap-3">
-                                  <p className={cn("text-[14.5px] font-black tracking-tight", active ? "text-primary" : "text-on-surface/80")}>{option.title}</p>
-                                  {active ? <Sparkles className="h-4 w-4 text-primary" /> : null}
+                                  <p className={cn("text-[14px] font-bold tracking-tight", active ? "text-primary" : "text-on-surface/80")}>
+                                    {option.title}
+                                  </p>
+                                  <div className={cn(
+                                    "flex items-center gap-1.5 rounded-[6px] border px-2 py-0.5 text-[11px] font-medium transition-all duration-300 shrink-0",
+                                    active
+                                      ? "border-primary/20 bg-primary/10 text-primary"
+                                      : "border-on-surface/5 bg-on-surface/[0.02] text-on-surface-variant/40 group-hover:border-on-surface/10 group-hover:text-on-surface-variant/60"
+                                  )}>
+                                    {option.method === "assign_into_existing_categories" ? (
+                                      <>
+                                        <FileText className="h-3 w-3 shrink-0" />
+                                        <span className="text-[9px] font-bold opacity-40">→</span>
+                                        <FolderOpen className={cn("h-3 w-3 shrink-0", active ? "text-primary" : "text-on-surface-variant/50")} />
+                                      </>
+                                    ) : (
+                                      <>
+                                        <FolderOpen className="h-3 w-3 shrink-0" />
+                                        <span className="text-[9px] font-bold opacity-40">→</span>
+                                        <ListTree className={cn("h-3 w-3 shrink-0", active ? "text-primary" : "text-on-surface-variant/50")} />
+                                      </>
+                                    )}
+                                  </div>
                                 </div>
                                 <p className="mt-2 text-[12px] font-medium leading-relaxed text-ui-muted opacity-60">{option.description}</p>
                               </button>
                             );
-                          })}                      </div>
+                          })}
+                        </div>
+                        {renderMethodExplanation()}
                       </div>
                     ) : null}
 

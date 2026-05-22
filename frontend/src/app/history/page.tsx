@@ -65,6 +65,13 @@ function formatMovePath(path: string | null, baseDir: string) {
   return formatPath(normalizedPath);
 }
 
+function getDirectoryShortName(path: string | null) {
+  if (!path) return "未指定目录";
+  const segments = path.replace(/[\\/]$/, "").split(/[\\/]/);
+  const last = segments[segments.length - 1];
+  return last || path;
+}
+
 function summarizeMoveNames(items: { display_name: string }[], limit = 3) {
   const names = items.map((item) => item.display_name).filter(Boolean).slice(0, limit);
   if (!names.length) {
@@ -423,19 +430,21 @@ export default function HistoryPage() {
         </motion.div>
       )}
 
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="flex items-center gap-2.5 rounded-md border border-on-surface/5 bg-on-surface/[0.03] px-3 py-1.5 transition-colors hover:bg-on-surface/5">
-          <span className="text-[9px] font-black uppercase tracking-widest text-ui-muted/40">已处理分析</span>
-          <span className="text-[13px] font-black tabular-nums text-on-surface/80">{journal?.item_count || 0}</span>
+      <div className="flex flex-wrap items-center gap-6 px-1 py-1">
+        <div className="flex items-baseline gap-2">
+          <span className="text-[11.5px] font-bold text-ui-muted/65">已整理项</span>
+          <span className="text-[19px] font-black tabular-nums text-on-surface/90">{journal?.item_count || 0}</span>
         </div>
-        <div className="flex items-center gap-2.5 rounded-md border border-success/15 bg-success/[0.04] px-3 py-1.5 transition-colors hover:bg-success/[0.08]">
-          <span className="text-[9px] font-black uppercase tracking-widest text-success-dim/40">任务成功</span>
-          <span className="text-[13px] font-black tabular-nums text-success-dim">{journal?.success_count || 0}</span>
+        <div className="flex items-baseline gap-2">
+          <span className="text-[11.5px] font-bold text-ui-muted/65">成功</span>
+          <span className="text-[19px] font-black tabular-nums text-success-dim">{journal?.success_count || 0}</span>
         </div>
-        <div className="flex items-center gap-2.5 rounded-md border border-error/15 bg-error/[0.04] px-3 py-1.5 transition-colors hover:bg-error/[0.08]">
-          <span className="text-[9px] font-black uppercase tracking-widest text-error/40">失败项</span>
-          <span className="text-[13px] font-black tabular-nums text-error">{journal?.failure_count || 0}</span>
-        </div>
+        {Boolean(journal?.failure_count) && (
+          <div className="flex items-baseline gap-2">
+            <span className="text-[11.5px] font-bold text-ui-muted/65 text-error/80">失败</span>
+            <span className="text-[19px] font-black tabular-nums text-error">{journal?.failure_count}</span>
+          </div>
+        )}
       </div>
 
       <div className="space-y-4">
@@ -463,34 +472,30 @@ export default function HistoryPage() {
           <div className="flex flex-col divide-y divide-on-surface/6">
             {moveRows.length ? (
               moveRows.map((item, index) => (
-                <div key={index} className="group flex flex-col gap-2 p-4 transition-colors hover:bg-primary/[0.02]">
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="min-w-0 flex-1 space-y-1">
-                      <div className="flex items-center gap-2">
-                        <div className="h-1.5 w-1.5 rounded-full bg-primary/40 shrink-0" />
-                        <p className="truncate text-[13px] font-black text-on-surface/90" title={item.display_name}>
-                          {item.display_name}
-                        </p>
-                      </div>
+                <div key={index} className="group flex flex-col p-2.5 transition-colors hover:bg-primary/[0.015]">
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="h-1.5 w-1.5 rounded-full bg-primary/45 shrink-0" />
+                      <span className="text-[12.5px] font-black text-on-surface/90 truncate" title={item.display_name}>
+                        {item.display_name}
+                      </span>
                     </div>
                   </div>
                   
-                  <div className="ml-3.5 flex items-center gap-3 rounded-md bg-on-surface/5 p-2 px-3">
-                    <div className="min-w-0 flex-1 space-y-1">
-                      <div className="flex items-center gap-2 opacity-50">
-                        <span className="text-[9px] font-black uppercase text-ui-muted">原位置</span>
-                        <p className="truncate font-mono text-[11px] text-ui-muted" title={item.source || ""}>
-                          {formatMovePath(item.source, journal?.target_dir || "")}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-[9px] font-black uppercase text-primary/60">目标</span>
-                        <p className="truncate font-mono text-[11px] font-bold text-primary/80" title={item.target || ""}>
-                          {formatMovePath(item.target, journal?.target_dir || "")}
-                        </p>
-                      </div>
+                  <div className="mt-1 pl-3.5 flex items-center justify-between gap-4 text-[11px]">
+                    <div className="flex-1 min-w-0 truncate" title={item.source || ""}>
+                      <span className="text-[9.5px] font-bold uppercase tracking-wider text-ui-muted/40 mr-1.5">FROM:</span>
+                      <span className="font-mono text-ui-muted/70">{formatMovePath(item.source, journal?.target_dir || "")}</span>
                     </div>
-                    <ArrowRight className="h-3.5 w-3.5 shrink-0 text-on-surface/10 transition-transform group-hover:translate-x-0.5 group-hover:text-primary/30" />
+                    
+                    <div className="flex items-center shrink-0 text-ui-muted/30 px-1">
+                      <ArrowRight className="h-3 w-3 transition-transform group-hover:translate-x-0.5 group-hover:text-primary/40" />
+                    </div>
+
+                    <div className="flex-1 min-w-0 truncate" title={item.target || ""}>
+                      <span className="text-[9.5px] font-bold uppercase tracking-wider text-primary/40 mr-1.5">TO:</span>
+                      <span className="font-mono font-bold text-primary/75">{formatMovePath(item.target, journal?.target_dir || "")}</span>
+                    </div>
                   </div>
                 </div>
               ))
@@ -573,6 +578,7 @@ export default function HistoryPage() {
                   const isRolledBack = isHistoryRolledBackEntry(entry);
                   const isPartialFailure = isHistoryPartialFailureEntry(entry) || isHistoryRollbackPartialFailureEntry(entry);
                   const statusSummary = getHistoryEntrySummary(entry);
+                  const dirShortName = getDirectoryShortName(entry.target_dir);
 
                   return (
                     <motion.div
@@ -594,6 +600,7 @@ export default function HistoryPage() {
                         active
                           ? "bg-primary/[0.08] border-primary/20"
                           : "bg-transparent border-transparent hover:bg-on-surface/[0.035]",
+                        isRolledBack && "opacity-60 saturate-50 hover:opacity-90 hover:saturate-100 transition-all",
                       )}
                       style={{ borderWidth: '1px', borderStyle: 'solid' }}
                     >
@@ -608,33 +615,36 @@ export default function HistoryPage() {
                             sessionLike ? "bg-primary" : isRolledBack ? "bg-on-surface/20" : isPartialFailure ? "bg-warning" : "bg-success",
                           )} />
                           <h3 className={cn(
-                            "truncate text-[12px] font-black tracking-tight",
-                            active ? "text-primary" : "text-on-surface/85"
+                            "truncate text-[12.5px] font-black tracking-tight",
+                            active ? "text-primary" : "text-on-surface/85",
+                            isRolledBack && "text-ui-muted line-through opacity-70"
                           )}>
-                            {getHistoryEntryName(entry)}
+                            {dirShortName}
                           </h3>
                         </div>
-                        <span className="shrink-0 font-mono text-[11px] font-bold text-ui-muted/45">{formatDisplayDate(entry.created_at).split(' ')[1]}</span>
-                      </div>
-
-                      <div className="flex items-center justify-between gap-2">
-                        <p className="truncate text-[12px] font-medium text-ui-muted/55" title={entry.target_dir}>
-                          {formatPath(entry.target_dir)}
-                        </p>
                         <div className="flex items-center gap-1.5 shrink-0">
                           <span className={cn(
-                            "rounded-[4px] border px-1.5 py-0.5 text-[11px] font-bold",
+                            "rounded-[4px] border px-1.5 py-0.5 text-[10.5px] font-bold",
                             active
                               ? "bg-primary/10 border-primary/20 text-primary/80"
                               : isPartialFailure
                                 ? "bg-warning/5 border-warning/10 text-warning"
                                 : isRolledBack
-                                  ? "bg-on-surface/[0.03] border-on-surface/10 text-ui-muted/50"
+                                  ? "bg-on-surface/[0.03] border-on-surface/10 text-ui-muted/60"
                                   : "bg-success/5 border-success/10 text-success-dim/80"
                           )}>
                             {statusSummary}
                           </span>
                         </div>
+                      </div>
+
+                      <div className="flex items-center justify-between gap-2 mt-0.5">
+                        <p className="truncate text-[11px] font-medium text-ui-muted/55 flex-1" title={entry.target_dir}>
+                          {formatPath(entry.target_dir)}
+                        </p>
+                        <span className="shrink-0 font-mono text-[10.5px] font-medium text-ui-muted/45">
+                          {formatDisplayDate(entry.created_at)}
+                        </span>
                       </div>
                       
                       <button
@@ -674,8 +684,11 @@ export default function HistoryPage() {
                 <div className="sticky top-0 z-10 shrink-0 border-b border-on-surface/8 bg-surface/95 px-6 py-3.5 backdrop-blur-md lg:px-8">
                   <div className="flex items-center justify-between gap-4">
                     <div className="flex min-w-0 flex-1 items-center gap-3">
-                       <h2 className="truncate text-[15px] font-black tracking-tight text-on-surface">
-                         {getHistoryEntryName(selectedEntry)}
+                       <h2 className={cn(
+                         "truncate text-[15px] font-black tracking-tight text-on-surface",
+                         selectedEntry && isHistoryRolledBackEntry(selectedEntry) && "line-through text-ui-muted/60"
+                       )}>
+                         {getDirectoryShortName(selectedEntry.target_dir)}
                        </h2>
                        <div className="h-4 w-px bg-on-surface/10 shrink-0" />
                        <div className="flex min-w-0 items-center gap-2">
