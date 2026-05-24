@@ -162,6 +162,58 @@ def builtin_templates() -> list[IconTemplate]:
             created_at=timestamp,
             updated_at=timestamp,
         ),
+        IconTemplate(
+            template_id="neon_origami",
+            name="霓虹折纸",
+            description="发光的折纸结构，结合几何折线与霓虹渐变光效，带来立体几何美感。",
+            prompt_template=(
+                "A Windows folder icon of {{subject}}, glowing neon origami style, "
+                "geometric folded paper art, vibrant neon ambient lighting, translucent light-up edges, paper folds and creases, minimalist 3D rendering, no text, transparent background"
+            ),
+            cover_image="/template-covers/neon_origami.webp",
+            is_builtin=True,
+            created_at=timestamp,
+            updated_at=timestamp,
+        ),
+        IconTemplate(
+            template_id="chalkboard_sketch",
+            name="黑板手绘",
+            description="复古黑板质感上的白粉笔手绘线条，带有微弱擦拭痕迹与粉笔颗粒感。",
+            prompt_template=(
+                "A Windows folder icon of {{subject}}, chalkboard sketch style, "
+                "hand-drawn white chalk lines, realistic blackboard texture, dusty chalk powder details, vintage classroom aesthetic, no text, transparent background"
+            ),
+            cover_image="/template-covers/chalkboard_sketch.webp",
+            is_builtin=True,
+            created_at=timestamp,
+            updated_at=timestamp,
+        ),
+        IconTemplate(
+            template_id="wooden_craft",
+            name="木雕风格",
+            description="细腻的手工木雕凹凸质感，配合深色胡桃木纹，带来古典温暖的手工感。",
+            prompt_template=(
+                "A Windows folder icon of {{subject}}, wooden craft style, "
+                "organic wood grain texture, polished walnut finish, finely carved details, warm hand-crafted aesthetic, soft shadow, no text, transparent background"
+            ),
+            cover_image="/template-covers/wooden_craft.webp",
+            is_builtin=True,
+            created_at=timestamp,
+            updated_at=timestamp,
+        ),
+        IconTemplate(
+            template_id="vintage_parchment",
+            name="古朴羊皮纸",
+            description="斑驳微黄的羊皮纸纹路，辅以细致的手绘排线与棕褐色钢笔墨迹。",
+            prompt_template=(
+                "A Windows folder icon of {{subject}}, vintage parchment style, "
+                "aged sepia paper texture, realistic ink sketch drawings, fine hatching lines, classic antique look, no text, transparent background"
+            ),
+            cover_image="/template-covers/vintage_parchment.webp",
+            is_builtin=True,
+            created_at=timestamp,
+            updated_at=timestamp,
+        ),
     ]
 
 
