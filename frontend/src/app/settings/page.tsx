@@ -2485,125 +2485,106 @@ export default function SettingsPage() {
                           </p>
                         ) : null}
                       </div>
-                      <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_auto]">
-                        <div ref={targetProfileSelectorRef} className="relative">
-                          <button
-                            type="button"
-                            onClick={() => setTargetProfileSelectorOpen((current) => !current)}
+                      {/* 整合后的配置组水平管理栏 */}
+                      <div className="flex flex-wrap items-center gap-3 rounded-[10px] border border-on-surface/8 bg-surface-container-low p-3 w-full">
+                        <div className="flex flex-1 min-w-[180px] items-center gap-2 min-w-0">
+                          <span className="text-[12px] font-bold text-on-surface/70 shrink-0">配置组:</span>
+                          <select
+                            value={selectedTargetProfileId}
+                            onChange={(event) => setSelectedTargetProfileId(event.target.value)}
                             disabled={targetProfilesLoading || targetProfiles.length === 0}
-                            className={cn(
-                              "flex min-h-[52px] w-full items-center justify-between gap-3 rounded-[10px] border px-4 py-2.5 text-left transition-colors",
-                              targetProfileSelectorOpen
-                                ? "border-primary/35 bg-primary/[0.05]"
-                                : "border-on-surface/8 bg-surface-container-lowest hover:border-primary/20 hover:bg-surface-container-low",
-                              (targetProfilesLoading || targetProfiles.length === 0) && "cursor-not-allowed opacity-60",
-                            )}
-                            aria-expanded={targetProfileSelectorOpen}
+                            className="h-9 flex-1 min-w-0 w-full rounded-[8px] border border-on-surface/8 bg-surface px-3 text-[12px] font-semibold text-on-surface outline-none transition-colors focus:border-primary/40 disabled:opacity-60"
                           >
-                            <div className="flex min-w-0 items-center gap-3">
-                              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[8px] border border-primary/14 bg-primary/8 text-primary">
-                                <FolderOpen className="h-4 w-4" />
-                              </div>
-                              <div className="min-w-0">
-                                <div className="truncate text-[13px] font-black text-on-surface">{selectedTargetProfileName}</div>
-                                <div className="mt-0.5 text-[11px] font-medium text-ui-muted/65">
-                                  {targetProfiles.length ? `${selectedTargetDirectoryCount} 个目录 · 共 ${targetProfiles.length} 个配置` : "还没有可用配置"}
-                                </div>
-                              </div>
-                            </div>
-                            <ChevronDown className={cn("h-4 w-4 shrink-0 text-ui-muted transition-transform", targetProfileSelectorOpen && "rotate-180 text-primary")} />
-                          </button>
-
-                          <div
-                            className={cn(
-                              "absolute left-0 right-0 top-[calc(100%+6px)] z-30 overflow-hidden rounded-[10px] border border-on-surface/10 bg-surface-container-lowest shadow-[0_8px_24px_rgba(0,0,0,0.12)] transition-[opacity,transform,max-height]",
-                              targetProfileSelectorOpen ? "max-h-[280px] translate-y-0 opacity-100" : "pointer-events-none max-h-0 -translate-y-1 opacity-0",
-                            )}
-                          >
-                            <div className="max-h-[280px] overflow-y-auto p-1.5 scrollbar-thin">
-                              {targetProfiles.map((profile) => {
-                                const profileDraft = targetProfileDrafts[profile.profile_id];
-                                const directoryCount = profileDraft?.directories.length ?? profile.directories.length;
-                                const selected = selectedTargetProfile?.profile_id === profile.profile_id;
+                            {targetProfiles.length === 0 ? (
+                              <option value="">暂无可用配置组</option>
+                            ) : (
+                              targetProfiles.map((p) => {
+                                const pDraft = targetProfileDrafts[p.profile_id];
                                 return (
-                                  <div
-                                    key={profile.profile_id}
-                                    className={cn(
-                                      "group flex items-center justify-between gap-1 rounded-[8px] px-1 py-1 transition-colors",
-                                      selected ? "bg-primary/10" : "hover:bg-on-surface/[0.04]"
-                                    )}
-                                  >
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        setSelectedTargetProfileId(profile.profile_id);
-                                        setTargetProfileSelectorOpen(false);
-                                      }}
-                                      className="flex-1 min-w-0 px-2 py-1.5 text-left"
-                                    >
-                                      <div className="flex items-center gap-2">
-                                        <div className="truncate text-[12.5px] font-black">{profileDraft?.name || profile.name}</div>
-                                        {selected ? <CheckCircle2 className="h-3 w-3 shrink-0 text-primary" /> : null}
-                                      </div>
-                                      <div className="mt-0.5 text-[10.5px] font-medium text-ui-muted/65">{directoryCount} 个目录</div>
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        setPendingDeleteTargetProfileId(profile.profile_id);
-                                      }}
-                                      className="h-8 w-8 shrink-0 flex items-center justify-center rounded-md text-on-surface/20 hover:bg-error/10 hover:text-error transition-all"
-                                      title="删除配置"
-                                    >
-                                      <Trash2 className="h-3.5 w-3.5" />
-                                    </button>
-                                  </div>
+                                  <option key={p.profile_id} value={p.profile_id}>
+                                    {pDraft?.name || p.name} ({pDraft?.directories.length ?? p.directories.length} 个目录)
+                                  </option>
                                 );
-                              })}
-                            </div>
-                          </div>
+                              })
+                            )}
+                          </select>
                         </div>
-                        <Button
-                          type="button"
-                          variant="secondary"
-                          onClick={() => setCreatingTargetProfile((current) => !current)}
-                          disabled={targetProfilesLoading}
-                          className="min-h-[52px] px-5"
-                        >
-                          <FolderPlus className="mr-2 h-4 w-4" />
-                          新建配置
-                        </Button>
-                      </div>
 
-                      <AnimatePresence initial={false}>
-                        {creatingTargetProfile && (
-                          <motion.div
-                            initial={{ height: 0, opacity: 0 }}
-                            animate={{ height: "auto", opacity: 1 }}
-                            exit={{ height: 0, opacity: 0 }}
-                            className="overflow-hidden"
-                          >
-                            <div className="grid gap-2 rounded-[10px] border border-primary/14 bg-primary/[0.035] p-3 xl:grid-cols-[minmax(0,1fr)_auto_auto]">
-                              <InputShell icon={FolderPlus}>
-                                <input
-                                  value={newTargetProfileName}
-                                  onChange={(event) => setNewTargetProfileName(event.target.value)}
-                                  className="w-full bg-transparent py-2 text-sm font-semibold text-on-surface outline-none"
-                                  placeholder="例如：下载目录的归档"
-                                  autoFocus
-                                />
-                              </InputShell>
-                              <Button type="button" variant="secondary" onClick={() => setCreatingTargetProfile(false)} disabled={targetProfilesLoading}>
+                        {selectedTargetProfile && !creatingTargetProfile && (
+                          <div className="flex items-center gap-2 min-w-[200px] flex-1 min-w-0">
+                            <span className="text-[12px] font-bold text-on-surface/70 shrink-0">重命名:</span>
+                            <input
+                              value={selectedTargetProfileDraft?.name || ""}
+                              onChange={(event) =>
+                                updateTargetProfileDraft(selectedTargetProfile.profile_id, (current) => ({
+                                  ...current,
+                                  name: event.target.value,
+                                }))
+                              }
+                              className="h-9 flex-1 min-w-0 w-full rounded-[8px] border border-on-surface/8 bg-surface px-3 text-[12px] font-semibold text-on-surface outline-none focus:border-primary/40 placeholder:text-on-surface-variant/30"
+                              placeholder="输入新配置名..."
+                            />
+                          </div>
+                        )}
+
+                        <div className="flex items-center gap-2 shrink-0 md:ml-auto">
+                          {!creatingTargetProfile ? (
+                            <Button
+                              type="button"
+                              variant="secondary"
+                              onClick={() => {
+                                setCreatingTargetProfile(true);
+                                setNewTargetProfileName("");
+                              }}
+                              disabled={targetProfilesLoading}
+                              className="h-9 px-3 text-[12px] font-bold"
+                            >
+                              <FolderPlus className="mr-1.5 h-3.5 w-3.5" />
+                              新建组
+                            </Button>
+                          ) : (
+                            <div className="flex items-center gap-2 bg-primary/[0.04] border border-primary/14 rounded-[8px] p-1">
+                              <input
+                                value={newTargetProfileName}
+                                onChange={(event) => setNewTargetProfileName(event.target.value)}
+                                className="h-7 w-28 bg-transparent px-2 text-[12px] font-semibold text-on-surface outline-none placeholder:text-on-surface-variant/30"
+                                placeholder="配置组名称"
+                                autoFocus
+                              />
+                              <Button
+                                type="button"
+                                size="sm"
+                                onClick={() => void createTargetProfile()}
+                                disabled={targetProfilesLoading || !newTargetProfileName.trim()}
+                                className="h-7 px-2.5 text-[11px] font-bold"
+                              >
+                                确定
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setCreatingTargetProfile(false)}
+                                className="h-7 px-2.5 text-[11px] font-bold text-ui-muted"
+                              >
                                 取消
                               </Button>
-                              <Button type="button" onClick={() => void createTargetProfile()} disabled={targetProfilesLoading || !newTargetProfileName.trim()}>
-                                创建并切换
-                              </Button>
                             </div>
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
+                          )}
+
+                          {selectedTargetProfile && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              onClick={() => void deleteTargetProfile(selectedTargetProfile.profile_id)}
+                              disabled={targetProfilesLoading}
+                              className="h-9 px-3 text-[12px] font-bold text-error hover:bg-error/10 hover:text-error"
+                            >
+                              删除当前组
+                            </Button>
+                          )}
+                        </div>
+                      </div>
                     </div>
                     <div className="grid gap-3">
                       {selectedTargetProfile ? (() => {
@@ -2633,164 +2614,210 @@ export default function SettingsPage() {
                               addDirectoriesToTargetProfile(profile.profile_id, extractDroppedPaths(event));
                             }}
                             className={cn(
-                              "rounded-[12px] border px-4 py-3 transition-colors",
+                              "relative overflow-hidden rounded-[12px] border px-4 py-4 transition-all duration-200",
                               dragActive
-                                ? "border-primary/45 bg-primary/[0.06]"
+                                ? "border-primary bg-primary/[0.04] ring-2 ring-primary/20 shadow-md"
                                 : "border-on-surface/8 bg-surface-container-lowest",
                             )}
                           >
-                            <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_auto]">
-                              <FieldGroup label="当前配置名称">
+                            {/* 拖入文件夹时的半透明蓝色遮罩与动画 */}
+                            <AnimatePresence>
+                              {dragActive && (
+                                <motion.div
+                                  initial={{ opacity: 0 }}
+                                  animate={{ opacity: 1 }}
+                                  exit={{ opacity: 0 }}
+                                  className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-primary/10 backdrop-blur-[1px] pointer-events-none"
+                                >
+                                  <motion.div
+                                    initial={{ scale: 0.9, y: 10 }}
+                                    animate={{ scale: 1, y: 0 }}
+                                    exit={{ scale: 0.9, y: 10 }}
+                                    className="flex flex-col items-center gap-2 rounded-xl border border-primary/20 bg-surface px-6 py-5 shadow-lg"
+                                  >
+                                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary">
+                                      <FolderPlus className="h-6 w-6 animate-pulse" />
+                                    </div>
+                                    <p className="text-sm font-bold text-on-surface">释放以将文件夹导入当前配置</p>
+                                    <p className="text-[11px] text-ui-muted">可一次拖入多个文件夹路径</p>
+                                  </motion.div>
+                                </motion.div>
+                              )}
+                            </AnimatePresence>
+
+                            {/* 操作区 (拖拽提示框 + 手动添加表单) */}
+                            <div className="space-y-3 pb-4 border-b border-on-surface/6">
+                              {/* 拖拽提示框，更现代的虚线引导框 */}
+                              <div className="flex items-center gap-2.5 rounded-[8px] border border-dashed border-primary/20 bg-primary/[0.015] px-3.5 py-3 text-[11.5px] font-semibold text-ui-muted hover:bg-primary/[0.03] transition-colors">
+                                <FolderPlus className="h-4 w-4 text-primary/65 shrink-0" />
+                                <span>支持直接将文件夹拖拽至当前面板内任何位置，自动解析并添加路径。</span>
+                              </div>
+
+                              {/* 紧密排列的手动添加表单 */}
+                              <div className="grid gap-2 xl:grid-cols-[minmax(0,1fr)_130px_180px_auto]">
+                                <div className="relative flex items-center">
+                                  <input
+                                    value={profileDraft.newPath}
+                                    onChange={(event) => updateTargetProfileDraft(profile.profile_id, (current) => ({ ...current, newPath: event.target.value }))}
+                                    className="h-9 w-full rounded-[8px] border border-on-surface/8 bg-surface pl-3 pr-16 font-mono text-[12px] text-on-surface outline-none transition-colors focus:border-primary/40 placeholder:text-on-surface-variant/35"
+                                    placeholder="目标目录完整路径"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      void (async () => {
+                                        try {
+                                          const selected = desktopReady
+                                            ? await pickDirectoryWithTauri()
+                                            : (await api.selectDir()).path;
+                                          if (selected) {
+                                            updateTargetProfileDraft(profile.profile_id, (current) => ({ ...current, newPath: selected }));
+                                          }
+                                        } catch (err) {
+                                          setError(err instanceof Error ? err.message : "选择目录失败");
+                                        }
+                                      })();
+                                    }}
+                                    className="absolute right-1.5 h-6 rounded-[4px] border border-on-surface/10 bg-surface px-2.5 py-0.5 text-[11px] font-bold text-on-surface transition-colors hover:border-primary/20 hover:text-primary active:scale-95"
+                                  >
+                                    浏览...
+                                  </button>
+                                </div>
                                 <input
-                                  value={profileDraft.name}
-                                  onChange={(event) => updateTargetProfileDraft(profile.profile_id, (current) => ({ ...current, name: event.target.value }))}
-                                  className="h-10 w-full rounded-[8px] border border-on-surface/8 bg-surface px-3 text-[13px] font-semibold text-on-surface outline-none focus:border-primary/40"
-                                  placeholder="配置名称"
+                                  value={profileDraft.newLabel}
+                                  onChange={(event) => updateTargetProfileDraft(profile.profile_id, (current) => ({ ...current, newLabel: event.target.value }))}
+                                  className="h-9 rounded-[8px] border border-on-surface/8 bg-surface px-3 text-[12px] text-on-surface outline-none transition-colors focus:border-primary/40"
+                                  placeholder="标签（可选）"
                                 />
-                              </FieldGroup>
-                              <div className="flex items-end gap-2">
-                                <Button type="button" variant="ghost" onClick={() => void deleteTargetProfile(profile.profile_id)} disabled={targetProfilesLoading}>
-                                  删除配置
+                                <input
+                                  value={profileDraft.newDescription}
+                                  onChange={(event) => updateTargetProfileDraft(profile.profile_id, (current) => ({ ...current, newDescription: event.target.value }))}
+                                  className="h-9 rounded-[8px] border border-on-surface/8 bg-surface px-3 text-[12px] text-on-surface outline-none transition-colors focus:border-primary/40"
+                                  placeholder="目录说明（可选）"
+                                />
+                                <Button
+                                  type="button"
+                                  variant="secondary"
+                                  onClick={() => addDirectoryToTargetProfile(profile.profile_id)}
+                                  disabled={targetProfilesLoading || !profileDraft.newPath.trim()}
+                                  className="h-9 px-4 text-[12px] font-bold"
+                                >
+                                  添加目录
                                 </Button>
                               </div>
                             </div>
-                            <div className="mt-3 rounded-[8px] border border-dashed border-on-surface/10 bg-surface px-3 py-2 text-[11px] font-semibold text-ui-muted">
-                              拖入文件夹即可加入此配置
-                            </div>
-                            <div className="mt-3 grid gap-2">
-                              {profileDraft.directories.length ? profileDraft.directories.map((directory) => (
-                                <div key={directory.path} className="rounded-[8px] border border-on-surface/8 bg-surface px-3 py-3">
-                                  {(() => {
-                                    const editorKey = targetDirectoryEditorKey(profile.profile_id, directory.path);
-                                    const isExpanded = expandedTargetDirectoryEditors[editorKey] ?? false;
-                                    const hasSemanticHint = Boolean((directory.label || "").trim() || (directory.description || "").trim());
-                                    return (
-                                      <>
-                                        <div className="flex items-start justify-between gap-3">
-                                          <div className="min-w-0">
-                                            <div className="truncate text-[12.5px] font-bold text-on-surface">{directory.label || directory.path.split(/[\\/]/).pop() || directory.path}</div>
-                                            <div className="truncate font-mono text-[10.5px] text-ui-muted/60" title={directory.path}>{directory.path}</div>
-                                            {directory.label ? (
-                                              <div className="mt-1 inline-flex rounded-[5px] bg-primary/[0.06] px-2 py-0.5 text-[10px] font-bold text-primary">
-                                                标签：{directory.label}
-                                              </div>
-                                            ) : null}
-                                            {directory.description ? (
-                                              <div className="mt-1 text-[11px] leading-relaxed text-ui-muted">{directory.description}</div>
-                                            ) : !directory.label ? (
-                                              <div className="mt-1 text-[11px] leading-relaxed text-ui-muted/55">
-                                                暂未补充标签和目录说明。
-                                              </div>
-                                            ) : null}
-                                          </div>
-                                          <div className="flex shrink-0 items-center gap-2">
-                                            <button
-                                              type="button"
-                                              onClick={() => setExpandedTargetDirectoryEditors((current) => ({ ...current, [editorKey]: !isExpanded }))}
-                                              disabled={targetProfilesLoading}
-                                              className="inline-flex items-center gap-1 rounded-[6px] px-2 py-1 text-[11px] font-bold text-primary transition-colors hover:bg-primary/10 disabled:opacity-50"
-                                            >
-                                              {isExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
-                                              {hasSemanticHint ? "编辑标签和说明" : "补充标签和说明"}
-                                            </button>
-                                            <button
-                                              type="button"
-                                              onClick={() => removeDirectoryFromTargetProfile(profile.profile_id, directory.path)}
-                                              disabled={targetProfilesLoading}
-                                              className="rounded-[6px] px-2 py-1 text-[11px] font-bold text-error transition-colors hover:bg-error/10 disabled:opacity-50"
-                                            >
-                                              移除
-                                            </button>
-                                          </div>
-                                        </div>
-                                        {isExpanded ? (
-                                          <div className="mt-3 grid gap-2 xl:grid-cols-[180px_minmax(0,1fr)]">
-                                            <input
-                                              value={directory.label || ""}
-                                              onChange={(event) =>
-                                                updateTargetProfileDraft(profile.profile_id, (current) => ({
-                                                  ...current,
-                                                  directories: current.directories.map((item) => (
-                                                    item.path === directory.path
-                                                      ? { ...item, label: event.target.value }
-                                                      : item
-                                                  )),
-                                                }))
-                                              }
-                                              className="h-9 rounded-[8px] border border-on-surface/8 bg-surface-container-lowest px-3 text-[12px] text-on-surface outline-none focus:border-primary/40"
-                                              placeholder="标签（可选）"
-                                            />
-                                            <input
-                                              value={directory.description || ""}
-                                              onChange={(event) =>
-                                                updateTargetProfileDraft(profile.profile_id, (current) => ({
-                                                  ...current,
-                                                  directories: current.directories.map((item) => (
-                                                    item.path === directory.path
-                                                      ? { ...item, description: event.target.value }
-                                                      : item
-                                                  )),
-                                                }))
-                                              }
-                                              className="h-9 rounded-[8px] border border-on-surface/8 bg-surface-container-lowest px-3 text-[12px] text-on-surface outline-none focus:border-primary/40"
-                                              placeholder="目录说明（可选，用来提示该目录适合收什么）"
-                                            />
-                                          </div>
-                                        ) : null}
-                                      </>
-                                    );
-                                  })()}
-                                </div>
-                              )) : (
-                                <div className="rounded-[8px] border border-dashed border-on-surface/10 bg-surface px-3 py-3 text-[12px] font-medium text-ui-muted">
-                                  这个配置还没有目录。
-                                </div>
-                              )}
-                            </div>
-                            <div className="mt-3 grid gap-2 xl:grid-cols-[minmax(0,1fr)_180px_minmax(0,1fr)_auto]">
-                              <div className="relative flex items-center">
-                                <input
-                                  value={profileDraft.newPath}
-                                  onChange={(event) => updateTargetProfileDraft(profile.profile_id, (current) => ({ ...current, newPath: event.target.value }))}
-                                  className="h-9 flex-1 rounded-[8px] border border-on-surface/8 bg-surface pl-3 pr-16 font-mono text-[12px] text-on-surface outline-none focus:border-primary/40"
-                                  placeholder="目标目录完整路径，例如 D:/archive/docs"
-                                />
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    void (async () => {
-                                      try {
-                                        const selected = desktopReady
-                                          ? await pickDirectoryWithTauri()
-                                          : (await api.selectDir()).path;
-                                        if (selected) {
-                                          updateTargetProfileDraft(profile.profile_id, (current) => ({ ...current, newPath: selected }));
-                                        }
-                                      } catch (err) {
-                                        setError(err instanceof Error ? err.message : "选择目录失败");
-                                      }
-                                    })();
-                                  }}
-                                  className="absolute right-1.5 rounded-[4px] border border-on-surface/10 bg-surface px-2 py-0.5 text-[11px] font-bold text-on-surface transition-colors hover:border-primary/20 hover:text-primary active:scale-95"
-                                >
-                                  浏览...
-                                </button>
+
+                            {/* 已添加目录的列表 - 限高与纵向滚动 */}
+                            <div className="mt-4">
+                              <div className="flex items-center justify-between mb-2">
+                                <h4 className="text-[11px] font-bold uppercase tracking-wider text-ui-muted">已配置目录 ({profileDraft.directories.length})</h4>
                               </div>
-                              <input
-                                value={profileDraft.newLabel}
-                                onChange={(event) => updateTargetProfileDraft(profile.profile_id, (current) => ({ ...current, newLabel: event.target.value }))}
-                                className="h-9 rounded-[8px] border border-on-surface/8 bg-surface px-3 text-[12px] text-on-surface outline-none focus:border-primary/40"
-                                placeholder="标签（可选）"
-                              />
-                              <input
-                                value={profileDraft.newDescription}
-                                onChange={(event) => updateTargetProfileDraft(profile.profile_id, (current) => ({ ...current, newDescription: event.target.value }))}
-                                className="h-9 rounded-[8px] border border-on-surface/8 bg-surface px-3 text-[12px] text-on-surface outline-none focus:border-primary/40"
-                                placeholder="目录说明（可选）"
-                              />
-                              <Button type="button" variant="secondary" onClick={() => addDirectoryToTargetProfile(profile.profile_id)} disabled={targetProfilesLoading || !profileDraft.newPath.trim()}>
-                                添加目录
-                              </Button>
+
+                              <div className="max-h-[360px] overflow-y-auto pr-1 space-y-1.5 scrollbar-thin">
+                                {profileDraft.directories.length ? profileDraft.directories.map((directory) => (
+                                  <div
+                                    key={directory.path}
+                                    className="group relative flex items-center justify-between gap-3 rounded-[8px] border border-on-surface/8 bg-surface px-3 py-2 transition-all hover:border-on-surface/16 hover:bg-on-surface/[0.015]"
+                                  >
+                                    {(() => {
+                                      const editorKey = targetDirectoryEditorKey(profile.profile_id, directory.path);
+                                      const isExpanded = expandedTargetDirectoryEditors[editorKey] ?? false;
+                                      return (
+                                        <div className="flex-1 min-w-0">
+                                          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                                            {directory.label ? (
+                                              <span className="shrink-0 rounded-[4px] bg-primary/10 px-1.5 py-0.5 text-[10px] font-bold text-primary">
+                                                {directory.label}
+                                              </span>
+                                            ) : null}
+                                            <span className="text-[12px] font-bold text-on-surface truncate">
+                                              {directory.path.split(/[\\/]/).pop() || directory.path}
+                                            </span>
+                                            <span className="font-mono text-[10.5px] text-ui-muted/50 truncate max-w-[280px]" title={directory.path}>
+                                              {directory.path}
+                                            </span>
+                                          </div>
+
+                                          {directory.description && (
+                                            <p className="mt-0.5 text-[11px] leading-relaxed text-ui-muted/75 truncate">
+                                              {directory.description}
+                                            </p>
+                                          )}
+
+                                          {isExpanded && (
+                                            <div className="mt-2.5 grid gap-2 border-t border-on-surface/6 pt-2 xl:grid-cols-[180px_minmax(0,1fr)]">
+                                              <input
+                                                value={directory.label || ""}
+                                                onChange={(event) =>
+                                                  updateTargetProfileDraft(profile.profile_id, (current) => ({
+                                                    ...current,
+                                                    directories: current.directories.map((item) => (
+                                                      item.path === directory.path
+                                                        ? { ...item, label: event.target.value }
+                                                        : item
+                                                    )),
+                                                  }))
+                                                }
+                                                className="h-8 rounded-[6px] border border-on-surface/8 bg-surface-container-lowest px-2.5 text-[11px] text-on-surface outline-none transition-colors focus:border-primary/40"
+                                                placeholder="标签（可选）"
+                                              />
+                                              <input
+                                                value={directory.description || ""}
+                                                onChange={(event) =>
+                                                  updateTargetProfileDraft(profile.profile_id, (current) => ({
+                                                    ...current,
+                                                    directories: current.directories.map((item) => (
+                                                      item.path === directory.path
+                                                        ? { ...item, description: event.target.value }
+                                                        : item
+                                                    )),
+                                                  }))
+                                                }
+                                                className="h-8 rounded-[6px] border border-on-surface/8 bg-surface-container-lowest px-2.5 text-[11px] text-on-surface outline-none transition-colors focus:border-primary/40"
+                                                placeholder="目录说明（可选）"
+                                              />
+                                            </div>
+                                          )}
+                                        </div>
+                                      );
+                                    })()}
+
+                                    <div className="flex shrink-0 items-center gap-1.5 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-150">
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          const editorKey = targetDirectoryEditorKey(profile.profile_id, directory.path);
+                                          setExpandedTargetDirectoryEditors((current) => ({
+                                            ...current,
+                                            [editorKey]: !(current[editorKey] ?? false),
+                                          }));
+                                        }}
+                                        disabled={targetProfilesLoading}
+                                        className={cn(
+                                          "rounded-[6px] px-2 py-1 text-[11px] font-bold transition-colors disabled:opacity-50",
+                                          expandedTargetDirectoryEditors[targetDirectoryEditorKey(profile.profile_id, directory.path)]
+                                            ? "bg-primary/10 text-primary"
+                                            : "text-primary hover:bg-primary/5"
+                                        )}
+                                      >
+                                        {expandedTargetDirectoryEditors[targetDirectoryEditorKey(profile.profile_id, directory.path)] ? "收起编辑" : "编辑"}
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => removeDirectoryFromTargetProfile(profile.profile_id, directory.path)}
+                                        disabled={targetProfilesLoading}
+                                        className="rounded-[6px] px-2 py-1 text-[11px] font-bold text-error transition-colors hover:bg-error/5 disabled:opacity-50"
+                                      >
+                                        移除
+                                      </button>
+                                    </div>
+                                  </div>
+                                )) : (
+                                  <div className="rounded-[8px] border border-dashed border-on-surface/10 bg-surface px-3 py-6 text-center text-[12px] font-medium text-ui-muted">
+                                    当前配置中还没有添加任何目录。
+                                  </div>
+                                )}
+                              </div>
                             </div>
                           </div>
                         );
