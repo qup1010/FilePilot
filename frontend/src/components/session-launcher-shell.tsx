@@ -313,8 +313,17 @@ function readActiveWorkspaceTask(): LaunchWorkbenchTask | null {
   if (!route?.startsWith("/workspace")) {
     return null;
   }
-  const query = route.split("?")[1] || "";
-  const sessionId = new URLSearchParams(query).get("session_id");
+  const [pathname, search = ""] = route.split("?");
+  const params = new URLSearchParams(search);
+  const isReadOnly = params.get("readonly") === "1";
+  const isResultView = pathname.includes("/workspace/result") || pathname.includes("/result");
+  const sessionId = params.get("session_id");
+
+  if (isReadOnly || isResultView) {
+    window.localStorage.removeItem(ACTIVE_WORKSPACE_ROUTE_KEY);
+    return null;
+  }
+
   return {
     route,
     sessionId,

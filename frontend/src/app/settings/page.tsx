@@ -237,8 +237,14 @@ function cloneValue<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
 }
 
-function createSecretDraft(initialValue: string = ""): SecretDraft {
-  return { action: "keep", value: initialValue, visible: false };
+function createSecretDraft(initialValue: string = "", isStored?: boolean): SecretDraft {
+  const hasValue = Boolean(initialValue.trim());
+  const stored = hasValue || isStored;
+  return {
+    action: "keep",
+    value: hasValue ? initialValue : (stored ? "********" : ""),
+    visible: false,
+  };
 }
 
 function clampConcurrencyInput(value: string, fallback: number): number {
@@ -332,8 +338,8 @@ function buildSettingsTabFingerprint(
       visionEnabled: Boolean(draft.global_config.IMAGE_ANALYSIS_ENABLED),
       visionMode: getVisionSourceMode(draft.global_config),
       vision: draft.vision,
-      secret: { action: secrets.text.action, value: secrets.text.value },
-      visionSecret: { action: secrets.vision.action, value: secrets.vision.value },
+      secret: { action: secrets.text.action, value: secrets.text.action === "keep" ? "" : secrets.text.value },
+      visionSecret: { action: secrets.vision.action, value: secrets.vision.action === "keep" ? "" : secrets.vision.value },
     });
   }
   if (tabId === "icon_image") {
@@ -341,13 +347,13 @@ function buildSettingsTabFingerprint(
       icon_image: draft.icon_image,
       analysisConcurrencyInput: transientInputs.analysisConcurrencyInput,
       imageConcurrencyInput: transientInputs.imageConcurrencyInput,
-      secret: { action: secrets.icon_image.action, value: secrets.icon_image.value },
+      secret: { action: secrets.icon_image.action, value: secrets.icon_image.action === "keep" ? "" : secrets.icon_image.value },
     });
   }
   if (tabId === "bg_removal") {
     return JSON.stringify({
       bg_removal: draft.bg_removal,
-      secret: { action: secrets.bg_removal.action, value: secrets.bg_removal.value },
+      secret: { action: secrets.bg_removal.action, value: secrets.bg_removal.action === "keep" ? "" : secrets.bg_removal.value },
     });
   }
   if (tabId === "launch") {
@@ -363,10 +369,22 @@ function buildSettingsTabFingerprint(
 
 function createSecretDraftsFromSnapshot(snapshot: SettingsSnapshot): Record<SettingsFamily, SecretDraft> {
   return {
-    text: createSecretDraft(snapshot.families.text.active_preset.OPENAI_API_KEY || ""),
-    vision: createSecretDraft(snapshot.families.vision.active_preset.IMAGE_ANALYSIS_API_KEY || ""),
-    icon_image: createSecretDraft(snapshot.families.icon_image.active_preset.image_model.api_key || ""),
-    bg_removal: createSecretDraft(snapshot.families.bg_removal.active_preset.hf_api_token || ""),
+    text: createSecretDraft(
+      snapshot.families.text.active_preset.OPENAI_API_KEY || "",
+      snapshot.families.text.active_preset.secret_state === "stored"
+    ),
+    vision: createSecretDraft(
+      snapshot.families.vision.active_preset.IMAGE_ANALYSIS_API_KEY || "",
+      snapshot.families.vision.active_preset.secret_state === "stored"
+    ),
+    icon_image: createSecretDraft(
+      snapshot.families.icon_image.active_preset.image_model.api_key || "",
+      snapshot.families.icon_image.active_preset.image_model.secret_state === "stored"
+    ),
+    bg_removal: createSecretDraft(
+      snapshot.families.bg_removal.active_preset.hf_api_token || "",
+      snapshot.families.bg_removal.active_preset.secret_state === "stored"
+    ),
   };
 }
 
@@ -412,10 +430,10 @@ function buildFingerprint(
     draft,
     transientInputs: transientInputs ?? null,
     secrets: {
-      text: { action: secrets.text.action, value: secrets.text.value },
-      vision: { action: secrets.vision.action, value: secrets.vision.value },
-      icon_image: { action: secrets.icon_image.action, value: secrets.icon_image.value },
-      bg_removal: { action: secrets.bg_removal.action, value: secrets.bg_removal.value },
+      text: { action: secrets.text.action, value: secrets.text.action === "keep" ? "" : secrets.text.value },
+      vision: { action: secrets.vision.action, value: secrets.vision.action === "keep" ? "" : secrets.vision.value },
+      icon_image: { action: secrets.icon_image.action, value: secrets.icon_image.action === "keep" ? "" : secrets.icon_image.value },
+      bg_removal: { action: secrets.bg_removal.action, value: secrets.bg_removal.action === "keep" ? "" : secrets.bg_removal.value },
     },
   });
 }
@@ -708,10 +726,10 @@ export default function SettingsPage() {
     const bgKey = nextSnapshot.families.bg_removal.active_preset.hf_api_token || "";
 
     const currentSecrets = {
-      text: createSecretDraft(textKey),
-      vision: createSecretDraft(visionKey),
-      icon_image: createSecretDraft(iconKey),
-      bg_removal: createSecretDraft(bgKey),
+      text: createSecretDraft(textKey, nextSnapshot.families.text.active_preset.secret_state === "stored"),
+      vision: createSecretDraft(visionKey, nextSnapshot.families.vision.active_preset.secret_state === "stored"),
+      icon_image: createSecretDraft(iconKey, nextSnapshot.families.icon_image.active_preset.image_model.secret_state === "stored"),
+      bg_removal: createSecretDraft(bgKey, nextSnapshot.families.bg_removal.active_preset.secret_state === "stored"),
     };
 
     setSnapshot(nextSnapshot);
@@ -1611,6 +1629,7 @@ export default function SettingsPage() {
     state: SecretState,
     secret: SecretDraft,
     setSecret: Dispatch<SetStateAction<SecretDraft>>,
+    family: SettingsFamily,
   ) => (
     <FieldGroup label={label} hint={describeSecret(state, secret)}>
       <InputShell icon={Key} className="group flex items-center gap-2">
@@ -1631,7 +1650,38 @@ export default function SettingsPage() {
         <div className="flex shrink-0 items-center gap-1 pr-1">
           <button
             type="button"
-            onClick={() => setSecret((current) => ({ ...current, visible: !current.visible }))}
+            onClick={async () => {
+              const willBeVisible = !secret.visible;
+              if (willBeVisible && state === "stored" && (secret.value === "" || secret.value === "********")) {
+                try {
+                  const res = await fetch(`${getApiBaseUrl()}/api/settings/runtime/${family}`, {
+                    headers: getApiToken() ? { "Authorization": `Bearer ${getApiToken()}` } : {},
+                  });
+                  if (res.ok) {
+                    const data = await res.json();
+                    let fetchedKey = "";
+                    if (family === "text") {
+                      fetchedKey = data.api_key || "";
+                    } else if (family === "vision") {
+                      fetchedKey = data.api_key || "";
+                    } else if (family === "icon_image") {
+                      fetchedKey = data.image_model?.api_key || "";
+                    } else if (family === "bg_removal") {
+                      fetchedKey = data.api_token || "";
+                    }
+                    setSecret((current) => ({
+                      ...current,
+                      value: fetchedKey,
+                      visible: true,
+                    }));
+                    return;
+                  }
+                } catch (e) {
+                  console.error("Failed to fetch plain secret:", e);
+                }
+              }
+              setSecret((current) => ({ ...current, visible: willBeVisible }));
+            }}
             className="rounded-[6px] p-2 text-on-surface-variant/45 transition-colors hover:bg-surface-container-low hover:text-on-surface"
             title={secret.visible ? "隐藏" : "显示"}
           >
@@ -1853,7 +1903,7 @@ export default function SettingsPage() {
                         <input value={draft.text.OPENAI_BASE_URL} onChange={(event) => updateDraft("text", (current) => ({ ...current, OPENAI_BASE_URL: event.target.value }))} className="w-full bg-transparent py-2 text-sm font-mono font-medium text-on-surface outline-none" placeholder="https://api.openai.com/v1" />
                       </InputShell>
                     </FieldGroup>
-                    <div className="xl:col-span-2">{renderSecretField("接口密钥", draft.text.secret_state, textSecret, setTextSecret)}</div>
+                    <div className="xl:col-span-2">{renderSecretField("接口密钥", draft.text.secret_state, textSecret, setTextSecret, "text")}</div>
                     <ProviderCapabilitySummary
                       title="当前连接方式"
                       kind="text"
@@ -1978,7 +2028,7 @@ export default function SettingsPage() {
                               <input value={draft.vision.IMAGE_ANALYSIS_BASE_URL} onChange={(event) => updateDraft("vision", (current) => ({ ...current, IMAGE_ANALYSIS_BASE_URL: event.target.value }))} className="w-full bg-transparent py-2 text-sm font-mono font-medium text-on-surface outline-none" placeholder="https://host.example/v1" />
                             </InputShell>
                           </FieldGroup>
-                          <div className="xl:col-span-2">{renderSecretField("图片理解密钥", draft.vision.secret_state, visionSecret, setVisionSecret)}</div>
+                          <div className="xl:col-span-2">{renderSecretField("图片理解密钥", draft.vision.secret_state, visionSecret, setVisionSecret, "vision")}</div>
                           <ProviderCapabilitySummary
                             title="当前连接方式"
                             kind="vision"
@@ -2102,7 +2152,7 @@ export default function SettingsPage() {
                         <StrategyOptionButton active={draft.icon_image.save_mode === "in_folder"} label="就地保存" onClick={() => updateDraft("icon_image", (current) => ({ ...current, save_mode: "in_folder" }))} description="处理后资源靠近目标文件夹，适合边做边核对。" />
                       </div>
                     </FieldGroup>
-                    <div className="xl:col-span-2">{renderSecretField("生图接口密钥", draft.icon_image.image_model.secret_state, iconSecret, setIconSecret)}</div>
+                    <div className="xl:col-span-2">{renderSecretField("生图接口密钥", draft.icon_image.image_model.secret_state, iconSecret, setIconSecret, "icon_image")}</div>
                     <div className="xl:col-span-2">{renderConnectionTestPanel("icon_image")}</div>
                   </div>
                 ) : (
@@ -2210,7 +2260,7 @@ export default function SettingsPage() {
                   </div>
                 )}
 
-                {renderSecretField("Hugging Face Token（可选）", draft.bg_removal.custom.secret_state, bgRemovalSecret, setBgRemovalSecret)}
+                {renderSecretField("Hugging Face Token（可选）", draft.bg_removal.custom.secret_state, bgRemovalSecret, setBgRemovalSecret, "bg_removal")}
                 {renderConnectionTestPanel("bg_removal", !desktopReady)}
               </SettingsSection>
             )}
