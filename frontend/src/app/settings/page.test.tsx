@@ -386,7 +386,7 @@ describe("SettingsPage preset flow", () => {
     expect(screen.getByDisplayValue("工作资料库")).toBeInTheDocument();
     expect(screen.getByText("D:/archive/docs")).toBeInTheDocument();
 
-    await user.type(screen.getByPlaceholderText("目标目录完整路径，例如 D:/archive/docs"), "D:/archive/media");
+    await user.type(screen.getByPlaceholderText("目标目录完整路径"), "D:/archive/media");
     const labelInputs = screen.getAllByPlaceholderText("标签（可选）");
     await user.type(labelInputs[labelInputs.length - 1], "媒体");
     await user.click(screen.getByRole("button", { name: "添加目录" }));
