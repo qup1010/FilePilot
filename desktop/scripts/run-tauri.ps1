@@ -105,6 +105,15 @@ if (-not (Get-Command cargo.exe -ErrorAction SilentlyContinue)) {
 
 Import-VsDevEnvironment
 
+# Auto-detect project virtual environment python to prevent execution failure on system default python.
+$projectRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
+$venvPython = Join-Path $projectRoot ".venv\Scripts\python.exe"
+if (Test-Path -LiteralPath $venvPython) {
+    if (-not $env:FILE_PILOT_PYTHON) {
+        $env:FILE_PILOT_PYTHON = $venvPython
+    }
+}
+
 if ($Mode -eq "check-env") {
     Write-Host "cargo: $((Get-Command cargo.exe).Source)"
     Write-Host "cl:    $((Get-Command cl.exe).Source)"

@@ -21,7 +21,10 @@ import {
   FilePlus,
   LogOut,
   ChevronDown,
+  ChevronLeft,
   ShieldAlert,
+  X,
+  Info,
 } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 
@@ -310,8 +313,17 @@ function readActiveWorkspaceTask(): LaunchWorkbenchTask | null {
   if (!route?.startsWith("/workspace")) {
     return null;
   }
-  const query = route.split("?")[1] || "";
-  const sessionId = new URLSearchParams(query).get("session_id");
+  const [pathname, search = ""] = route.split("?");
+  const params = new URLSearchParams(search);
+  const isReadOnly = params.get("readonly") === "1";
+  const isResultView = pathname.includes("/workspace/result") || pathname.includes("/result");
+  const sessionId = params.get("session_id");
+
+  if (isReadOnly || isResultView) {
+    window.localStorage.removeItem(ACTIVE_WORKSPACE_ROUTE_KEY);
+    return null;
+  }
+
   return {
     route,
     sessionId,
@@ -514,6 +526,7 @@ export function SessionLauncherShell() {
   const [sources, setSources] = useState<SessionSourceSelection[]>([]);
   const [sourceImportGroups, setSourceImportGroups] = useState<SourceImportGroup[]>([]);
   const [sourceFeedback, setSourceFeedback] = useState<SourceFeedback | null>(null);
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [sourceDraftType, setSourceDraftType] = useState<SourceDraftType>("directory");
   const [sourceDraftPath, setSourceDraftPath] = useState("");
   const [newDirectoryRoot, setNewDirectoryRoot] = useState("");
@@ -645,6 +658,44 @@ export function SessionLauncherShell() {
       fileCount: sources.length - directoryCount,
     };
   }, [sources]);
+
+  const renderMethodExplanation = () => {
+    const isAssign = organizeMethod === "assign_into_existing_categories";
+    return (
+      <div className="mt-6 rounded-xl border border-on-surface/5 bg-on-surface/[0.01] p-4 space-y-3.5 animate-in fade-in duration-300">
+        <div className="text-[12px] font-bold text-on-surface flex items-center gap-1.5 border-b border-on-surface/[0.04] pb-2">
+          <span className="h-1.5 w-1.5 rounded-full bg-primary" />
+          <span>所选方式整理逻辑</span>
+        </div>
+        {isAssign ? (
+          <div className="space-y-2.5 text-[12px] text-ui-muted leading-relaxed">
+            <p>
+              <strong>工作机制：</strong>扫描来源文件，与您指定的已有目标文件夹（如工作资料库、各项目目录）进行名称和内容的比对分配。
+            </p>
+            <p>
+              <strong>未匹配规则：</strong>如果文件无法明确归入任何目标目录，会被统一放入“待确认区（Review）”，不会强制乱放或自动创建未知文件夹。
+            </p>
+            <p className="text-[11px] font-medium opacity-60">
+              适用场景：已有建立好、边界清晰的分类目录，只需将零乱新文件精准归档入库。
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-2.5 text-[12px] text-ui-muted leading-relaxed">
+            <p>
+              <strong>工作机制：</strong>AI 全自动分析所有文件的主题、类型和关联度，在指定的根目录下为您自动构建多级全新的分类子文件夹。
+            </p>
+            <p>
+              <strong>待确认规则：</strong>无法合理归纳的文件会被归入“待确认区（Review）”目录，不会遗失，方便您后续手动调整。
+            </p>
+            <p className="text-[11px] font-medium opacity-60">
+              适用场景：面临杂乱无章、没有预设分类的大量文件，希望能一键自动生成一套逻辑清晰的新目录结构。
+            </p>
+          </div>
+        )}
+      </div>
+    );
+  };;
+
   const displaySources = useMemo(() => sortSourcesForDisplay(sources), [sources]);
   const sourceImportGroupViews = useMemo(
     () =>
@@ -1161,6 +1212,23 @@ export function SessionLauncherShell() {
     setError(null);
   }
 
+  function handleClearSourcesWithConfirm() {
+    if (showClearConfirm) {
+      clearAllSources();
+      setShowClearConfirm(false);
+    } else {
+      setShowClearConfirm(true);
+    }
+  }
+
+  useEffect(() => {
+    if (!showClearConfirm) return;
+    const timer = setTimeout(() => {
+      setShowClearConfirm(false);
+    }, 3000);
+    return () => clearTimeout(timer);
+  }, [showClearConfirm]);
+
   function addManualSource() {
     const path = sourceDraftPath.trim();
     if (!path) {
@@ -1321,50 +1389,55 @@ export function SessionLauncherShell() {
       <div
         key={sourceSelectionKey(item)}
         className={cn(
-          "group flex items-center justify-between gap-3 rounded-lg border border-on-surface/8 bg-surface-container-lowest px-3 py-2 transition-all hover:border-on-surface/20 active:scale-[0.99]",
+          "group flex items-center justify-between gap-3 transition-all active:scale-[0.995]",
           nested
-            ? "border-on-surface/8 bg-surface px-2.5 py-2"
-            : "border-on-surface/10 bg-surface-container-lowest",
+            ? "rounded-md border border-on-surface/6 bg-surface px-2.5 py-1.5 hover:border-on-surface/16"
+            : "rounded-lg border border-on-surface/8 bg-surface-container-lowest px-3 py-2 hover:border-on-surface/20",
         )}
       >
-        <div className="flex min-w-0 items-start gap-3">
+        <div className="flex min-w-0 items-center gap-2.5">
           <div className={cn(
-            "flex shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary",
-            nested ? "h-9 w-9" : "h-10 w-10",
+            "flex shrink-0 items-center justify-center rounded bg-primary/10 text-primary",
+            nested ? "h-7.5 w-7.5" : "h-8.5 w-8.5",
           )}>
-            {isDirectory ? <FolderOpen className="h-5 w-5" /> : <FileText className="h-5 w-5" />}
+            {isDirectory ? (
+              <FolderOpen className={cn("text-primary", nested ? "h-3.5 w-3.5" : "h-4 w-4")} />
+            ) : (
+              <FileText className={cn("text-primary", nested ? "h-3.5 w-3.5" : "h-4 w-4")} />
+            )}
           </div>
           <div className="min-w-0">
-            <div className={cn("truncate font-black tracking-tight text-on-surface", nested ? "text-[13px]" : "text-[14px]")}>
-              {item.path.split(/[\\/]/).pop() || item.path}
-            </div>
-            <div className="truncate font-mono text-[10.5px] font-medium text-ui-muted opacity-40 uppercase tracking-tighter" title={item.path}>{item.path}</div>
-            <div className="mt-1.5 flex flex-wrap items-center gap-2">
-              <span className="rounded bg-on-surface/5 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-widest text-ui-muted">
+            <div className="flex items-center gap-2">
+              <span className={cn("truncate font-black tracking-tight text-on-surface", nested ? "text-[12.5px]" : "text-[13.5px]")}>
+                {item.path.split(/[\\/]/).pop() || item.path}
+              </span>
+              <span className="shrink-0 rounded bg-on-surface/5 px-1 py-0.2 text-[8px] font-black uppercase tracking-wider text-ui-muted opacity-80 scale-90 origin-left">
                 {getSourceBehaviorLabel(item)}
               </span>
-              <span className="text-[10px] font-bold text-ui-muted opacity-40">{getSourceBehaviorHint(item)}</span>
-              {isDirectory ? (
-                isAtomic ? (
+            </div>
+            <div className="flex items-center gap-1.5 mt-0.5 leading-none">
+              <span className="truncate font-mono text-[9.5px] font-medium text-ui-muted opacity-40 uppercase tracking-tighter max-w-[280px] sm:max-w-[400px]" title={item.path}>
+                {item.path}
+              </span>
+              {isDirectory && (
+                <>
+                  <span className="text-[9px] text-ui-muted opacity-25 select-none">·</span>
                   <button
                     type="button"
                     disabled={loading}
-                    onClick={() => void handleImportFromSource(item)}
-                    className="rounded-[6px] px-2 py-1 text-[10.5px] font-bold text-primary transition-colors hover:bg-primary/8"
+                    onClick={() => {
+                      if (isAtomic) {
+                        void handleImportFromSource(item);
+                      } else {
+                        updateDirectorySourceMode(item.path, "atomic");
+                      }
+                    }}
+                    className="shrink-0 text-[9.5px] font-bold text-primary hover:underline transition-colors leading-none"
                   >
-                    改为导入里面的项
+                    {isAtomic ? "导入内部项" : "改为整体移动"}
                   </button>
-                ) : (
-                  <button
-                    type="button"
-                    disabled={loading}
-                    onClick={() => updateDirectorySourceMode(item.path, "atomic")}
-                    className="rounded-[6px] px-2 py-1 text-[10.5px] font-bold text-primary transition-colors hover:bg-primary/8"
-                  >
-                    改为整体移动
-                  </button>
-                )
-              ) : null}
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -1372,10 +1445,10 @@ export function SessionLauncherShell() {
           type="button"
           onClick={() => removeSource(item.path, item.source_type)}
           disabled={loading}
-          className="shrink-0 rounded-[6px] p-2 text-on-surface-variant/50 transition-colors hover:bg-error/10 hover:text-error opacity-0 group-hover:opacity-100 focus:opacity-100"
+          className="shrink-0 rounded-[4px] p-1.5 text-on-surface-variant/40 transition-colors hover:bg-error/10 hover:text-error opacity-0 group-hover:opacity-100 focus:opacity-100"
           title="移除"
         >
-          <Trash2 className="h-4.5 w-4.5" />
+          <Trash2 className="h-4 w-4" />
         </button>
       </div>
     );
@@ -1740,6 +1813,22 @@ export function SessionLauncherShell() {
     setStep(3);
   }
 
+  function handleStepClick(targetId: 1 | 2 | 3) {
+    if (loading) return;
+    if (targetId === step) return;
+
+    if (targetId < step) {
+      setError(null);
+      setStep(targetId);
+      return;
+    }
+
+    if (!validateStepOne()) return;
+
+    setError(null);
+    setStep(targetId);
+  }
+
   const renderLaunchWorkbench = () => (
     <section className="rounded-lg border border-on-surface/8 bg-surface-container-lowest px-5 py-4">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-on-surface/6 pb-3">
@@ -1841,7 +1930,7 @@ export function SessionLauncherShell() {
                 <Sparkles className="h-4.5 w-4.5" />
               </div>
               <p className="mt-3 text-[13px] font-black text-on-surface tracking-tight">图标工坊</p>
-              <p className="mt-1 text-[11.5px] font-medium leading-relaxed text-ui-muted/60">为新建出来的文件夹智能应用各种精美图标，提升文件视觉辨识度。</p>
+              <p className="mt-1 text-[11.5px] font-medium leading-relaxed text-ui-muted/60">为新建的文件夹匹配并应用图标，提升视觉辨识度。</p>
             </button>
           </div>
         </div>
@@ -1933,33 +2022,47 @@ export function SessionLauncherShell() {
                 ) : null}
               </AnimatePresence>
 
-              {!error && sourceFeedback ? (
-                <div
-                  className={cn(
-                    "mb-6 flex items-start gap-3 rounded-[8px] border px-4 py-3",
-                    sourceFeedback.tone === "success"
-                      ? "border-success/18 bg-success/10 text-success-dim"
-                      : "border-primary/18 bg-primary/8 text-primary",
-                  )}
-                >
-                  <div className={cn(
-                    "mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full",
-                    sourceFeedback.tone === "success" ? "bg-success/12" : "bg-primary/10",
-                  )}>
-                    {sourceFeedback.tone === "success" ? (
-                      <CheckCircle2 className="h-4 w-4" />
-                    ) : (
-                      <Layers3 className="h-4 w-4" />
+              <AnimatePresence>
+                {!error && sourceFeedback ? (
+                  <motion.div
+                    initial={{ opacity: 0, y: 15, scale: 0.98 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 10, scale: 0.98 }}
+                    transition={{ duration: 0.2 }}
+                    className={cn(
+                      "fixed bottom-6 right-6 z-50 flex w-[350px] items-start gap-3 rounded-lg border p-3.5 shadow-[0_8px_32px_rgba(0,0,0,0.12)] backdrop-blur-md pointer-events-auto",
+                      sourceFeedback.tone === "success"
+                        ? "border-success/20 bg-surface/90 dark:bg-surface-container-dark/90 text-on-surface"
+                        : "border-primary/15 bg-surface/90 dark:bg-surface-container-dark/90 text-on-surface",
                     )}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-[13px] font-bold">
-                      {sourceFeedback.tone === "success" ? "来源已更新" : "来源提示"}
-                    </p>
-                    <p className="mt-1 text-[12px] font-medium leading-6">{sourceFeedback.message}</p>
-                  </div>
-                </div>
-              ) : null}
+                  >
+                    <div className={cn(
+                      "mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full",
+                      sourceFeedback.tone === "success" ? "bg-success/10 text-success" : "bg-primary/10 text-primary",
+                    )}>
+                      {sourceFeedback.tone === "success" ? (
+                        <CheckCircle2 className="h-4 w-4" />
+                      ) : (
+                        <Layers3 className="h-4 w-4" />
+                      )}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[12.5px] font-black leading-tight text-on-surface">
+                        {sourceFeedback.tone === "success" ? "来源已更新" : "导入提示"}
+                      </p>
+                      <p className="mt-1.5 text-[11.5px] font-medium leading-relaxed text-ui-muted opacity-80">{sourceFeedback.message}</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setSourceFeedback(null)}
+                      className="p-1 rounded transition-colors active:scale-95 shrink-0 self-start mt-0.5 text-on-surface/40 hover:bg-on-surface/5 hover:text-on-surface"
+                      title="关闭提示"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </motion.div>
+                ) : null}
+              </AnimatePresence>
 
               {!error && fastStartValidationMessage ? (
                 <div className="mb-4">
@@ -1970,44 +2073,38 @@ export function SessionLauncherShell() {
                 </div>
               ) : null}
 
-              {!error && !fastStartValidationMessage && stepThreeValidationMessage ? (
-                <div className="mb-4">
-                  <ErrorAlert
-                    title="继续前请先补全当前信息"
-                    message={stepThreeValidationMessage}
-                  />
-                </div>
-              ) : null}
-
-              {!launchFlowOpen ? renderLaunchWorkbench() : null}
+               {!launchFlowOpen ? renderLaunchWorkbench() : null}
 
               <div hidden={!launchFlowOpen} className={cn("flex flex-col gap-3", !launchFlowOpen && "hidden")}>
-                <div className="flex items-center justify-between rounded-[9px] border border-on-surface/8 bg-surface-container-lowest px-4 py-3">
-                  <div>
-                    <div className="text-[12px] font-bold text-ui-muted/70">新建整理</div>
-                    <h2 className="mt-0.5 text-[17px] font-black tracking-tight text-on-surface">选择来源并开始新的整理任务</h2>
-                  </div>
+                {/* Desktop Native Header & Stepper */}
+                <div className="relative mb-3 flex items-center justify-center border-b border-on-surface/5 pb-4 pt-1 w-full min-h-[44px]">
                   <button
                     type="button"
                     onClick={() => setLaunchFlowOpen(false)}
-                    className="rounded-[7px] border border-on-surface/10 bg-surface px-3 py-1.5 text-[12px] font-bold text-on-surface/70 transition-colors hover:border-primary/20 hover:text-primary"
+                    className="absolute left-0 top-1/2 -translate-y-1/2 flex items-center gap-1 text-[11px] font-black text-ui-muted hover:text-primary hover:bg-primary/5 rounded-[6px] px-2.5 py-1.5 transition-all active:scale-[0.97]"
                   >
-                    返回启动工作台
+                    <ChevronLeft className="h-3.5 w-3.5" />
+                    <span>返回</span>
                   </button>
-                </div>
 
-                {/* Desktop Native Header & Stepper */}
-                <div className="mb-3 flex flex-col items-center border-b border-on-surface/5 pb-4 pt-1">
                   <div className="flex items-center justify-center gap-2">
                     {stepItems.map((item, index) => {
                       const active = step === item.id;
                       const completed = step > item.id;
+
                       return (
                         <div key={item.id} className="flex items-center">
-                          <div className={cn(
-                            "flex items-center gap-2.5 rounded-full px-3 py-1.5 transition-all duration-300",
-                            active ? "bg-primary/10 ring-1 ring-primary/20" : "bg-transparent"
-                          )}>
+                          <button
+                            type="button"
+                            disabled={loading}
+                            onClick={() => handleStepClick(item.id)}
+                            className={cn(
+                              "flex items-center gap-2.5 rounded-full px-3 py-1.5 transition-all duration-300 disabled:opacity-50",
+                              active
+                                ? "bg-primary/10 ring-1 ring-primary/20 cursor-default"
+                                : "bg-transparent hover:bg-on-surface/6 cursor-pointer active:scale-[0.98]"
+                            )}
+                          >
                             <div className={cn(
                               "flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-black transition-all",
                               active
@@ -2019,12 +2116,16 @@ export function SessionLauncherShell() {
                               {completed ? <Check className="h-3 w-3 stroke-[3]" /> : item.id}
                             </div>
                             <span className={cn(
-                              "text-[13px] font-black tracking-tight",
-                              active ? "text-primary" : completed ? "text-on-surface/80" : "text-on-surface/20"
+                              "text-[13px] font-black tracking-tight transition-colors duration-200",
+                              active
+                                ? "text-primary"
+                                : completed
+                                  ? "text-on-surface/80 hover:text-primary"
+                                  : "text-on-surface/40 hover:text-on-surface/70"
                             )}>
                               {item.title}
                             </span>
-                          </div>
+                          </button>
                           {index < stepItems.length - 1 && (
                             <div className="mx-4 flex items-center gap-1 opacity-20">
                               {[1, 2, 3].map(i => <div key={i} className="h-1 w-1 rounded-full bg-on-surface/30" />)}
@@ -2047,19 +2148,21 @@ export function SessionLauncherShell() {
                           </div>
                           <h2 className="text-[14px] font-bold text-on-surface">本次整理对象</h2>
                         </div>
-                        <div className="rounded-[8px] border border-warning/15 bg-warning/[0.035] px-4 py-3 text-warning">
-                          <div className="flex items-start gap-3">
-                            <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-[6px] bg-warning/10">
-                              <ShieldAlert className="h-4 w-4" />
-                            </div>
-                            <div className="min-w-0 flex-1">
-                              <div className="text-[12px] font-black tracking-tight text-on-surface">整理前安全建议</div>
-                              <p className="mt-1 text-[11.5px] font-medium leading-5 text-ui-muted">
-                                推荐从下载、桌面、照片、个人文档等明确资料夹开始。避免直接选择磁盘根目录、系统目录、软件安装目录或正在开发的代码工程。
-                              </p>
+                        {sources.length === 0 && (
+                          <div className="rounded-[8px] border border-warning/15 bg-warning/[0.035] px-4 py-3 text-warning">
+                            <div className="flex items-start gap-3">
+                              <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-[6px] bg-warning/10">
+                                <ShieldAlert className="h-4 w-4" />
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <div className="text-[12px] font-black tracking-tight text-on-surface">整理前安全建议</div>
+                                <p className="mt-1 text-[11.5px] font-medium leading-5 text-ui-muted">
+                                  推荐从下载、桌面、照片、个人文档等明确资料夹开始。避免直接选择磁盘根目录、系统目录、软件安装目录或正在开发的代码工程。
+                                </p>
+                              </div>
                             </div>
                           </div>
-                        </div>
+                        )}
                         {sources.length === 0 ? (
                           <motion.div
                             ref={sourceDropZoneRef}
@@ -2071,10 +2174,21 @@ export function SessionLauncherShell() {
                                 isActive: isDropActive,
                                 isDraggingGlobal,
                                 idleClassName: "border-on-surface/10 bg-on-surface/[0.015] hover:bg-on-surface/[0.03]",
-                                className: "group mt-1 flex flex-col items-center justify-center rounded-[8px] px-6 py-8 text-center",
+                                draggingClassName: "border-primary/30 bg-primary/[0.015]",
+                                activeClassName: "border-primary/45 bg-primary/8 text-primary ring-1 ring-primary/15",
+                                className: "group mt-1 flex flex-col items-center justify-center rounded-[8px] px-6 py-8 text-center transition-all duration-300 relative overflow-hidden",
                               }),
+                              isDropActive && "shadow-lg shadow-primary/10 ring-2 ring-primary/20 border-primary/30 bg-primary/[0.01]"
                             )}
                           >
+                            {isDropActive && (
+                              <DropZoneOverlay
+                                icon={Upload}
+                                title="松手即可添加为整理来源"
+                                detail="支持拖入文件夹或单个文件"
+                                className="inset-0 rounded-[8px]"
+                              />
+                            )}
                             <motion.div
                               animate={{
                                 y: isDropActive ? [-2, 0, -2] : 0,
@@ -2093,7 +2207,7 @@ export function SessionLauncherShell() {
                             )}>
                               {isDropActive ? "松手即可加入这次整理" : "请将想要整理的文件或文件夹拖放到此"}
                             </h3>
-                            <div className={cn("mt-6 flex flex-col items-center gap-3 transition-opacity", isDropActive ? "opacity-20 pointer-events-none" : "opacity-100")}>
+                            <div className={cn("mt-6 flex flex-col items-center gap-3.5 transition-opacity", isDropActive ? "opacity-20 pointer-events-none" : "opacity-100")}>
                               {isDesktopEnvironment ? (
                                 <div className="relative flex flex-col items-center">
                                   <div className="flex items-stretch rounded-[8px] overflow-hidden bg-primary border border-primary/20 shadow-sm transition-all hover:shadow active:scale-[0.99]">
@@ -2149,16 +2263,28 @@ export function SessionLauncherShell() {
                                 </div>
                               ) : (
                                 <div className="flex flex-wrap justify-center gap-3">
-                                  <Button variant="secondary" onClick={() => void handleChooseDirectories()} disabled={loading} className="h-9 rounded-[6px] border border-on-surface/8 bg-surface px-5 text-[12px] font-bold text-on-surface/70 hover:bg-on-surface/[0.04] hover:text-on-surface active:scale-95 transition-all">
+                                  <Button
+                                    variant="secondary"
+                                    onClick={() => void handleChooseDirectories()}
+                                    disabled={loading}
+                                    className="h-9 rounded-[6px] border border-on-surface/8 bg-surface px-5 text-[12px] font-bold text-on-surface/70 hover:bg-on-surface/[0.04] hover:text-on-surface active:scale-95 transition-all"
+                                  >
                                     移动整个文件夹
                                   </Button>
-                                  <Button variant="secondary" onClick={() => void handleChooseFiles()} disabled={loading} className="h-9 rounded-[6px] border border-on-surface/8 bg-surface px-5 text-[12px] font-bold text-on-surface/70 hover:bg-on-surface/[0.04] hover:text-on-surface active:scale-95 transition-all">
+                                  <Button
+                                    variant="secondary"
+                                    onClick={() => void handleChooseFiles()}
+                                    disabled={loading}
+                                    className="h-9 rounded-[6px] border border-on-surface/8 bg-surface px-5 text-[12px] font-bold text-on-surface/70 hover:bg-on-surface/[0.04] hover:text-on-surface active:scale-95 transition-all"
+                                  >
                                     添加单个文件
                                   </Button>
                                 </div>
                               )}
                               <p className="max-w-lg text-[11px] font-medium leading-relaxed text-ui-muted/55 text-center px-4">
-                                {isDesktopEnvironment ? "“整理文件夹内容”会分析并提取其中的文件；您也可以点击右侧下拉菜单，选择移动整个文件夹或添加单个文件。" : "“移动整个文件夹”会保留文件夹结构本身，“添加单个文件”仅整理选中的文件。"}
+                                {isDesktopEnvironment
+                                  ? "“整理文件夹内容”会分析并提取其中的文件；您也可以点击右侧下拉菜单，选择移动整个文件夹或添加单个文件。"
+                                  : "“移动整个文件夹”会保留文件夹结构本身，“添加单个文件”仅整理选中的文件。"}
                               </p>
                               {isDesktopEnvironment && (
                                 <div className="rounded-[6px] border border-on-surface/6 bg-on-surface/[0.015] px-4 py-2 text-[10px] font-mono leading-relaxed text-ui-muted/50 max-w-md text-center mt-1">
@@ -2204,87 +2330,91 @@ export function SessionLauncherShell() {
                           </motion.div>
                         ) : (
                           <div ref={sourceDropZoneRef} className="mt-2 space-y-3">
-                            <div className="flex flex-wrap items-center justify-between gap-3 rounded-[8px] border border-on-surface/8 bg-surface-container-lowest px-3 py-2">
-                              <div className="flex min-w-0 items-center gap-2">
-                                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[7px] bg-primary/10 text-primary">
-                                  <Layers3 className="h-3.5 w-3.5" />
-                                </span>
-                                <div className="min-w-0">
-                                  <p className="text-[12px] font-black tracking-tight text-on-surface">
-                                    已加入 {sourceStats.total} 项
-                                  </p>
-                                  <p className="text-[10.5px] font-medium text-ui-muted/60">
-                                    文件夹已优先显示，方便继续选择是否导入里面的项
-                                  </p>
-                                </div>
-                              </div>
-                              <div className="flex items-center gap-1.5 text-[10.5px] font-black">
-                                <span className="rounded-full border border-on-surface/8 bg-surface px-2 py-1 text-on-surface/65">
-                                  文件夹 {sourceStats.directoryCount}
-                                </span>
-                                <span className="rounded-full border border-on-surface/8 bg-surface px-2 py-1 text-on-surface/65">
-                                  文件 {sourceStats.fileCount}
-                                </span>
-                              </div>
-                            </div>
-
                             <motion.div
                               animate={{
-                                scale: isDropActive ? 1.01 : 1,
+                                scale: isDropActive ? 1.005 : 1,
                               }}
-                            className={cn(
+                              className={cn(
                                 getDropZoneSurfaceClassName({
                                   isActive: isDropActive,
                                   isDraggingGlobal,
-                                  idleClassName: "border-on-surface/8 bg-on-surface/[0.015]",
-                                  className: "group/add-more flex flex-col items-center justify-center gap-2 rounded-[10px] px-4 py-4 text-on-surface",
+                                  idleClassName: "border-on-surface/8 bg-on-surface/[0.01] hover:bg-on-surface/[0.02] border-dashed",
+                                  draggingClassName: "border-primary/25 bg-primary/[0.01]",
+                                  activeClassName: "border-primary/45 bg-primary/8 text-primary ring-1 ring-primary/15",
+                                  className: "group/add-more flex flex-wrap items-center justify-between gap-3 rounded-[8px] px-3 py-1.5 text-on-surface transition-all duration-300 relative overflow-hidden",
                                 }),
+                                isDropActive && "shadow-lg shadow-primary/5 ring-1 ring-primary/10 border-primary/20 bg-primary/[0.01]"
                               )}
                             >
-                              <div className="flex flex-wrap items-center justify-center gap-3">
-                                <div className="flex h-9 w-9 items-center justify-center rounded-[8px] bg-on-surface/[0.03] text-on-surface/25 transition-colors group-hover/add-more:bg-primary/10 group-hover/add-more:text-primary">
-                                  <Plus className="h-4.5 w-4.5" />
-                                </div>
-                                <div className="text-center sm:text-left">
-                                  <p className="text-[13px] font-black text-on-surface/70 transition-colors group-hover/add-more:text-on-surface">
-                                    {isDropActive ? "松手即可继续加入来源" : "继续拖入文件或文件夹"}
-                                  </p>
-                                  <p className="text-[10.5px] font-medium text-ui-muted/50">
-                                    添加入口会保持在列表上方，已加入项可在下方窗口中滑动查看
-                                  </p>
-                                </div>
-                                {isDesktopEnvironment ? (
-                                  <button
-                                    type="button"
-                                    onClick={() => void handleImportDirectoryEntries()}
-                                    disabled={loading}
-                                    className="rounded-[7px] bg-primary/8 px-3 py-1.5 text-[12px] font-black text-primary hover:bg-primary/12 disabled:opacity-40"
-                                  >
-                                    整理文件夹内容
-                                  </button>
-                                ) : null}
-                                <div className="flex flex-wrap items-center justify-center gap-2 text-[12px] font-bold text-on-surface/55">
-                                  <button type="button" disabled={loading} onClick={() => void handleChooseDirectories()} className="rounded-[6px] px-2.5 py-1 text-on-surface/65 hover:bg-on-surface/[0.04] hover:text-on-surface disabled:opacity-40">移动整个文件夹</button>
-                                  <span className="opacity-20">/</span>
-                                  <button type="button" disabled={loading} onClick={() => void handleChooseFiles()} className="rounded-[6px] px-2.5 py-1 text-on-surface/65 hover:bg-on-surface/[0.04] hover:text-on-surface disabled:opacity-40">添加单个文件</button>
-                                </div>
+                              {isDropActive && (
+                                <DropZoneOverlay
+                                  icon={Plus}
+                                  title="松手以追加整理来源"
+                                  detail=""
+                                  className="inset-0 rounded-[8px]"
+                                  panelClassName="flex-row gap-2 py-0"
+                                  iconWrapClassName="h-6 w-6 rounded-[6px]"
+                                  titleClassName="text-[11.5px] font-black tracking-normal"
+                                />
+                              )}
+                              <div className="flex items-center gap-2 min-w-0">
+                                <Plus className={cn("h-4 w-4 shrink-0 transition-colors", isDropActive ? "text-primary animate-pulse" : "text-ui-muted/40 group-hover/add-more:text-primary/70")} />
+                                <span className={cn("text-[11.5px] font-bold truncate", isDropActive ? "text-primary" : "text-ui-muted opacity-55")}>
+                                  {isDropActive ? "松手即可继续加入" : "拖入文件或文件夹以追加来源"}
+                                </span>
                               </div>
-                              <button
-                                type="button"
-                                onClick={() => setShowManualInput(!showManualInput)}
-                                className="text-[11px] font-bold uppercase tracking-wider text-on-surface-variant/30 hover:text-primary transition-colors mt-1"
-                              >
-                                [ 手填路径 ]
-                              </button>
+                              <div className="flex items-center gap-1 text-[11px] font-bold text-on-surface/50">
+                                {isDesktopEnvironment && (
+                                  <>
+                                    <button
+                                      type="button"
+                                      onClick={() => void handleImportDirectoryEntries()}
+                                      disabled={loading}
+                                      className="rounded px-2 py-1 text-primary hover:bg-primary/8 transition-colors disabled:opacity-40"
+                                    >
+                                      整理文件夹内容
+                                    </button>
+                                    <span className="text-on-surface/10 font-normal select-none">|</span>
+                                  </>
+                                )}
+                                <button
+                                  type="button"
+                                  disabled={loading}
+                                  onClick={() => void handleChooseDirectories()}
+                                  className="rounded px-2 py-1 hover:bg-on-surface/[0.04] hover:text-on-surface transition-colors disabled:opacity-40"
+                                >
+                                  移动文件夹
+                                </button>
+                                <span className="text-on-surface/10 font-normal select-none">|</span>
+                                <button
+                                  type="button"
+                                  disabled={loading}
+                                  onClick={() => void handleChooseFiles()}
+                                  className="rounded px-2 py-1 hover:bg-on-surface/[0.04] hover:text-on-surface transition-colors disabled:opacity-40"
+                                >
+                                  单个文件
+                                </button>
+                                <span className="text-on-surface/10 font-normal select-none">|</span>
+                                <button
+                                  type="button"
+                                  onClick={() => setShowManualInput(!showManualInput)}
+                                  className={cn("rounded px-2 py-1 transition-colors", showManualInput ? "text-primary bg-primary/5" : "hover:bg-on-surface/[0.04] hover:text-on-surface")}
+                                >
+                                  手填路径
+                                </button>
+                              </div>
                             </motion.div>
 
                             <div className="overflow-hidden rounded-[10px] border border-on-surface/8 bg-surface-container-lowest">
-                              <div className="flex items-center justify-between border-b border-on-surface/6 px-3 py-2">
-                              <div className="flex items-center gap-2">
+                              <div className="flex items-center justify-between border-b border-on-surface/6 px-3 py-2 bg-on-surface/[0.015]">
+                                <div className="flex items-center gap-2">
                                   <span className="flex h-6 w-6 items-center justify-center rounded-[6px] bg-on-surface/5 text-primary">
                                     <ListTree className="h-3.5 w-3.5" />
                                   </span>
-                                  <span className="text-[11px] font-black tracking-widest text-ui-muted">已加入来源</span>
+                                  <span className="text-[11px] font-black tracking-widest text-ui-muted flex items-center gap-1.5">
+                                    <span>已加入来源</span>
+                                    <span className="text-[10px] font-medium text-ui-muted opacity-50 tracking-normal font-sans">（文件夹已优先置顶显示）</span>
+                                  </span>
                                 </div>
                                 <div className="flex items-center gap-2">
                                   <span className="text-[10.5px] font-bold text-ui-muted/55">
@@ -2292,13 +2422,18 @@ export function SessionLauncherShell() {
                                   </span>
                                   <button
                                     type="button"
-                                    onClick={clearAllSources}
+                                    onClick={handleClearSourcesWithConfirm}
                                     disabled={loading || sources.length === 0}
-                                    className="inline-flex items-center gap-1 rounded-[6px] border border-on-surface/8 bg-surface px-2.5 py-1 text-[10.5px] font-bold text-on-surface/55 transition-colors hover:border-error/20 hover:bg-error/5 hover:text-error disabled:opacity-40"
-                                    title="一键清空当前来源列表"
+                                    className={cn(
+                                      "inline-flex items-center gap-1 rounded-[6px] border px-2.5 py-1 text-[10.5px] font-bold transition-all disabled:opacity-40",
+                                      showClearConfirm
+                                        ? "border-error/30 bg-error/10 text-error animate-pulse"
+                                        : "border-on-surface/8 bg-surface text-on-surface/55 hover:border-error/20 hover:bg-error/5 hover:text-error"
+                                    )}
+                                    title={showClearConfirm ? "再次点击以确认清空" : "一键清空当前来源列表"}
                                   >
                                     <Trash2 className="h-3.5 w-3.5" />
-                                    清空来源
+                                    {showClearConfirm ? "确认清空？" : "清空来源"}
                                   </button>
                                 </div>
                               </div>
@@ -2320,46 +2455,47 @@ export function SessionLauncherShell() {
                                         return null;
                                       }
                                       renderedGroupIds.add(group.group_id);
-                                      const previewItems = group.expanded ? group.items : group.items.slice(0, IMPORT_GROUP_PREVIEW_LIMIT);
-                                      const remainingCount = group.items.length - previewItems.length;
                                       return (
                                         <div key={group.group_id} className="rounded-xl border border-primary/20 bg-primary/[0.04] p-3 text-on-surface/80">
-                                          <div className="flex items-start justify-between gap-3">
-                                            <div className="min-w-0">
-                                              <div className="flex items-center gap-2">
-                                                <Layers3 className="h-4 w-4 text-primary/70" />
-                                                <p className="text-[13px] font-black tracking-tight text-on-surface">
-                                                  已从 {group.source_path.split(/[\\/]/).pop()} 导入 {group.items.length} 项
+                                          <div
+                                            onClick={() => toggleImportGroupExpanded(group.group_id)}
+                                            className="flex items-start justify-between gap-3 cursor-pointer hover:bg-primary/[0.03] -m-2 p-2 rounded-lg transition-colors select-none"
+                                          >
+                                            <div className="min-w-0 flex items-start gap-2">
+                                              <div className="mt-1 shrink-0 flex items-center justify-center">
+                                                <ChevronDown className={cn("h-4 w-4 text-primary/70 transition-transform duration-200", !group.expanded && "-rotate-90")} />
+                                              </div>
+                                              <div className="min-w-0">
+                                                <div className="flex items-center gap-2">
+                                                  <Layers3 className="h-4 w-4 text-primary/70 shrink-0" />
+                                                  <p className="text-[13px] font-black tracking-tight text-on-surface">
+                                                    已从 {group.source_path.split(/[\\/]/).pop()} 导入 {group.items.length} 项
+                                                  </p>
+                                                </div>
+                                                <p className="mt-1 truncate font-mono text-[10px] font-bold text-ui-muted opacity-40 uppercase tracking-widest">
+                                                  批量导入 · {group.source_path}
                                                 </p>
                                               </div>
-                                              <p className="mt-1 truncate font-mono text-[10px] font-bold text-ui-muted opacity-40 uppercase tracking-widest">
-                                                批量导入 · {group.source_path}
-                                              </p>
                                             </div>
                                             <div className="flex shrink-0 items-center gap-1.5">
-                                              {remainingCount > 0 ? (
-                                                <button
-                                                  type="button"
-                                                  disabled={loading}
-                                                  onClick={() => toggleImportGroupExpanded(group.group_id)}
-                                                  className="rounded-[6px] px-2 py-1 text-[10.5px] font-bold text-primary transition-colors hover:bg-primary/8"
-                                                >
-                                                  {group.expanded ? "收起" : `展开其余 ${remainingCount} 项`}
-                                                </button>
-                                              ) : null}
                                               <button
                                                 type="button"
                                                 disabled={loading}
-                                                onClick={() => removeImportGroup(group.group_id)}
-                                                className="rounded-[6px] px-2 py-1 text-[10.5px] font-bold text-error transition-colors hover:bg-error/10"
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  removeImportGroup(group.group_id);
+                                                }}
+                                                className="rounded-[6px] px-2.5 py-1.5 text-[10.5px] font-bold text-ui-muted/55 transition-colors hover:bg-error/10 hover:text-error"
                                               >
                                                 移除整组
                                               </button>
                                             </div>
                                           </div>
-                                          <div className="mt-3 grid gap-2">
-                                            {previewItems.map((groupItem) => renderSourceRow(groupItem, { nested: true }))}
-                                          </div>
+                                          {group.expanded && (
+                                            <div className="mt-3 grid gap-2 border-t border-primary/10 pt-3">
+                                              {group.items.map((groupItem) => renderSourceRow(groupItem, { nested: true }))}
+                                            </div>
+                                          )}
                                         </div>
                                       );
                                     });
@@ -2423,19 +2559,19 @@ export function SessionLauncherShell() {
                           <div className="flex h-6 w-6 items-center justify-center rounded-[4px] bg-primary/10 text-primary">
                             <Sparkles className="h-3.5 w-3.5" />
                           </div>
-                          <h2 className="text-[14px] font-bold text-on-surface">整理方式配置</h2>
+                          <h2 className="text-[14px] font-bold text-on-surface">选择整理方式</h2>
                         </div>
                         <div className="grid gap-4 md:grid-cols-2">
                           {[
                             {
                               method: "assign_into_existing_categories" as const,
                               title: "归入现有目录",
-                              description: "把这批内容归入你已经选定的现有目录池；拿不准的项目会进入待确认区（不会自动归入目标目录）。",
+                              description: "根据文件名和内容，分配到您指定的文件夹中。",
                             },
                             {
                               method: "categorize_into_new_structure" as const,
-                              title: "生成新的分类结构",
-                              description: "为这批内容生成一套新的目录结构，再写入你指定的新目录生成位置。",
+                              title: "生成新分类结构",
+                              description: "让 AI 根据文件自动生成新的多级文件夹并分类存放。",
                             },
                           ].map((option) => {
                             const active = organizeMethod === option.method;
@@ -2446,134 +2582,136 @@ export function SessionLauncherShell() {
                                 disabled={loading}
                                 onClick={() => updateStrategy((previous) => strategyForMethod(previous, option.method))}
                                 className={cn(
-                                  "rounded-xl border-2 px-4 py-4 text-left transition-all active:scale-[0.98] disabled:opacity-50",
+                                  "group rounded-xl border-2 px-4 py-4 text-left transition-all duration-300 active:scale-[0.98] disabled:opacity-50 hover:-translate-y-0.5",
                                   active
-                                    ? "border-primary/40 bg-primary/5 ring-1 ring-primary/10"
-                                    : "border-on-surface/8 bg-surface-container-lowest hover:border-primary/20",
+                                    ? "border-primary/40 bg-primary/[0.03] ring-1 ring-primary/10 shadow-[0_0_12px_rgba(59,130,246,0.06)]"
+                                    : "border-on-surface/8 bg-surface-container-lowest hover:border-primary/20 hover:bg-surface hover:shadow-sm",
                                 )}
                               >
                                 <div className="flex items-center justify-between gap-3">
-                                  <p className={cn("text-[14.5px] font-black tracking-tight", active ? "text-primary" : "text-on-surface/80")}>{option.title}</p>
-                                  {active ? <Sparkles className="h-4 w-4 text-primary" /> : null}
+                                  <p className={cn("text-[14px] font-bold tracking-tight", active ? "text-primary" : "text-on-surface/80")}>
+                                    {option.title}
+                                  </p>
+                                  <div className={cn(
+                                    "flex items-center gap-1.5 rounded-[6px] border px-2 py-0.5 text-[11px] font-medium transition-all duration-300 shrink-0",
+                                    active
+                                      ? "border-primary/20 bg-primary/10 text-primary"
+                                      : "border-on-surface/5 bg-on-surface/[0.02] text-on-surface-variant/40 group-hover:border-on-surface/10 group-hover:text-on-surface-variant/60"
+                                  )}>
+                                    {option.method === "assign_into_existing_categories" ? (
+                                      <>
+                                        <FileText className="h-3 w-3 shrink-0" />
+                                        <span className="text-[9px] font-bold opacity-40">→</span>
+                                        <FolderOpen className={cn("h-3 w-3 shrink-0", active ? "text-primary" : "text-on-surface-variant/50")} />
+                                      </>
+                                    ) : (
+                                      <>
+                                        <FolderOpen className="h-3 w-3 shrink-0" />
+                                        <span className="text-[9px] font-bold opacity-40">→</span>
+                                        <ListTree className={cn("h-3 w-3 shrink-0", active ? "text-primary" : "text-on-surface-variant/50")} />
+                                      </>
+                                    )}
+                                  </div>
                                 </div>
                                 <p className="mt-2 text-[12px] font-medium leading-relaxed text-ui-muted opacity-60">{option.description}</p>
                               </button>
                             );
-                          })}                      </div>
+                          })}
+                        </div>
+                        {renderMethodExplanation()}
                       </div>
                     ) : null}
 
                     {step === 3 ? (
                       <div className="space-y-5 animate-in fade-in slide-in-from-bottom-2 duration-300">
                         <div className="space-y-3">
-                          <div className="flex items-center justify-between gap-3 border-b border-on-surface/10 pb-3">
-                            <div className="flex items-center gap-2">
-                              <div className="flex h-6 w-6 items-center justify-center rounded-[4px] bg-primary/10 text-primary">
-                                <FolderOpen className="h-3.5 w-3.5" />
-                              </div>
-                              <h2 className="text-[14px] font-bold text-on-surface">本次任务默认放置规则</h2>
+                          <div className="flex items-center gap-2 border-b border-on-surface/10 pb-3">
+                            <div className="flex h-6 w-6 items-center justify-center rounded-[4px] bg-primary/10 text-primary">
+                              <FolderOpen className="h-3.5 w-3.5" />
                             </div>
-                            <button
-                              type="button"
-                              onClick={() => setShowPlacementOverrides((current) => !current)}
-                              className="rounded-[6px] border border-on-surface/8 bg-surface px-3 py-1.5 text-[11px] font-bold text-on-surface transition-colors hover:border-primary/20 hover:text-primary"
-                            >
-                              {showPlacementOverrides ? "收起" : "修改放置规则"}
-                            </button>
+                            <h2 className="text-[14px] font-bold text-on-surface">默认放置规则</h2>
                           </div>
-                          <div className="grid gap-3 md:grid-cols-2">
-                            <div className="rounded-[8px] bg-surface-container-lowest px-3 py-3">
-                              <div className="mb-1 text-[11px] font-bold text-on-surface">
-                                {isAssignExisting ? "未归类条目的默认放置根" : "新目录将默认生成到"}
+
+                          <div className="grid gap-4 md:grid-cols-2">
+                            <div className="rounded-[8px] border border-on-surface/8 bg-surface-container-lowest p-3.5 transition-all focus-within:border-primary/30">
+                              <div className="mb-2 text-[12px] font-bold text-on-surface">
+                                {isAssignExisting ? "未匹配条目默认根路径" : "新目录生成位置"}
                               </div>
-                              <div className="break-all text-[12px] font-medium text-ui-muted">{effectiveNewDirectoryRoot || "尚未确定"}</div>
+                              <div className="flex gap-2">
+                                <input
+                                  value={newDirectoryRoot}
+                                  onChange={(event) => setNewDirectoryRoot(event.target.value)}
+                                  disabled={loading}
+                                  placeholder={placementConfig.defaultNewDirectoryRoot || (isFullCategorize ? "新目录生成路径" : "当前任务工作区")}
+                                  className="h-9 flex-1 rounded-[6px] border border-transparent bg-on-surface/[0.03] px-2.5 text-[12.5px] font-medium text-on-surface outline-none transition-all placeholder:text-on-surface-variant/35 focus:border-primary/30 focus:bg-surface focus:ring-2 focus:ring-primary/5"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => void handleSelectPlacementRoot("new")}
+                                  disabled={loading}
+                                  className="h-9 rounded-[6px] border border-on-surface/8 bg-surface px-3 text-[11.5px] font-bold text-on-surface transition-colors hover:border-primary/20 hover:text-primary disabled:opacity-50"
+                                >
+                                  选择目录
+                                </button>
+                              </div>
+                              <p className="mt-2 text-[10.5px] font-medium leading-relaxed text-ui-muted opacity-80">
+                                {isAssignExisting
+                                  ? "用于存放未匹配的条目。留空时使用系统默认放置规则。"
+                                  : "留空时使用系统默认放置规则（任务启动根目录）。"}
+                              </p>
                             </div>
-                            <div className="rounded-[8px] bg-surface-container-lowest px-3 py-3">
-                              <div className="mb-1 text-[11px] font-bold text-on-surface">待确认区（不会自动归入目标目录）</div>
-                              <div className="break-all text-[12px] font-medium text-ui-muted">{effectiveReviewRoot || "尚未确定"}</div>
+
+                            <div className="rounded-[8px] border border-on-surface/8 bg-surface-container-lowest p-3.5 transition-all focus-within:border-primary/30">
+                              <div className="mb-2 flex items-center justify-between gap-3">
+                                <div className="text-[12px] font-bold text-on-surface">待确认区路径</div>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setReviewFollowsNewRoot((current) => {
+                                      const next = !current;
+                                      if (next) setReviewRoot("");
+                                      return next;
+                                    });
+                                  }}
+                                  className={[
+                                    "rounded-full border px-2.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.1em] transition-colors",
+                                    reviewFollowsNewRoot
+                                      ? "border-primary/20 bg-primary/10 text-primary"
+                                      : "border-on-surface/8 bg-surface text-ui-muted",
+                                  ].join(" ")}
+                                >
+                                  {reviewFollowsNewRoot ? "跟随新目录" : "独立设置"}
+                                </button>
+                              </div>
+                              <div className="flex gap-2">
+                                <input
+                                  value={reviewFollowsNewRoot ? "" : reviewRoot}
+                                  onChange={(event) => {
+                                    setReviewRoot(event.target.value);
+                                    setReviewFollowsNewRoot(false);
+                                  }}
+                                  disabled={loading || reviewFollowsNewRoot}
+                                  placeholder={reviewFollowsNewRoot ? derivedReviewRoot || "跟随新目录路径自动生成" : placementConfig.globalReviewRoot || derivedReviewRoot || "独立指定待确认区路径"}
+                                  className="h-9 flex-1 rounded-[6px] border border-transparent bg-on-surface/[0.03] px-2.5 text-[12.5px] font-medium text-on-surface outline-none transition-all placeholder:text-on-surface-variant/35 focus:border-primary/30 focus:bg-surface focus:ring-2 focus:ring-primary/5 disabled:opacity-60"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => void handleSelectPlacementRoot("review")}
+                                  disabled={loading || reviewFollowsNewRoot}
+                                  className="h-9 rounded-[6px] border border-on-surface/8 bg-surface px-3 text-[11.5px] font-bold text-on-surface transition-colors hover:border-primary/20 hover:text-primary disabled:opacity-50"
+                                >
+                                  选择目录
+                                </button>
+                              </div>
+                              <p className="mt-2 text-[10.5px] font-medium leading-relaxed text-ui-muted opacity-80">
+                                默认跟随新目录根路径生成 Review 子目录，不再创建更深层级的目录结构。
+                              </p>
                             </div>
                           </div>
-                          {showPlacementOverrides ? (
-                            <div className="mt-4 grid gap-4 xl:grid-cols-2">
-                              <div className="rounded-[8px] border border-on-surface/8 bg-surface-container-lowest p-4">
-                                <div className="mb-3 text-[12px] font-bold text-on-surface">
-                                  {isAssignExisting ? "未归类条目的默认放置根" : "新目录生成位置"}
-                                </div>
-                                <div className="flex gap-3">
-                                  <input
-                                    value={newDirectoryRoot}
-                                    onChange={(event) => setNewDirectoryRoot(event.target.value)}
-                                    disabled={loading}
-                                    placeholder={placementConfig.defaultNewDirectoryRoot || (isFullCategorize ? "默认使用本次新目录生成位置" : "默认使用当前任务工作区")}
-                                    className="h-10 flex-1 rounded-[8px] border border-transparent bg-on-surface/[0.03] px-3 text-[13px] font-medium text-on-surface outline-none transition-all placeholder:text-on-surface-variant/35 focus:border-primary/40 focus:bg-surface focus:ring-4 focus:ring-primary/10"
-                                  />
-                                  <button
-                                    type="button"
-                                    onClick={() => void handleSelectPlacementRoot("new")}
-                                    disabled={loading}
-                                    className="h-10 rounded-[8px] border border-on-surface/8 bg-surface px-4 text-[12px] font-bold text-on-surface transition-colors hover:border-primary/20 hover:text-primary disabled:opacity-50"
-                                  >
-                                    选择目录
-                                  </button>
-                                </div>
-                                <p className="mt-2 text-[11px] font-medium text-ui-muted">
-                                  {isAssignExisting
-                                    ? "归入已有目录不会自动创建未知目标目录；这个位置只用于推导待确认区（不会自动归入目标目录）的默认跟随路径。留空时会先使用设置页默认值；如果设置页也为空，就按当前任务类型自动推导。"
-                                    : "留空时会先使用设置页默认值；如果设置页也为空，就按当前任务类型自动推导。"}
-                                </p>
-                              </div>
-                              <div className="rounded-[8px] border border-on-surface/8 bg-surface-container-lowest p-4">
-                                <div className="mb-3 flex items-center justify-between gap-3">
-                                  <div className="text-[12px] font-bold text-on-surface">待确认区位置</div>
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setReviewFollowsNewRoot((current) => {
-                                        const next = !current;
-                                        if (next) setReviewRoot("");
-                                        return next;
-                                      });
-                                    }}
-                                    className={[
-                                      "rounded-full border px-3 py-1 text-[10px] font-bold uppercase tracking-[0.12em] transition-colors",
-                                      reviewFollowsNewRoot
-                                        ? "border-primary/20 bg-primary/10 text-primary"
-                                        : "border-on-surface/8 bg-surface text-ui-muted",
-                                    ].join(" ")}
-                                  >
-                                    {reviewFollowsNewRoot ? "跟随新目录位置" : "独立设置"}
-                                  </button>
-                                </div>
-                                <div className="flex gap-3">
-                                  <input
-                                    value={reviewFollowsNewRoot ? "" : reviewRoot}
-                                    onChange={(event) => {
-                                      setReviewRoot(event.target.value);
-                                      setReviewFollowsNewRoot(false);
-                                    }}
-                                    disabled={loading || reviewFollowsNewRoot}
-                                    placeholder={reviewFollowsNewRoot ? derivedReviewRoot || "会跟随新目录位置自动生成" : placementConfig.globalReviewRoot || derivedReviewRoot || "单独设置待确认区位置"}
-                                    className="h-10 flex-1 rounded-[8px] border border-transparent bg-on-surface/[0.03] px-3 text-[13px] font-medium text-on-surface outline-none transition-all placeholder:text-on-surface-variant/35 focus:border-primary/40 focus:bg-surface focus:ring-4 focus:ring-primary/10 disabled:opacity-60"
-                                  />
-                                  <button
-                                    type="button"
-                                    onClick={() => void handleSelectPlacementRoot("review")}
-                                    disabled={loading || reviewFollowsNewRoot}
-                                    className="h-10 rounded-[8px] border border-on-surface/8 bg-surface px-4 text-[12px] font-bold text-on-surface transition-colors hover:border-primary/20 hover:text-primary disabled:opacity-50"
-                                  >
-                                    选择目录
-                                  </button>
-                                </div>
-                                <p className="mt-2 text-[11px] font-medium text-ui-muted">
-                                  默认情况下，待确认区会跟随新目录根路径，自动使用 `{derivedReviewRoot || "新目录位置/Review"}`；这里不会继续生成子目录。
-                                </p>
-                              </div>
-                            </div>
-                          ) : null}
                         </div>
 
                         {isAssignExisting ? (
-                          <div 
+                          <div
                             ref={targetDropZoneRef}
                             onDrop={handleTargetDrop}
                             onDragOver={handleTargetDragOver}
@@ -2582,7 +2720,9 @@ export function SessionLauncherShell() {
                               isActive: isTargetDropActive,
                               isDraggingGlobal,
                               idleClassName: "border-on-surface/8 bg-surface",
-                              className: "relative overflow-hidden rounded-[8px] p-4",
+                              draggingClassName: "border-success/30 bg-success/[0.015]",
+                              activeClassName: "border-success/45 bg-success/8 text-success ring-1 ring-success/15",
+                              className: "relative overflow-hidden rounded-[8px] p-4 transition-all duration-300",
                             })}
                           >
                             {isTargetDropActive && (
@@ -2591,6 +2731,7 @@ export function SessionLauncherShell() {
                                 title="松手即可添加为目标候选"
                                 detail="这里只接受文件夹，文件会被自动忽略"
                                 className="inset-0 rounded-[8px]"
+                                tone="success"
                               />
                             )}
                             <div className="mb-2 flex items-center justify-between gap-3">
@@ -2602,6 +2743,16 @@ export function SessionLauncherShell() {
                               </div>
                               {targetProfilesLoading ? <Loader2 className="h-4 w-4 animate-spin text-primary" /> : null}
                             </div>
+
+                            {isAssignExisting && effectiveTargetDirectories.length === 0 && !selectedTargetProfileId.trim() && (
+                              <div className="mb-4 rounded-[8px] border border-primary/15 bg-primary/[0.02] p-3 text-[11.5px] font-medium leading-relaxed text-on-surface-variant flex items-start gap-2 animate-in fade-in slide-in-from-top-1 duration-200">
+                                <Info className="h-4 w-4 shrink-0 text-primary mt-0.5" />
+                                <div>
+                                  <span className="font-bold text-on-surface">需要目标目录：</span>
+                                  当前选择的整理方式需要至少一个目标目录。请选择一个已有目录配置，或在下方添加/拖入目标文件夹。
+                                </div>
+                              </div>
+                            )}
 
                             <div className="mb-4">
                               <div className="mb-2 text-[10px] font-bold uppercase tracking-[0.15em] text-ui-muted">已有目录配置</div>
@@ -2799,40 +2950,214 @@ export function SessionLauncherShell() {
                           </div>
                         ) : null}
 
-                        <div className="space-y-3 pt-2">
-                          <div className="flex items-start justify-between gap-4 border-b border-on-surface/10 pb-2">
-                            <div className="min-w-0">
-                              <h2 className="text-[14px] font-bold text-on-surface">高级设置</h2>
-                              <p className="mt-1 text-[11px] font-medium leading-relaxed text-ui-muted">
-                                若需微调模板、生成语言、分类粒度等参数。
-                              </p>
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => setAdvancedSettingsDialogOpen(true)}
-                              className="shrink-0 rounded-[6px] border border-on-surface/10 bg-surface px-4 py-1.5 text-[12px] font-bold text-on-surface transition-colors hover:border-primary/20 hover:text-primary"
-                            >
-                              打开高级设置
-                            </button>
-                          </div>
-                        </div>
+                        <div className="grid gap-4 md:grid-cols-2">
+                          {isFullCategorize ? (
+                            <>
+                              {/* 分类控制参数 */}
+                              <div className="rounded-[8px] bg-surface-container-lowest p-4 flex flex-col justify-between min-h-[160px] border border-on-surface/5">
+                                <div className="space-y-3.5">
+                                  <div className="flex items-center justify-between">
+                                    <h2 className="text-[13px] font-bold text-on-surface flex items-center gap-1.5">
+                                      <Sparkles className="h-3.5 w-3.5 text-primary" />
+                                      分类控制参数
+                                    </h2>
+                                  </div>
 
-                        {isFullCategorize ? (
-                          <div className="rounded-[8px] bg-surface-container-lowest px-4 py-4 mt-2">
-                            <div className="mb-3 text-[14px] font-bold text-on-surface">预计生成以下分类</div>
-                            <div className="flex flex-wrap gap-1.5">
-                              {currentSummary.preview_directories?.map((directory) => (
-                                <span
-                                  key={`${strategy.template_id}-${strategy.language}-${strategy.density}-${strategy.prefix_style}-${directory}`}
-                                  className="rounded-[6px] border border-on-surface/10 bg-primary/5 text-primary px-3 py-1 text-[12px] font-semibold"
-                                >
-                                  {directory}
-                                </span>
-                              ))}
-                            </div>
-                            <p className="mt-3 text-[12px] font-medium leading-relaxed text-ui-muted">{currentTemplate.description}</p>
-                          </div>
-                        ) : null}
+                                  <div className="grid grid-cols-2 gap-3">
+                                    {/* 分类模板 */}
+                                    <div className="space-y-1">
+                                      <div className="text-[11px] font-bold text-on-surface/60">分类模板</div>
+                                      <select
+                                        value={strategy.template_id}
+                                        onChange={(event) => {
+                                          const tid = event.target.value as any;
+                                          updateStrategy((previous) => ({
+                                            ...previous,
+                                            template_id: tid,
+                                            ...getSuggestedSelection(tid),
+                                          }));
+                                        }}
+                                        disabled={loading}
+                                        className="h-8.5 w-full rounded-[6px] border border-on-surface/8 bg-surface px-2 text-[12px] font-medium text-on-surface outline-none transition-all focus:border-primary/45 focus:ring-2 focus:ring-primary/5"
+                                      >
+                                        {STRATEGY_TEMPLATES.map((template) => (
+                                          <option key={template.id} value={template.id}>
+                                            {template.label}
+                                          </option>
+                                        ))}
+                                      </select>
+                                    </div>
+
+                                    {/* 目录语言 */}
+                                    <div className="space-y-1">
+                                      <div className="text-[11px] font-bold text-on-surface/60">目录语言</div>
+                                      <div className="flex h-8.5 rounded-[6px] border border-on-surface/8 bg-surface p-0.5 items-center">
+                                        {LANGUAGE_OPTIONS.map((option) => {
+                                          const active = strategy.language === option.id;
+                                          return (
+                                            <button
+                                              key={option.id}
+                                              type="button"
+                                              onClick={() => updateStrategy((prev) => ({ ...prev, language: option.id }))}
+                                              className={cn(
+                                                "flex-1 rounded-[4px] h-full text-[12px] transition-all",
+                                                active
+                                                  ? "bg-primary/10 text-primary font-semibold"
+                                                  : "text-on-surface/60 font-medium hover:text-on-surface"
+                                              )}
+                                            >
+                                              {option.label.replace("目录", "")}
+                                            </button>
+                                          );
+                                        })}
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  {/* 前缀样式 */}
+                                  <div className="space-y-1">
+                                    <div className="text-[11px] font-bold text-on-surface/60">前缀样式</div>
+                                    <select
+                                      value={strategy.prefix_style}
+                                      onChange={(event) => updateStrategy((prev) => ({ ...prev, prefix_style: event.target.value as any }))}
+                                      className="h-8.5 w-full rounded-[6px] border border-on-surface/8 bg-surface px-2.5 text-[12px] font-medium text-on-surface outline-none transition-all focus:border-primary/45 focus:ring-2 focus:ring-primary/5"
+                                    >
+                                      {PREFIX_STYLE_OPTIONS.map((option) => (
+                                        <option key={option.id} value={option.id}>
+                                          {option.label}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  </div>
+                                </div>
+
+                                <div className="mt-3.5 flex justify-between items-center border-t border-on-surface/5 pt-2">
+                                  <span className="text-[11px] text-on-surface/40 font-medium">微调更多细节？</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => setAdvancedSettingsDialogOpen(true)}
+                                    className="text-[11px] font-bold text-primary hover:underline underline-offset-2"
+                                  >
+                                    更多高级参数...
+                                  </button>
+                                </div>
+                              </div>
+
+                              {/* 分类样式示例 */}
+                              <div className="rounded-[8px] bg-surface-container-lowest p-4 flex flex-col justify-between min-h-[220px] border border-on-surface/5">
+                                <div className="space-y-3">
+                                  <div className="text-[13px] font-black text-on-surface">分类样式示例</div>
+
+                                  {/* 极简模拟树状图面板 */}
+                                  <div className="rounded-[6px] border border-on-surface/8 bg-surface p-3 font-mono text-[11px] text-on-surface/80 max-h-[140px] overflow-y-auto scrollbar-thin space-y-2">
+                                    {/* 根目录节点 */}
+                                    <div className="flex items-center gap-1.5 text-on-surface-variant/70 font-semibold truncate border-b border-on-surface/5 pb-2">
+                                      <FolderOpen className="h-3.5 w-3.5 text-primary/60 shrink-0" />
+                                      <span className="truncate" title={newDirectoryRoot || "D:/Desktop/毕业/毕业答辩PPT"}>
+                                        {newDirectoryRoot || "D:/Desktop/毕业/毕业答辩PPT"}
+                                      </span>
+                                    </div>
+
+                                    {/* 子树节点 */}
+                                    <div className="pl-1.5 space-y-2 pt-0.5">
+                                      {currentSummary.preview_directories?.map((directory, idx, arr) => {
+                                        const isLastDir = idx === arr.length - 1;
+
+                                        // 智能模拟子文件类型
+                                        let mockFile = "相关文档.docx";
+                                        if (directory.includes("票") || directory.includes("账") || directory.includes("财")) {
+                                          mockFile = "账单发票.xlsx";
+                                        } else if (directory.includes("资料") || directory.includes("学习")) {
+                                          mockFile = "复习课件.pptx";
+                                        } else if (directory.includes("归") || directory.includes("史") || directory.includes("备份")) {
+                                          mockFile = "备份归档.zip";
+                                        } else if (directory.includes("图") || directory.includes("照") || directory.includes("影")) {
+                                          mockFile = "素材照片.png";
+                                        }
+
+                                        return (
+                                          <div key={directory} className="space-y-1">
+                                            {/* 文件夹行 */}
+                                            <div className="flex items-center gap-1.5">
+                                              <span className="text-on-surface/20 font-bold font-sans shrink-0">{isLastDir ? "└─" : "├─"}</span>
+                                              <span className="inline-flex items-center gap-1 rounded-[4px] border border-primary/10 bg-primary/[0.04] px-2 py-0.5 text-[11px] font-bold text-primary max-w-[85%] truncate">
+                                                <FolderOpen className="h-3 w-3 shrink-0 text-primary/60" />
+                                                <span className="truncate">{directory}</span>
+                                              </span>
+                                            </div>
+
+                                            {/* 模拟文件行 */}
+                                            <div className="flex items-center gap-1.5 text-[10.5px] text-ui-muted opacity-55" style={{ paddingLeft: "24px" }}>
+                                              <span className="text-on-surface/20 font-bold font-sans shrink-0">{isLastDir ? "    └─" : "│   └─"}</span>
+                                              <FileText className="h-3 w-3 shrink-0" />
+                                              <span className="truncate">{mockFile}</span>
+                                            </div>
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                </div>
+                                <p className="mt-2 text-[10.5px] font-medium leading-relaxed text-ui-muted truncate" title={currentTemplate.description}>
+                                  {currentTemplate.description}
+                                </p>
+                              </div>
+                            </>
+                          ) : (
+                            <>
+                              {/* 归归档倾向配置 */}
+                              <div className="rounded-[8px] bg-surface-container-lowest p-4 flex flex-col justify-between min-h-[160px] border border-on-surface/5">
+                                <div className="space-y-3.5">
+                                  <h2 className="text-[13px] font-black text-on-surface flex items-center gap-1.5">
+                                    <Activity className="h-3.5 w-3.5 text-primary" />
+                                    归档倾向配置
+                                  </h2>
+
+                                  <div className="space-y-1.5">
+                                    <div className="text-[10px] font-bold uppercase tracking-wider text-ui-muted">分类归档策略</div>
+                                    <div className="grid grid-cols-2 gap-2">
+                                      {CAUTION_LEVEL_OPTIONS.map((option) => {
+                                        const active = strategy.caution_level === option.id;
+                                        return (
+                                          <button
+                                            key={option.id}
+                                            type="button"
+                                            onClick={() => updateStrategy((prev) => ({ ...prev, caution_level: option.id }))}
+                                            className={cn(
+                                              "rounded-[6px] border px-2.5 py-1.5 text-left transition-all text-[11px] font-bold",
+                                              active
+                                                ? "border-primary/25 bg-primary/10 text-primary"
+                                                : "border-on-surface/8 bg-surface text-on-surface hover:bg-surface-container-low"
+                                            )}
+                                          >
+                                            <div>{option.label}</div>
+                                          </button>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* 任务补充说明 */}
+                              <div className="rounded-[8px] bg-surface-container-lowest p-4 flex flex-col justify-between min-h-[160px] border border-on-surface/5">
+                                <div className="space-y-2 flex-1 flex flex-col">
+                                  <div className="text-[11px] font-black text-on-surface flex items-center gap-1.5">
+                                    <FileText className="h-3.5 w-3.5 text-primary" />
+                                    补充说明 (可选)
+                                  </div>
+                                  <textarea
+                                    value={strategy.note}
+                                    disabled={loading}
+                                    onChange={(event) => updateStrategy((previous) => ({ ...previous, note: event.target.value.slice(0, 200) }))}
+                                    placeholder="例如：拿不准的先放待确认区；优先归入现有项目目录。"
+                                    className="w-full flex-1 min-h-[80px] resize-none rounded-[6px] border border-on-surface/8 bg-surface px-3 py-2 text-[12px] leading-relaxed text-on-surface outline-none transition-all placeholder:text-on-surface-variant/35 focus:border-primary/30"
+                                  />
+                                </div>
+                              </div>
+                            </>
+                          )}
+                        </div>
                       </div>
                     ) : null}
 
@@ -2903,154 +3228,95 @@ export function SessionLauncherShell() {
       />
 
       <Dialog open={advancedSettingsDialogOpen} onOpenChange={setAdvancedSettingsDialogOpen}>
-        <DialogContent className="max-w-[920px]">
-          <DialogHeader>
-            <DialogTitle>高级设置</DialogTitle>
-            <DialogDescription>
-              这里用于启动前微调模板、风格、目录深度、归档倾向和补充说明。关闭后会保留你已经改过的草稿。
+        <DialogContent className="max-w-[440px] p-5">
+          <DialogHeader className="mb-2">
+            <DialogTitle className="text-[15px] font-black text-on-surface">高级设置</DialogTitle>
+            <DialogDescription className="text-[11.5px] text-ui-muted/80">
+              在此微调分类粒度、归档策略及附加规则说明。
             </DialogDescription>
           </DialogHeader>
 
-          <div className="grid gap-4 max-h-[70vh] overflow-y-auto pr-1">
+          <div className="space-y-4">
             {!isAssignExisting ? (
-              <div className="grid gap-4 xl:grid-cols-2">
-                <div className="rounded-[8px] border border-on-surface/8 bg-surface-container-lowest p-4">
-                  <div className="mb-3 text-[10px] font-bold uppercase tracking-[0.15em] text-ui-muted">默认模板</div>
-                  <div className="grid gap-2">
-                    {STRATEGY_TEMPLATES.map((template) => {
-                      const active = strategy.template_id === template.id;
-                      return (
-                        <button
-                          key={template.id}
-                          type="button"
-                          onClick={() => updateStrategy((previous) => ({ ...previous, template_id: template.id, ...getSuggestedSelection(template.id) }))}
-                          disabled={loading}
-                          className={[
-                            "rounded-[8px] border px-3 py-2.5 text-left transition-all disabled:opacity-50",
-                            active
-                              ? "border-primary/25 bg-primary/10"
-                              : "border-on-surface/8 bg-surface hover:border-primary/20 hover:bg-surface-container-low",
-                          ].join(" ")}
-                        >
-                          <p className={active ? "text-[12.5px] font-bold text-primary" : "text-[12.5px] font-bold text-on-surface"}>{template.label}</p>
-                          <p className="mt-0.5 text-[11px] leading-[1.5] text-ui-muted/80">{template.description}</p>
-                        </button>
-                      );
-                    })}
-                  </div>
+              <div className="space-y-1.5 rounded-[8px] border border-on-surface/6 bg-surface-container-lowest p-3.5">
+                <div className="text-[11.5px] font-bold text-on-surface flex items-center gap-1.5 mb-1.5">
+                  <ListTree className="h-3.5 w-3.5 text-primary" />
+                  分类粒度
                 </div>
-                <div className="rounded-[8px] border border-on-surface/8 bg-surface-container-lowest p-4">
-                  <div className="mb-3 text-[10px] font-bold uppercase tracking-[0.15em] text-ui-muted">目录语言</div>
-                  <div className="grid gap-2">
-                    {LANGUAGE_OPTIONS.map((option) => {
-                      const active = strategy.language === option.id;
-                      return (
-                        <button
-                          key={option.id}
-                          type="button"
-                          onClick={() => updateStrategy((previous) => ({ ...previous, language: option.id }))}
-                          disabled={loading}
-                          className={[
-                            "rounded-[8px] border px-3 py-2.5 text-left transition-all disabled:opacity-50",
-                            active
-                              ? "border-primary/25 bg-primary/10"
-                              : "border-on-surface/8 bg-surface hover:border-primary/20 hover:bg-surface-container-low",
-                          ].join(" ")}
-                        >
-                          <p className={active ? "text-[12.5px] font-bold text-primary" : "text-[12.5px] font-bold text-on-surface"}>{option.label}</p>
-                          <p className="mt-0.5 text-[11px] leading-[1.5] text-ui-muted/80">{option.description}</p>
-                        </button>
-                      );
-                    })}
-                  </div>
+                <div className="flex rounded-[6px] border border-on-surface/8 bg-surface p-0.5 max-w-[200px]">
+                  {DENSITY_OPTIONS.map((option) => {
+                    const active = strategy.density === option.id;
+                    return (
+                      <button
+                        key={option.id}
+                        type="button"
+                        onClick={() => updateStrategy((prev) => ({ ...prev, density: option.id }))}
+                        className={cn(
+                          "flex-1 rounded-[4px] py-1 text-[11px] font-bold transition-all",
+                          active
+                            ? "bg-primary/10 text-primary"
+                            : "text-on-surface-variant/60 hover:text-on-surface"
+                        )}
+                      >
+                        {option.label}
+                      </button>
+                    );
+                  })}
                 </div>
-                <div className="rounded-[8px] border border-on-surface/8 bg-surface-container-lowest p-4">
-                  <div className="mb-3 text-[10px] font-bold uppercase tracking-[0.15em] text-ui-muted">分类粒度</div>
-                  <div className="grid gap-2">
-                    {DENSITY_OPTIONS.map((option) => {
-                      const active = strategy.density === option.id;
-                      return (
-                        <button
-                          key={option.id}
-                          type="button"
-                          onClick={() => updateStrategy((previous) => ({ ...previous, density: option.id }))}
-                          disabled={loading}
-                          className={[
-                            "rounded-[8px] border px-3 py-2.5 text-left transition-all disabled:opacity-50",
-                            active
-                              ? "border-primary/25 bg-primary/10"
-                              : "border-on-surface/8 bg-surface hover:border-primary/20 hover:bg-surface-container-low",
-                          ].join(" ")}
-                        >
-                          <p className={active ? "text-[12.5px] font-bold text-primary" : "text-[12.5px] font-bold text-on-surface"}>{option.label}</p>
-                          <p className="mt-0.5 text-[11px] leading-[1.5] text-ui-muted/80">{option.description}</p>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-                <div className="rounded-[8px] border border-on-surface/8 bg-surface-container-lowest p-4">
-                  <div className="mb-3 text-[10px] font-bold uppercase tracking-[0.15em] text-ui-muted">目录前缀</div>
-                  <div className="grid gap-2">
-                    {PREFIX_STYLE_OPTIONS.map((option) => {
-                      const active = strategy.prefix_style === option.id;
-                      return (
-                        <button
-                          key={option.id}
-                          type="button"
-                          onClick={() => updateStrategy((previous) => ({ ...previous, prefix_style: option.id }))}
-                          disabled={loading}
-                          className={[
-                            "rounded-[8px] border px-3 py-2.5 text-left transition-all disabled:opacity-50",
-                            active
-                              ? "border-primary/25 bg-primary/10"
-                              : "border-on-surface/8 bg-surface hover:border-primary/20 hover:bg-surface-container-low",
-                          ].join(" ")}
-                        >
-                          <p className={active ? "text-[12.5px] font-bold text-primary" : "text-[12.5px] font-bold text-on-surface"}>{option.label}</p>
-                          <p className="mt-0.5 text-[11px] leading-[1.5] text-ui-muted/80">{option.description}</p>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
+                <p className="mt-1.5 text-[10.5px] leading-relaxed text-ui-muted opacity-80">
+                  {strategy.density === "minimal"
+                    ? "生成极简的核心目录结构，避免过度细分目录。"
+                    : "按标准格式与逻辑生成细分的多层级目录。"}
+                </p>
               </div>
             ) : null}
 
-            <div className="rounded-[8px] border border-on-surface/8 bg-surface-container-lowest p-4">
-              <div className="mb-3 text-[10px] font-bold uppercase tracking-[0.15em] text-ui-muted">归档倾向</div>
-              <div className="grid gap-2 xl:grid-cols-2">
+            {/* 归档倾向 */}
+            <div className="space-y-1.5 rounded-[8px] border border-on-surface/6 bg-surface-container-lowest p-3.5">
+              <div className="text-[11.5px] font-bold text-on-surface flex items-center gap-1.5 mb-2">
+                <Activity className="h-3.5 w-3.5 text-primary" />
+                分类归档策略
+              </div>
+              <div className="grid grid-cols-2 gap-2">
                 {CAUTION_LEVEL_OPTIONS.map((option) => {
                   const active = strategy.caution_level === option.id;
                   return (
                     <button
                       key={option.id}
                       type="button"
-                      onClick={() => updateStrategy((previous) => ({ ...previous, caution_level: option.id }))}
-                      disabled={loading}
-                      className={[
-                        "rounded-[8px] border px-3 py-2.5 text-left transition-all disabled:opacity-50",
+                      onClick={() => updateStrategy((prev) => ({ ...prev, caution_level: option.id }))}
+                      className={cn(
+                        "rounded-[6px] border px-2.5 py-1.5 text-left transition-all text-[11px] font-bold flex flex-col justify-between min-h-[52px]",
                         active
-                          ? "border-primary/25 bg-primary/10"
-                          : "border-on-surface/8 bg-surface hover:border-primary/20 hover:bg-surface-container-low",
-                      ].join(" ")}
+                          ? "border-primary/25 bg-primary/10 text-primary"
+                          : "border-on-surface/8 bg-surface text-on-surface hover:bg-surface-container-low"
+                      )}
                     >
-                      <p className={active ? "text-[12.5px] font-bold text-primary" : "text-[12.5px] font-bold text-on-surface"}>{option.label}</p>
-                      <p className="mt-0.5 text-[11px] leading-[1.5] text-ui-muted/80">{option.description}</p>
+                      <div>{option.label}</div>
+                      <div className={cn(
+                        "mt-0.5 text-[9.5px] font-medium leading-tight",
+                        active ? "text-primary/70" : "text-ui-muted/70"
+                      )}>
+                        {option.description}
+                      </div>
                     </button>
                   );
                 })}
               </div>
             </div>
 
-            <div className="rounded-[8px] border border-on-surface/8 bg-surface-container-lowest p-4">
-              <div className="mb-3 text-[10px] font-bold uppercase tracking-[0.15em] text-ui-muted">补充说明</div>
+            {/* 补充说明 */}
+            <div className="space-y-1.5 rounded-[8px] border border-on-surface/6 bg-surface-container-lowest p-3.5">
+              <div className="text-[11.5px] font-bold text-on-surface flex items-center gap-1.5 mb-1">
+                <FileText className="h-3.5 w-3.5 text-primary" />
+                附加说明
+              </div>
               <textarea
                 value={strategy.note}
                 disabled={loading}
                 onChange={(event) => updateStrategy((previous) => ({ ...previous, note: event.target.value.slice(0, 200) }))}
                 placeholder={isAssignExisting ? "例如：拿不准的先放待确认区；优先归入现有项目目录。" : "例如：课程资料按学期整理；图片素材按用途分层。"}
-                className="min-h-[96px] w-full resize-none rounded-[10px] border border-on-surface/8 bg-surface px-4 py-3 text-[13px] leading-relaxed text-on-surface outline-none transition-all placeholder:text-on-surface-variant/35 focus:border-primary/30"
+                className="h-[72px] w-full resize-none rounded-[6px] border border-on-surface/8 bg-surface px-2.5 py-1.5 text-[11.5px] leading-relaxed text-on-surface outline-none transition-all placeholder:text-on-surface-variant/35 focus:border-primary/30"
               />
             </div>
           </div>

@@ -776,7 +776,7 @@ export default function IconWorkbenchV2() {
         <div className="flex items-center gap-2 shrink-0">
           <span className="text-[9.5px] font-bold tabular-nums text-primary/60">{generatePresentation.counter}</span>
           <div className="h-1 w-16 overflow-hidden rounded-full bg-primary/10">
-            <div className="h-full bg-primary transition-all duration-500" style={{ width: `${generatePresentation.percent}%` }} />
+            <div className="h-full bg-primary transition-all duration-700 ease-out" style={{ width: `${generatePresentation.percent}%` }} />
           </div>
         </div>
       </div>
@@ -834,6 +834,7 @@ export default function IconWorkbenchV2() {
                   generateBlockedReason={generationConfigBlockedReason}
                   isProcessing={isBusy}
                   processingFolderId={generateProgress?.currentFolderId ?? null}
+                  generateStage={generateProgress?.stage ?? null}
                   onAddTargets={handleChooseTargets}
                   isTargetDropActive={isTargetDropActive}
                   onTargetDrop={handleTargetDrop}

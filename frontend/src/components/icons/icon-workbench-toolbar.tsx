@@ -4,6 +4,7 @@ import React from "react";
 import { FolderPlus, History, Settings2, Sparkles, Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 interface IconWorkbenchToolbarProps {
   targetCount: number;
@@ -79,9 +80,19 @@ export function IconWorkbenchToolbar({
       <div className="flex items-center gap-2.5">
         <button
           onClick={onOpenStylePanel}
-          className="group flex items-center gap-3 rounded-lg border border-on-surface/5 bg-on-surface/[0.03] px-2.5 py-1 transition-all hover:border-primary/20 hover:bg-on-surface/[0.05] active:scale-[0.98]"
+          className={cn(
+            "group flex items-center gap-3 rounded-lg border px-2.5 py-1 transition-all active:scale-[0.98]",
+            selectedTemplateName === "请选择风格"
+              ? "border-primary/30 bg-primary/[0.04] animate-pulse hover:bg-primary/[0.08] hover:border-primary/45"
+              : "border-on-surface/5 bg-on-surface/[0.03] hover:border-primary/20 hover:bg-on-surface/[0.05]"
+          )}
         >
-          <div className="flex h-6.5 w-6.5 items-center justify-center rounded-md bg-primary/10 text-primary border border-primary/20 ring-1 ring-primary/20">
+          <div className={cn(
+            "flex h-6.5 w-6.5 items-center justify-center rounded-md border transition-all",
+            selectedTemplateName === "请选择风格"
+              ? "bg-primary/20 text-primary border-primary/30 ring-1 ring-primary/30"
+              : "bg-primary/10 text-primary border-primary/20 ring-1 ring-primary/20"
+          )}>
             <Sparkles className="h-3 w-3" />
           </div>
           <div className="flex flex-col items-start text-left">

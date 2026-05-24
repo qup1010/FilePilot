@@ -17,8 +17,8 @@ describe("PathDiffViewer", () => {
       />
     );
 
-    // Common root should be D:/projects/active/FilePilot/frontend/
-    expect(screen.getAllByText("D:/projects/active/FilePilot/frontend/").length).toBeGreaterThan(0);
+    // Common root should be D:/projects/active/FilePilot/frontend/ (truncated as D:/.../FilePilot/frontend/)
+    expect(screen.getAllByText("D:/.../FilePilot/frontend/").length).toBeGreaterThan(0);
 
     // Source segment should display "src"
     expect(screen.getByText("src")).toBeInTheDocument();

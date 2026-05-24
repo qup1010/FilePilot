@@ -4,7 +4,6 @@ import { motion } from "framer-motion";
 import { 
   FolderOpen, 
   Activity,
-  CheckCircle2,
   Undo2,
   Clock,
   ArrowRight,
@@ -21,7 +20,6 @@ import { cn, formatDisplayDate } from "@/lib/utils";
 import {
   clearActiveWorkspaceRouteForSession,
   getHistoryEntryHref,
-  getHistoryEntryName,
   getHistoryEntrySummary,
   getHistoryDeletePrompt,
   isHistoryCompletedEntry,
@@ -34,6 +32,13 @@ import {
 
 import { EmptyState } from "@/components/ui/empty-state";
 import { FileRadarIllustration } from "@/components/ui/svg-illustrations";
+
+function getDirectoryShortName(path: string | null) {
+  if (!path) return "未指定目录";
+  const segments = path.replace(/[\\/]$/, "").split(/[\\/]/);
+  const last = segments[segments.length - 1];
+  return last || path;
+}
 
 export function SessionHistory({ maxItems }: { maxItems?: number }) {
   const router = useRouter();
@@ -154,9 +159,8 @@ export function SessionHistory({ maxItems }: { maxItems?: number }) {
             const isCompleted = isSession ? Boolean(sessionStageView?.isCompleted) : isHistoryCompletedEntry(item);
             const isRolledBack = isHistoryRolledBackEntry(item);
             const isPartialFailure = isHistoryPartialFailureEntry(item) || isHistoryRollbackPartialFailureEntry(item);
-            const dirName = getHistoryEntryName(item);
+            const dirName = getDirectoryShortName(item.target_dir);
             
-            const actionLabel = isSession ? "查看任务" : isRolledBack ? "查看回退" : "查看结果";
             const statusLabel = getHistoryEntrySummary(item);
             const hasFailures = (item.failure_count || 0) > 0;
 
@@ -175,7 +179,10 @@ export function SessionHistory({ maxItems }: { maxItems?: number }) {
                     handleContinue(item);
                   }
                 }}
-                className="group cursor-pointer overflow-hidden rounded-xl border border-on-surface/6 bg-surface-container-lowest px-3 py-2 transition-all hover:border-primary/25 hover:bg-surface-container-low"
+                className={cn(
+                  "group relative cursor-pointer overflow-hidden rounded-xl border border-on-surface/6 bg-surface-container-lowest px-3 py-2 transition-all hover:border-primary/25 hover:bg-surface-container-low",
+                  isRolledBack && "opacity-60 saturate-50 hover:opacity-90 hover:saturate-100 transition-all"
+                )}
               >
                 <div className="flex items-center gap-3">
                   <div className={cn(
@@ -194,11 +201,14 @@ export function SessionHistory({ maxItems }: { maxItems?: number }) {
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex min-w-0 flex-1 items-center gap-2">
-                        <h4 className="truncate text-[12.5px] font-black text-on-surface group-hover:text-primary transition-colors">
+                        <h4 className={cn(
+                          "truncate text-[12.5px] font-black text-on-surface group-hover:text-primary transition-colors",
+                          isRolledBack && "text-ui-muted line-through opacity-70"
+                        )}>
                           {dirName}
                         </h4>
                         <span className={cn(
-                          "shrink-0 rounded-[4px] px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider border",
+                          "shrink-0 rounded-[4px] px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider border transition-all duration-300 ease-out group-hover:opacity-0 group-hover:-translate-x-3 group-hover:scale-95 group-hover:pointer-events-none",
                           isRolledBack
                             ? "bg-on-surface/5 border-on-surface/10 text-ui-muted"
                             : isPartialFailure
@@ -209,18 +219,6 @@ export function SessionHistory({ maxItems }: { maxItems?: number }) {
                         )}>
                           {statusLabel}
                         </span>
-                      </div>
-                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                         <button
-                          type="button"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            requestDelete(item.execution_id);
-                          }}
-                          className="rounded-md p-1 text-ui-muted hover:bg-error/5 hover:text-error transition-colors"
-                        >
-                          <Trash2 className="h-3 w-3" />
-                        </button>
                       </div>
                     </div>
 
@@ -238,10 +236,21 @@ export function SessionHistory({ maxItems }: { maxItems?: number }) {
                           <span className="font-black text-error">· {item.failure_count} 项失败</span>
                         )}
                       </div>
-                      <ArrowRight className="h-3 w-3 transition-transform group-hover:translate-x-0.5" />
+                      <ArrowRight className="h-3 w-3 transition-all duration-300 ease-out group-hover:-translate-x-3 group-hover:opacity-0 group-hover:pointer-events-none" />
                     </div>
                   </div>
                 </div>
+
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    requestDelete(item.execution_id);
+                  }}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 rounded-[6px] p-1.5 text-error/55 opacity-0 scale-75 translate-x-4 transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] bg-surface-container-highest/90 border border-on-surface/4 shadow-sm backdrop-blur-sm hover:bg-error/8 hover:text-error active:scale-90 group-hover:opacity-100 group-hover:translate-x-0 group-hover:scale-100 focus:opacity-100 focus:translate-x-0 focus:scale-100"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
               </motion.div>
             );
           })}

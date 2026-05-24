@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect } from "react";
-import { X, Check, Palette } from "lucide-react";
+import { X, Check, Palette, Plus } from "lucide-react";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import type { IconTemplate } from "@/types/icon-workbench";
@@ -25,6 +25,7 @@ export function IconWorkbenchStylePanel({
   templates,
   onSelect,
   selectedTemplateId,
+  onRequestManageTemplate,
 }: IconWorkbenchStylePanelProps) {
   // ESC 键自动关闭
   useEffect(() => {
@@ -139,13 +140,49 @@ export function IconWorkbenchStylePanel({
                     )}>
                       {template.is_builtin ? "系统内置" : "自定义"}
                     </span>
-                    <span className="text-[10px] font-black text-primary opacity-0 transition-all translate-x-2 group-hover:opacity-100 group-hover:translate-x-0">
-                      应用
-                    </span>
+                    {!template.is_builtin && onRequestManageTemplate ? (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onRequestManageTemplate(template.template_id);
+                          onClose();
+                        }}
+                        className="text-[10px] font-black text-primary hover:text-primary-dim transition-colors"
+                      >
+                        编辑
+                      </button>
+                    ) : (
+                      <span className="text-[10px] font-black text-primary opacity-0 transition-all translate-x-2 group-hover:opacity-100 group-hover:translate-x-0">
+                        应用
+                      </span>
+                    )}
                   </div>
                 </button>
               );
             })}
+
+            {/* 创建新模板卡片 */}
+            {onRequestManageTemplate && (
+              <button
+                onClick={() => {
+                  onRequestManageTemplate("");
+                  onClose();
+                }}
+                className="group relative flex flex-col rounded-xl border border-dashed border-primary/25 bg-surface-container-lowest hover:border-primary/45 hover:bg-primary/[0.015] p-3 text-left transition-all duration-300 active:scale-[0.98]"
+              >
+                <div className="relative mb-3 aspect-square w-full overflow-hidden rounded-lg border border-dashed border-primary/15 bg-primary/5 flex items-center justify-center text-primary/40 group-hover:text-primary transition-colors">
+                  <Plus className="h-8 w-8" />
+                </div>
+                <div className="flex-1 space-y-1.5 px-0.5">
+                  <h3 className="text-[14px] font-black tracking-tight text-on-surface group-hover:text-primary transition-colors">
+                    创建新模板
+                  </h3>
+                  <p className="line-clamp-2 text-[11px] leading-relaxed text-ui-muted/70 font-medium italic">
+                    定义属于你自己的风格预设与提示词。
+                  </p>
+                </div>
+              </button>
+            )}
           </div>
         </div>
       </motion.div>

@@ -234,11 +234,10 @@ describe("SessionLauncher", () => {
     addSource("D:/incoming");
     addSource("D:/incoming/readme.txt", "file");
 
-    expect(screen.getByText("D:/incoming")).toBeInTheDocument();
-    expect(screen.getByText("D:/incoming/readme.txt")).toBeInTheDocument();
+    expect(screen.getByText("incoming")).toBeInTheDocument();
+    expect(screen.getByText("readme.txt")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "下一步：选择整理方式" }));
     fireEvent.click(screen.getByRole("button", { name: "下一步：填写必要信息" }));
-    fireEvent.click(screen.getByRole("button", { name: "修改放置规则" }));
     fireEvent.change(screen.getAllByRole("textbox")[0], {
       target: { value: "D:/sorted" },
     });
@@ -280,7 +279,7 @@ describe("SessionLauncher", () => {
 
     render(<SessionLauncher />);
 
-    expect(await screen.findByText("已加入 2 项")).toBeInTheDocument();
+    expect(await screen.findByText("文件夹 1 · 文件 1")).toBeInTheDocument();
     const folderName = screen.getByText("photos");
     const fileName = screen.getByText("readme.txt");
     expect(folderName.compareDocumentPosition(fileName) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
@@ -447,7 +446,7 @@ describe("SessionLauncher", () => {
     expect(createLaunchSessionMock).not.toHaveBeenCalled();
   });
 
-  it("shows the missing-target warning immediately after entering step three for assign-existing mode", async () => {
+  it("does not show the global error alert immediately, but displays a helpful inline hint instead after entering step three for assign-existing mode", async () => {
     render(<SessionLauncher />);
 
     await screen.findByText("本次整理对象");
@@ -456,7 +455,8 @@ describe("SessionLauncher", () => {
     fireEvent.click(screen.getByRole("button", { name: /归入现有目录/ }));
     fireEvent.click(screen.getByRole("button", { name: "下一步：填写必要信息" }));
 
-    expect(await screen.findByText("归入现有目录时，至少需要选择一个目录配置或手动添加目标目录。")).toBeInTheDocument();
+    expect(screen.queryByText("继续前请先补全当前信息")).not.toBeInTheDocument();
+    expect(await screen.findByText(/需要目标目录：/)).toBeInTheDocument();
     expect(createLaunchSessionMock).not.toHaveBeenCalled();
   });
 
@@ -494,13 +494,14 @@ describe("SessionLauncher", () => {
     addSource("D:/incoming");
     addSource("D:/incoming/readme.txt", "file");
 
-    expect(screen.getByText("D:/incoming")).toBeInTheDocument();
-    expect(screen.getByText("D:/incoming/readme.txt")).toBeInTheDocument();
+    expect(screen.getByText("incoming")).toBeInTheDocument();
+    expect(screen.getByText("readme.txt")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: /清空来源/ }));
+    fireEvent.click(screen.getByRole("button", { name: /确认清空？/ }));
 
-    expect(screen.queryByText("D:/incoming")).not.toBeInTheDocument();
-    expect(screen.queryByText("D:/incoming/readme.txt")).not.toBeInTheDocument();
+    expect(screen.queryByText("incoming")).not.toBeInTheDocument();
+    expect(screen.queryByText("readme.txt")).not.toBeInTheDocument();
     expect(screen.getByText("请将想要整理的文件或文件夹拖放到此")).toBeVisible();
   });
 
@@ -512,11 +513,11 @@ describe("SessionLauncher", () => {
     fireEvent.click(screen.getByRole("button", { name: "下一步：选择整理方式" }));
     fireEvent.click(screen.getByRole("button", { name: "下一步：填写必要信息" }));
 
-    fireEvent.click(screen.getByRole("button", { name: "打开高级设置" }));
+    fireEvent.click(screen.getByRole("button", { name: "更多高级参数..." }));
 
     expect(await screen.findByRole("dialog")).toBeInTheDocument();
     expect(screen.getAllByText("高级设置").length).toBeGreaterThan(0);
-    expect(screen.getByText("默认模板")).toBeInTheDocument();
+    expect(screen.getByText("分类归档策略")).toBeInTheDocument();
   });
 
   it("uses global placement defaults and lets review follow the new-directory root", async () => {
@@ -537,8 +538,8 @@ describe("SessionLauncher", () => {
     fireEvent.click(screen.getByRole("button", { name: "下一步：选择整理方式" }));
     fireEvent.click(screen.getByRole("button", { name: "下一步：填写必要信息" }));
 
-    expect(await screen.findByText("D:/sorted-default")).toBeInTheDocument();
-    expect(screen.getByText("D:/sorted-default/Review")).toBeInTheDocument();
+    expect(await screen.findByPlaceholderText("D:/sorted-default")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("D:/sorted-default/Review")).toBeInTheDocument();
   });
 
   it("shows a resume prompt when createSession returns resume_available", async () => {
@@ -770,9 +771,8 @@ describe("SessionLauncher", () => {
     fireEvent.click(screen.getByRole("button", { name: "整理文件夹内容" }));
 
     expect(await screen.findByText("已导入“D:/Downloads”下的 6 个顶层项目。")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "展开其余 1 项" })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "展开其余 1 项" }));
-    expect(screen.getByText("D:/Downloads/archive.zip")).toBeInTheDocument();
+    fireEvent.click(screen.getByText(/已从 Downloads 导入 6 项/));
+    expect(screen.getByText("archive.zip")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "下一步：选择整理方式" }));
     fireEvent.click(screen.getByRole("button", { name: "下一步：填写必要信息" }));
@@ -842,11 +842,12 @@ describe("SessionLauncher", () => {
 
     await screen.findByText("本次整理对象");
     addSource("D:/incoming/project-bundle");
-    fireEvent.click(screen.getByRole("button", { name: "改为导入里面的项" }));
+    fireEvent.click(screen.getByRole("button", { name: "导入内部项" }));
 
     expect(await screen.findByText("已导入“D:/incoming/project-bundle”下的 2 个顶层项目。")).toBeInTheDocument();
-    expect(screen.getByText("D:/incoming/project-bundle/README.md")).toBeInTheDocument();
-    expect(screen.getByText("D:/incoming/project-bundle/src")).toBeInTheDocument();
+    fireEvent.click(screen.getByText(/已从 project-bundle 导入 2 项/));
+    expect(screen.getByText("README.md")).toBeInTheDocument();
+    expect(screen.getByText("src")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "下一步：选择整理方式" }));
     fireEvent.click(screen.getByRole("button", { name: "下一步：填写必要信息" }));

@@ -638,6 +638,27 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
       dir: dirParam,
       readonly: isReadOnly,
     });
+
+    if (typeof window !== "undefined") {
+      const isCompleted = stageView.isCompleted;
+      const isInactive = stageView.isInactive;
+      const shouldClear = isReadOnly || isCompleted || isInactive;
+
+      if (shouldClear) {
+        const storedRoute = window.localStorage.getItem(ACTIVE_WORKSPACE_ROUTE_KEY);
+        if (getSessionIdFromWorkspaceRoute(storedRoute) === sessionIdParam) {
+          window.localStorage.removeItem(ACTIVE_WORKSPACE_ROUTE_KEY);
+          window.dispatchEvent(new Event(APP_CONTEXT_EVENT));
+        }
+      } else {
+        const storedRoute = window.localStorage.getItem(ACTIVE_WORKSPACE_ROUTE_KEY);
+        if (storedRoute !== nextRoute) {
+          window.localStorage.setItem(ACTIVE_WORKSPACE_ROUTE_KEY, nextRoute);
+          window.dispatchEvent(new Event(APP_CONTEXT_EVENT));
+        }
+      }
+    }
+
     if (!nextRoute.startsWith(`/workspace/${view}`)) {
       if (lastNavigatedRouteRef.current !== nextRoute) {
         lastNavigatedRouteRef.current = nextRoute;
@@ -646,7 +667,7 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
     } else {
       lastNavigatedRouteRef.current = null;
     }
-  }, [dirParam, isReadOnly, router, sessionIdParam, snapshot, view]);
+  }, [dirParam, isReadOnly, router, sessionIdParam, snapshot, view, stageView.isCompleted, stageView.isInactive]);
 
   React.useEffect(() => {
     taskNotificationRef.current = {
@@ -1793,6 +1814,8 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
         cancelLabel="再看看"
         tone="primary"
         loading={loading}
+        verificationText={(precheck && ((precheck.warnings || []).length > 0 || reviewMoveCount > 0)) ? "YES" : undefined}
+        verificationPlaceholder="请输入大写 YES 确认执行"
         onConfirm={async () => {
           setExecuteConfirmOpen(false);
           await execute();

@@ -229,7 +229,7 @@ export function IconWorkbenchTemplateDrawer({
                         ))}
                       </div>
                       <p className="text-[11px] leading-5 text-ui-muted">
-                        可用变量：<code>{`{{subject}}`}</code>、<code>{`{{folder_name}}`}</code>、<code>{`{{category}}`}</code>。
+                        AI 会自动将提取到的 [识别主体] 填入 <code>{`{{subject}}`}</code>，将 [分类建议] 填入 <code>{`{{category}}`}</code>，将 [文件夹名] 填入 <code>{`{{folder_name}}`}</code> 以生成最终的图标提示词。
                       </p>
                     </div>
                   </div>

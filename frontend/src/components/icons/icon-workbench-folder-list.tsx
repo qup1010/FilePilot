@@ -30,6 +30,7 @@ interface IconWorkbenchFolderListProps {
   generateBlockedReason?: string | null;
   isProcessing?: boolean;
   processingFolderId?: string | null;
+  generateStage?: "analyzing" | "applying_template" | "generating" | null;
   onAddTargets?: () => void;
   isTargetDropActive?: boolean;
   onTargetDrop?: (event: React.DragEvent<HTMLDivElement>) => void;
@@ -61,6 +62,7 @@ export function IconWorkbenchFolderList({
   generateBlockedReason,
   isProcessing,
   processingFolderId,
+  generateStage,
   onAddTargets,
   isTargetDropActive = false,
   onTargetDrop,
@@ -102,20 +104,12 @@ export function IconWorkbenchFolderList({
             detailClassName="text-on-surface-variant/70"
           />
         )}
-        {/* 精简版：风格配置提醒 */}
-        {!hasSelectedStyle && folders.length > 0 && !hasReadyVersions && (
-          <div className="mb-3 flex animate-in fade-in slide-in-from-top-2 duration-500 items-center gap-3 rounded-lg border border-primary/20 bg-primary/[0.03] px-4 py-2">
-            <Palette className="h-3.5 w-3.5 text-primary opacity-60" />
-            <p className="text-[11.5px] font-bold text-on-surface/80">请配置图标风格</p>
-            <p className="text-[10px] font-medium text-ui-muted opacity-50 flex-1">点击工具栏“选择风格模板”以开始生成预览方案</p>
-          </div>
-        )}
 
         {folders.length === 0 ? (
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            className="flex flex-col items-center justify-center py-20 px-6 text-center"
+            className="flex flex-col items-center justify-center py-24 px-6 text-center"
           >
             {/* 视觉图形组：更简约的单层风格 */}
             <div className="relative mb-6 flex h-20 w-20 items-center justify-center">
@@ -133,33 +127,26 @@ export function IconWorkbenchFolderList({
 
             {/* 文案说明 */}
             <div className="max-w-[320px] mb-8">
-              <h2 className="text-[15px] font-black tracking-tight text-on-surface/90 mb-2">待命中的图标工坊</h2>
+              <h2 className="text-[15px] font-black tracking-tight text-on-surface/90 mb-2">图标工坊</h2>
               <p className="text-[12px] font-medium leading-relaxed text-on-surface/40">
-                通过 AI 技术分析文件夹语义，并为其自动匹配、生成或应用精美的定制图标。
+                载入目标文件夹后，AI 会提取语义以生成定制图标。
               </p>
             </div>
 
             {/* 操作区域 */}
-            <div className="flex flex-col gap-3 w-full max-w-[200px]">
-              <button
-                onClick={onAddTargets}
-                className="group/btn flex h-11 w-full items-center justify-center gap-3 rounded-lg border border-primary/25 bg-primary px-6 text-[13px] font-black uppercase tracking-wider text-white transition-all hover:bg-primary-dim active:scale-95 shadow-sm hover:shadow-[0_4px_12px_rgba(var(--primary-rgb),0.15)]"
-              >
-                <Plus className="h-4 w-4 stroke-[3] transition-transform group-hover/btn:rotate-90 group-hover/btn:scale-110 duration-300" />
-                <span>载入目标</span>
-              </button>
-              
+            <div className="flex flex-col gap-3 w-full max-w-[220px]">
               <div 
+                onClick={onAddTargets}
                 className={getDropZoneSurfaceClassName({
                   isActive: isTargetDropActive,
                   isDraggingGlobal,
-                  idleClassName: "border-on-surface/8 bg-on-surface/[0.015] border-dashed text-on-surface/30 hover:bg-on-surface/[0.035] hover:border-on-surface/12",
-                  activeClassName: "border-primary/35 bg-primary/[0.06] text-primary",
+                  idleClassName: "border-on-surface/8 bg-on-surface/[0.015] border-dashed text-on-surface/30 hover:bg-on-surface/[0.035] hover:border-on-surface/12 cursor-pointer",
+                  activeClassName: "border-primary/35 bg-primary/[0.06] text-primary cursor-pointer",
                   draggingClassName: "border-primary/20 bg-primary/[0.015] text-on-surface/50",
-                  className: "flex h-10 w-full items-center justify-center rounded-lg px-3 text-[11px] font-bold truncate select-none transition-all",
+                  className: "flex h-11 w-full items-center justify-center rounded-lg px-3 text-[11.5px] font-black uppercase tracking-wider select-none transition-all",
                 })}
               >
-                {isTargetDropActive ? "松手即可追加目标文件夹" : "或将文件夹拖放至此"}
+                {isTargetDropActive ? "松手即可追加目标文件夹" : "拖放文件夹至此，或点击载入"}
               </div>
             </div>
           </motion.div>
@@ -207,6 +194,7 @@ export function IconWorkbenchFolderList({
                 generateBlockedReason={generateBlockedReason}
                 isProcessing={isProcessing}
                 isActiveProcessing={processingFolderId === folder.folder_id}
+                generateStage={processingFolderId === folder.folder_id ? generateStage : null}
               />
             ))}
           </div>

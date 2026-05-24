@@ -1,9 +1,9 @@
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 import { AlertTriangle, Loader2, Send, Sparkles } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { cn } from "@/lib/utils";
 import { AssistantRuntimeStatus, ComposerMode } from "@/types/session";
-
+ 
 export interface ComposerBarProps {
   composerMode: ComposerMode;
   error: string | null;
@@ -25,7 +25,7 @@ export interface ComposerBarProps {
   setMessageInput: (val: string) => void;
   onSendMessage: () => void;
 }
-
+ 
 export function ComposerBar({
   composerMode,
   error,
@@ -40,6 +40,19 @@ export function ComposerBar({
   onSendMessage,
 }: ComposerBarProps) {
   const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    const textarea = inputRef.current;
+    if (!textarea) return;
+
+    // 重置高度以获取准确的 scrollHeight
+    textarea.style.height = "auto";
+    
+    // 计算新高度并限制最高 160px，超高则内部滚动
+    const newHeight = Math.min(textarea.scrollHeight, 160);
+    textarea.style.height = `${newHeight}px`;
+  }, [messageInput]);
+
   const canShowPrecheckHint =
     unresolvedCount === 0 &&
     canRunPrecheck &&
@@ -56,12 +69,11 @@ export function ComposerBar({
     : isComposerLocked
       ? "系统正在处理，请稍候"
       : "输入调整意见，或说明你希望修改的地方";
-
-  // Auto-resize textarea logic can be added if needed or just use simple rows
+ 
   if (composerMode === "hidden") {
     return null;
   }
-
+ 
   return (
     <div className="flex shrink-0 flex-col justify-center border-t border-on-surface/8 bg-surface-container-low px-6 py-4 min-h-[116px] transition-all">
       <AnimatePresence>
@@ -84,9 +96,9 @@ export function ComposerBar({
           </motion.div>
         )}
       </AnimatePresence>
-
+ 
       <AnimatePresence>
-
+ 
         {composerStatus && composerMode === "editable" && !shouldShowPlannerStatus ? (
           <motion.div
             key="composer-status-badge"
@@ -105,7 +117,7 @@ export function ComposerBar({
             </div>
           </motion.div>
         ) : null}
-
+ 
         {plannerStatus && shouldShowPlannerStatus ? (
           <motion.div
             key="planner-status-badge"
@@ -129,7 +141,7 @@ export function ComposerBar({
             </div>
           </motion.div>
         ) : null}
-
+ 
         {unresolvedCount > 0 && composerMode === "editable" ? (
           <motion.div
             key="unresolved-count-pill"
@@ -146,7 +158,7 @@ export function ComposerBar({
           </motion.div>
         ) : null}
       </AnimatePresence>
-
+ 
       {composerMode === "editable" ? (
         <div
           className={cn(
@@ -169,7 +181,7 @@ export function ComposerBar({
             </motion.div>
           ) : null}
           </AnimatePresence>
-
+ 
           <div className={cn(
             "relative flex items-end gap-3 rounded-xl border px-3 py-2.5 transition-all duration-500",
             isComposerLocked 
@@ -188,7 +200,7 @@ export function ComposerBar({
               ref={inputRef}
               rows={1}
               className={cn(
-                "min-h-[40px] flex-1 resize-none bg-transparent px-2 py-1.5 text-[13.5px] font-medium leading-relaxed text-on-surface outline-none placeholder:text-on-surface-variant/40",
+                "min-h-[40px] flex-1 resize-none bg-transparent px-2 py-1.5 text-[13.5px] font-medium leading-relaxed text-on-surface outline-none placeholder:text-on-surface-variant/40 transition-[height] duration-150 ease-out",
                 isComposerLocked && "cursor-not-allowed text-on-surface/35 placeholder:text-on-surface-variant/35",
               )}
               placeholder={inputPlaceholder}
@@ -228,7 +240,7 @@ export function ComposerBar({
           正在扫描，暂时不能继续输入。
         </div>
       )}
-
+ 
     </div>
   );
 }
