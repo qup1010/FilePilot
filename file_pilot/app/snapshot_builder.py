@@ -4,6 +4,7 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from file_pilot.app.session_constants import REVIEW_SLOT_ID
 from file_pilot.app.models import (
     PlanGroupPayload,
     PlanMappingPayload,
@@ -43,8 +44,8 @@ class SnapshotBuilder:
         slot_id = str(item.get("target_slot_id") or "").strip()
         if not slot_id:
             return ""
-        if slot_id == "Review":
-            return "Review"
+        if slot_id == REVIEW_SLOT_ID:
+            return REVIEW_SLOT_ID
         for slot in target_slots:
             if str(slot.get("slot_id") or "").strip() == slot_id:
                 return str(slot.get("relpath") or "").strip()
@@ -158,8 +159,8 @@ class SnapshotBuilder:
         if not raw_target_dir:
             return ""
         normalized_target_dir = self.helpers._normalize_relpath(raw_target_dir)
-        if normalized_target_dir == "Review":
-            return "Review"
+        if normalized_target_dir == REVIEW_SLOT_ID:
+            return REVIEW_SLOT_ID
         existing_slot_id = slot_state["slot_id_by_relpath"].get(normalized_target_dir)
         if existing_slot_id:
             return existing_slot_id
@@ -225,13 +226,13 @@ class SnapshotBuilder:
                 target_slot_id = self.ensure_target_slot_payload(target_slots, slot_state, target_dir, session=session)
         raw_status = str(raw_item.get("status") or "").strip()
         status = str(default_status or "planned") if default_status and default_status != "planned" else (raw_status or str(default_status or "planned"))
-        if status == "planned" and target_slot_id == "Review":
+        if status == "planned" and target_slot_id == REVIEW_SLOT_ID:
             status = "review"
         raw_mapping_status = str(raw_item.get("mapping_status") or "").strip()
         mapping_status = str(
             default_mapping_status
             or raw_mapping_status
-            or ("skipped" if not target_slot_id else ("review" if target_slot_id == "Review" else status))
+            or ("skipped" if not target_slot_id else ("review" if target_slot_id == REVIEW_SLOT_ID else status))
         )
         return PlanSnapshotItem(
             item_id=str(raw_item.get("item_id") or source_relpath),
@@ -275,8 +276,8 @@ class SnapshotBuilder:
             normalized_slot_id = str(slot_id or "").strip()
             if not normalized_slot_id:
                 return ""
-            if normalized_slot_id == "Review":
-                return "Review"
+            if normalized_slot_id == REVIEW_SLOT_ID:
+                return REVIEW_SLOT_ID
             for slot in target_slots:
                 if str(slot.slot_id or "").strip() == normalized_slot_id:
                     return str(slot.relpath or "").strip()
@@ -334,7 +335,7 @@ class SnapshotBuilder:
                     mapping_status=str(mapping.status or ""),
                     status=(
                         "review"
-                        if mapping.target_slot_id == "Review"
+                        if mapping.target_slot_id == REVIEW_SLOT_ID
                         else ("unresolved" if mapping.status == "unresolved" else ("planned" if mapping.status == "assigned" else str(mapping.status or "planned")))
                     ),
                 )
@@ -358,7 +359,7 @@ class SnapshotBuilder:
             if move.source in plan.unresolved_items:
                 status = "unresolved"
             target_dir = self.helpers._target_dir_for_move(move.target)
-            if move.target.startswith("Review/") or move.target == "Review":
+            if move.target.startswith(f"{REVIEW_SLOT_ID}/") or move.target == REVIEW_SLOT_ID:
                 status = "review"
             target_slot_id = mapping.target_slot_id if mapping is not None else self.ensure_target_slot_payload(target_slots, slot_state, target_dir, session=session)
             mapping_status = mapping.status if mapping is not None else ("skipped" if not target_slot_id and normalized_target == normalized_source else status)

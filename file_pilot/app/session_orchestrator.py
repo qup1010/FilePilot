@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 
 from file_pilot.app.models import CreateSessionResult, OrganizerSession, SourceCollectionItem
 from file_pilot.app.safety import unsafe_source_path_reason
+from file_pilot.app.session_constants import STAGE_INTERRUPTED, is_locked_stage, is_terminal_stage
 from file_pilot.organize import service as organize_service
 from file_pilot.organize.models import PendingPlan
 from file_pilot.organize.strategy_templates import normalize_strategy_selection
@@ -222,7 +223,7 @@ class SessionOrchestrator:
             )
             session.last_error = f"自动规划失败: {str(exc)}"
             self.helpers._fail_planner_progress(session, session.last_error)
-            session.stage = "interrupted"
+            session.stage = STAGE_INTERRUPTED
             self.helpers._sync_session_views(session)
             self.helpers.store.save(session)
             self.helpers._log_runtime_event("plan.auto_failed", session, level=logging.ERROR, error=str(exc))
@@ -337,7 +338,7 @@ class SessionOrchestrator:
 
         path = default_workspace_root
         latest = self.helpers.store.find_latest_by_directory(path)
-        if latest is not None and latest.stage not in self.helpers._TERMINAL_STAGES:
+        if latest is not None and not is_terminal_stage(latest.stage):
             if self._resume_scope_matches(
                 latest,
                 normalized_sources,
@@ -353,7 +354,7 @@ class SessionOrchestrator:
                     )
                     return CreateSessionResult(mode="resume_available", restorable_session=latest)
                 raise RuntimeError("SESSION_LOCKED")
-            if latest.stage in self.helpers._LOCKED_STAGES:
+            if is_locked_stage(latest.stage):
                 raise RuntimeError("SESSION_LOCKED")
             try:
                 self.helpers._log_runtime_event(

@@ -1,6 +1,7 @@
 from typing import TYPE_CHECKING
 
 from file_pilot.app.models import SessionMutationResult
+from file_pilot.app.session_constants import SESSION_STAGE_CONFLICT, STAGE_SELECTING_INCREMENTAL_SCOPE, is_stage
 
 if TYPE_CHECKING:
     from file_pilot.app.session_service import OrganizerSessionService
@@ -30,8 +31,8 @@ class PlanningConversationService:
     def submit_user_intent(self, session_id: str, content: str) -> SessionMutationResult:
         session = self.helpers._load_or_raise(session_id)
         self.helpers._ensure_mutable_stage(session)
-        if session.stage == "selecting_incremental_scope":
-            raise RuntimeError("SESSION_STAGE_CONFLICT")
+        if is_stage(session.stage, STAGE_SELECTING_INCREMENTAL_SCOPE):
+            raise RuntimeError(SESSION_STAGE_CONFLICT)
         self.helpers._seed_initial_messages(session)
         session.messages.append(self.helpers._ensure_message_id({"role": "user", "content": content}))
         pending_plan = self.helpers._pending_plan_from_session(session)

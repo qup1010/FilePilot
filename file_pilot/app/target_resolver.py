@@ -6,6 +6,7 @@ import posixpath
 from typing import TYPE_CHECKING
 
 from file_pilot.app.models import OrganizerSession, PlacementPayload
+from file_pilot.app.session_constants import REVIEW_DIR_NAME, REVIEW_SLOT_ID
 from file_pilot.shared.path_utils import canonical_target_dir
 
 if TYPE_CHECKING:
@@ -36,7 +37,7 @@ class TargetResolver:
         normalized_new_root = cls.normalize_placement_root(new_directory_root)
         if not normalized_new_root:
             return ""
-        return str((Path(normalized_new_root) / "Review").resolve())
+        return str((Path(normalized_new_root) / REVIEW_DIR_NAME).resolve())
 
     @classmethod
     def placement_payload(
@@ -118,8 +119,8 @@ class TargetResolver:
         normalized_slot_id = str(slot_id or "").strip()
         if not normalized_slot_id:
             return ""
-        if normalized_slot_id == "Review":
-            return "Review"
+        if normalized_slot_id == REVIEW_SLOT_ID:
+            return REVIEW_SLOT_ID
         task, _ = self.helpers._build_organize_task(session, plan)
         for target in task.targets:
             if target.slot_id == normalized_slot_id:
@@ -131,7 +132,7 @@ class TargetResolver:
 
     def validate_incremental_target_dir(self, session: OrganizerSession, target_dir: str, selection: dict | None) -> bool:
         normalized = self.helpers._normalize_relpath(target_dir)
-        if not normalized or normalized == "Review":
+        if not normalized or normalized == REVIEW_SLOT_ID:
             return True
 
         incremental_selection = selection or {}
@@ -165,13 +166,13 @@ class TargetResolver:
     ) -> ResolvedTarget:
         if move_to_review:
             absolute_dir = str(self.review_target_path(session, "placeholder").parent)
-            return ResolvedTarget(kind="review", normalized_dir="Review", absolute_dir=absolute_dir, target_slot_id="Review")
+            return ResolvedTarget(kind="review", normalized_dir=REVIEW_SLOT_ID, absolute_dir=absolute_dir, target_slot_id=REVIEW_SLOT_ID)
 
         if target_slot is not None:
             normalized_dir = self.target_dir_from_slot_id(session, target_slot, pending)
-            if normalized_dir == "Review":
+            if normalized_dir == REVIEW_SLOT_ID:
                 absolute_dir = str(self.review_target_path(session, "placeholder").parent)
-                return ResolvedTarget(kind="review", normalized_dir=normalized_dir, absolute_dir=absolute_dir, target_slot_id="Review")
+                return ResolvedTarget(kind="review", normalized_dir=normalized_dir, absolute_dir=absolute_dir, target_slot_id=REVIEW_SLOT_ID)
             absolute_dir = str(self.resolve_target_real_path(session, normalized_dir))
             return ResolvedTarget(
                 kind="existing_slot",
@@ -185,7 +186,7 @@ class TargetResolver:
         if self.is_outside_relative_target(target_dir):
             raise RuntimeError("TARGET_DIR_OUTSIDE_ROOT")
         normalized_dir = self.normalize_target_dir(target_dir)
-        if normalized_dir == "Review" or normalized_dir.startswith("Review/"):
+        if normalized_dir == REVIEW_SLOT_ID or normalized_dir.startswith(f"{REVIEW_SLOT_ID}/"):
             raise RuntimeError("REVIEW_SUBDIRECTORY_NOT_ALLOWED")
         if self.helpers._normalize_organize_mode(session.organize_mode) == "incremental" and normalized_dir:
             selection = self.helpers._incremental_selection_snapshot(session)

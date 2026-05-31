@@ -4,6 +4,19 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from file_pilot.app.models import SessionMutationResult
+from file_pilot.app.session_constants import (
+    SESSION_STAGE_CONFLICT,
+    STAGE_DRAFT,
+    STAGE_INTERRUPTED,
+    STAGE_PLANNING,
+    STAGE_SCANNING,
+    STAGE_SELECTING_INCREMENTAL_SCOPE,
+    STAGE_STALE,
+    ensure_stage,
+    ensure_stage_in,
+    is_locked_stage,
+    is_stage,
+)
 from file_pilot.organize.models import PendingPlan
 
 if TYPE_CHECKING:
@@ -18,12 +31,12 @@ class ScanWorkflowService:
         session = self.helpers._load_or_raise(session_id)
         self.helpers._ensure_schema_compatible_for_resume(session)
         self.helpers._ensure_refreshable_stage(session)
-        if session.stage in self.helpers._LOCKED_STAGES:
-            raise RuntimeError("SESSION_STAGE_CONFLICT")
+        if is_locked_stage(session.stage):
+            raise RuntimeError(SESSION_STAGE_CONFLICT)
 
         is_incremental = self.helpers._normalize_organize_mode(session.organize_mode) == "incremental"
 
-        if is_incremental and session.stage == "selecting_incremental_scope":
+        if is_incremental and is_stage(session.stage, STAGE_SELECTING_INCREMENTAL_SCOPE):
             self.helpers._run_incremental_target_discovery(
                 session,
                 scan_runner or self.helpers._incremental_root_discovery_runner,
@@ -84,7 +97,7 @@ class ScanWorkflowService:
                     planner_items=[],
                 )
                 self.helpers._set_incremental_selection_pending(session, discovery_scan_lines)
-                session.stage = "selecting_incremental_scope"
+                session.stage = STAGE_SELECTING_INCREMENTAL_SCOPE
                 session.integrity_flags["is_stale"] = False
                 session.integrity_flags["has_invalidated_items"] = False
                 session.stale_reason = None
@@ -175,7 +188,7 @@ class ScanWorkflowService:
         session.integrity_flags["has_invalidated_items"] = bool(invalidated_items)
         session.stale_reason = None
         session.precheck_summary = None
-        session.stage = "planning"
+        session.stage = STAGE_PLANNING
 
         try:
             self.helpers.orchestrator.run_planner_cycle_for_session(
@@ -185,7 +198,7 @@ class ScanWorkflowService:
                 preserving_previous_plan=bool(rebuilt_pending.moves or rebuilt_pending.unresolved_items),
             )
         except Exception:
-            session.stage = "interrupted"
+            session.stage = STAGE_INTERRUPTED
             self.helpers._sync_session_views(session)
             self.helpers.store.save(session)
             self.helpers._record_event("plan.updated", session)
@@ -245,8 +258,11 @@ class ScanWorkflowService:
             self.helpers._run_scan_sync(session, scan_runner)
             return self.helpers._load_or_raise(session_id)
 
-        if session.stage not in {"draft", "stale", "interrupted", "planning", "selecting_incremental_scope"} and not self.helpers._is_empty_scan_result_completed(session):
-            raise RuntimeError("SESSION_STAGE_CONFLICT")
+        if not self.helpers._is_empty_scan_result_completed(session):
+            ensure_stage_in(
+                session.stage,
+                {STAGE_DRAFT, STAGE_STALE, STAGE_INTERRUPTED, STAGE_PLANNING, STAGE_SELECTING_INCREMENTAL_SCOPE},
+            )
 
         if is_incremental and not has_preselected_targets:
             self.helpers._run_incremental_target_discovery(session, self.helpers._incremental_root_discovery_runner)
@@ -254,7 +270,7 @@ class ScanWorkflowService:
 
         target_dir = Path(session.target_dir).resolve()
         use_single_directory_scan = self.helpers._can_use_single_directory_scan(session)
-        session.stage = "scanning"
+        session.stage = STAGE_SCANNING
         self.helpers._clear_scan_recovery_state(session)
         session.scanner_progress = (
             self.helpers._initial_scan_progress(target_dir)
@@ -330,9 +346,8 @@ class ScanWorkflowService:
     def confirm_target_directories(self, session_id: str, selected_target_dirs: list[str], scan_runner=None) -> SessionMutationResult:
         session = self.helpers._load_or_raise(session_id)
         if self.helpers._normalize_organize_mode(session.organize_mode) != "incremental":
-            raise RuntimeError("SESSION_STAGE_CONFLICT")
-        if session.stage != "selecting_incremental_scope":
-            raise RuntimeError("SESSION_STAGE_CONFLICT")
+            raise RuntimeError(SESSION_STAGE_CONFLICT)
+        ensure_stage(session.stage, STAGE_SELECTING_INCREMENTAL_SCOPE)
 
         self.helpers._confirm_target_directories(
             session,
@@ -347,7 +362,7 @@ class ScanWorkflowService:
         session.messages = []
         session.assistant_message = None
         session.summary = ""
-        session.stage = "planning"
+        session.stage = STAGE_PLANNING
         self.helpers._sync_session_views(session)
 
         try:
@@ -358,7 +373,7 @@ class ScanWorkflowService:
                 preserving_previous_plan=False,
             )
         except Exception:
-            session.stage = "interrupted"
+            session.stage = STAGE_INTERRUPTED
             self.helpers._sync_session_views(session)
             self.helpers.store.save(session)
             self.helpers._record_event("plan.updated", session)

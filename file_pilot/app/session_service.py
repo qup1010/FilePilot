@@ -5,7 +5,7 @@ import json
 import logging
 import threading
 import uuid
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from datetime import datetime, timezone
 from queue import Queue
 from pathlib import Path
@@ -15,6 +15,36 @@ from file_pilot.app.async_scanner import AsyncScanner
 from file_pilot.app.id_registry import IdRegistry
 from file_pilot.app.execution_app_service import ExecutionAppService
 from file_pilot.app.history_app_service import HistoryAppService
+from file_pilot.app.session_constants import (
+    LOCKED_STAGES,
+    PLANNING_MUTABLE_STAGES,
+    RECOVERY_STAGES,
+    REVIEW_SLOT_ID,
+    SESSION_STAGE_CONFLICT,
+    STAGE_ABANDONED,
+    STAGE_COMPLETED,
+    STAGE_DRAFT,
+    STAGE_EXECUTING,
+    STAGE_INTERRUPTED,
+    STAGE_PLANNING,
+    STAGE_READY_FOR_PRECHECK,
+    STAGE_READY_TO_EXECUTE,
+    STAGE_SCANNING,
+    STAGE_SELECTING_INCREMENTAL_SCOPE,
+    STAGE_STALE,
+    TASK_PHASE_ANALYZING,
+    TASK_PHASE_DONE,
+    TASK_PHASE_EXECUTING,
+    TASK_PHASE_PLANNING,
+    TASK_PHASE_REVIEWING,
+    TASK_PHASE_SETUP,
+    TERMINAL_STAGES,
+    is_locked_stage,
+    is_planning_mutable_stage,
+    is_recovery_stage,
+    is_stage,
+    is_terminal_stage,
+)
 from file_pilot.app.models import (
     AIPendingBaseline,
     ConversationState,
@@ -70,10 +100,10 @@ CURRENT_AI_BASELINE_SCHEMA_VERSION = 1
 
 
 class OrganizerSessionService:
-    _TERMINAL_STAGES = {"abandoned", "completed", "stale"}
-    _LOCKED_STAGES = {"scanning", "executing", "rolling_back"}
-    _PLANNING_MUTABLE_STAGES = {"planning", "ready_for_precheck"}
-    _RECOVERY_STAGES = {"stale", "interrupted"}
+    _TERMINAL_STAGES = TERMINAL_STAGES
+    _LOCKED_STAGES = LOCKED_STAGES
+    _PLANNING_MUTABLE_STAGES = PLANNING_MUTABLE_STAGES
+    _RECOVERY_STAGES = RECOVERY_STAGES
     _EMPTY_SCAN_RESULT_FLAG = "empty_scan_result"
 
     def __init__(self, store: SessionStore, scanner: AsyncScanner | None = None):
@@ -466,19 +496,19 @@ class OrganizerSessionService:
     @staticmethod
     def _task_phase_for_stage(stage: str) -> str:
         normalized = str(stage or "").strip().lower()
-        if normalized in {"draft", "selecting_incremental_scope"}:
-            return "setup"
-        if normalized == "scanning":
-            return "analyzing"
-        if normalized in {"planning", "ready_for_precheck"}:
-            return "planning"
-        if normalized == "ready_to_execute":
-            return "reviewing"
-        if normalized == "executing":
-            return "executing"
-        if normalized in {"completed", "abandoned", "stale", "interrupted"}:
-            return "done"
-        return "setup"
+        if normalized in {STAGE_DRAFT, STAGE_SELECTING_INCREMENTAL_SCOPE}:
+            return TASK_PHASE_SETUP
+        if normalized == STAGE_SCANNING:
+            return TASK_PHASE_ANALYZING
+        if normalized in {STAGE_PLANNING, STAGE_READY_FOR_PRECHECK}:
+            return TASK_PHASE_PLANNING
+        if normalized == STAGE_READY_TO_EXECUTE:
+            return TASK_PHASE_REVIEWING
+        if normalized == STAGE_EXECUTING:
+            return TASK_PHASE_EXECUTING
+        if normalized in {STAGE_COMPLETED, STAGE_ABANDONED, STAGE_STALE, STAGE_INTERRUPTED}:
+            return TASK_PHASE_DONE
+        return TASK_PHASE_SETUP
 
     def _source_refs_from_session(self, session: OrganizerSession) -> list[SourceRef]:
         planner_items = list(session.planner_items or [])
@@ -619,7 +649,7 @@ class OrganizerSessionService:
         return slots
 
     def _build_id_registry(self, session: OrganizerSession, plan: PendingPlan | FinalPlan | None = None) -> IdRegistry:
-        registry = IdRegistry()
+        registry = IdRegistry.from_state(session.id_registry_state)
         for source_ref in self._source_refs_from_session(session):
             registry.register_source(source_ref)
 
@@ -634,7 +664,7 @@ class OrganizerSessionService:
         if plan is not None:
             for move in (plan.moves or []):
                 target_dir = self._target_dir_for_move(move.target)
-                if not target_dir or target_dir == "Review":
+                if not target_dir or target_dir == REVIEW_SLOT_ID:
                     continue
                 real_path = str(self._resolve_target_real_path(session, target_dir))
                 registry.ensure_target(
@@ -643,6 +673,7 @@ class OrganizerSessionService:
                     depth=max(0, len(Path(target_dir).parts) - 1),
                     is_new=registry.target_for_real_path(real_path) is None,
                 )
+        session.id_registry_state = registry.to_state()
         return registry
 
     def _mapping_entries_from_plan(
@@ -665,8 +696,8 @@ class OrganizerSessionService:
             if not target_dir:
                 target_slot_id = ""
                 status = "skipped"
-            elif target_dir == "Review":
-                target_slot_id = "Review"
+            elif target_dir == REVIEW_SLOT_ID:
+                target_slot_id = REVIEW_SLOT_ID
                 status = "review"
             else:
                 resolved_target = str(self._resolve_target_real_path(session, target_dir))
@@ -736,6 +767,39 @@ class OrganizerSessionService:
             for source in task.sources:
                 if source.ref_id not in registered_source_ids:
                     registry.register_source(source)
+            source_id_remap: dict[str, str] = {}
+            next_sources: list[SourceRef] = []
+            for source in task.sources:
+                registered_source = registry.source_for_relpath(source.relpath)
+                if registered_source is None:
+                    next_sources.append(source)
+                    continue
+                if registered_source.ref_id != source.ref_id:
+                    source_id_remap[source.ref_id] = registered_source.ref_id
+                next_sources.append(replace(source, ref_id=registered_source.ref_id))
+            if source_id_remap:
+                task.sources = next_sources
+                task.mappings = [
+                    replace(mapping, source_ref_id=source_id_remap.get(mapping.source_ref_id, mapping.source_ref_id))
+                    for mapping in task.mappings
+                ]
+        if task.targets:
+            target_id_remap: dict[str, str] = {}
+            next_targets: list[TargetSlot] = []
+            for target in task.targets:
+                registered_target = registry.target_for_real_path(target.real_path)
+                if registered_target is None:
+                    next_targets.append(target)
+                    continue
+                if registered_target.slot_id != target.slot_id:
+                    target_id_remap[target.slot_id] = registered_target.slot_id
+                next_targets.append(replace(target, slot_id=registered_target.slot_id))
+            if target_id_remap:
+                task.targets = next_targets
+                task.mappings = [
+                    replace(mapping, target_slot_id=target_id_remap.get(mapping.target_slot_id, mapping.target_slot_id))
+                    for mapping in task.mappings
+                ]
         if not task.sources:
             task.sources = registry.list_sources()
         if not task.targets:
@@ -888,14 +952,14 @@ class OrganizerSessionService:
         return self._render_scan_lines(self._current_scope_entries_for_session(session))
 
     def _is_empty_scan_result_completed(self, session: OrganizerSession) -> bool:
-        return session.stage == "completed" and bool(session.integrity_flags.get(self._EMPTY_SCAN_RESULT_FLAG))
+        return is_stage(session.stage, STAGE_COMPLETED) and bool(session.integrity_flags.get(self._EMPTY_SCAN_RESULT_FLAG))
 
     def _ensure_refreshable_stage(self, session: OrganizerSession) -> None:
-        if session.stage in self._RECOVERY_STAGES or session.stage == "selecting_incremental_scope":
+        if is_recovery_stage(session.stage) or is_stage(session.stage, STAGE_SELECTING_INCREMENTAL_SCOPE):
             return
         if self._is_empty_scan_result_completed(session):
             return
-        raise RuntimeError("SESSION_STAGE_CONFLICT")
+        raise RuntimeError(SESSION_STAGE_CONFLICT)
 
     @staticmethod
     def _render_scan_lines(entries: list[dict]) -> str:
@@ -1484,7 +1548,7 @@ class OrganizerSessionService:
         review_item_ids = [
             str(planner_by_source.get(str(move.source or "").replace("\\", "/"), {}).get("planner_id") or move.source)
             for move in plan_moves
-            if self._target_dir_for_move(move.target) == "Review"
+            if self._target_dir_for_move(move.target) == REVIEW_SLOT_ID
         ]
         if review_item_ids:
             issues.append(
@@ -1552,7 +1616,7 @@ class OrganizerSessionService:
         discovery_runner,
     ) -> str:
         target_dir = Path(session.target_dir).resolve()
-        session.stage = "scanning"
+        session.stage = STAGE_SCANNING
         session.scanner_progress = self._initial_scan_progress(target_dir)
         self.store.save(session)
         self._log_runtime_event("scan.started", session)
@@ -1595,7 +1659,7 @@ class OrganizerSessionService:
             session=session,
         )
         self._set_incremental_selection_pending(session, discovery_scan_lines)
-        session.stage = "selecting_incremental_scope"
+        session.stage = STAGE_SELECTING_INCREMENTAL_SCOPE
         session.scanner_progress = {
             **dict(session.scanner_progress or {}),
             "status": "completed",
@@ -1741,7 +1805,7 @@ class OrganizerSessionService:
         return True
 
     def _ensure_planning_schema_compatibility(self, session: OrganizerSession) -> bool:
-        if session.stage in self._TERMINAL_STAGES:
+        if is_terminal_stage(session.stage):
             return False
         if session.planning_schema_version >= CURRENT_PLANNING_SCHEMA_VERSION:
             if (
@@ -1761,7 +1825,7 @@ class OrganizerSessionService:
                 return self._ensure_planner_items(session)
             return False
         session.planning_schema_version = CURRENT_PLANNING_SCHEMA_VERSION
-        session.stage = "stale"
+        session.stage = STAGE_STALE
         session.stale_reason = "planning_schema_incompatible"
         session.integrity_flags["is_stale"] = True
         session.integrity_flags["planning_schema_incompatible"] = True
@@ -2002,7 +2066,7 @@ class OrganizerSessionService:
         pending: PendingPlan,
         source_relpath: str,
         *,
-        default_target_dir: str = "Review",
+        default_target_dir: str = REVIEW_SLOT_ID,
     ) -> PlanMove:
         normalized_source = self._normalize_relpath(source_relpath)
         for move in pending.moves:
@@ -2433,7 +2497,7 @@ class OrganizerSessionService:
             session.rollback_report = None
             session.last_journal_id = None
             session.last_ai_pending_plan = None
-            session.stage = "completed"
+            session.stage = STAGE_COMPLETED
             session.integrity_flags["is_stale"] = False
             session.stale_reason = None
             session.integrity_flags[self._EMPTY_SCAN_RESULT_FLAG] = True
@@ -2583,7 +2647,7 @@ class OrganizerSessionService:
     def _finish_async_scan(self, session_id: str, scan_lines: str) -> None:
         try:
             session = self._load_or_raise(session_id)
-            if session.stage != "scanning":
+            if not is_stage(session.stage, STAGE_SCANNING):
                 return
             all_entries = self._scan_entries(scan_lines)
             total_count = int((session.scanner_progress or {}).get("total_count") or 0)
@@ -2842,7 +2906,7 @@ class OrganizerSessionService:
         session = self.store.load(session_id)
         if session is None:
             raise FileNotFoundError(f"Session {session_id} not found")
-        if recover_locked and session.stage in self._LOCKED_STAGES:
+        if recover_locked and is_locked_stage(session.stage):
             previous_stage = session.stage
             self._recover_orphaned_locked_session(session)
             if session.stage != previous_stage:
@@ -2863,12 +2927,12 @@ class OrganizerSessionService:
         return session
 
     def _ensure_not_locked(self, session: OrganizerSession):
-        if session.stage in self._LOCKED_STAGES:
+        if is_locked_stage(session.stage):
             raise RuntimeError("SESSION_LOCKED")
 
     def _ensure_mutable_stage(self, session: OrganizerSession):
-        if session.stage not in self._PLANNING_MUTABLE_STAGES:
-            raise RuntimeError("SESSION_STAGE_CONFLICT")
+        if not is_planning_mutable_stage(session.stage):
+            raise RuntimeError(SESSION_STAGE_CONFLICT)
 
     @staticmethod
     def _ensure_schema_compatible_for_resume(session: OrganizerSession) -> None:
@@ -2898,8 +2962,8 @@ class OrganizerSessionService:
         session.last_error = session.last_error or "planning_interrupted"
         session.integrity_flags["interrupted_during"] = "planning"
         self._fail_planner_progress(session, session.last_error)
-        if session.stage == "planning":
-            session.stage = "interrupted"
+        if is_stage(session.stage, STAGE_PLANNING):
+            session.stage = STAGE_INTERRUPTED
         self._sync_session_views(session)
         self._log_runtime_event("session.interrupted", session, interrupted_during="planning")
         self._write_session_debug_event(

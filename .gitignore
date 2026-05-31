@@ -30,6 +30,7 @@ legacy_drafts/
 .tmp/
 tmp/
 tmp_debug_scan_progress/
+tmp_debug_slot/
 
 # 缓存与调试
 .pytest_cache/

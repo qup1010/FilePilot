@@ -4,6 +4,26 @@ from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 
+from file_pilot.app.id_registry import IdRegistryState
+from file_pilot.app.session_constants import (
+    STAGE_ABANDONED,
+    STAGE_COMPLETED,
+    STAGE_DRAFT,
+    STAGE_EXECUTING,
+    STAGE_INTERRUPTED,
+    STAGE_PLANNING,
+    STAGE_READY_FOR_PRECHECK,
+    STAGE_READY_TO_EXECUTE,
+    STAGE_SCANNING,
+    STAGE_SELECTING_INCREMENTAL_SCOPE,
+    STAGE_STALE,
+    TASK_PHASE_ANALYZING,
+    TASK_PHASE_DONE,
+    TASK_PHASE_EXECUTING,
+    TASK_PHASE_PLANNING,
+    TASK_PHASE_REVIEWING,
+    TASK_PHASE_SETUP,
+)
 from file_pilot.domain.models import MappingEntry, OrganizeTask, SourceRef, TargetSlot
 from file_pilot.organize.strategy_templates import (
     DEFAULT_CAUTION_LEVEL,
@@ -31,19 +51,19 @@ class LockResult:
 
 def _task_phase_for_stage(stage: str | None) -> str:
     normalized = str(stage or "").strip().lower()
-    if normalized in {"draft", "selecting_incremental_scope"}:
-        return "setup"
-    if normalized == "scanning":
-        return "analyzing"
-    if normalized in {"planning", "ready_for_precheck"}:
-        return "planning"
-    if normalized == "ready_to_execute":
-        return "reviewing"
-    if normalized == "executing":
-        return "executing"
-    if normalized in {"completed", "abandoned", "stale", "interrupted"}:
-        return "done"
-    return "setup"
+    if normalized in {STAGE_DRAFT, STAGE_SELECTING_INCREMENTAL_SCOPE}:
+        return TASK_PHASE_SETUP
+    if normalized == STAGE_SCANNING:
+        return TASK_PHASE_ANALYZING
+    if normalized in {STAGE_PLANNING, STAGE_READY_FOR_PRECHECK}:
+        return TASK_PHASE_PLANNING
+    if normalized == STAGE_READY_TO_EXECUTE:
+        return TASK_PHASE_REVIEWING
+    if normalized == STAGE_EXECUTING:
+        return TASK_PHASE_EXECUTING
+    if normalized in {STAGE_COMPLETED, STAGE_ABANDONED, STAGE_STALE, STAGE_INTERRUPTED}:
+        return TASK_PHASE_DONE
+    return TASK_PHASE_SETUP
 
 
 @dataclass
@@ -524,7 +544,7 @@ class OrganizerSession:
     selected_target_directories: list[str] = field(default_factory=list)
     selected_target_directory_details: list[TargetProfileDirectory] = field(default_factory=list)
     planning_schema_version: int = 5
-    stage: str = "draft"
+    stage: str = STAGE_DRAFT
     strategy_template_id: str = DEFAULT_TEMPLATE_ID
     strategy_template_label: str = "通用下载"
     organize_mode: str = "initial"
@@ -557,6 +577,7 @@ class OrganizerSession:
     last_error: str | None = None
     last_ai_pending_plan: AIPendingBaseline | None = None
     summary: str = ""
+    id_registry_state: IdRegistryState | None = None
     task_state: TaskState | None = None
     conversation_state: ConversationState | None = None
     execution_state: ExecutionState | None = None
@@ -706,7 +727,7 @@ class OrganizerSession:
                 )
                 if item is not None
             ],
-            stage=data.get("stage", "draft"),
+            stage=data.get("stage", STAGE_DRAFT),
             strategy_template_id=data.get("strategy_template_id", DEFAULT_TEMPLATE_ID),
             strategy_template_label=data.get("strategy_template_label", "通用下载"),
             organize_mode=organize_mode,
@@ -739,6 +760,7 @@ class OrganizerSession:
             last_error=data.get("last_error"),
             last_ai_pending_plan=AIPendingBaseline.from_dict(data.get("last_ai_pending_plan")),
             summary=data.get("summary", ""),
+            id_registry_state=IdRegistryState.from_dict(data.get("id_registry_state")),
             task_state=task_state,
             conversation_state=conversation_state,
             execution_state=execution_state,

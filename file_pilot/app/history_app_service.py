@@ -1,6 +1,7 @@
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from file_pilot.app.session_constants import STAGE_ROLLING_BACK, is_locked_stage, is_stage_in
 from file_pilot.execution import service as execution_service
 
 if TYPE_CHECKING:
@@ -38,7 +39,7 @@ class HistoryAppService:
         for session in self.helpers.store.list_sessions():
             self.helpers._recover_orphaned_locked_session(session)
             stage = session.stage
-            if stage in {"abandoned", "completed"}:
+            if is_stage_in(stage, {"abandoned", "completed"}):
                 continue
 
             history_map[session.session_id] = {
@@ -60,7 +61,7 @@ class HistoryAppService:
         if session is not None:
             self.helpers._recover_orphaned_locked_session(session)
             session = self.helpers.store.load(entry_id) or session
-            if session.stage in self.helpers._LOCKED_STAGES:
+            if is_locked_stage(session.stage):
                 raise RuntimeError("SESSION_LOCKED")
             deleted = self.helpers.store.delete(entry_id)
             if not deleted:
@@ -69,7 +70,7 @@ class HistoryAppService:
 
         journal = execution_service.load_execution_journal(entry_id)
         if journal is not None:
-            if self.helpers._is_locked_stage_active(entry_id, "rolling_back"):
+            if self.helpers._is_locked_stage_active(entry_id, STAGE_ROLLING_BACK):
                 raise RuntimeError("SESSION_LOCKED")
             deleted = execution_service.delete_execution_journal(entry_id)
             if not deleted:

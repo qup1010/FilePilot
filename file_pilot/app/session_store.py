@@ -6,15 +6,13 @@ import os
 import uuid
 from pathlib import Path
 
+from file_pilot.app.session_constants import STAGE_ABANDONED, is_reclaimable_lock_stage
 from file_pilot.app.models import LockResult, OrganizerSession
 from file_pilot.shared.path_utils import canonical_target_dir
 
 
 import threading
 import time
-
-
-RECLAIMABLE_LOCK_STAGES = {"abandoned", "completed", "stale"}
 
 def _atomic_write_json(path: Path, payload: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -94,7 +92,7 @@ class SessionStore:
 
     def mark_session_abandoned(self, session: OrganizerSession) -> None:
         with self._write_lock:
-            session.stage = "abandoned"
+            session.stage = STAGE_ABANDONED
             session.touch()
             _atomic_write_json(self.sessions_dir / f"{session.session_id}.json", session.to_dict())
 
@@ -146,7 +144,7 @@ class SessionStore:
             if current_owner == owner_id:
                 return LockResult(acquired=True, lock_owner_session_id=owner_id, reason="acquired")
             owner_session = self.load(current_owner) if current_owner else None
-            if owner_session is not None and owner_session.stage in RECLAIMABLE_LOCK_STAGES:
+            if owner_session is not None and is_reclaimable_lock_stage(owner_session.stage):
                 _atomic_write_json(lock_path, {"target_dir": canonical, "owner_session_id": owner_id})
                 return LockResult(acquired=True, lock_owner_session_id=owner_id, reason="reclaimed_stale_lock")
             return LockResult(acquired=False, lock_owner_session_id=current_owner, reason="active_lock")

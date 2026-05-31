@@ -4,6 +4,20 @@ from typing import TYPE_CHECKING
 
 from file_pilot.app.models import SessionMutationResult
 from file_pilot.app.safety import risky_move_reason
+from file_pilot.app.session_constants import (
+    REVIEW_DISPLAY_NAME,
+    REVIEW_SLOT_ID,
+    SESSION_STAGE_CONFLICT,
+    STAGE_COMPLETED,
+    STAGE_EXECUTING,
+    STAGE_INTERRUPTED,
+    STAGE_PLANNING,
+    STAGE_READY_TO_EXECUTE,
+    STAGE_ROLLING_BACK,
+    STAGE_STALE,
+    ensure_stage,
+    ensure_stage_in,
+)
 from file_pilot.execution import service as execution_service
 from file_pilot.execution.models import MappedExecutionAction, MappedExecutionPlan
 from file_pilot.rollback import service as rollback_service
@@ -50,7 +64,7 @@ class ExecutionAppService:
                 continue
             filename = Path(source.relpath).name
             display_name = str(source.display_name or filename)
-            if mapping.target_slot_id == "Review":
+            if mapping.target_slot_id == REVIEW_SLOT_ID:
                 review_root = Path(
                     placement.review_root
                     or self.helpers.target_resolver.default_review_root(placement.new_directory_root or session.target_dir)
@@ -63,8 +77,8 @@ class ExecutionAppService:
                             type="MKDIR",
                             target_path=review_root,
                             raw=f'MKDIR "{raw_target_dir}"',
-                            target_slot_id="Review",
-                            display_name="待确认区",
+                            target_slot_id=REVIEW_SLOT_ID,
+                            display_name=REVIEW_DISPLAY_NAME,
                             status="planned",
                         )
                     )
@@ -125,7 +139,7 @@ class ExecutionAppService:
         target_by_id = {item.slot_id: item for item in task.targets}
         missing_target_errors = []
         for mapping in task.mappings:
-            if mapping.target_slot_id in {"", "Review"}:
+            if mapping.target_slot_id in {"", REVIEW_SLOT_ID}:
                 continue
             if target_by_id.get(mapping.target_slot_id) is not None:
                 continue
@@ -137,7 +151,7 @@ class ExecutionAppService:
             selection = self.helpers._incremental_selection_snapshot(session)
             incremental_target_errors = []
             for mapping in task.mappings:
-                if mapping.target_slot_id in {"", "Review"}:
+                if mapping.target_slot_id in {"", REVIEW_SLOT_ID}:
                     continue
                 source_ref = source_by_id.get(mapping.source_ref_id)
                 target_slot = target_by_id.get(mapping.target_slot_id)
@@ -204,7 +218,7 @@ class ExecutionAppService:
                 planner_by_source,
             ),
         }
-        session.stage = "ready_to_execute" if precheck.can_execute else "planning"
+        session.stage = STAGE_READY_TO_EXECUTE if precheck.can_execute else STAGE_PLANNING
         self.helpers._sync_session_views(session)
         self.helpers.store.save(session)
         self.helpers._log_runtime_event(
@@ -224,8 +238,7 @@ class ExecutionAppService:
 
     def return_to_planning(self, session_id: str) -> SessionMutationResult:
         session = self.helpers._load_or_raise(session_id)
-        if session.stage != "ready_to_execute":
-            raise RuntimeError("SESSION_STAGE_CONFLICT")
+        ensure_stage(session.stage, STAGE_READY_TO_EXECUTE)
 
         pending = self.helpers._pending_plan_from_session(session)
         session.precheck_summary = None
@@ -240,12 +253,11 @@ class ExecutionAppService:
             raise ValueError("confirmation_required")
 
         session = self.helpers._load_or_raise(session_id)
-        if session.stage != "ready_to_execute":
-            raise RuntimeError("SESSION_STAGE_CONFLICT")
+        ensure_stage(session.stage, STAGE_READY_TO_EXECUTE)
 
-        self.helpers._mark_locked_stage_active(session.session_id, "executing")
+        self.helpers._mark_locked_stage_active(session.session_id, STAGE_EXECUTING)
         try:
-            session.stage = "executing"
+            session.stage = STAGE_EXECUTING
             self.helpers._sync_session_views(session)
             self.helpers.store.save(session)
             self.helpers._log_runtime_event("execution.started", session)
@@ -259,7 +271,7 @@ class ExecutionAppService:
             try:
                 report = execution_service.execute_plan(plan)
             except Exception as exc:
-                session.stage = "interrupted"
+                session.stage = STAGE_INTERRUPTED
                 session.last_error = str(exc)
                 self.helpers._sync_session_views(session)
                 self.helpers.store.save(session)
@@ -274,7 +286,7 @@ class ExecutionAppService:
                 raise
             journal_id = self.helpers._latest_execution_id(Path(session.target_dir))
             if not journal_id:
-                session.stage = "interrupted"
+                session.stage = STAGE_INTERRUPTED
                 session.last_error = "missing_execution_journal"
                 self.helpers._sync_session_views(session)
                 self.helpers.store.save(session)
@@ -298,7 +310,7 @@ class ExecutionAppService:
                 "cleanup_candidate_count": 0,
             }
             session.last_journal_id = journal_id
-            session.stage = "completed"
+            session.stage = STAGE_COMPLETED
             self.helpers._sync_session_views(session)
             self.helpers.store.save(session)
             self.helpers.store.release_directory_lock(Path(session.target_dir), session.session_id)
@@ -317,7 +329,7 @@ class ExecutionAppService:
             self.helpers._record_event("execution.completed", session)
             return SessionMutationResult(session_snapshot=self.helpers._build_snapshot(session))
         finally:
-            self.helpers._mark_locked_stage_inactive(session.session_id, "executing")
+            self.helpers._mark_locked_stage_inactive(session.session_id, STAGE_EXECUTING)
 
     def rollback(self, session_id: str, confirm: bool) -> SessionMutationResult:
         if not confirm:
@@ -340,15 +352,14 @@ class ExecutionAppService:
                 raise KeyError(f"Session {session_id} not found")
             return self.rollback_execution_journal(journal)
 
-        if session.stage not in {"completed", "interrupted"}:
-            raise RuntimeError("SESSION_STAGE_CONFLICT")
+        ensure_stage_in(session.stage, {STAGE_COMPLETED, STAGE_INTERRUPTED})
 
         lock_result = self.helpers.store.acquire_directory_lock(Path(session.target_dir), session.session_id)
         if not lock_result.acquired:
             raise RuntimeError("SESSION_LOCKED")
 
-        self.helpers._mark_locked_stage_active(session.session_id, "rolling_back")
-        session.stage = "rolling_back"
+        self.helpers._mark_locked_stage_active(session.session_id, STAGE_ROLLING_BACK)
+        session.stage = STAGE_ROLLING_BACK
         self.helpers._sync_session_views(session)
         self.helpers.store.save(session)
         self.helpers._log_runtime_event("rollback.started", session)
@@ -363,7 +374,7 @@ class ExecutionAppService:
             report = rollback_service.execute_rollback_plan(plan)
             rollback_service.finalize_rollback_state(journal, report)
         except Exception as exc:
-            session.stage = "interrupted"
+            session.stage = STAGE_INTERRUPTED
             session.last_error = str(exc)
             self.helpers._sync_session_views(session)
             self.helpers.store.save(session)
@@ -378,7 +389,7 @@ class ExecutionAppService:
             raise
         finally:
             self.helpers.store.release_directory_lock(Path(session.target_dir), session.session_id)
-            self.helpers._mark_locked_stage_inactive(session.session_id, "rolling_back")
+            self.helpers._mark_locked_stage_inactive(session.session_id, STAGE_ROLLING_BACK)
         session.rollback_report = {
             "journal_id": journal.execution_id,
             "restored_from_execution_id": journal.execution_id,
@@ -387,7 +398,7 @@ class ExecutionAppService:
             "status": "success" if report.failure_count == 0 else "partial_failure",
         }
         session.last_journal_id = journal.execution_id
-        session.stage = "stale"
+        session.stage = STAGE_STALE
         session.integrity_flags["is_stale"] = True
         self.helpers._sync_session_views(session)
         self.helpers.store.save(session)
@@ -422,7 +433,7 @@ class ExecutionAppService:
             session_snapshot={
                 "session_id": journal.execution_id,
                 "target_dir": journal.target_dir,
-                "stage": "completed",
+                "stage": STAGE_COMPLETED,
                 "execution_report": {
                     "execution_id": journal.execution_id,
                     "journal_id": journal.execution_id,
@@ -452,27 +463,27 @@ class ExecutionAppService:
 
     def rollback_execution_journal(self, journal) -> SessionMutationResult:
         if journal.status not in {"completed", "partial_failure"}:
-            raise RuntimeError("SESSION_STAGE_CONFLICT")
+            raise RuntimeError(SESSION_STAGE_CONFLICT)
 
         target_dir = Path(journal.target_dir)
         lock_result = self.helpers.store.acquire_directory_lock(target_dir, journal.execution_id)
         if not lock_result.acquired:
             raise RuntimeError("SESSION_LOCKED")
 
-        self.helpers._mark_locked_stage_active(journal.execution_id, "rolling_back")
+        self.helpers._mark_locked_stage_active(journal.execution_id, STAGE_ROLLING_BACK)
         try:
             plan = rollback_service.build_rollback_plan(journal)
             report = rollback_service.execute_rollback_plan(plan)
             rollback_service.finalize_rollback_state(journal, report)
         finally:
             self.helpers.store.release_directory_lock(target_dir, journal.execution_id)
-            self.helpers._mark_locked_stage_inactive(journal.execution_id, "rolling_back")
+            self.helpers._mark_locked_stage_inactive(journal.execution_id, STAGE_ROLLING_BACK)
 
         return SessionMutationResult(
             session_snapshot={
                 "session_id": journal.execution_id,
                 "target_dir": journal.target_dir,
-                "stage": "stale",
+                "stage": STAGE_STALE,
                 "execution_report": {
                     "execution_id": journal.execution_id,
                     "journal_id": journal.execution_id,
@@ -493,8 +504,7 @@ class ExecutionAppService:
 
     def cleanup_empty_dirs(self, session_id: str) -> dict:
         session = self.helpers._load_or_raise(session_id)
-        if session.stage != "completed":
-            raise RuntimeError("SESSION_STAGE_CONFLICT")
+        ensure_stage(session.stage, STAGE_COMPLETED)
         final_plan = self.helpers._final_plan_from_session(session)
         task, registry = self.helpers._build_organize_task(session, final_plan)
         mapped_plan = self._build_mapped_execution_plan(session, final_plan, task, registry)

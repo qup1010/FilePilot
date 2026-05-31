@@ -3,6 +3,7 @@ from __future__ import annotations
 import copy
 from pathlib import Path
 
+from file_pilot.app.session_constants import REVIEW_SLOT_ID
 from file_pilot.domain.models import MappingEntry, OrganizeTask, TargetSlot
 from file_pilot.organize.models import PendingPlan, PlanMove
 
@@ -48,8 +49,8 @@ class TaskPlannerAdapter:
         normalized_slot_id = str(slot_id or "").strip()
         if not normalized_slot_id:
             return ""
-        if normalized_slot_id == "Review":
-            return "Review"
+        if normalized_slot_id == REVIEW_SLOT_ID:
+            return REVIEW_SLOT_ID
         for target in task.targets:
             if str(target.slot_id or "").strip() != normalized_slot_id:
                 continue
@@ -63,8 +64,8 @@ class TaskPlannerAdapter:
         normalized_target_dir = self._normalize_relpath(target_dir)
         if not normalized_target_dir:
             return ""
-        if normalized_target_dir == "Review":
-            return "Review"
+        if normalized_target_dir == REVIEW_SLOT_ID:
+            return REVIEW_SLOT_ID
         desired_real_path = self._real_path_for_target_dir(target_dir)
         for target in task.targets:
             if Path(target.real_path).resolve() == desired_real_path:
@@ -136,10 +137,10 @@ class TaskPlannerAdapter:
                 continue
             target_dir = self._target_dir_for_move(move.target)
             if source_relpath in unresolved_set:
-                target_slot_id = self._ensure_target_slot(updated_task, target_dir) if target_dir and target_dir != "Review" else "Review"
+                target_slot_id = self._ensure_target_slot(updated_task, target_dir) if target_dir and target_dir != REVIEW_SLOT_ID else REVIEW_SLOT_ID
                 status = "unresolved"
-            elif target_dir == "Review":
-                target_slot_id = "Review"
+            elif target_dir == REVIEW_SLOT_ID:
+                target_slot_id = REVIEW_SLOT_ID
                 status = "review"
             elif not target_dir:
                 target_slot_id = ""
@@ -168,7 +169,7 @@ class TaskPlannerAdapter:
             mappings.append(
                 MappingEntry(
                     source_ref_id=source_ref_id,
-                    target_slot_id="Review",
+                    target_slot_id=REVIEW_SLOT_ID,
                     status="unresolved",
                     reason=str(existing.reason if existing is not None else source.suggested_purpose),
                     confidence=existing.confidence if existing is not None else source.confidence,
@@ -193,8 +194,8 @@ class TaskPlannerAdapter:
         if source is None:
             raise RuntimeError("ITEM_NOT_FOUND")
         normalized_target_dir = self._normalize_relpath(target_dir)
-        if normalized_target_dir == "Review":
-            target_slot_id = "Review"
+        if normalized_target_dir == REVIEW_SLOT_ID:
+            target_slot_id = REVIEW_SLOT_ID
             status = "review"
         elif not normalized_target_dir:
             target_slot_id = ""

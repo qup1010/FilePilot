@@ -81,6 +81,55 @@ class OrganizerSessionServiceTests(unittest.TestCase):
         self.assertIsNotNone(resumed.restorable_session)
         self.assertEqual(resumed.restorable_session.session_id, created.session.session_id)
 
+    def test_build_id_registry_persists_legacy_scan_line_ids(self):
+        session = OrganizerSession(
+            session_id="legacy-session",
+            target_dir=str(self.target_dir),
+            scan_lines="b.txt | file | | \na.txt | file | | ",
+        )
+        first_plan = PendingPlan(
+            directories=["Docs"],
+            moves=[
+                PlanMove(source="b.txt", target="Docs/b.txt", raw=""),
+                PlanMove(source="a.txt", target="Docs/a.txt", raw=""),
+            ],
+            user_constraints=[],
+            unresolved_items=[],
+            summary="",
+        )
+
+        first_registry = self.service._build_id_registry(session, first_plan)
+        first_sources = {source.relpath: source.ref_id for source in first_registry.list_sources()}
+        first_targets = {target.real_path.replace("\\", "/"): target.slot_id for target in first_registry.list_targets()}
+        self.store.save(session)
+
+        loaded = self.store.load(session.session_id)
+        assert loaded is not None
+        loaded.scan_lines = "a.txt | file | | \nb.txt | file | | \nc.txt | file | | "
+        second_plan = PendingPlan(
+            directories=["Docs", "Images"],
+            moves=[
+                PlanMove(source="a.txt", target="Docs/a.txt", raw=""),
+                PlanMove(source="b.txt", target="Docs/b.txt", raw=""),
+                PlanMove(source="c.txt", target="Images/c.txt", raw=""),
+            ],
+            user_constraints=[],
+            unresolved_items=[],
+            summary="",
+        )
+
+        second_registry = self.service._build_id_registry(loaded, second_plan)
+
+        second_sources = {source.relpath: source.ref_id for source in second_registry.list_sources()}
+        second_targets = {target.real_path.replace("\\", "/"): target.slot_id for target in second_registry.list_targets()}
+        self.assertEqual(first_sources["b.txt"], second_sources["b.txt"])
+        self.assertEqual(first_sources["a.txt"], second_sources["a.txt"])
+        self.assertEqual(second_sources["c.txt"], "F003")
+        docs_path = str((self.target_dir / "Docs").resolve()).replace("\\", "/")
+        images_path = str((self.target_dir / "Images").resolve()).replace("\\", "/")
+        self.assertEqual(first_targets[docs_path], second_targets[docs_path])
+        self.assertEqual(second_targets[images_path], "D002")
+
     def test_create_session_does_not_resume_when_source_collection_differs(self):
         source_a = self.root / "SourceA"
         source_b = self.root / "SourceB"

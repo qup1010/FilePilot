@@ -2,6 +2,15 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from file_pilot.app.session_constants import (
+    STAGE_ABANDONED,
+    STAGE_INTERRUPTED,
+    STAGE_SCANNING,
+    STAGE_STALE,
+    is_locked_stage,
+    is_stage,
+)
+
 if TYPE_CHECKING:
     from file_pilot.app.models import OrganizerSession
     from file_pilot.app.session_service import OrganizerSessionService
@@ -28,11 +37,11 @@ class SessionLifecycleService:
 
     def abandon_session(self, session_id: str, *, emit_event_snapshot: bool = True) -> dict:
         session = self.helpers._load_or_raise(session_id)
-        if session.stage in self.helpers._LOCKED_STAGES:
+        if is_locked_stage(session.stage):
             self.recover_orphaned_locked_session(session)
-            if session.stage in self.helpers._LOCKED_STAGES:
+            if is_locked_stage(session.stage):
                 raise RuntimeError("SESSION_LOCKED")
-        session.stage = "abandoned"
+        session.stage = STAGE_ABANDONED
         if emit_event_snapshot:
             self.helpers._sync_session_views(session)
         self.helpers.store.mark_session_abandoned(session)
@@ -51,12 +60,12 @@ class SessionLifecycleService:
         if not lock_result.acquired:
             raise RuntimeError("SESSION_LOCKED")
 
-        if session.stage in self.helpers._LOCKED_STAGES:
+        if is_locked_stage(session.stage):
             interrupted_during = session.stage
             if (
                 self.helpers._is_locked_stage_active(session.session_id, interrupted_during)
                 or (
-                    interrupted_during == "scanning"
+                    is_stage(interrupted_during, STAGE_SCANNING)
                     and (
                         self.helpers._is_scan_active(session.session_id)
                         or self.helpers.async_scanner.is_running(session.session_id)
@@ -71,12 +80,12 @@ class SessionLifecycleService:
                 self.helpers._record_event("session.resumed", session)
                 return session
 
-            session.stage = "interrupted"
+            session.stage = STAGE_INTERRUPTED
             session.integrity_flags["interrupted_during"] = interrupted_during
             session.last_journal_id = session.last_journal_id or self.helpers._latest_execution_id(Path(session.target_dir))
 
         if self.helpers._directory_changed(session):
-            session.stage = "stale"
+            session.stage = STAGE_STALE
             session.stale_reason = "directory_changed"
             session.integrity_flags["is_stale"] = True
             self.helpers._sync_session_views(session)
@@ -94,21 +103,21 @@ class SessionLifecycleService:
         return session
 
     def recover_orphaned_locked_session(self, session: "OrganizerSession") -> None:
-        if session.stage not in self.helpers._LOCKED_STAGES:
+        if not is_locked_stage(session.stage):
             return
 
         interrupted_during = session.stage
         if self.helpers._is_locked_stage_active(session.session_id, interrupted_during):
             return
-        if interrupted_during == "scanning" and (
+        if is_stage(interrupted_during, STAGE_SCANNING) and (
             self.helpers._is_scan_active(session.session_id)
             or self.helpers.async_scanner.is_running(session.session_id)
         ):
             return
-        if interrupted_during == "scanning" and self._scanning_session_recently_active(session):
+        if is_stage(interrupted_during, STAGE_SCANNING) and self._scanning_session_recently_active(session):
             return
 
-        session.stage = "interrupted"
+        session.stage = STAGE_INTERRUPTED
         session.integrity_flags["interrupted_during"] = interrupted_during
         session.last_error = session.last_error or f"{interrupted_during}_interrupted"
         session.last_journal_id = session.last_journal_id or self.helpers._latest_execution_id(Path(session.target_dir))
