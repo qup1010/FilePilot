@@ -176,19 +176,20 @@ class OrganizerSessionService:
     def _build_planner_items(self, scan_lines: str, existing_items: list[dict] | None = None) -> list[dict]:
         return self.source_manager.build_planner_items(scan_lines, existing_items=existing_items)
 
-    @staticmethod
-    def _planner_items_by_id(session: OrganizerSession) -> dict[str, dict]:
+    def _session_planner_items(self, session: OrganizerSession) -> list[dict]:
+        return self.source_manager.session_planner_items(session)
+
+    def _planner_items_by_id(self, session: OrganizerSession) -> dict[str, dict]:
         return {
             str(item.get("planner_id") or "").strip(): dict(item)
-            for item in (session.planner_items or [])
+            for item in self._session_planner_items(session)
             if str(item.get("planner_id") or "").strip()
         }
 
-    @staticmethod
-    def _planner_items_by_source(session: OrganizerSession) -> dict[str, dict]:
+    def _planner_items_by_source(self, session: OrganizerSession) -> dict[str, dict]:
         return {
             str(item.get("source_relpath") or "").replace("\\", "/").strip(): dict(item)
-            for item in (session.planner_items or [])
+            for item in self._session_planner_items(session)
             if str(item.get("source_relpath") or "").strip()
         }
 
@@ -501,7 +502,7 @@ class OrganizerSessionService:
         return TASK_PHASE_SETUP
 
     def _source_refs_from_session(self, session: OrganizerSession) -> list[SourceRef]:
-        planner_items = list(session.planner_items or [])
+        planner_items = self._session_planner_items(session)
         source_collection = self._normalize_source_collection(session.source_collection)
         alias_map = self._source_alias_map_for_items(source_collection)
         if planner_items:
@@ -644,15 +645,7 @@ class OrganizerSessionService:
         active_plan = plan or self._pending_plan_from_session(session)
         base_task = self._task_state_payload(session.task_state).to_task(session.session_id)
         if not base_task.sources:
-            base_task = OrganizeTask(
-                task_id=session.session_id,
-                sources=self._source_refs_from_session(session),
-                targets=self._target_slots_from_session(session),
-                mappings=[],
-                strategy=self._strategy_selection(session),
-                user_constraints=list(session.user_constraints),
-                phase=self._task_phase_for_stage(session.stage),
-            )
+            base_task.sources = self._source_refs_from_session(session)
         if not base_task.sources:
             base_task.sources = [
                 SourceRef(
@@ -668,6 +661,20 @@ class OrganizerSessionService:
                 for index, move in enumerate(active_plan.moves or [], start=1)
                 if str(move.source or "").strip()
             ]
+        if self._normalize_organize_mode(session.organize_mode) == "incremental":
+            base_task.targets = self._target_slots_from_session(session)
+        elif not base_task.targets:
+            base_task.targets = self._target_slots_from_session(session)
+        if not base_task.sources:
+            base_task = OrganizeTask(
+                task_id=session.session_id,
+                sources=self._source_refs_from_session(session),
+                targets=self._target_slots_from_session(session),
+                mappings=[],
+                strategy=self._strategy_selection(session),
+                user_constraints=list(session.user_constraints),
+                phase=self._task_phase_for_stage(session.stage),
+            )
         adapter = TaskPlannerAdapter(session.target_dir)
         task = adapter.apply_pending_plan(base_task, active_plan)
         task.strategy = self._strategy_selection(session)
@@ -732,15 +739,16 @@ class OrganizerSessionService:
         return self.target_resolver.target_dir_from_slot_id(session, slot_id, plan)
 
     def _planning_scope_sources(self, session: OrganizerSession) -> list[str]:
-        if session.planner_items:
+        planner_items = self._session_planner_items(session)
+        if planner_items:
             return [
                 str(item.get("source_relpath") or "").replace("\\", "/").strip()
-                for item in session.planner_items
+                for item in planner_items
                 if str(item.get("source_relpath") or "").strip()
             ]
         return [
             str(entry.get("source_relpath") or "").replace("\\", "/").strip()
-            for entry in self._scan_entries(session.scan_lines)
+            for entry in self._session_scan_entries(session)
             if str(entry.get("source_relpath") or "").strip()
         ]
 
@@ -1195,7 +1203,7 @@ class OrganizerSessionService:
             pending,
             {"invalidated_items": [], "diff_summary": []},
             scan_lines=session.scan_lines,
-            planner_items=session.planner_items,
+            planner_items=self._session_planner_items(session),
             session=session,
         )
 
@@ -1379,7 +1387,7 @@ class OrganizerSessionService:
                 active_pending,
                 cycle_result or {},
                 scan_lines=session.scan_lines,
-                planner_items=session.planner_items,
+                planner_items=self._session_planner_items(session),
                 session=session,
             )
         )
@@ -1482,7 +1490,7 @@ class OrganizerSessionService:
         return changed
 
     def _build_inspection_context(self, session: OrganizerSession) -> dict[str, dict[str, str]]:
-        if not session.planner_items:
+        if not self._session_planner_items(session):
             return {}
 
         entry_context = self._source_collection_entry_context(session)
@@ -1495,7 +1503,7 @@ class OrganizerSessionService:
             if self._normalize_relpath(item.get("source_relpath") or item.get("entry_name"))
         }
         inspection_context: dict[str, dict[str, str]] = {}
-        for planner_item in session.planner_items or []:
+        for planner_item in self._session_planner_items(session):
             item_id = str(planner_item.get("planner_id") or "").strip()
             source_relpath = self._normalize_relpath(planner_item.get("source_relpath"))
             if not item_id or not source_relpath:
@@ -1634,7 +1642,7 @@ class OrganizerSessionService:
         session.source_tree_entries = self._build_source_tree_entries(
             target_dir,
             filtered_scan_lines,
-            planner_items=session.planner_items,
+            planner_items=self._session_planner_items(session),
             session=session,
         )
         session.incremental_selection = {
@@ -1735,7 +1743,7 @@ class OrganizerSessionService:
                     )
                     return True
                 return False
-            if session.scan_lines and not session.planner_items:
+            if session.scan_lines and not self._session_planner_items(session):
                 return self._ensure_planner_items(session)
             return False
         session.planning_schema_version = CURRENT_PLANNING_SCHEMA_VERSION
@@ -1929,7 +1937,7 @@ class OrganizerSessionService:
             return
         session.messages = organize_service.build_initial_messages(
             session.scan_lines,
-            planner_items=session.planner_items,
+            planner_items=self._session_planner_items(session),
             strategy=self._strategy_selection(session),
             user_constraints=list(session.user_constraints),
             planning_context=self._planning_context(session),
@@ -2640,7 +2648,7 @@ class OrganizerSessionService:
                 session.source_tree_entries = self._build_source_tree_entries(
                     Path(session.target_dir),
                     session.scan_lines,
-                    planner_items=session.planner_items,
+                    planner_items=self._session_planner_items(session),
                     session=session,
                 )
                 if session.selected_target_directories:
@@ -2770,7 +2778,7 @@ class OrganizerSessionService:
                 session.source_tree_entries = self._build_source_tree_entries(
                     Path(session.target_dir),
                     session.scan_lines,
-                    planner_items=session.planner_items,
+                    planner_items=self._session_planner_items(session),
                     session=session,
                 )
                 if session.selected_target_directories:
@@ -2909,7 +2917,7 @@ class OrganizerSessionService:
             or self._build_source_tree_entries(
                 Path(session.target_dir),
                 session.scan_lines,
-                planner_items=session.planner_items,
+                planner_items=self._session_planner_items(session),
                 session=session,
             )
         )
@@ -3187,14 +3195,14 @@ class OrganizerSessionService:
 
         rebuilt_payload = self._plan_snapshot_payload(
             self._plan_snapshot(
-            pending,
-            {
-                "invalidated_items": list(existing.get("invalidated_items", [])),
-                "diff_summary": list(existing.get("diff_summary", [])),
-            },
-            scan_lines=session.scan_lines,
-            planner_items=session.planner_items,
-            session=session,
+                pending,
+                {
+                    "invalidated_items": list(existing.get("invalidated_items", [])),
+                    "diff_summary": list(existing.get("diff_summary", [])),
+                },
+                scan_lines=session.scan_lines,
+                planner_items=self._session_planner_items(session),
+                session=session,
             )
         )
 
@@ -3417,6 +3425,9 @@ class OrganizerSessionService:
 
     def _scan_entries(self, scan_lines: str) -> list[dict]:
         return self.source_manager.scan_entries(scan_lines)
+
+    def _session_scan_entries(self, session: OrganizerSession) -> list[dict]:
+        return self.source_manager.session_scan_entries(session)
 
     def _latest_execution_id(self, target_dir: Path) -> str | None:
         journal = rollback_service.load_latest_execution_for_directory(target_dir)

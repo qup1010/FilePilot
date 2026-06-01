@@ -466,7 +466,7 @@ class SessionApiTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         snapshot = response.json()["session_snapshot"]
-        updated_item = next(item for item in snapshot["plan_snapshot"]["items"] if item["item_id"] == "md")
+        updated_item = next(item for item in snapshot["plan_snapshot"]["items"] if item["source_relpath"] == "md")
         self.assertNotIn("target_relpath", updated_item)
         self.assertEqual(self._plan_item_target_directory(snapshot, "md"), "Study")
         self.assertEqual(snapshot["plan_snapshot"]["unresolved_items"], [])

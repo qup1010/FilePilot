@@ -25,6 +25,10 @@ from file_pilot.app.session_constants import (
     TASK_PHASE_REVIEWING,
     TASK_PHASE_SETUP,
 )
+from file_pilot.app.source_payloads import (
+    build_planner_items_from_scan_lines,
+    source_refs_from_planner_items,
+)
 from file_pilot.domain.models import MappingEntry, OrganizeTask, SourceRef, TargetSlot
 from file_pilot.organize.strategy_templates import (
     DEFAULT_CAUTION_LEVEL,
@@ -612,21 +616,7 @@ class OrganizerSession:
         if self.task_state is not None:
             return self.task_state
         source_origin = str(Path(self.target_dir).resolve())
-        sources = [
-            SourceRef(
-                ref_id=str(item.get("planner_id") or item.get("source_relpath") or ""),
-                display_name=str(item.get("display_name") or Path(str(item.get("source_relpath") or "")).name),
-                entry_type=str(item.get("entry_type") or ""),
-                origin=source_origin,
-                relpath=str(item.get("source_relpath") or "").replace("\\", "/").strip(),
-                suggested_purpose=str(item.get("suggested_purpose") or ""),
-                content_summary=str(item.get("summary") or ""),
-                confidence=item.get("confidence"),
-                ext=str(item.get("ext") or ""),
-            )
-            for item in (self.planner_items or [])
-            if str(item.get("source_relpath") or "").strip()
-        ]
+        sources = source_refs_from_planner_items(self.planner_items, default_origin=source_origin)
         snapshot = self.plan_snapshot or PlanSnapshotPayload(summary="", stats={})
         targets = [
             TargetSlot(
@@ -718,7 +708,30 @@ class OrganizerSession:
         conversation_state = ConversationState.from_dict(data.get("conversation_state"))
         execution_state = ExecutionState.from_dict(data.get("execution_state"))
         task_state = TaskState.from_dict(data.get("task_state"))
+        scan_lines = str(data.get("scan_lines", "") or "")
+        planner_items = list(data.get("planner_items", []))
         organize_mode = str(data.get("organize_mode", "initial") or "initial")
+        incremental_selection = dict(data.get("incremental_selection", {}))
+        stage = data.get("stage", STAGE_DRAFT)
+        stage_text = str(stage or STAGE_DRAFT).strip()
+        is_incremental = organize_mode.strip().lower() == "incremental"
+        raw_source_scan_completed = incremental_selection.get("source_scan_completed")
+        source_scan_completed = raw_source_scan_completed is True or str(raw_source_scan_completed).strip().lower() == "true"
+        selection_status = str(incremental_selection.get("status") or "").strip()
+        is_incremental_discovery = is_incremental and (
+            stage_text == STAGE_SELECTING_INCREMENTAL_SCOPE
+            or (not source_scan_completed and selection_status in {"pending", "scanning"})
+        )
+        can_derive_source_items = bool(scan_lines) and (
+            not is_incremental or source_scan_completed or not is_incremental_discovery
+        )
+        if can_derive_source_items and not planner_items:
+            planner_items = build_planner_items_from_scan_lines(scan_lines)
+        if task_state is not None and not task_state.sources and planner_items and not is_incremental_discovery:
+            task_state.sources = source_refs_from_planner_items(
+                planner_items,
+                default_origin=str(Path(str(data.get("target_dir") or "")).resolve()),
+            )
         organize_method = str(data.get("organize_method") or "").strip()
         if not organize_method:
             organize_method = organize_method_for_organize_mode(organize_mode)
@@ -753,7 +766,7 @@ class OrganizerSession:
                 )
                 if item is not None
             ],
-            stage=data.get("stage", STAGE_DRAFT),
+            stage=stage,
             strategy_template_id=data.get("strategy_template_id", DEFAULT_TEMPLATE_ID),
             strategy_template_label=data.get("strategy_template_label", "通用下载"),
             organize_mode=organize_mode,
@@ -764,8 +777,8 @@ class OrganizerSession:
             caution_level=data.get("caution_level", DEFAULT_CAUTION_LEVEL),
             strategy_note=data.get("strategy_note", ""),
             messages=list(data.get("messages", conversation_state.messages if conversation_state else [])),
-            scan_lines=data.get("scan_lines", ""),
-            planner_items=list(data.get("planner_items", [])),
+            scan_lines=scan_lines,
+            planner_items=planner_items,
             inspection_context=dict(data.get("inspection_context", {})),
             source_tree_entries=list(data.get("source_tree_entries", [])),
             pending_plan=PendingPlanPayload.from_dict(data.get("pending_plan")),
@@ -773,7 +786,7 @@ class OrganizerSession:
             user_constraints=list(data.get("user_constraints", [])),
             scanner_progress=dict(data.get("scanner_progress", conversation_state.scanner_progress if conversation_state else {})),
             planner_progress=dict(data.get("planner_progress", conversation_state.planner_progress if conversation_state else {})),
-            incremental_selection=dict(data.get("incremental_selection", {})),
+            incremental_selection=incremental_selection,
             assistant_message=data.get("assistant_message", conversation_state.assistant_message if conversation_state else None),
             precheck_summary=data.get("precheck_summary", execution_state.precheck_summary if execution_state else None),
             execution_report=data.get("execution_report", execution_state.execution_report if execution_state else None),

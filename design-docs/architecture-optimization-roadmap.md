@@ -1,8 +1,8 @@
 # FilePilot 架构优化路线图
 
-更新日期：2026-05-31
+更新日期：2026-06-01
 
-进度状态：P0 ID 稳定性已完成；P1 状态阶段规则已完成第三阶段边界测试覆盖与裸阶段赋值收束；P1 手动干预撤销已完成第一轮；P2 Review 语义已完成预检/前端预检/完成页/预览面板/回退预览/目录树差异视图消费起步；P2 TargetSlot 管理已完成第二阶段收束；P2 同名目标冲突体验已完成预检阻断、结构化建议展示与半自动应用入口，并补齐“目标已存在”建议语义。
+进度状态：P0 ID 稳定性已完成；P1 状态阶段规则已完成第三阶段边界测试覆盖与裸阶段赋值收束；P1 手动干预撤销已完成第一轮；P2 Review 语义已完成预检/前端预检/完成页/预览面板/回退预览/目录树差异视图消费起步；P2 TargetSlot 管理已完成第二阶段收束；P2 同名目标冲突体验已完成预检阻断、结构化建议展示与半自动应用入口，并补齐“目标已存在”建议语义；P3 扫描数据双轨收敛已完成第一轮结构化主路径收束。
 
 ## 目的
 
@@ -103,6 +103,15 @@
   - 已补充 `tests/test_target_slot_registry.py`，覆盖复用已有 real path、追加新 ID、不重排旧 slot、Review/空目标特殊处理和外部绝对路径反查。
   - 增量 `target_directory_tree` 现在会递归转换子目录为 slot，并保留 children 结构。
 
+- **P3：扫描数据双轨收敛第一轮**
+  - 新增纯工具模块 `file_pilot/app/source_payloads.py`，集中旧 `scan_lines` 文本解析、`planner_items` 派生、`SourceRef` 派生和结构化扫描条目派生。
+  - `SourceManager` 已收束为薄委托，并新增 `planner_items_from_task_sources()`、`session_planner_items()`、`session_scan_entries()` 结构化视图。
+  - `OrganizerSession.from_dict()` 会在读取旧会话时，从 `scan_lines` 派生 `planner_items`，并在已有 `task_state` 缺少 `sources` 时补齐结构化 `SourceRef`。
+  - 增量目标发现阶段仍保留 `scan_lines` 为目录发现结果，不迁移为待整理 source，避免把既有目标目录误当来源。
+  - 规划循环、冲突建议应用、快照重建、inspection context 与 source tree 构建已优先消费 `_session_planner_items()` / `_session_scan_entries()`。
+  - `_build_organize_task()` 已优先保留 `task_state.sources`，再从 session structured sources 派生，并在增量模式下以当前 selection 的 target slots 为权威，避免旧 `task_state.targets` 漂移。
+  - 已补充 `tests/test_source_payloads.py` 与会话模型迁移测试，覆盖结构化字段往返、旧文本迁移、增量发现阶段不迁移，以及旧增量 ready 会话缺少 completion flag 时仍可迁移。
+
 ### 最近验证
 
 已运行聚焦回归测试：
@@ -200,6 +209,14 @@ rg '\.stage\s*=\s*"' file_pilot/app -n
 结果：通过。
 
 已检查相关变更文件 lint 诊断：无新增诊断。
+
+P3 扫描数据双轨收敛第一轮验证：
+
+```powershell
+python -m unittest tests.test_source_payloads tests.test_session_models tests.test_session_service tests.test_scan_workflow_service tests.test_planning_conversation_service tests.test_structured_organizer_service tests.test_session_stage_transitions -v
+```
+
+结果：通过。
 
 ### 下一步建议
 
@@ -425,6 +442,8 @@ target slot 来源较多：
 
 ## P3：扫描数据双轨收敛
 
+状态：已完成第一轮结构化主路径收束。`source_payloads.py` 已集中 `scan_lines` 兼容解析与 structured payload 派生；旧会话加载时可从 `scan_lines` 迁移到 `planner_items` / `task_state.sources`；核心 planning、snapshot、inspection 与 task 构建路径已优先消费结构化 `planner_items` / `SourceRef` 视图。`scan_lines` 仍保留为展示、增量目标发现和旧会话兼容字段，暂不删除。
+
 ### 问题
 
 `scan_lines` 是旧文本格式，`planner_items` 是结构化格式。双轨存在兼容价值，但也带来重复解析和 fallback 分支。
@@ -437,12 +456,14 @@ target slot 来源较多：
 
 ### 建议步骤
 
-1. 统计当前测试和 API 仍依赖 `scan_lines` 的位置。
-2. 确认 `planner_items` 覆盖所有前端需要的字段。
-3. 增加旧会话迁移测试。
-4. 逐步减少从 `scan_lines` 解析 source 的核心路径。
+1. 统计当前测试和 API 仍依赖 `scan_lines` 的位置。（已完成第一轮，保留展示/兼容/增量目标发现用途）
+2. 确认 `planner_items` 覆盖所有前端需要的字段。（已完成第一轮，核心 snapshot 与 planner context 继续兼容旧字段）
+3. 增加旧会话迁移测试。（已完成，覆盖初始旧会话、增量目标发现不迁移、旧增量 ready 会话迁移）
+4. 逐步减少从 `scan_lines` 解析 source 的核心路径。（已完成第一轮，核心服务改走 `_session_planner_items()` / `_session_scan_entries()`）
 
 ## P3：继续削薄 SessionService
+
+状态：Source/Snapshot 边界已完成一轮削薄。`SourceManager` 与新增 `source_payloads.py` 承接 source payload 转换规则；`SessionOrchestrator` 与 `PlanningConversationService` 通过显式 structured source 视图消费数据，减少直接读取 `session.planner_items` 和重复解析 `scan_lines` 的分支。后续重点仍是让 `SnapshotBuilder` 依赖更显式的 context，而不是继续扩大主服务 helper 面。
 
 ### 问题
 

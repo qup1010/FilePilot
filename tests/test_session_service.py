@@ -2005,7 +2005,7 @@ class OrganizerSessionServiceTests(unittest.TestCase):
         )
 
         updated_item = next(
-            item for item in result.session_snapshot["plan_snapshot"]["items"] if item["item_id"] == "md"
+            item for item in result.session_snapshot["plan_snapshot"]["items"] if item["source_relpath"] == "md"
         )
         self.assertNotIn("target_relpath", updated_item)
         self.assertEqual(self._plan_item_target_directory(result.session_snapshot, "md"), "Study")

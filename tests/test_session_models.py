@@ -35,6 +35,92 @@ class SessionModelTests(unittest.TestCase):
         self.assertEqual(payload["task_state"]["sources"][0]["ref_id"], "F001")
         self.assertEqual(payload["conversation_state"]["messages"][0]["content"], "hello")
 
+    def test_from_dict_migrates_legacy_scan_lines_to_structured_sources(self):
+        restored = OrganizerSession.from_dict(
+            {
+                "session_id": "legacy-1",
+                "target_dir": "D:/workspace/Inbox",
+                "stage": "planning",
+                "scan_lines": "plan.md | file | 技术设计 | 架构设计文档",
+                "planner_items": [],
+                "task_state": {"sources": [], "targets": [], "mappings": [], "strategy": {}, "phase": "planning"},
+            }
+        )
+
+        self.assertEqual(restored.planner_items[0]["planner_id"], "F001")
+        self.assertEqual(restored.planner_items[0]["source_relpath"], "plan.md")
+        self.assertIsNotNone(restored.task_state)
+        assert restored.task_state is not None
+        self.assertEqual(restored.task_state.sources[0].ref_id, "F001")
+        self.assertEqual(restored.task_state.sources[0].content_summary, "架构设计文档")
+
+    def test_from_dict_does_not_migrate_incremental_discovery_scan_lines(self):
+        restored = OrganizerSession.from_dict(
+            {
+                "session_id": "legacy-2",
+                "target_dir": "D:/workspace/Inbox",
+                "stage": "selecting_incremental_scope",
+                "organize_mode": "incremental",
+                "scan_lines": "Projects | dir | 项目目录 | 既有目标",
+                "planner_items": [],
+                "incremental_selection": {
+                    "required": True,
+                    "status": "pending",
+                    "source_scan_completed": False,
+                },
+            }
+        )
+
+        self.assertEqual(restored.planner_items, [])
+        self.assertIsNone(restored.task_state)
+
+    def test_from_dict_migrates_legacy_incremental_ready_scan_lines_without_completion_flag(self):
+        restored = OrganizerSession.from_dict(
+            {
+                "session_id": "legacy-3",
+                "target_dir": "D:/workspace/Inbox",
+                "stage": "planning",
+                "organize_mode": "incremental",
+                "scan_lines": "todo.txt | file | 待处理 | 待整理",
+                "planner_items": [],
+                "incremental_selection": {
+                    "required": True,
+                    "status": "ready",
+                    "target_directories": ["Projects"],
+                },
+                "task_state": {"sources": [], "targets": [], "mappings": [], "strategy": {}, "phase": "planning"},
+            }
+        )
+
+        self.assertEqual(restored.planner_items[0]["source_relpath"], "todo.txt")
+        self.assertIsNotNone(restored.task_state)
+        assert restored.task_state is not None
+        self.assertEqual(restored.task_state.sources[0].ref_id, "F001")
+
+    def test_from_dict_migrates_existing_planner_items_to_task_sources_without_scan_lines(self):
+        restored = OrganizerSession.from_dict(
+            {
+                "session_id": "legacy-4",
+                "target_dir": "D:/workspace/Inbox",
+                "stage": "planning",
+                "scan_lines": "",
+                "planner_items": [
+                    {
+                        "planner_id": "F009",
+                        "source_relpath": "docs/plan.md",
+                        "display_name": "plan.md",
+                        "summary": "架构设计文档",
+                    }
+                ],
+                "task_state": {"sources": [], "targets": [], "mappings": [], "strategy": {}, "phase": "planning"},
+            }
+        )
+
+        self.assertIsNotNone(restored.task_state)
+        assert restored.task_state is not None
+        self.assertEqual(restored.task_state.sources[0].ref_id, "F009")
+        self.assertEqual(restored.task_state.sources[0].relpath, "docs/plan.md")
+
     def test_id_registry_state_roundtrips_with_session_payload(self):
         session = OrganizerSession(
             session_id="s1",

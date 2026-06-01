@@ -156,7 +156,7 @@ class PlanningConversationService:
         pending = self.helpers._pending_plan_from_session(session)
         source_by_item_id = {
             str(item.get("planner_id") or "").strip(): self.helpers._normalize_relpath(item.get("source_relpath"))
-            for item in (session.planner_items or [])
+            for item in self.helpers._session_planner_items(session)
             if str(item.get("planner_id") or "").strip() and self.helpers._normalize_relpath(item.get("source_relpath"))
         }
         move_by_source = {

@@ -3,6 +3,14 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from file_pilot.app.source_payloads import (
+    build_planner_items_from_scan_lines,
+    normalize_relpath,
+    planner_items_from_source_refs,
+    scan_entries_from_planner_items,
+    scan_entries_from_lines,
+)
+
 if TYPE_CHECKING:
     from file_pilot.app.models import OrganizerSession
     from file_pilot.app.session_service import OrganizerSessionService
@@ -13,97 +21,34 @@ class SourceManager:
         self.helpers = helpers
 
     def scan_entries(self, scan_lines: str) -> list[dict]:
-        entries = []
-        for line in (scan_lines or "").splitlines():
-            if not line.strip():
-                continue
-            entry_path = ""
-            entry_type = ""
-            suggested_purpose = ""
-            summary = ""
-            confidence = None
-            if "|" in line:
-                parts = [part.strip() for part in line.split("|", 3)]
-                entry_path = parts[0] if parts else ""
-                if len(parts) >= 4:
-                    entry_type = parts[1].lower()
-                    suggested_purpose = parts[2]
-                    summary = parts[3]
-                else:
-                    suggested_purpose = parts[1] if len(parts) > 1 else ""
-                    summary = parts[2] if len(parts) > 2 else ""
-            else:
-                parts = line.split(":", 1)
-                if len(parts) >= 2:
-                    entry_path = parts[1].split("(")[0].strip()
-            if not entry_path:
-                continue
-            entries.append(
-                {
-                    "item_id": entry_path,
-                    "display_name": Path(entry_path).name,
-                    "source_relpath": entry_path,
-                    "suggested_purpose": suggested_purpose,
-                    "summary": summary,
-                    "confidence": confidence,
-                    "entry_type": entry_type,
-                    "ext": self.helpers._entry_extension(entry_path),
-                }
-            )
-        return entries
+        return scan_entries_from_lines(scan_lines)
 
     def build_planner_items(self, scan_lines: str, existing_items: list[dict] | None = None) -> list[dict]:
-        entries = self.scan_entries(scan_lines)
-        existing_by_source = {
-            str(item.get("source_relpath") or "").replace("\\", "/"): dict(item)
-            for item in (existing_items or [])
-            if str(item.get("source_relpath") or "").strip()
-        }
-        next_id = max((self.helpers._planner_id_number(item.get("planner_id")) for item in (existing_items or [])), default=0)
-        basename_counts: dict[str, int] = {}
-        for entry in entries:
-            basename = str(entry.get("display_name") or "").strip().lower()
-            if basename:
-                basename_counts[basename] = basename_counts.get(basename, 0) + 1
+        return build_planner_items_from_scan_lines(scan_lines, existing_items=existing_items)
 
-        duplicate_seen: dict[str, int] = {}
+    def planner_items_from_task_sources(self, session: "OrganizerSession") -> list[dict]:
+        task_state = session.task_state
+        if not task_state or not task_state.sources:
+            return []
+        return planner_items_from_source_refs(task_state.sources)
 
-        planner_items: list[dict] = []
-        for entry in entries:
-            source_relpath = str(entry.get("source_relpath") or "").replace("\\", "/").strip()
-            if not source_relpath:
-                continue
-            existing = existing_by_source.get(source_relpath)
-            if existing:
-                planner_id = str(existing.get("planner_id") or "").strip()
-            else:
-                next_id += 1
-                planner_id = f"F{next_id:03d}"
-            parent_hint = ""
-            base_display_name = str(entry.get("display_name") or Path(source_relpath).name)
-            display_name = base_display_name
-            duplicate_key = base_display_name.strip().lower()
-            if basename_counts.get(duplicate_key, 0) > 1:
-                parent_hint = str(Path(source_relpath).parent).replace("\\", "/")
-                if parent_hint == ".":
-                    parent_hint = ""
-                duplicate_seen[duplicate_key] = duplicate_seen.get(duplicate_key, 0) + 1
-                display_name = f"{base_display_name} ({duplicate_seen[duplicate_key]})"
-            planner_items.append(
-                {
-                    "planner_id": planner_id,
-                    "source_relpath": source_relpath,
-                    "display_name": display_name,
-                    "suggested_purpose": entry.get("suggested_purpose", ""),
-                    "summary": entry.get("summary", ""),
-                    "confidence": entry.get("confidence", existing.get("confidence") if existing else None),
-                    "entry_type": entry.get("entry_type", ""),
-                    "ext": entry.get("ext") or self.helpers._entry_extension(source_relpath),
-                    "parent_hint": parent_hint,
-                }
-            )
-        planner_items.sort(key=lambda item: self.helpers._planner_id_number(item.get("planner_id", "")))
-        return planner_items
+    def session_planner_items(self, session: "OrganizerSession") -> list[dict]:
+        task_items = self.planner_items_from_task_sources(session)
+        base_items = list(session.planner_items or task_items or [])
+        if not session.scan_lines:
+            return base_items
+        scan_items = self.build_planner_items(session.scan_lines, existing_items=base_items)
+        known_sources = {normalize_relpath(item.get("source_relpath")) for item in base_items}
+        scan_sources = {normalize_relpath(item.get("source_relpath")) for item in scan_items}
+        if not base_items or not scan_sources.issubset(known_sources):
+            return scan_items
+        return base_items
+
+    def session_scan_entries(self, session: "OrganizerSession") -> list[dict]:
+        planner_items = self.session_planner_items(session)
+        if planner_items:
+            return scan_entries_from_planner_items(planner_items)
+        return self.scan_entries(session.scan_lines)
 
     def build_source_tree_entries(
         self,
@@ -117,9 +62,9 @@ class SourceManager:
             return []
 
         planner_by_source = {
-            str(item.get("source_relpath") or "").replace("\\", "/").strip(): dict(item)
+            normalize_relpath(item.get("source_relpath")): dict(item)
             for item in (planner_items or [])
-            if str(item.get("source_relpath") or "").strip()
+            if normalize_relpath(item.get("source_relpath"))
         }
         entries_by_path: dict[str, dict] = {}
         atomic_root_entries: dict[str, dict] = {}
@@ -134,7 +79,7 @@ class SourceManager:
                 if not item.is_atomic_directory:
                     continue
                 item_path = Path(item.path).resolve()
-                source_relpath = self.helpers._normalize_relpath(alias_for_session_item(item) or item_path.name)
+                source_relpath = normalize_relpath(alias_for_session_item(item) or item_path.name)
                 if not source_relpath:
                     continue
                 atomic_root_entries[source_relpath] = {
@@ -152,7 +97,7 @@ class SourceManager:
                 return "file"
             source_prefix = f"{source_relpath}/"
             if any(
-                str(entry.get("source_relpath") or "").replace("\\", "/").strip().startswith(source_prefix)
+                normalize_relpath(entry.get("source_relpath")).startswith(source_prefix)
                 for entry in scan_entries
             ):
                 return "directory"
@@ -180,7 +125,7 @@ class SourceManager:
             )
 
         for entry in scan_entries:
-            source_relpath = str(entry.get("source_relpath") or "").replace("\\", "/").strip()
+            source_relpath = normalize_relpath(entry.get("source_relpath"))
             if not source_relpath:
                 continue
             if belongs_to_atomic_descendant(source_relpath):
@@ -207,7 +152,8 @@ class SourceManager:
 
     def ensure_planner_items(self, session: "OrganizerSession", scan_lines: str | None = None) -> bool:
         source_scan_lines = scan_lines if scan_lines is not None else session.scan_lines
-        next_items = self.build_planner_items(source_scan_lines or "", existing_items=session.planner_items)
+        existing_items = session.planner_items or self.planner_items_from_task_sources(session)
+        next_items = self.build_planner_items(source_scan_lines or "", existing_items=existing_items)
         changed = False
         if next_items != (session.planner_items or []):
             session.planner_items = next_items

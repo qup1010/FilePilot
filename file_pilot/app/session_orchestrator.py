@@ -154,7 +154,7 @@ class SessionOrchestrator:
             assistant_message, cycle_result = organize_service.run_organizer_cycle(
                 messages=list(session.messages),
                 scan_lines=session.scan_lines,
-                planner_items=session.planner_items,
+                planner_items=self.helpers._session_planner_items(session),
                 pending_plan=active_pending,
                 user_constraints=list(session.user_constraints),
                 strategy_instructions=self.helpers._strategy_prompt_fragment(session),
