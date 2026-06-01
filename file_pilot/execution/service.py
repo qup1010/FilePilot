@@ -166,6 +166,17 @@ def validate_execution_preconditions(plan: ExecutionPlan) -> PrecheckResult:
     warnings: list[str] = []
     planned_dirs = {action.target.resolve(strict=False) for action in plan.mkdir_actions}
     seen_cross_volume_pairs: set[tuple[str, str]] = set()
+    move_targets_by_key: dict[str, list[ExecutionAction]] = {}
+
+    for action in plan.move_actions:
+        target_key = _path_key(action.target)
+        move_targets_by_key.setdefault(target_key, []).append(action)
+
+    for actions in move_targets_by_key.values():
+        if len(actions) <= 1:
+            continue
+        target = actions[0].target
+        blocking_errors.append(f"计划内多个项目指向同一目标: {relative_display(target, plan.base_dir)}")
 
     for action in plan.move_actions:
         assert action.source is not None
@@ -211,6 +222,10 @@ def validate_execution_preconditions(plan: ExecutionPlan) -> PrecheckResult:
         blocking_errors=blocking_errors,
         warnings=warnings,
     )
+
+
+def _path_key(path: Path) -> str:
+    return os.path.normcase(str(path.resolve(strict=False))).rstrip("\\/")
 
 
 def _existing_ancestor(path: Path) -> Path:

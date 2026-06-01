@@ -8,9 +8,11 @@ interface PathDiffViewerProps {
   source: string;
   target: string;
   compact?: boolean;
+  targetKind?: string;
+  isReview?: boolean;
 }
 
-export function PathDiffViewer({ source, target, compact = false }: PathDiffViewerProps) {
+export function PathDiffViewer({ source, target, compact = false, targetKind, isReview }: PathDiffViewerProps) {
   const diff = useMemo(() => {
     if (!source || !target) {
       return {
@@ -78,9 +80,11 @@ export function PathDiffViewer({ source, target, compact = false }: PathDiffView
     return commonRoot + "/";
   }, [commonRoot, compact]);
 
-  const isReview = useMemo(() => {
-    return target.split(/[\\/]/).some((part) => part.toLowerCase() === "review");
-  }, [target]);
+  const targetIsReview = useMemo(() => {
+    return Boolean(isReview)
+      || String(targetKind || "").toLowerCase() === "review"
+      || target.split(/[\\/]/).some((part) => part.toLowerCase() === "review");
+  }, [isReview, target, targetKind]);
 
   if (compact) {
     // 弹窗内的紧凑单行/双行排版
@@ -130,7 +134,7 @@ export function PathDiffViewer({ source, target, compact = false }: PathDiffView
               );
             })}
             {targetFolders.length > 0 && <span className="opacity-40 mx-0.5">/</span>}
-            <span className={cn("font-black", isReview ? "text-warning" : "text-primary")}>
+            <span className={cn("font-black", targetIsReview ? "text-warning" : "text-primary")}>
               {fileName}
             </span>
           </div>
@@ -173,7 +177,7 @@ export function PathDiffViewer({ source, target, compact = false }: PathDiffView
       <div
         className={cn(
           "flex items-start gap-2 rounded-md border p-2.5 min-w-0",
-          isReview
+          targetIsReview
             ? "border-warning/20 bg-warning/[0.01]"
             : "border-primary/10 bg-primary/[0.01]"
         )}
@@ -182,7 +186,7 @@ export function PathDiffViewer({ source, target, compact = false }: PathDiffView
         <div
           className={cn(
             "mt-0.5 flex h-4.5 w-4.5 shrink-0 items-center justify-center rounded",
-            isReview ? "bg-warning/10 text-warning" : "bg-primary/10 text-primary"
+            targetIsReview ? "bg-warning/10 text-warning" : "bg-primary/10 text-primary"
           )}
         >
           <Folder className="h-3 w-3" />
@@ -212,7 +216,7 @@ export function PathDiffViewer({ source, target, compact = false }: PathDiffView
               );
             })}
             {targetFolders.length > 0 && <span className="opacity-30 mx-0.5">/</span>}
-            <span className={cn("font-black", isReview ? "text-warning" : "text-primary")}>
+            <span className={cn("font-black", targetIsReview ? "text-warning" : "text-primary")}>
               {fileName}
             </span>
           </div>

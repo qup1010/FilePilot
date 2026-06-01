@@ -2,7 +2,7 @@
 
 更新日期：2026-05-31
 
-进度状态：P0 ID 稳定性已完成；P1 状态阶段规则已完成第一阶段收束；P2 Review 语义已完成常量化起步。
+进度状态：P0 ID 稳定性已完成；P1 状态阶段规则已完成第三阶段边界测试覆盖与裸阶段赋值收束；P1 手动干预撤销已完成第一轮；P2 Review 语义已完成预检/前端预检/完成页/预览面板/回退预览/目录树差异视图消费起步；P2 TargetSlot 管理已完成第二阶段收束；P2 同名目标冲突体验已完成预检阻断、结构化建议展示与半自动应用入口，并补齐“目标已存在”建议语义。
 
 ## 目的
 
@@ -55,17 +55,53 @@
   - 规划任务构建时会把 sources、targets、mappings 对齐到稳定 registry ID，避免旧 slot/source id 与新 registry 不一致。
   - 已补充 ID registry/session payload 回归测试。
 
-- **P1：状态阶段规则第一阶段收束**
+- **P1：状态阶段规则第三阶段边界测试覆盖与赋值收束**
   - 新增 `file_pilot/app/session_constants.py`，集中定义 session stage、stage set、task phase 与标准阶段冲突错误码。
   - 新增轻量 helper：`normalize_stage()`、`is_stage()`、`is_stage_in()`、`is_locked_stage()`、`is_terminal_stage()`、`is_planning_mutable_stage()`、`is_recovery_stage()`、`is_reclaimable_lock_stage()`、`ensure_stage()`、`ensure_stage_in()`。
   - 已替换 session、scan、planning、execution、history、lifecycle、orchestrator、store 等核心路径中的主要裸阶段字符串和直接 set membership 判断。
-  - 暂不引入严格状态机，保留现有行为和异常语义，降低回归风险。
+  - 已移除 `OrganizerSessionService` 中兼容保留但无调用点的 `_TERMINAL_STAGES`、`_LOCKED_STAGES`、`_PLANNING_MUTABLE_STAGES`、`_RECOVERY_STAGES` 类属性别名，阶段集合规则只保留在 `session_constants.py`。
+  - 新增 `tests/test_session_stage_transitions.py`，覆盖 draft -> planning -> ready_to_execute -> completed -> stale 主链路、ready_to_execute 回到 ready_for_precheck、draft 废弃为 abandoned、orphan executing/rolling_back 恢复为 interrupted、refresh 拒绝 active locked stage、stale refresh 回到 planning、增量扫描进入 selecting_incremental_scope 并确认目标目录回到 planning 等关键状态转换。
+  - 已将 `session_service.py` 中剩余的同步/异步扫描、扫描恢复、增量选择相关裸阶段赋值收束为 `session_constants.py` 常量。
+  - 已评估暂不引入严格状态机；当前阶段常量、谓词 helper 和边界测试已能覆盖主要收益，继续引入 `SessionStateMachine.transition()` 会扩大改动面。
   - 已补充 `tests/test_session_constants.py` 覆盖阶段规范化、谓词和 ensure helper。
+
+- **P1：手动干预撤销第一轮**
+  - `MappingEntry`、plan snapshot item 与 mapping payload 已保存首次手动覆盖前的 `original_target_slot_id`、`original_status`、`overridden_at`。
+  - `TaskPlannerAdapter.assign_mapping()` 会在第一次用户覆盖时记录 AI 原建议，后续连续覆盖不会刷新 original。
+  - 新增 `restore_ai_mapping(session_id, item_id)` 服务方法与 `/api/sessions/{session_id}/restore-ai-suggestion` API。
+  - 快照已暴露 `can_restore_ai_suggestion`，前端工作台在条目可恢复时显示“恢复 AI 建议”操作。
+  - 已补充 adapter、planning service、API 回归测试，并通过前端类型检查。
 
 - **P2：Review 语义显式化起步**
   - 已集中 `REVIEW_SLOT_ID`、`REVIEW_DIR_NAME`、`REVIEW_DISPLAY_NAME`。
   - 已替换 target resolver、task planner adapter、snapshot builder、execution app 等核心路径中的 Review 硬编码。
-  - 当前仍保持用户可见行为不变；后续可继续增加 `kind: "review"` 或 `is_review` 等显式 payload 字段。
+  - `PlanTargetSlotPayload` 已增加 `kind` 与 `is_review` 字段；旧 payload 只带 `slot_id: "Review"` 时会自动派生 `kind: "review"` 与 `is_review: true`。
+  - 前端 `PlanTargetSlot` 类型已兼容 `kind` 与 `is_review`，当前仍保持用户可见行为不变。
+  - Review 常量已下沉到 `file_pilot/shared/review.py`；`session_constants.py` 继续兼容导出，避免 `organize` 反向依赖 `app`。
+  - 新增 `file_pilot/organize/target_slots.py`，让规划提示、工具描述、重试/修复提示和 plan diff 翻译优先消费 `kind/is_review`，并过滤 Review slot，避免把待确认区暴露为普通可选目标槽位。
+  - 执行预检 `move_preview` 已透出 `target_slot_id`、`target_kind`、`is_review` 兼容字段；前端预检视图已优先消费显式 Review 元数据，并保留旧路径/slot id fallback。
+  - 完成页的 journal summary 现已优先消费 `target_kind/is_review`，并为旧 journal 保留 `target_slot_id` / 路径片段兜底。
+  - 预览面板已新增 Review 语义 helper，优先识别 target slot 的 `kind/is_review`，并避免把 Review slot 当作普通可选目标目录暴露。
+  - 回退预检 `actions[]` 已透出 `target_slot_id`、`target_kind`、`is_review`，回退预览弹窗与路径对比组件已开始消费显式 Review 语义，不再只依赖目标路径片段识别待确认区。
+  - 目录树差异视图已从 leaf `status: "review"` 向父目录传播 Review 语义，路径不含 `Review` 时仍能显示待确认区标记，同时保留旧路径片段兼容。
+
+- **P2：同名目标冲突体验起步**
+  - 执行预检现在会对同一批计划中的重复目标路径直接阻断，避免执行阶段才发现覆盖风险。
+  - 预检结果新增 `target_conflict_suggestions`，为冲突组提供保守的序号后缀改名建议，前端预检视图已开始展示。
+  - 前端预览面板已提供“应用冲突建议”入口，点击后会调用后端接口把建议写回 pending plan 并重新预检。
+  - 预检建议已覆盖“目标已存在”场景，并在前端预检视图中显示为独立语义标签；同一应用入口可写回改名建议并重新预检。
+  - 当前仍不自动改写 plan，只有用户显式点击后才会应用建议。
+
+- **P2：TargetSlot 管理统一第二阶段**
+  - `TargetManager` 已承接 target slot 的 session 读取与 task payload 序列化。
+  - `OrganizerSessionService._target_slots_from_session()` 与 `_target_slot_payloads_from_task()` 已收束为薄委托。
+  - 新增纯 `TargetSlotRegistry`，集中 target slot 编号解析、real path 解析、slot 查找与新增 slot 分配。
+  - `TaskPlannerAdapter` 已通过 `TargetSlotRegistry` 完成 target slot 查找和创建，不再内联 slot 编号与追加规则。
+  - `OrganizerSessionService._target_slot_number()` 已委托到 `TargetSlotRegistry.slot_number()`，减少重复规则源。
+  - `IdRegistry` 的 target slot 编号解析已复用 `TargetSlotRegistry.slot_number()`；`IdRegistry` 继续负责会话生命周期稳定映射，`TargetSlotRegistry` 继续负责 task 层 slot 规则。
+  - 已补充 `tests/test_target_manager.py`，覆盖 task_state 优先、plan_snapshot fallback、增量目录树递归 slot、外部绝对路径 payload。
+  - 已补充 `tests/test_target_slot_registry.py`，覆盖复用已有 real path、追加新 ID、不重排旧 slot、Review/空目标特殊处理和外部绝对路径反查。
+  - 增量 `target_directory_tree` 现在会递归转换子目录为 slot，并保留 children 结构。
 
 ### 最近验证
 
@@ -75,15 +111,101 @@
 py -3 -m unittest tests.test_session_constants tests.test_session_models tests.test_session_service tests.test_scan_workflow_service tests.test_execution_app_service tests.test_session_lifecycle_service tests.test_history_app_service tests.test_planning_conversation_service -v
 ```
 
+本轮新增验证：
+
+```powershell
+py -3 -m unittest tests.test_task_planner_adapter tests.test_planning_conversation_service tests.test_api_sessions -v
+py -3 -m unittest tests.test_session_service -v
+py -3 -m unittest tests.test_session_models -v
+Set-Location frontend
+npm run typecheck
+```
+
+P2 TargetSlot 第一阶段验证：
+
+```powershell
+py -3 -m unittest tests.test_target_manager tests.test_session_service tests.test_task_planner_adapter -v
+py -3 -m unittest tests.test_api_sessions tests.test_planning_conversation_service -v
+py -3 -m unittest tests.test_target_resolver tests.test_domain_architecture tests.test_execution_app_service tests.test_scan_workflow_service -v
+```
+
+P2 TargetSlot 第二阶段验证：
+
+```powershell
+py -3 -m unittest tests.test_target_slot_registry tests.test_task_planner_adapter tests.test_target_manager -v
+py -3 -m unittest tests.test_session_service tests.test_api_sessions tests.test_planning_conversation_service -v
+py -3 -m unittest tests.test_target_resolver tests.test_domain_architecture tests.test_execution_app_service tests.test_scan_workflow_service -v
+```
+
+本轮架构收口验证：
+
+```powershell
+py -3 -m unittest tests.test_target_slot_registry tests.test_session_models tests.test_session_service tests.test_domain_architecture -v
+py -3 -m unittest tests.test_session_constants tests.test_session_service -v
+py -3 -m unittest tests.test_session_models tests.test_target_manager tests.test_api_sessions -v
+Set-Location frontend
+npm run typecheck
+```
+
+P2 Review 规划侧消费验证：
+
+```powershell
+py -3 -m unittest tests.test_organizer_service tests.test_structured_organizer_service tests.test_domain_architecture -v
+py -3 -m unittest tests.test_session_models tests.test_session_constants tests.test_target_slot_registry tests.test_target_manager -v
+rg "from file_pilot.app|file_pilot.app" file_pilot/organize file_pilot/domain -n
+```
+
+P2 Review 预检/前端消费验证：
+
+```powershell
+py -3 -m unittest tests.test_execution_app_service tests.test_api_sessions tests.test_session_service -v
+Set-Location frontend
+npm run typecheck
+npm test -- --run src/components/workspace/precheck-view.test.tsx
+```
+
+结果：通过。
+
+P2 Review 完成页消费验证：
+
+```powershell
+py -3 -m unittest tests.test_history_app_service -v
+py -3 -m unittest tests.test_session_service.OrganizerSessionServiceTests.test_get_journal_summary_returns_latest_execution_details tests.test_session_service.OrganizerSessionServiceTests.test_get_journal_summary_prefers_latest_rollback_restore_mapping -v
+Set-Location frontend
+npm test -- --run src/components/workspace/completion-view.test.tsx
+npm run typecheck
+```
+
+结果：通过。
+
+P2 Review 预览面板消费验证：
+
+```powershell
+Set-Location frontend
+npm test -- --run src/components/workspace/preview-panel.test.tsx
+npm run typecheck
+```
+
+结果：通过。
+
+P1 状态转换测试覆盖验证：
+
+```powershell
+py -3 -m unittest tests.test_session_stage_transitions tests.test_session_constants -v
+python -m unittest tests.test_session_stage_transitions -v
+python -m unittest tests.test_session_service tests.test_scan_workflow_service -v
+rg '\.stage\s*=\s*"' file_pilot/app -n
+```
+
 结果：通过。
 
 已检查相关变更文件 lint 诊断：无新增诊断。
 
 ### 下一步建议
 
-1. 继续完成 **P1：状态阶段规则** 的第二阶段：评估是否移除 `OrganizerSessionService` 中兼容保留的 `_TERMINAL_STAGES`、`_LOCKED_STAGES`、`_PLANNING_MUTABLE_STAGES`、`_RECOVERY_STAGES` 类属性别名，并补充关键状态转换测试。
-2. 推进 **P1：支持手动干预撤销**，为单项 mapping 保存 AI 原始建议并提供恢复入口。
-3. 在 P2 中继续把 Review 从常量语义推进到 payload 显式语义，再统一 TargetSlot 读取/创建接口。
+1. 继续推进 **P2：Review 语义显式化**：让剩余前端展示逐步消费 `kind/is_review`，同时保持旧字段兼容。
+2. 继续推进 **P2：同名目标冲突体验**：在已支持半自动应用建议和目标已存在语义的基础上，补批量预览细节和更清晰的执行前确认。
+3. 继续推进 **P3：扫描数据双轨收敛**：先统计 `scan_lines` 核心依赖，再决定结构化迁移切入点。
 
 ## P0：稳定 ID 契约
 
@@ -141,6 +263,8 @@ class IdRegistryState:
 
 ## P1：支持手动干预撤销
 
+状态：已完成第一轮实现与回归测试。后续可继续优化批量恢复、恢复操作日志展示和前端测试覆盖。
+
 ### 问题
 
 当前手动调整会设置 `user_overridden=True`，并通过 `last_ai_pending_plan` 与手动同步 diff 留痕。但单个 `MappingEntry` 没有记录 AI 原始建议，因此用户无法对单项执行“恢复 AI 建议”。
@@ -180,7 +304,7 @@ overridden_at: str | None = None
 
 ## P1：集中状态阶段规则
 
-状态：第一阶段已完成。阶段名、阶段集合、Review 常量、task phase 和轻量校验 helper 已集中到 `file_pilot/app/session_constants.py`；核心服务路径已完成主要替换。严格状态机暂未引入。
+状态：第三阶段边界测试覆盖与赋值收束已完成。阶段名、阶段集合、Review 常量、task phase 和轻量校验 helper 已集中到 `file_pilot/app/session_constants.py`；核心服务路径已完成主要替换；`OrganizerSessionService` 内无调用点的阶段集合类属性别名已移除；关键主链路、中断恢复、refresh recovery/locked stage 和增量选择确认状态转换已开始由 `tests/test_session_stage_transitions.py` 审计；`file_pilot/app` 中直接裸字符串阶段赋值已清零。严格状态机本轮评估为暂不引入。
 
 ### 问题
 
@@ -216,10 +340,13 @@ TERMINAL_STAGES = {STAGE_COMPLETED, "abandoned", "stale"}
 
 1. 先抽常量，不改变行为。
 2. 替换服务端核心路径中的裸字符串。
-3. 增加状态规则测试，覆盖启动、扫描完成、规划、预检、执行、回退、中断、废弃。
-4. 再决定是否引入严格状态机；不要第一步就大规模替换。
+3. 移除主服务中无调用点的阶段集合别名，避免出现第二规则源。（已完成）
+4. 增加状态规则测试，覆盖启动、扫描完成、规划、预检、执行、回退、中断、废弃。（已完成主链路、回到预检、废弃、中断恢复、refresh recovery/locked stage、增量选择确认覆盖起步）
+5. 再决定是否引入严格状态机；不要第一步就大规模替换。（已评估：当前不引入，继续以常量、谓词 helper 和边界测试约束阶段规则）
 
 ## P2：统一 TargetSlot 管理
+
+状态：已完成第二阶段收束。读取与 payload 序列化已收束到 `TargetManager`；slot 编号、查找、创建/分配已集中到纯 `TargetSlotRegistry`，`TaskPlannerAdapter` 已改为委托该 registry；`IdRegistry` 已复用 `TargetSlotRegistry.slot_number()`，并继续保留会话生命周期稳定映射职责。
 
 ### 问题
 
@@ -240,14 +367,16 @@ target slot 来源较多：
 
 ### 建议步骤
 
-1. 先把 `_target_slots_from_session()`、`_ensure_target_slot()` 周围行为补测试。
-2. 新增 `TargetSlotRegistry` 或扩展现有 `target_manager`，先只做薄封装。
-3. 将初始/增量两种 slot 来源统一成同一个返回 payload。
-4. 再处理目录改名时的 slot 更新。
+1. 先把 `_target_slots_from_session()`、`_ensure_target_slot()` 周围行为补测试。（已完成）
+2. 新增 `TargetSlotRegistry` 或扩展现有 `target_manager`，先只做薄封装。（已完成：读取与 payload 序列化扩展到 `TargetManager`，创建/查找扩展到 `TargetSlotRegistry`）
+3. 将初始/增量两种 slot 来源统一成同一个返回 payload。（已完成第一轮，增量目录树支持递归子目录）
+4. 将新建目录 slot 创建/分配继续迁入统一接口。（已完成：`TaskPlannerAdapter` 委托 `TargetSlotRegistry.ensure_slot()`）
+5. 审视 `IdRegistry.ensure_target()` 与 `TargetSlotRegistry.ensure_slot()` 的边界，避免长期双入口漂移。（已完成第一轮：共享编号规则，保留职责边界）
+6. 再处理目录改名时的 slot 更新。
 
 ## P2：显式化 Review 语义
 
-状态：已完成常量化起步，尚未增加显式 target kind/payload 字段。
+状态：已完成预检/前端预检/完成页/预览面板/回退预览/目录树差异视图消费起步。Review 常量已下沉到 shared 层，target slot payload 已增加 `kind/is_review` 并兼容旧 payload 派生；规划提示、工具描述、重试/修复提示、plan diff 翻译、执行预检 move preview、回退预检 actions、前端预检视图、完成页、预览面板、回退预览和目录树差异视图已开始消费该语义。
 
 ### 问题
 
@@ -265,11 +394,17 @@ target slot 来源较多：
 ### 建议步骤
 
 1. 定义常量 `REVIEW_SLOT_ID = "Review"`、`REVIEW_DIR_NAME = "Review"`、`REVIEW_DISPLAY_NAME = "待确认区"`，先消除散落字符串。（已完成）
-2. 给 target payload 增加可选字段，例如 `kind: "directory" | "review"` 或 `is_review: bool`。
-3. API 与前端先兼容旧字段，再逐步使用新字段。
-4. 不在这一阶段改变用户可见行为。
+2. 给 target payload 增加可选字段，例如 `kind: "directory" | "review"` 或 `is_review: bool`。（已完成：同时提供 `kind` 与 `is_review`）
+3. API 与前端先兼容旧字段，再逐步使用新字段。（已完成第一步：前端类型已兼容）
+4. 规划侧消费 `kind/is_review`，过滤 Review slot，不把待确认区当普通目录槽位暴露给模型。（已完成）
+5. 执行预检 `move_preview` 与前端预检视图消费 `kind/is_review`。（已完成）
+6. 完成页和预览面板消费 `kind/is_review`。（已完成起步）
+7. 回退预览和其他前端展示继续逐步消费 `kind/is_review`。（已完成回退预览与目录树差异视图起步）
+8. 不在这一阶段改变用户可见行为。
 
 ## P2：改善同名目标冲突体验
+
+状态：已完成预检阻断、结构化建议展示与半自动应用入口，并补齐“目标已存在”的建议语义。后续可继续扩展冲突建议差异预览和批量确认细节。
 
 ### 问题
 
@@ -354,19 +489,27 @@ target slot 来源较多：
 
 ### 第 3 步：手动恢复 AI 建议
 
+状态：已完成第一轮实现与回归测试。
+
 给 `MappingEntry` 或 app 层 mapping payload 增加 original 字段，增加 service/API/前端入口。
 
 ### 第 4 步：状态常量集中
 
-状态：第一阶段已完成。实际落地文件为 `file_pilot/app/session_constants.py`，并已补轻量 helper 与回归测试。
+状态：第二阶段轻收束已完成。实际落地文件为 `file_pilot/app/session_constants.py`，并已补轻量 helper 与回归测试；主服务中无调用点的阶段集合别名已移除。
 
 新增 `session_stages.py`，替换核心服务端路径里的裸字符串，并补状态规则测试。
 
 ### 第 5 步：Review 和 TargetSlot 收束
 
-状态：Review 常量化已完成；TargetSlot 统一管理仍待推进。
+状态：Review 预检/前端预检消费起步已完成；TargetSlot 管理已完成第二阶段收束，读取、序列化、查找与创建均已有集中入口。
 
 先常量化 Review，再统一 target slot 读取与创建接口。
+
+### 第 6 步：同名目标冲突体验
+
+状态：已完成预检阻断、结构化建议展示与半自动应用入口，并补齐目标已存在语义。
+
+先在预检阶段发现重复目标路径或目标已存在风险，并给出保守的序号后缀建议，再由用户显式点击“应用冲突建议”后写回方案并重新预检。
 
 ## 提交前验证建议
 

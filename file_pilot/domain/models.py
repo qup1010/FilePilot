@@ -41,6 +41,9 @@ class MappingEntry:
     reason: str = ""
     confidence: float | None = None
     user_overridden: bool = False
+    original_target_slot_id: str | None = None
+    original_status: str | None = None
+    overridden_at: str | None = None
 
 
 @dataclass

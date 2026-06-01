@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from collections.abc import Collection
 
+from file_pilot.shared.review import REVIEW_DIR_NAME, REVIEW_DISPLAY_NAME, REVIEW_SLOT_ID
+
 
 STAGE_DRAFT = "draft"
 STAGE_SCANNING = "scanning"
@@ -28,11 +30,6 @@ TASK_PHASE_PLANNING = "planning"
 TASK_PHASE_REVIEWING = "reviewing"
 TASK_PHASE_EXECUTING = "executing"
 TASK_PHASE_DONE = "done"
-
-REVIEW_SLOT_ID = "Review"
-REVIEW_DIR_NAME = "Review"
-REVIEW_DISPLAY_NAME = "待确认区"
-
 
 SESSION_STAGE_CONFLICT = "SESSION_STAGE_CONFLICT"
 

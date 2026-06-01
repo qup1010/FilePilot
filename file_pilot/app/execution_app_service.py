@@ -1,4 +1,5 @@
 import logging
+import os
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -44,6 +45,98 @@ class ExecutionAppService:
         except KeyError:
             return Path(target_slot.real_path) / filename
 
+    @staticmethod
+    def _path_key(path: Path) -> str:
+        return os.path.normcase(str(path.resolve(strict=False))).rstrip("\\/")
+
+    @staticmethod
+    def _sequenced_target_path(target_path: Path, sequence_number: int) -> Path:
+        suffix = target_path.suffix
+        stem = target_path.name[: -len(suffix)] if suffix else target_path.name
+        return target_path.with_name(f"{stem} ({sequence_number}){suffix}")
+
+    def _is_noop_move(self, action: MappedExecutionAction) -> bool:
+        return action.source_path is not None and self._path_key(action.source_path) == self._path_key(action.target_path)
+
+    def _next_unique_suggested_target(
+        self,
+        target_path: Path,
+        occupied_keys: set[str],
+        sequence_number: int,
+    ) -> tuple[Path, int]:
+        next_number = max(2, sequence_number)
+        while True:
+            candidate = self._sequenced_target_path(target_path, next_number)
+            candidate_key = self._path_key(candidate)
+            if candidate_key not in occupied_keys and not candidate.exists():
+                occupied_keys.add(candidate_key)
+                return candidate, next_number + 1
+            next_number += 1
+
+    def _target_conflict_suggestions(self, mapped_plan: MappedExecutionPlan) -> list[dict]:
+        move_targets: dict[str, list[MappedExecutionAction]] = {}
+        for action in mapped_plan.move_actions:
+            if self._is_noop_move(action):
+                continue
+            move_targets.setdefault(self._path_key(action.target_path), []).append(action)
+
+        suggestion_groups: list[tuple[str, list[MappedExecutionAction]]] = []
+        for actions in move_targets.values():
+            if len(actions) > 1:
+                suggestion_groups.append(("target_exists" if any(action.target_path.exists() for action in actions) else "target_name_conflict", actions))
+                continue
+            if actions[0].target_path.exists():
+                suggestion_groups.append(("target_exists", actions))
+
+        if not suggestion_groups:
+            return []
+
+        occupied_keys = {
+            target_key
+            for target_key, actions in move_targets.items()
+            if len(actions) == 1
+        }
+        suggestions: list[dict] = []
+        for suggestion_type, actions in sorted(
+            suggestion_groups,
+            key=lambda group: self._display_path(group[1][0].target_path, mapped_plan.base_dir).lower(),
+        ):
+            current_target = actions[0].target_path
+            current_target_key = self._path_key(current_target)
+            next_sequence_number = 2
+            items: list[dict] = []
+            for index, action in enumerate(actions):
+                source_relpath = self._display_path(action.source_path, mapped_plan.base_dir) if action.source_path is not None else ""
+                if index == 0 and current_target_key not in occupied_keys and not current_target.exists():
+                    suggested_target = current_target
+                    occupied_keys.add(current_target_key)
+                else:
+                    suggested_target, next_sequence_number = self._next_unique_suggested_target(
+                        current_target,
+                        occupied_keys,
+                        next_sequence_number,
+                    )
+                items.append(
+                    {
+                        "item_id": action.item_id,
+                        "display_name": action.display_name or action.item_id or source_relpath,
+                        "source": source_relpath,
+                        "current_target": self._display_path(action.target_path, mapped_plan.base_dir),
+                        "suggested_target": self._display_path(suggested_target, mapped_plan.base_dir),
+                        "target_slot_id": str(action.target_slot_id or ""),
+                        "target_kind": "review" if action.target_slot_id == REVIEW_SLOT_ID else "directory",
+                        "is_review": action.target_slot_id == REVIEW_SLOT_ID,
+                    }
+                )
+            suggestions.append(
+                {
+                    "type": suggestion_type,
+                    "target": self._display_path(current_target, mapped_plan.base_dir),
+                    "items": items,
+                }
+            )
+        return suggestions
+
     def _build_mapped_execution_plan(self, session, final_plan, task, registry) -> MappedExecutionPlan:
         base_dir = Path(session.target_dir).resolve()
         placement = self.helpers.target_resolver.placement_payload(session.placement)
@@ -51,6 +144,11 @@ class ExecutionAppService:
         target_by_id = {item.slot_id: item for item in task.targets}
         planner_by_source = self.helpers._planner_items_by_source(session)
         mapping_by_source_id = {mapping.source_ref_id: mapping for mapping in task.mappings}
+        plan_target_name_by_source = {
+            str(move.source or "").replace("\\", "/").strip(): Path(str(move.target or "")).name
+            for move in (final_plan.moves or [])
+            if str(move.source or "").strip() and str(move.target or "").strip()
+        }
 
         mkdir_actions: list[MappedExecutionAction] = []
         known_mkdir_targets: set[str] = set()
@@ -62,7 +160,7 @@ class ExecutionAppService:
             source = source_by_id.get(mapping.source_ref_id)
             if source is None:
                 continue
-            filename = Path(source.relpath).name
+            filename = plan_target_name_by_source.get(source.relpath) or Path(source.relpath).name
             display_name = str(source.display_name or filename)
             if mapping.target_slot_id == REVIEW_SLOT_ID:
                 review_root = Path(
@@ -194,6 +292,7 @@ class ExecutionAppService:
             precheck.blocking_errors = list(precheck.blocking_errors) + incremental_target_errors
         if safety_warnings:
             precheck.warnings = list(precheck.warnings) + safety_warnings
+        target_conflict_suggestions = self._target_conflict_suggestions(mapped_plan)
         move_preview = []
         for action in mapped_plan.move_actions:
             source_relpath = self._display_path(action.source_path, plan.base_dir) if action.source_path is not None else ""
@@ -203,6 +302,9 @@ class ExecutionAppService:
                     "item_id": action.item_id,
                     "source": source_relpath,
                     "target": target_text,
+                    "target_slot_id": str(action.target_slot_id or ""),
+                    "target_kind": "review" if action.target_slot_id == REVIEW_SLOT_ID else "directory",
+                    "is_review": action.target_slot_id == REVIEW_SLOT_ID,
                 }
             )
         session.precheck_summary = {
@@ -211,6 +313,7 @@ class ExecutionAppService:
             "warnings": list(precheck.warnings),
             "mkdir_preview": [self._display_path(action.target_path, plan.base_dir) for action in mapped_plan.mkdir_actions],
             "move_preview": move_preview,
+            "target_conflict_suggestions": target_conflict_suggestions,
             "issues": self.helpers._precheck_issues(
                 list(precheck.blocking_errors),
                 list(precheck.warnings),
@@ -447,6 +550,9 @@ class ExecutionAppService:
 
     @staticmethod
     def _rollback_precheck_payload(plan, precheck) -> dict:
+        def _is_review_action(action) -> bool:
+            return str(action.target_slot_id or "").strip() == REVIEW_SLOT_ID
+
         return {
             "can_execute": bool(precheck.can_execute),
             "blocking_errors": list(precheck.blocking_errors or []),
@@ -456,6 +562,9 @@ class ExecutionAppService:
                     "display_name": str(action.display_name or action.item_id or action.source.name or action.type),
                     "source": action.source.as_posix(),
                     "target": action.target.as_posix(),
+                    "target_slot_id": str(action.target_slot_id or ""),
+                    "target_kind": "review" if _is_review_action(action) else "directory",
+                    "is_review": _is_review_action(action),
                 }
                 for action in plan.actions
             ],

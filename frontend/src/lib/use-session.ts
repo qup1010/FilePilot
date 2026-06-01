@@ -747,6 +747,22 @@ export function useSession(sessionId: string | null) {
     }
   }
 
+  async function applyTargetConflictSuggestions() {
+    if (!sessionId) {
+      return;
+    }
+    setLoading(true);
+    setChatError(null);
+    try {
+      const response = await api.applyTargetConflictSuggestions(sessionId);
+      setSnapshot(response.session_snapshot);
+    } catch (err) {
+      applyChatError(err, "应用冲突建议失败，请重试。");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   async function returnToPlanning() {
     if (!sessionId) {
       return;
@@ -898,6 +914,22 @@ export function useSession(sessionId: string | null) {
     }
   }
 
+  async function restoreAiSuggestion(itemId: string) {
+    if (!sessionId) {
+      return;
+    }
+    setLoading(true);
+    setChatError(null);
+    try {
+      const response = await api.restoreAiSuggestion(sessionId, itemId);
+      setSnapshot(response.session_snapshot);
+    } catch (err) {
+      applyChatError(err, "恢复 AI 建议失败，请重试。");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   return {
     snapshot,
     stage,
@@ -922,6 +954,7 @@ export function useSession(sessionId: string | null) {
     refreshPlan,
     confirmTargetDirectories,
     runPrecheck,
+    applyTargetConflictSuggestions,
     returnToPlanning,
     execute,
     prepareRollback,
@@ -932,5 +965,6 @@ export function useSession(sessionId: string | null) {
     openExplorer,
     loadJournal,
     updateItem,
+    restoreAiSuggestion,
   };
 }

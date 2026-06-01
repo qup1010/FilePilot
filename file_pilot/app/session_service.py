@@ -16,9 +16,6 @@ from file_pilot.app.id_registry import IdRegistry
 from file_pilot.app.execution_app_service import ExecutionAppService
 from file_pilot.app.history_app_service import HistoryAppService
 from file_pilot.app.session_constants import (
-    LOCKED_STAGES,
-    PLANNING_MUTABLE_STAGES,
-    RECOVERY_STAGES,
     REVIEW_SLOT_ID,
     SESSION_STAGE_CONFLICT,
     STAGE_ABANDONED,
@@ -38,7 +35,6 @@ from file_pilot.app.session_constants import (
     TASK_PHASE_PLANNING,
     TASK_PHASE_REVIEWING,
     TASK_PHASE_SETUP,
-    TERMINAL_STAGES,
     is_locked_stage,
     is_planning_mutable_stage,
     is_recovery_stage,
@@ -75,6 +71,7 @@ from file_pilot.app.session_store import SessionStore
 from file_pilot.app.target_profile_store import TargetProfileStore
 from file_pilot.app.target_manager import TargetManager
 from file_pilot.app.target_resolver import TargetResolver
+from file_pilot.app.target_slot_registry import TargetSlotRegistry
 from file_pilot.app.task_planner_adapter import TaskPlannerAdapter
 from file_pilot.domain.models import MappingEntry, OrganizeTask, SourceRef, TargetSlot
 from file_pilot.execution import service as execution_service
@@ -100,10 +97,6 @@ CURRENT_AI_BASELINE_SCHEMA_VERSION = 1
 
 
 class OrganizerSessionService:
-    _TERMINAL_STAGES = TERMINAL_STAGES
-    _LOCKED_STAGES = LOCKED_STAGES
-    _PLANNING_MUTABLE_STAGES = PLANNING_MUTABLE_STAGES
-    _RECOVERY_STAGES = RECOVERY_STAGES
     _EMPTY_SCAN_RESULT_FLAG = "empty_scan_result"
 
     def __init__(self, store: SessionStore, scanner: AsyncScanner | None = None):
@@ -478,10 +471,7 @@ class OrganizerSessionService:
 
     @staticmethod
     def _target_slot_number(slot_id: str) -> int:
-        text = str(slot_id or "").strip()
-        if len(text) >= 2 and text[0].upper() == "D" and text[1:].isdigit():
-            return int(text[1:])
-        return 0
+        return TargetSlotRegistry.slot_number(slot_id)
 
     @staticmethod
     def _is_absolute_target_path(value: str | None) -> bool:
@@ -568,85 +558,7 @@ class OrganizerSessionService:
         return refs
 
     def _target_slots_from_session(self, session: OrganizerSession) -> list[TargetSlot]:
-        if self._normalize_organize_mode(session.organize_mode) != "incremental":
-            task_state = self._task_state_payload(session.task_state)
-            if task_state.targets:
-                return copy.deepcopy(list(task_state.targets or []))
-
-            snapshot = self._plan_snapshot_payload(session.plan_snapshot)
-            if snapshot and snapshot.target_slots:
-                slots: list[TargetSlot] = []
-                for item in snapshot.target_slots:
-                    slot_id = str(item.slot_id or "").strip()
-                    if not slot_id:
-                        continue
-                    raw_relpath = str(item.relpath or "").strip()
-                    relpath = self._normalize_relpath(raw_relpath)
-                    real_path = str(item.real_path or "").strip()
-                    if not real_path:
-                        if self._is_absolute_target_path(raw_relpath):
-                            real_path = str(Path(raw_relpath).resolve())
-                        elif relpath:
-                            real_path = str(self._resolve_target_real_path(session, relpath))
-                        else:
-                            real_path = str(Path(session.target_dir).resolve())
-                    slots.append(
-                        TargetSlot(
-                            slot_id=slot_id,
-                            display_name=str(item.display_name or Path(relpath or real_path).name),
-                            real_path=real_path,
-                            depth=int(item.depth or 0),
-                            is_new=bool(item.is_new),
-                        )
-                    )
-                if slots:
-                    slots.sort(key=lambda item: self._target_slot_number(item.slot_id))
-                    return slots
-            return []
-
-        selection = self._incremental_selection_snapshot(session)
-
-        base_dir = Path(session.target_dir).resolve()
-        next_number = 1
-        slots: list[TargetSlot] = []
-        tree_nodes = list(selection.get("target_directory_tree") or [])
-        if not tree_nodes and selection.get("target_directories"):
-            tree_nodes = [
-                {"relpath": self._normalize_relpath(path), "name": Path(str(path)).name, "children": []}
-                for path in selection.get("target_directories") or []
-                if self._normalize_relpath(path)
-            ]
-
-        def walk(nodes: list[dict], depth: int) -> list[TargetSlot]:
-            nonlocal next_number
-            branch: list[TargetSlot] = []
-            for node in nodes:
-                if not isinstance(node, dict):
-                    continue
-                relpath = self._normalize_relpath(node.get("relpath"))
-                if not relpath:
-                    continue
-                real_path = (
-                    Path(relpath).resolve()
-                    if self._is_absolute_target_path(relpath)
-                    else (base_dir / relpath).resolve()
-                )
-                slot = TargetSlot(
-                    slot_id=f"D{next_number:03d}",
-                    display_name=str(node.get("name") or Path(relpath).name),
-                    real_path=str(real_path),
-                    depth=depth,
-                    is_new=False,
-                )
-                next_number += 1
-                slot.children = []
-                slots.append(slot)
-                branch.append(slot)
-            return branch
-
-        walk(tree_nodes, 0)
-        slots.sort(key=lambda item: self._target_slot_number(item.slot_id))
-        return slots
+        return self.target_manager.target_slots_from_session(session)
 
     def _build_id_registry(self, session: OrganizerSession, plan: PendingPlan | FinalPlan | None = None) -> IdRegistry:
         registry = IdRegistry.from_state(session.id_registry_state)
@@ -1461,6 +1373,7 @@ class OrganizerSessionService:
         active_pending = pending
         self._sync_pending_summary(session, active_pending, prefer_local=prefer_local_summary)
         session.pending_plan = self._pending_plan_payload(active_pending)
+        session.task_state = TaskState.from_task(active_task)
         session.plan_snapshot = self._plan_snapshot_payload(
             self._plan_snapshot(
                 active_pending,
@@ -1745,9 +1658,10 @@ class OrganizerSessionService:
         if not normalized_target:
             return filename
         target_name = Path(normalized_target).name
-        if target_name.lower() == filename.lower():
-            target_dir = normalized_target.rsplit("/", 1)[0] if "/" in normalized_target else ""
-            return f"{target_dir}/{filename}" if target_dir else filename
+        source_suffix = Path(filename).suffix.lower()
+        target_suffix = Path(target_name).suffix.lower()
+        if target_name.lower() == filename.lower() or (source_suffix and target_suffix == source_suffix):
+            return normalized_target
         return f"{normalized_target.rstrip('/')}/{filename}"
 
     @staticmethod
@@ -2148,6 +2062,12 @@ class OrganizerSessionService:
             move_to_review=move_to_review,
         )
 
+    def restore_ai_mapping(self, session_id: str, item_id: str) -> SessionMutationResult:
+        return self.planning_conversation.restore_ai_mapping(session_id, item_id)
+
+    def apply_target_conflict_suggestions(self, session_id: str) -> SessionMutationResult:
+        return self.planning_conversation.apply_target_conflict_suggestions(session_id)
+
     def execute(self, session_id: str, confirm: bool) -> SessionMutationResult:
         return self.execution_app.execute(session_id, confirm)
 
@@ -2520,7 +2440,7 @@ class OrganizerSessionService:
             self._record_event("scan.completed", session)
             return "empty_directory"
 
-        session.stage = "interrupted"
+        session.stage = STAGE_INTERRUPTED
         session.scan_lines = ""
         session.source_tree_entries = []
         session.last_error = "scan_empty_result"
@@ -2596,7 +2516,7 @@ class OrganizerSessionService:
         message = f"扫描结果不完整：{detail}。请稍后重试或降低并发后重新扫描。"
         recent_items = entries[-5:]
 
-        session.stage = "interrupted"
+        session.stage = STAGE_INTERRUPTED
         session.last_error = message
         session.summary = ""
         session.pending_plan = self._pending_plan_payload({})
@@ -2735,7 +2655,7 @@ class OrganizerSessionService:
                         "pending_items_count": len(all_entries),
                         "source_scan_completed": True,
                     }
-                    session.stage = "planning"
+                    session.stage = STAGE_PLANNING
                 else:
                     session.planner_items = []
                     session.inspection_context = {}
@@ -2746,10 +2666,10 @@ class OrganizerSessionService:
                         session=session,
                     )
                     self._set_incremental_selection_pending(session, session.scan_lines)
-                    session.stage = "selecting_incremental_scope"
+                    session.stage = STAGE_SELECTING_INCREMENTAL_SCOPE
             else:
                 session.incremental_selection = self._incremental_selection_defaults(session)
-                session.stage = "planning"
+                session.stage = STAGE_PLANNING
                 self._seed_initial_messages(session)
 
             self.store.save(session)
@@ -2776,7 +2696,7 @@ class OrganizerSessionService:
     def _fail_async_scan(self, session_id: str, exc: Exception) -> None:
         try:
             session = self._load_or_raise(session_id)
-            session.stage = "interrupted"
+            session.stage = STAGE_INTERRUPTED
             session.last_error = str(exc)
             session.scanner_progress = {**dict(session.scanner_progress or {}), "status": "failed", "message": str(exc)}
             self.store.save(session)
@@ -2799,7 +2719,7 @@ class OrganizerSessionService:
 
     def _run_scan_sync(self, session: OrganizerSession, scan_runner) -> str:
         self._mark_scan_active(session.session_id)
-        session.stage = "scanning"
+        session.stage = STAGE_SCANNING
         self._clear_scan_recovery_state(session)
         if self._can_use_single_directory_scan(session):
             session.scanner_progress = self._initial_scan_progress(Path(session.target_dir))
@@ -2865,7 +2785,7 @@ class OrganizerSessionService:
                         "pending_items_count": len(all_entries),
                         "source_scan_completed": True,
                     }
-                    session.stage = "planning"
+                    session.stage = STAGE_PLANNING
                 else:
                     session.planner_items = []
                     session.inspection_context = {}
@@ -2876,11 +2796,11 @@ class OrganizerSessionService:
                         session=session,
                     )
                     self._set_incremental_selection_pending(session, session.scan_lines)
-                    session.stage = "selecting_incremental_scope"
+                    session.stage = STAGE_SELECTING_INCREMENTAL_SCOPE
             else:
                 self._ensure_planner_items(session, session.scan_lines)
                 session.incremental_selection = self._incremental_selection_defaults(session)
-                session.stage = "planning"
+                session.stage = STAGE_PLANNING
             session.scanner_progress = {
                 **dict(session.scanner_progress or {}),
                 "status": "completed",
@@ -2960,7 +2880,7 @@ class OrganizerSessionService:
             return False
 
         session.last_error = session.last_error or "planning_interrupted"
-        session.integrity_flags["interrupted_during"] = "planning"
+        session.integrity_flags["interrupted_during"] = STAGE_PLANNING
         self._fail_planner_progress(session, session.last_error)
         if is_stage(session.stage, STAGE_PLANNING):
             session.stage = STAGE_INTERRUPTED
@@ -3318,25 +3238,7 @@ class OrganizerSessionService:
         )
 
     def _target_slot_payloads_from_task(self, session: OrganizerSession, task: OrganizeTask) -> list[PlanTargetSlotPayload]:
-        target_root = Path(session.target_dir).resolve()
-        payloads: list[PlanTargetSlotPayload] = []
-        for item in task.targets:
-            real_path = Path(item.real_path).resolve()
-            try:
-                relpath = real_path.relative_to(target_root).as_posix()
-            except ValueError:
-                relpath = str(real_path)
-            payloads.append(
-                PlanTargetSlotPayload(
-                    slot_id=item.slot_id,
-                    display_name=item.display_name,
-                    relpath=relpath,
-                    depth=item.depth,
-                    is_new=item.is_new,
-                    real_path=str(real_path),
-                )
-            )
-        return payloads
+        return self.target_manager.target_slot_payloads_from_task(session, task)
 
     def _target_slot_payload_state(self, target_slots: list[PlanTargetSlotPayload]) -> dict:
         return self.snapshot_builder.target_slot_payload_state(target_slots)

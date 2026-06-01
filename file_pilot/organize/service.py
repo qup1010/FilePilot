@@ -20,6 +20,8 @@ from file_pilot.organize.models import (
     derive_directories_from_moves,
 )
 from file_pilot.organize.prompts import build_prompt
+from file_pilot.organize.target_slots import directory_target_slots, is_review_slot, slot_label
+from file_pilot.shared.review import REVIEW_SLOT_ID
 from file_pilot.shared.config import (
     RESULT_FILE_PATH,
     create_openai_client,
@@ -69,11 +71,12 @@ def _incremental_plan_diff_tool_description(
     target_slots: list[dict],
     blocked_root_dirs: list[str],
 ) -> str:
+    target_slots = directory_target_slots(target_slots)
     target_hint = "；已选目标目录：" + "、".join(target_directories) if target_directories else ""
     slot_hint = (
         "；可复用目标槽位："
         + "、".join(
-            f"{str(item.get('slot_id') or '').strip()}={str(item.get('relpath') or item.get('display_name') or '').strip()}"
+            f"{str(item.get('slot_id') or '').strip()}={slot_label(item)}"
             for item in target_slots
         )
         if target_slots
@@ -954,7 +957,7 @@ def validate_final_plan(
 
     def is_incremental_target_dir_allowed(target_dir: str) -> bool:
         normalized = str(target_dir or "").strip().strip("/\\").replace("\\", "/")
-        if not normalized or normalized == "Review":
+        if not normalized or normalized == REVIEW_SLOT_ID:
             return True
         if split_relative_parts(normalized) is not None:
             return True
@@ -1203,7 +1206,7 @@ def apply_plan_diff(
 
     def is_incremental_target_dir_allowed(target_dir: str) -> bool:
         normalized = str(target_dir or "").strip().strip("/\\").replace("\\", "/")
-        if not normalized or normalized == "Review":
+        if not normalized or normalized == REVIEW_SLOT_ID:
             return True
         if split_relative_parts(normalized) is not None:
             return True
@@ -1288,7 +1291,7 @@ def apply_plan_diff(
 
     for item in diff.unresolved_adds:
         if item not in moves_by_source:
-            moves_by_source[item] = PlanMove(source=item, target=_compose_target_from_dir(item, "Review"), raw="")
+            moves_by_source[item] = PlanMove(source=item, target=_compose_target_from_dir(item, REVIEW_SLOT_ID), raw="")
             move_order.append(item)
         if item not in unresolved_set:
             unresolved_order.append(item)
@@ -1342,11 +1345,13 @@ def build_command_retry_message(
         details.extend(f"- {item}" for item in user_constraints)
     if (planning_context or {}).get("organize_mode") == "incremental":
         target_directories = [str(item).strip() for item in (planning_context or {}).get("target_directories", []) if str(item).strip()]
-        target_slots = [
-            dict(item)
-            for item in (planning_context or {}).get("target_slots", [])
-            if isinstance(item, dict) and str(item.get("slot_id") or "").strip()
-        ]
+        target_slots = directory_target_slots(
+            [
+                dict(item)
+                for item in (planning_context or {}).get("target_slots", [])
+                if isinstance(item, dict) and str(item.get("slot_id") or "").strip()
+            ]
+        )
         details.append("当前任务类型为“归入已有目录”的硬性限制：")
         details.append("- 禁止目录改名")
         details.append("- 只能放入显式配置的目标目录，或交给系统放入待确认区")
@@ -1362,7 +1367,7 @@ def build_command_retry_message(
         if target_slots:
             details.append("可用目标槽位：")
             details.extend(
-                f"- {str(item.get('slot_id') or '').strip()} -> {str(item.get('relpath') or item.get('display_name') or '').strip()}"
+                f"- {str(item.get('slot_id') or '').strip()} -> {slot_label(item)}"
                 for item in target_slots
             )
 
@@ -1434,11 +1439,13 @@ def _build_repair_messages(
         repair_prompt.extend(f"- {item}" for item in user_constraints)
     if (planning_context or {}).get("organize_mode") == "incremental":
         target_directories = [str(item).strip() for item in (planning_context or {}).get("target_directories", []) if str(item).strip()]
-        target_slots = [
-            dict(item)
-            for item in (planning_context or {}).get("target_slots", [])
-            if isinstance(item, dict) and str(item.get("slot_id") or "").strip()
-        ]
+        target_slots = directory_target_slots(
+            [
+                dict(item)
+                for item in (planning_context or {}).get("target_slots", [])
+                if isinstance(item, dict) and str(item.get("slot_id") or "").strip()
+            ]
+        )
         repair_prompt.append("“归入已有目录”任务的硬性限制：")
         repair_prompt.append("- 禁止目录改名")
         repair_prompt.append("- 只能放入显式配置的目标目录，或交给系统放入待确认区")
@@ -1454,7 +1461,7 @@ def _build_repair_messages(
         if target_slots:
             repair_prompt.append("可用目标槽位：")
             repair_prompt.extend(
-                f"- {str(item.get('slot_id') or '').strip()} -> {str(item.get('relpath') or item.get('display_name') or '').strip()}"
+                f"- {str(item.get('slot_id') or '').strip()} -> {slot_label(item)}"
                 for item in target_slots
             )
     repair_prompt.append("最近一次失败原因：")
@@ -1521,11 +1528,13 @@ def _target_dir_from_slot(slot_id: str, planning_context: dict | None = None) ->
     raw_slot_id = str(slot_id or "").strip()
     if not raw_slot_id:
         return ""
-    if raw_slot_id == "Review":
-        return "Review"
+    if raw_slot_id == REVIEW_SLOT_ID:
+        return REVIEW_SLOT_ID
     slot = _target_slot_lookup(planning_context).get(raw_slot_id)
     if not slot:
         return ""
+    if is_review_slot(slot):
+        return REVIEW_SLOT_ID
     candidate = str(slot.get("relpath") or "").strip()
     if not candidate:
         candidate = str(slot.get("real_path") or "").strip()
@@ -1552,7 +1561,7 @@ def _resolve_move_target_dir(move: dict, source: str, planning_context: dict | N
     target_slot = move.get("target_slot")
     if target_slot is not None:
         resolved = _target_dir_from_slot(str(target_slot), planning_context)
-        if resolved or str(target_slot).strip() == "Review":
+        if resolved or str(target_slot).strip() == REVIEW_SLOT_ID:
             return resolved
     target_dir = move.get("target_dir")
     if target_dir is not None:
@@ -2124,11 +2133,13 @@ def build_organizer_tools(planning_context: dict | None = None) -> list[dict]:
         return tools
 
     target_directories = [str(path).strip() for path in (context.get("target_directories") or []) if str(path).strip()]
-    target_slots = [
-        dict(item)
-        for item in (context.get("target_slots") or [])
-        if isinstance(item, dict) and str(item.get("slot_id") or "").strip()
-    ]
+    target_slots = directory_target_slots(
+        [
+            dict(item)
+            for item in (context.get("target_slots") or [])
+            if isinstance(item, dict) and str(item.get("slot_id") or "").strip()
+        ]
+    )
     blocked_root_dirs = [
         str(path).strip()
         for path in (context.get("root_directory_options") or [])

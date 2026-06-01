@@ -170,6 +170,7 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
     scan,
     confirmTargetDirectories,
     runPrecheck,
+    applyTargetConflictSuggestions,
     returnToPlanning,
     execute,
     prepareRollback,
@@ -179,6 +180,7 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
     openExplorer,
     loadJournal,
     updateItem,
+    restoreAiSuggestion,
   } = useSession(sessionIdParam);
 
   const [globalConfig, setGlobalConfig] = useState<any>(null);
@@ -1505,8 +1507,14 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
                       onRunPrecheck={() => {
                         if (!isReadOnly) void runPrecheck();
                       }}
+                      onApplyTargetConflictSuggestions={() => {
+                        if (!isReadOnly) void applyTargetConflictSuggestions();
+                      }}
                       onUpdateItem={async (id, payload) => {
                         if (!isReadOnly) await updateItem({ item_id: id, ...payload });
+                      }}
+                      onRestoreAiSuggestion={async (id) => {
+                        if (!isReadOnly) await restoreAiSuggestion(id);
                       }}
                       onPendingReviewCountChange={setPendingReviewCount}
                     />

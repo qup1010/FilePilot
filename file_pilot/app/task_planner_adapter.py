@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import copy
+from datetime import datetime, timezone
 from pathlib import Path
 
 from file_pilot.app.session_constants import REVIEW_SLOT_ID
-from file_pilot.domain.models import MappingEntry, OrganizeTask, TargetSlot
+from file_pilot.app.target_slot_registry import TargetSlotRegistry
+from file_pilot.domain.models import MappingEntry, OrganizeTask
 from file_pilot.organize.models import PendingPlan, PlanMove
 
 
@@ -14,22 +16,18 @@ class TaskPlannerAdapter:
 
     @staticmethod
     def _target_slot_number(slot_id: str) -> int:
-        text = str(slot_id or "").strip()
-        if len(text) >= 2 and text[0].upper() == "D" and text[1:].isdigit():
-            return int(text[1:])
-        return 0
+        return TargetSlotRegistry.slot_number(slot_id)
 
     @staticmethod
     def _normalize_relpath(value: str | None) -> str:
-        return str(value or "").replace("\\", "/").strip().strip("/")
+        return TargetSlotRegistry.normalize_relpath(value)
+
+    @staticmethod
+    def _utc_now_iso() -> str:
+        return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
 
     def _real_path_for_target_dir(self, target_dir: str) -> Path:
-        raw = str(target_dir or "").strip()
-        candidate = Path(raw)
-        if candidate.is_absolute():
-            return candidate.resolve()
-        normalized = self._normalize_relpath(raw)
-        return (self.base_dir / normalized).resolve()
+        return TargetSlotRegistry(self.base_dir, []).real_path_for_target_dir(target_dir)
 
     @staticmethod
     def _target_dir_for_move(target_relpath: str) -> str:
@@ -46,46 +44,10 @@ class TaskPlannerAdapter:
         return f"{normalized_dir}/{filename}" if normalized_dir else normalized_source
 
     def _target_dir_for_slot(self, task: OrganizeTask, slot_id: str) -> str:
-        normalized_slot_id = str(slot_id or "").strip()
-        if not normalized_slot_id:
-            return ""
-        if normalized_slot_id == REVIEW_SLOT_ID:
-            return REVIEW_SLOT_ID
-        for target in task.targets:
-            if str(target.slot_id or "").strip() != normalized_slot_id:
-                continue
-            try:
-                return self._normalize_relpath(Path(target.real_path).resolve().relative_to(self.base_dir).as_posix())
-            except ValueError:
-                return self._normalize_relpath(Path(target.real_path).resolve().as_posix())
-        return ""
+        return TargetSlotRegistry(self.base_dir, task.targets).directory_for_slot(slot_id)
 
     def _ensure_target_slot(self, task: OrganizeTask, target_dir: str) -> str:
-        normalized_target_dir = self._normalize_relpath(target_dir)
-        if not normalized_target_dir:
-            return ""
-        if normalized_target_dir == REVIEW_SLOT_ID:
-            return REVIEW_SLOT_ID
-        desired_real_path = self._real_path_for_target_dir(target_dir)
-        for target in task.targets:
-            if Path(target.real_path).resolve() == desired_real_path:
-                return str(target.slot_id or "")
-        next_number = max((self._target_slot_number(target.slot_id) for target in task.targets), default=0) + 1
-        slot_id = f"D{next_number:03d}"
-        try:
-            relative_target_dir = self._normalize_relpath(desired_real_path.relative_to(self.base_dir).as_posix())
-        except ValueError:
-            relative_target_dir = normalized_target_dir
-        task.targets.append(
-            TargetSlot(
-                slot_id=slot_id,
-                display_name=Path(relative_target_dir or normalized_target_dir).name or normalized_target_dir,
-                real_path=str(desired_real_path),
-                depth=max(0, len([part for part in relative_target_dir.split("/") if part]) - 1),
-                is_new=True,
-            )
-        )
-        return slot_id
+        return TargetSlotRegistry(self.base_dir, task.targets).ensure_slot(target_dir)
 
     def to_pending_plan(self, task: OrganizeTask) -> PendingPlan:
         sources_by_id = {source.ref_id: source for source in task.sources}
@@ -157,6 +119,9 @@ class TaskPlannerAdapter:
                     reason=str(existing.reason if existing is not None else source.suggested_purpose),
                     confidence=existing.confidence if existing is not None else source.confidence,
                     user_overridden=bool(existing.user_overridden) if existing is not None else False,
+                    original_target_slot_id=existing.original_target_slot_id if existing is not None else None,
+                    original_status=existing.original_status if existing is not None else None,
+                    overridden_at=existing.overridden_at if existing is not None else None,
                 )
             )
         mapped_source_ids = {mapping.source_ref_id for mapping in mappings}
@@ -174,6 +139,9 @@ class TaskPlannerAdapter:
                     reason=str(existing.reason if existing is not None else source.suggested_purpose),
                     confidence=existing.confidence if existing is not None else source.confidence,
                     user_overridden=bool(existing.user_overridden) if existing is not None else False,
+                    original_target_slot_id=existing.original_target_slot_id if existing is not None else None,
+                    original_status=existing.original_status if existing is not None else None,
+                    overridden_at=existing.overridden_at if existing is not None else None,
                 )
             )
         mappings.sort(key=lambda item: ordered_source_ids.index(item.source_ref_id) if item.source_ref_id in ordered_source_ids else len(ordered_source_ids))
@@ -203,6 +171,20 @@ class TaskPlannerAdapter:
         else:
             target_slot_id = self._ensure_target_slot(updated_task, normalized_target_dir)
             status = "assigned"
+        existing = next((mapping for mapping in updated_task.mappings if mapping.source_ref_id == source.ref_id), None)
+        original_target_slot_id = existing.original_target_slot_id if existing is not None else None
+        original_status = existing.original_status if existing is not None else None
+        overridden_at = existing.overridden_at if existing is not None else None
+        if user_overridden and existing is not None and not existing.user_overridden:
+            original_target_slot_id = existing.target_slot_id
+            original_status = existing.status
+            overridden_at = self._utc_now_iso()
+        elif user_overridden and existing is None:
+            overridden_at = self._utc_now_iso()
+        elif not user_overridden:
+            original_target_slot_id = None
+            original_status = None
+            overridden_at = None
         updated_mapping = MappingEntry(
             source_ref_id=source.ref_id,
             target_slot_id=target_slot_id,
@@ -210,9 +192,41 @@ class TaskPlannerAdapter:
             reason=source.suggested_purpose,
             confidence=source.confidence,
             user_overridden=user_overridden,
+            original_target_slot_id=original_target_slot_id,
+            original_status=original_status,
+            overridden_at=overridden_at,
         )
         next_mappings = [mapping for mapping in updated_task.mappings if mapping.source_ref_id != source.ref_id]
         next_mappings.append(updated_mapping)
+        ordered_source_ids = [item.ref_id for item in updated_task.sources]
+        next_mappings.sort(key=lambda item: ordered_source_ids.index(item.source_ref_id) if item.source_ref_id in ordered_source_ids else len(ordered_source_ids))
+        updated_task.mappings = next_mappings
+        return updated_task
+
+    def restore_ai_mapping(self, task: OrganizeTask, *, source_relpath: str) -> OrganizeTask:
+        updated_task = copy.deepcopy(task)
+        normalized_source = self._normalize_relpath(source_relpath)
+        source = next((item for item in updated_task.sources if self._normalize_relpath(item.relpath) == normalized_source), None)
+        if source is None:
+            raise RuntimeError("ITEM_NOT_FOUND")
+        existing = next((mapping for mapping in updated_task.mappings if mapping.source_ref_id == source.ref_id), None)
+        if existing is None:
+            raise RuntimeError("ITEM_NOT_FOUND")
+        if existing.original_target_slot_id is None or existing.original_status is None:
+            raise RuntimeError("AI_SUGGESTION_NOT_FOUND")
+        restored_mapping = MappingEntry(
+            source_ref_id=existing.source_ref_id,
+            target_slot_id=existing.original_target_slot_id,
+            status=existing.original_status,
+            reason=existing.reason,
+            confidence=existing.confidence,
+            user_overridden=False,
+            original_target_slot_id=None,
+            original_status=None,
+            overridden_at=None,
+        )
+        next_mappings = [mapping for mapping in updated_task.mappings if mapping.source_ref_id != source.ref_id]
+        next_mappings.append(restored_mapping)
         ordered_source_ids = [item.ref_id for item in updated_task.sources]
         next_mappings.sort(key=lambda item: ordered_source_ids.index(item.source_ref_id) if item.source_ref_id in ordered_source_ids else len(ordered_source_ids))
         updated_task.mappings = next_mappings

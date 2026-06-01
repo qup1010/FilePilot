@@ -1,7 +1,7 @@
 import unittest
 
 from file_pilot.app.id_registry import IdRegistry, IdRegistryState
-from file_pilot.app.models import OrganizerSession
+from file_pilot.app.models import OrganizerSession, PlanSnapshotPayload
 from file_pilot.domain.models import SourceRef, TargetSlot
 
 
@@ -106,6 +106,29 @@ class SessionModelTests(unittest.TestCase):
         self.assertEqual(state.source_ids_by_relpath["new.txt"], "F004")
         self.assertEqual(state.target_ids_by_real_path["D:/workspace/Inbox/Docs"], "D004")
         self.assertEqual(state.target_ids_by_real_path["D:/workspace/Inbox/Images"], "D005")
+
+    def test_plan_target_slot_payload_derives_review_semantics_for_legacy_payload(self):
+        snapshot = PlanSnapshotPayload.from_dict(
+            {
+                "summary": "snapshot",
+                "stats": {},
+                "target_slots": [
+                    {
+                        "slot_id": "Review",
+                        "display_name": "待确认区",
+                        "relpath": "Review",
+                        "depth": 0,
+                        "is_new": False,
+                    }
+                ],
+            }
+        )
+
+        assert snapshot is not None
+        self.assertEqual(snapshot.target_slots[0].kind, "review")
+        self.assertTrue(snapshot.target_slots[0].is_review)
+        self.assertEqual(snapshot.to_dict()["target_slots"][0]["kind"], "review")
+        self.assertTrue(snapshot.to_dict()["target_slots"][0]["is_review"])
 
 
 if __name__ == "__main__":

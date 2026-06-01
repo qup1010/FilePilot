@@ -82,6 +82,28 @@ export function normalizePath(path: string | null | undefined): string {
   return String(path || "").replace(/\\/g, "/").replace(/^\/+|\/+$/g, "").trim();
 }
 
+export function isReviewDirectory(directory: string | null | undefined): boolean {
+  const normalized = normalizePath(directory);
+  if (!normalized) return false;
+  const [firstSegment] = normalized.split("/");
+  return firstSegment?.toLowerCase() === REVIEW_DIRECTORY.toLowerCase();
+}
+
+export function isReviewTargetSlot(slot: PlanTargetSlot | null | undefined): boolean {
+  return Boolean(slot?.is_review)
+    || String(slot?.kind || "").toLowerCase() === "review"
+    || slot?.slot_id === REVIEW_DIRECTORY
+    || isReviewDirectory(slot?.relpath);
+}
+
+export function isReviewPlanItem(item: PlanItem, targetSlotById?: TargetSlotLookup): boolean {
+  const slot = item.target_slot_id ? targetSlotById?.get(item.target_slot_id) : null;
+  return item.status === "review"
+    || item.mapping_status === "review"
+    || item.target_slot_id === REVIEW_DIRECTORY
+    || isReviewTargetSlot(slot);
+}
+
 export function isAbsolutePath(path: string | null | undefined): boolean {
   const value = String(path || "").trim();
   return /^[a-zA-Z]:/.test(value) || value.startsWith("/");
@@ -132,7 +154,7 @@ export function itemStatusMeta(item: PlanItem, acceptedReviewItemIds: string[]) 
 }
 
 export function resolveItemDirectory(item: PlanItem, targetSlotById: TargetSlotLookup, placement: PlacementConfig): string {
-  if (item.status === "review" || item.target_slot_id === REVIEW_DIRECTORY) return REVIEW_DIRECTORY;
+  if (isReviewPlanItem(item, targetSlotById)) return REVIEW_DIRECTORY;
   if (item.target_slot_id) {
     const slot = targetSlotById.get(item.target_slot_id);
     if (slot?.relpath) return slot.relpath;
@@ -170,7 +192,7 @@ export function matchesFilter(item: PlanItem, filter: PreviewFilter, targetSlotB
   if (filter === "all") return true;
   if (filter === "changed") return isItemChanged(item, targetSlotById, placement);
   if (filter === "unresolved") return item.status === "unresolved";
-  if (filter === "review") return item.status === "review";
+  if (filter === "review") return isReviewPlanItem(item, targetSlotById);
   return item.status === "invalidated";
 }
 

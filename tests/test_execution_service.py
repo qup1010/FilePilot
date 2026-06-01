@@ -83,6 +83,26 @@ class ExecutionServiceTests(unittest.TestCase):
         self.assertFalse(precheck.can_execute)
         self.assertTrue(any("Projects/demo.txt" in error for error in precheck.blocking_errors))
 
+    def test_validate_execution_preconditions_blocks_duplicate_planned_targets(self):
+        (self.base_dir / "alpha").mkdir()
+        (self.base_dir / "beta").mkdir()
+        (self.base_dir / "alpha" / "report.pdf").write_text("alpha", encoding="utf-8")
+        (self.base_dir / "beta" / "report.pdf").write_text("beta", encoding="utf-8")
+        parsed = organizer_service.parse_commands_block(
+            '<COMMANDS>\n'
+            'MKDIR "Docs"\n'
+            'MOVE "alpha/report.pdf" "Docs/report.pdf"\n'
+            'MOVE "beta/report.pdf" "Docs/report.pdf"\n'
+            '</COMMANDS>'
+        )
+        plan = execution_service.build_execution_plan(parsed, self.base_dir)
+
+        precheck = execution_service.validate_execution_preconditions(plan)
+
+        self.assertFalse(precheck.can_execute)
+        self.assertTrue(any("计划内多个项目指向同一目标" in error for error in precheck.blocking_errors))
+        self.assertTrue(any("Docs/report.pdf" in error for error in precheck.blocking_errors))
+
     def test_validate_execution_preconditions_warns_cross_volume_move(self):
         (self.base_dir / "demo.txt").write_text("demo", encoding="utf-8")
         (self.base_dir / "Projects").mkdir()

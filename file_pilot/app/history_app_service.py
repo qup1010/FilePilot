@@ -3,6 +3,7 @@ from typing import TYPE_CHECKING
 
 from file_pilot.app.session_constants import STAGE_ROLLING_BACK, is_locked_stage, is_stage_in
 from file_pilot.execution import service as execution_service
+from file_pilot.shared.review import REVIEW_SLOT_ID
 
 if TYPE_CHECKING:
     from file_pilot.app.session_service import OrganizerSessionService
@@ -92,6 +93,18 @@ class HistoryAppService:
         journal = execution_service.load_execution_journal(journal_id)
         if journal is None:
             raise FileNotFoundError(f"execution_journal_not_found: {journal_id}")
+
+        def _is_review_target(target_slot_id: str | None, target_path: str | None) -> bool:
+            if str(target_slot_id or "").strip() == REVIEW_SLOT_ID:
+                return True
+            normalized_target = str(target_path or "").replace("\\", "/").strip().rstrip("/")
+            if not normalized_target:
+                return False
+            return any(part.lower() == "review" for part in normalized_target.split("/") if part)
+
+        def _target_kind(target_slot_id: str | None, target_path: str | None) -> str:
+            return "review" if _is_review_target(target_slot_id, target_path) else "directory"
+
         restore_items = []
         if journal.rollback_attempts:
             latest_attempt = journal.rollback_attempts[-1]
@@ -105,6 +118,8 @@ class HistoryAppService:
                     "item_id": item.get("item_id"),
                     "source_ref_id": item.get("source_ref_id"),
                     "target_slot_id": item.get("target_slot_id"),
+                    "target_kind": _target_kind(item.get("target_slot_id"), item.get("target")),
+                    "is_review": _is_review_target(item.get("target_slot_id"), item.get("target")),
                 }
                 for item in latest_attempt.get("results", [])
                 if item.get("action_type") == "MOVE"
@@ -133,6 +148,8 @@ class HistoryAppService:
                     "item_id": item.item_id,
                     "source_ref_id": item.source_ref_id,
                     "target_slot_id": item.target_slot_id,
+                    "target_kind": _target_kind(item.target_slot_id, item.target_after or item.created_path),
+                    "is_review": _is_review_target(item.target_slot_id, item.target_after or item.created_path),
                 }
                 for item in journal.items
             ],

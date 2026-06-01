@@ -65,6 +65,20 @@ describe("PathDiffViewer", () => {
     expect(reviewSegment.className).toContain("text-warning");
   });
 
+  it("uses explicit review metadata even when the target path has no Review segment", () => {
+    render(
+      <PathDiffViewer
+        source="D:/data/inbox/item.png"
+        target="D:/data/Pending/item.png"
+        compact={false}
+        targetKind="review"
+      />
+    );
+
+    const fileNames = screen.getAllByText("item.png");
+    expect(fileNames.some((node) => node.className.includes("text-warning"))).toBe(true);
+  });
+
   it("handles empty or single-level paths without crashing", () => {
     render(
       <PathDiffViewer

@@ -164,6 +164,11 @@ export interface PlanItem {
   confidence?: number | null;
   mapping_status: string;
   status: "planned" | "unresolved" | "review" | "invalidated" | string;
+  user_overridden?: boolean;
+  original_target_slot_id?: string | null;
+  original_status?: string | null;
+  overridden_at?: string | null;
+  can_restore_ai_suggestion?: boolean;
 }
 
 export interface PlanTargetSlot {
@@ -173,6 +178,8 @@ export interface PlanTargetSlot {
   depth: number;
   is_new: boolean;
   real_path?: string;
+  kind?: "directory" | "review" | string;
+  is_review?: boolean;
 }
 
 export interface PlacementConfig {
@@ -188,6 +195,10 @@ export interface PlanMappingEntry {
   reason?: string;
   confidence?: number | null;
   user_overridden?: boolean;
+  original_target_slot_id?: string | null;
+  original_status?: string | null;
+  overridden_at?: string | null;
+  can_restore_ai_suggestion?: boolean;
 }
 
 export interface SourceTreeEntry {
@@ -246,6 +257,26 @@ export interface PrecheckMovePreview {
   item_id: string;
   source: string;
   target: string;
+  target_slot_id?: string;
+  target_kind?: "directory" | "review" | string;
+  is_review?: boolean;
+}
+
+export interface PrecheckTargetConflictItem {
+  item_id: string;
+  display_name: string;
+  source: string;
+  current_target: string;
+  suggested_target: string;
+  target_slot_id?: string;
+  target_kind?: "directory" | "review" | string;
+  is_review?: boolean;
+}
+
+export interface PrecheckTargetConflictSuggestion {
+  type: string;
+  target: string;
+  items: PrecheckTargetConflictItem[];
 }
 
 export interface PrecheckIssue {
@@ -262,6 +293,7 @@ export interface PrecheckSummary {
   warnings: string[];
   mkdir_preview: string[];
   move_preview: PrecheckMovePreview[];
+  target_conflict_suggestions?: PrecheckTargetConflictSuggestion[];
   issues: PrecheckIssue[];
 }
 
@@ -436,6 +468,9 @@ export interface RollbackPrecheckAction {
   display_name: string;
   source: string;
   target: string;
+  target_slot_id?: string;
+  target_kind?: "directory" | "review" | string;
+  is_review?: boolean;
 }
 
 export interface RollbackPrecheckSummary {
@@ -469,6 +504,8 @@ export interface JournalSummary {
     item_id?: string | null;
     source_ref_id?: string | null;
     target_slot_id?: string | null;
+    target_kind?: "directory" | "review" | string;
+    is_review?: boolean;
   }[];
   items?: {
     action_type: string;
@@ -479,6 +516,8 @@ export interface JournalSummary {
     item_id?: string | null;
     source_ref_id?: string | null;
     target_slot_id?: string | null;
+    target_kind?: "directory" | "review" | string;
+    is_review?: boolean;
   }[];
 }
 

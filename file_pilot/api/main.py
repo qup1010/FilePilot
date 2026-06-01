@@ -84,6 +84,10 @@ class UpdateItemPayload(BaseModel):
     move_to_review: bool = False
 
 
+class RestoreAiMappingPayload(BaseModel):
+    item_id: str
+
+
 class ConfirmPayload(BaseModel):
     confirm: bool = False
 
@@ -743,6 +747,34 @@ def create_app(service: OrganizerSessionService | None = None) -> FastAPI:
                 return _error_response(app.state.service, session_id, str(exc), 400)
             if str(exc) == "INCREMENTAL_TARGET_NOT_ALLOWED":
                 return _error_response(app.state.service, session_id, "INCREMENTAL_TARGET_NOT_ALLOWED", 409)
+            return _error_response(app.state.service, session_id, "SESSION_STAGE_CONFLICT", 409)
+
+    @app.post("/api/sessions/{session_id}/restore-ai-suggestion")
+    def restore_ai_suggestion(session_id: str, payload: RestoreAiMappingPayload):
+        try:
+            result = app.state.service.restore_ai_mapping(session_id, payload.item_id)
+            return {"session_id": session_id, "session_snapshot": result.session_snapshot}
+        except FileNotFoundError:
+            raise HTTPException(status_code=404, detail="SESSION_NOT_FOUND")
+        except RuntimeError as exc:
+            if str(exc) == "ITEM_NOT_FOUND":
+                raise HTTPException(status_code=404, detail="ITEM_NOT_FOUND")
+            if str(exc) == "AI_SUGGESTION_NOT_FOUND":
+                return _error_response(app.state.service, session_id, "AI_SUGGESTION_NOT_FOUND", 409)
+            return _error_response(app.state.service, session_id, "SESSION_STAGE_CONFLICT", 409)
+
+    @app.post("/api/sessions/{session_id}/apply-target-conflict-suggestions")
+    def apply_target_conflict_suggestions(session_id: str):
+        try:
+            result = app.state.service.apply_target_conflict_suggestions(session_id)
+            return {"session_id": session_id, "session_snapshot": result.session_snapshot}
+        except FileNotFoundError:
+            raise HTTPException(status_code=404, detail="SESSION_NOT_FOUND")
+        except RuntimeError as exc:
+            if str(exc) == "ITEM_NOT_FOUND":
+                raise HTTPException(status_code=404, detail="ITEM_NOT_FOUND")
+            if str(exc) == "TARGET_CONFLICT_SUGGESTIONS_NOT_FOUND":
+                return _error_response(app.state.service, session_id, "TARGET_CONFLICT_SUGGESTIONS_NOT_FOUND", 409)
             return _error_response(app.state.service, session_id, "SESSION_STAGE_CONFLICT", 409)
 
     @app.post("/api/sessions/{session_id}/precheck")

@@ -567,6 +567,96 @@ describe("PreviewPanel", () => {
     expect(screen.queryByText("download")).not.toBeInTheDocument();
   });
 
+  it("uses explicit review target slot metadata without exposing it as a normal target", async () => {
+    const onUpdateItem = vi.fn();
+
+    render(
+      <PreviewPanel
+        plan={{
+          ...createPlan(),
+          items: [
+            {
+              item_id: "F011",
+              display_name: "important_invoice_301.exe",
+              source_relpath: "important_invoice_301.exe",
+              target_slot_id: "D999",
+              status: "planned",
+              mapping_status: "assigned",
+              suggested_purpose: "待判断",
+              content_summary: "扩展名与用途描述不符",
+              reason: "先进入 Review",
+              confidence: 0.4,
+            },
+            {
+              item_id: "F012",
+              display_name: "suspicious.bin",
+              source_relpath: "suspicious.bin",
+              target_slot_id: "D999",
+              status: "review",
+              mapping_status: "review",
+              suggested_purpose: "待判断",
+              content_summary: "需要人工核对",
+              reason: "先进入 Review",
+              confidence: 0.4,
+            },
+          ],
+          target_slots: [
+            {
+              slot_id: "D001",
+              display_name: "文档",
+              relpath: "Docs",
+              depth: 0,
+              is_new: false,
+            },
+            {
+              slot_id: "D999",
+              display_name: "待确认区",
+              relpath: "Inbox/Pending",
+              depth: 0,
+              is_new: false,
+              kind: "review",
+              is_review: true,
+            },
+          ],
+          stats: {
+            directory_count: 1,
+            move_count: 2,
+            unresolved_count: 0,
+          },
+          readiness: {
+            can_precheck: true,
+          },
+        }}
+        stage="ready_for_precheck"
+        isBusy={false}
+        onRunPrecheck={() => {}}
+        onUpdateItem={onUpdateItem}
+      />,
+    );
+
+    fireEvent.click(screen.getAllByRole("button", { name: "PLAN 建议" })[0]);
+
+    expect(screen.getAllByText("待确认区").length).toBeGreaterThan(0);
+    expect(screen.queryByText("Inbox")).not.toBeInTheDocument();
+    expect(screen.queryByText("Pending")).not.toBeInTheDocument();
+
+    const reviewQueueButton = screen
+      .getAllByRole("button", { name: /suspicious\.bin/ })
+      .find((button) => (button.textContent || "").includes("待确认区"));
+    expect(reviewQueueButton).toBeDefined();
+    fireEvent.click(reviewQueueButton!);
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Docs" })).toBeInTheDocument();
+    });
+
+    expect(screen.getByRole("button", { name: "待确认区" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Inbox/Pending" })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "待确认区" }));
+    expect(onUpdateItem).toHaveBeenCalledWith("F012", { move_to_review: true });
+  });
+
   it("keeps the footer outside the scrollable middle region", () => {
     render(
       <PreviewPanel
@@ -592,6 +682,92 @@ describe("PreviewPanel", () => {
 
     expect(scrollRegion.contains(footer)).toBe(false);
     expect(screen.getByRole("button", { name: "等待方案准备好" })).toBeInTheDocument();
+  });
+
+  it("shows and applies target conflict suggestions from failed precheck", () => {
+    const onApplyTargetConflictSuggestions = vi.fn();
+
+    render(
+      <PreviewPanel
+        plan={{
+          ...createPlan(),
+          items: [
+            {
+              item_id: "F001",
+              display_name: "report.pdf",
+              source_relpath: "alpha/report.pdf",
+              target_slot_id: "D001",
+              status: "planned",
+              mapping_status: "assigned",
+              suggested_purpose: "报告",
+              content_summary: "alpha report",
+            },
+            {
+              item_id: "F002",
+              display_name: "report.pdf",
+              source_relpath: "beta/report.pdf",
+              target_slot_id: "D001",
+              status: "planned",
+              mapping_status: "assigned",
+              suggested_purpose: "报告",
+              content_summary: "beta report",
+            },
+          ],
+          target_slots: [
+            {
+              slot_id: "D001",
+              display_name: "Docs",
+              relpath: "Docs",
+              depth: 0,
+              is_new: false,
+            },
+          ],
+          stats: {
+            directory_count: 1,
+            move_count: 2,
+            unresolved_count: 0,
+          },
+          readiness: {
+            can_precheck: false,
+          },
+        }}
+        stage="planning"
+        isBusy={false}
+        onRunPrecheck={() => {}}
+        onApplyTargetConflictSuggestions={onApplyTargetConflictSuggestions}
+        onUpdateItem={() => {}}
+        precheckSummary={{
+          mkdir_preview: [],
+          target_conflict_suggestions: [
+            {
+              type: "target_name_conflict",
+              target: "Docs/report.pdf",
+              items: [
+                {
+                  item_id: "F001",
+                  display_name: "report.pdf",
+                  source: "alpha/report.pdf",
+                  current_target: "Docs/report.pdf",
+                  suggested_target: "Docs/report.pdf",
+                },
+                {
+                  item_id: "F002",
+                  display_name: "report.pdf",
+                  source: "beta/report.pdf",
+                  current_target: "Docs/report.pdf",
+                  suggested_target: "Docs/report (2).pdf",
+                },
+              ],
+            },
+          ],
+        }}
+      />,
+    );
+
+    expect(screen.getByText("检测到 2 个同名目标，可应用建议后重新检查。")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "应用冲突建议" }));
+
+    expect(onApplyTargetConflictSuggestions).toHaveBeenCalledTimes(1);
   });
 
   it("shows incremental mapping rows before the structure reference", () => {

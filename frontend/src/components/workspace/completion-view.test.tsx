@@ -70,6 +70,50 @@ describe("CompletionView", () => {
     expect(screen.getAllByText("contract.pdf").length).toBeGreaterThan(0);
   });
 
+  it("uses explicit review metadata even when the target path does not contain Review", () => {
+    render(
+      <CompletionView
+        journal={{
+          journal_id: "j1",
+          execution_id: "e1",
+          target_dir: "D:/download",
+          status: "completed",
+          created_at: "2026-04-20T00:00:00Z",
+          item_count: 1,
+          success_count: 1,
+          failure_count: 0,
+          rollback_attempt_count: 0,
+          items: [
+            {
+              action_type: "MOVE",
+              status: "success",
+              source: "D:/download/contract.pdf",
+              target: "D:/download/pending/contract.pdf",
+              display_name: "contract.pdf",
+              item_id: "F001",
+              target_slot_id: "D999",
+              target_kind: "review",
+              is_review: true,
+            },
+          ],
+        }}
+        summary="done"
+        loading={false}
+        targetDir="D:/download"
+        organizeMethod="categorize_into_new_structure"
+        isBusy={false}
+        onOpenExplorer={() => {}}
+        onCleanupDirs={() => {}}
+        onRollback={() => {}}
+        onGoHome={() => {}}
+      />,
+    );
+
+    expect(screen.getAllByText("待确认区").length).toBeGreaterThan(0);
+    expect(screen.getByText("待确认 (1)")).toBeInTheDocument();
+    expect(screen.getAllByText("contract.pdf").length).toBeGreaterThan(0);
+  });
+
   it("only shows beautify entry for newly created top-level directories", () => {
     render(
       <CompletionView

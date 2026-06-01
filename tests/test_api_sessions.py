@@ -511,6 +511,80 @@ class SessionApiTests(unittest.TestCase):
         self.assertEqual(updated_item["target_slot_id"], "D001")
         self.assertEqual(self._plan_item_target_directory(snapshot, "md"), "Docs")
 
+    def test_restore_ai_suggestion_endpoint_restores_original_mapping(self):
+        created = self.service.create_session(
+            str(self.target_dir),
+            resume_if_exists=False,
+            strategy={"organize_mode": "incremental", "destination_index_depth": 2},
+        )
+        session = created.session
+        assert session is not None
+        session.stage = "planning"
+        session.scan_lines = "md | file | 学习资料 | 笔记"
+        session.incremental_selection = {
+            "required": True,
+            "status": "ready",
+            "destination_index_depth": 2,
+            "root_directory_options": ["Docs", "Inbox"],
+            "target_directories": ["Docs"],
+            "target_directory_tree": [{"relpath": "Docs", "name": "Docs", "children": []}],
+            "pending_items_count": 1,
+            "source_scan_completed": True,
+        }
+        session.pending_plan = {
+            "directories": ["Review"],
+            "moves": [{"source": "md", "target": "Review/md"}],
+            "unresolved_items": ["md"],
+            "summary": "needs review",
+        }
+        self.store.save(session)
+
+        update_response = self.client.post(
+            f"/api/sessions/{session.session_id}/update-item",
+            json={"item_id": "md", "target_slot": "D001", "move_to_review": False},
+        )
+        self.assertEqual(update_response.status_code, 200)
+        updated_item = next(
+            item for item in update_response.json()["session_snapshot"]["plan_snapshot"]["items"] if item["source_relpath"] == "md"
+        )
+        self.assertTrue(updated_item["can_restore_ai_suggestion"])
+        self.assertEqual(updated_item["original_target_slot_id"], "Review")
+        self.assertEqual(updated_item["original_status"], "unresolved")
+
+        restore_response = self.client.post(
+            f"/api/sessions/{session.session_id}/restore-ai-suggestion",
+            json={"item_id": "md"},
+        )
+
+        self.assertEqual(restore_response.status_code, 200)
+        snapshot = restore_response.json()["session_snapshot"]
+        restored_item = next(item for item in snapshot["plan_snapshot"]["items"] if item["source_relpath"] == "md")
+        self.assertEqual(restored_item["target_slot_id"], "Review")
+        self.assertEqual(restored_item["mapping_status"], "unresolved")
+        self.assertFalse(restored_item["user_overridden"])
+        self.assertFalse(restored_item["can_restore_ai_suggestion"])
+
+    def test_restore_ai_suggestion_endpoint_returns_409_without_original_mapping(self):
+        created = self.service.create_session(str(self.target_dir), resume_if_exists=False)
+        session = created.session
+        assert session is not None
+        session.stage = "planning"
+        session.pending_plan = {
+            "directories": ["Review"],
+            "moves": [{"source": "md", "target": "Review/md"}],
+            "unresolved_items": ["md"],
+            "summary": "needs review",
+        }
+        self.store.save(session)
+
+        response = self.client.post(
+            f"/api/sessions/{session.session_id}/restore-ai-suggestion",
+            json={"item_id": "md"},
+        )
+
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(response.json()["error_code"], "AI_SUGGESTION_NOT_FOUND")
+
     def test_update_item_rejects_target_dir_that_escapes_new_root(self):
         created = self.service.create_session(str(self.target_dir), resume_if_exists=False)
         session = created.session
@@ -559,6 +633,77 @@ class SessionApiTests(unittest.TestCase):
         self.assertEqual(execute.json()["session_snapshot"]["stage"], "completed")
         self.assertEqual(rollback.status_code, 200)
         self.assertEqual(rollback.json()["session_snapshot"]["stage"], "stale")
+
+    def test_apply_target_conflict_suggestions_endpoint_updates_plan_and_reruns_precheck(self):
+        (self.target_dir / "alpha").mkdir()
+        (self.target_dir / "beta").mkdir()
+        (self.target_dir / "alpha" / "report.pdf").write_text("alpha", encoding="utf-8")
+        (self.target_dir / "beta" / "report.pdf").write_text("beta", encoding="utf-8")
+        created = self.client.post(
+            "/api/sessions",
+            json={"target_dir": str(self.target_dir), "resume_if_exists": False},
+        ).json()
+        session = self.store.load(created["session_id"])
+        assert session is not None
+        session.stage = "planning"
+        session.planner_items = [
+            {
+                "planner_id": "F001",
+                "source_relpath": "alpha/report.pdf",
+                "display_name": "report.pdf",
+                "entry_type": "file",
+            },
+            {
+                "planner_id": "F002",
+                "source_relpath": "beta/report.pdf",
+                "display_name": "report.pdf",
+                "entry_type": "file",
+            },
+        ]
+        session.pending_plan = {
+            "directories": ["Docs"],
+            "moves": [
+                {"source": "alpha/report.pdf", "target": "Docs/report.pdf"},
+                {"source": "beta/report.pdf", "target": "Docs/report.pdf"},
+            ],
+            "unresolved_items": [],
+            "summary": "move reports",
+        }
+        self.store.save(session)
+
+        precheck = self.client.post(f"/api/sessions/{session.session_id}/precheck")
+        response = self.client.post(f"/api/sessions/{session.session_id}/apply-target-conflict-suggestions")
+
+        self.assertEqual(precheck.status_code, 200)
+        self.assertEqual(precheck.json()["session_snapshot"]["stage"], "planning")
+        self.assertFalse(precheck.json()["session_snapshot"]["precheck_summary"]["can_execute"])
+        self.assertEqual(response.status_code, 200)
+        snapshot = response.json()["session_snapshot"]
+        self.assertEqual(snapshot["stage"], "ready_to_execute")
+        self.assertTrue(snapshot["precheck_summary"]["can_execute"])
+        targets = [move["target"] for move in snapshot["precheck_summary"]["move_preview"]]
+        self.assertEqual(targets, ["Docs/report.pdf", "Docs/report (2).pdf"])
+
+    def test_apply_target_conflict_suggestions_endpoint_returns_409_without_suggestions(self):
+        created = self.client.post(
+            "/api/sessions",
+            json={"target_dir": str(self.target_dir), "resume_if_exists": False},
+        ).json()
+        session = self.store.load(created["session_id"])
+        assert session is not None
+        session.stage = "planning"
+        session.pending_plan = {
+            "directories": ["Docs"],
+            "moves": [{"source": "md", "target": "Docs/md"}],
+            "unresolved_items": [],
+            "summary": "move docs",
+        }
+        self.store.save(session)
+
+        response = self.client.post(f"/api/sessions/{session.session_id}/apply-target-conflict-suggestions")
+
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(response.json()["error_code"], "TARGET_CONFLICT_SUGGESTIONS_NOT_FOUND")
 
     def test_precheck_endpoint_returns_409_for_stale_session(self):
         created = self.client.post(

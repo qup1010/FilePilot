@@ -185,3 +185,27 @@ class HistoryAppServiceTests(unittest.TestCase):
         self.assertEqual(move_item["display_name"], "a.txt")
         self.assertEqual(move_item["item_id"], "F001")
         self.assertEqual(move_item["source_ref_id"], "F001")
+        self.assertEqual(move_item["target_kind"], "directory")
+        self.assertFalse(move_item["is_review"])
+
+    def test_get_journal_summary_marks_review_items_with_explicit_metadata(self):
+        (self.target_dir / "a.txt").write_text("hello", encoding="utf-8")
+        created = self.service.create_session(str(self.target_dir), resume_if_exists=False)
+        session = created.session
+        assert session is not None
+        session.stage = "ready_to_execute"
+        session.pending_plan = {
+            "directories": ["Review"],
+            "moves": [{"source": "a.txt", "target": "Review/a.txt"}],
+            "unresolved_items": [],
+            "summary": "move to review",
+        }
+        self.store.save(session)
+        self.service.execute(session.session_id, confirm=True)
+
+        summary = self.service.history_app.get_journal_summary(session.session_id)
+
+        move_item = next(item for item in summary["items"] if item["action_type"] == "MOVE")
+        self.assertEqual(move_item["target_slot_id"], "Review")
+        self.assertEqual(move_item["target_kind"], "review")
+        self.assertTrue(move_item["is_review"])

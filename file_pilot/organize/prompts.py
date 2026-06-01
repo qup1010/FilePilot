@@ -1,4 +1,5 @@
 from file_pilot.organize.strategy_templates import build_strategy_prompt_fragment
+from file_pilot.organize.target_slots import directory_target_slots, slot_label
 
 
 PROMPT_TEMPLATE = """你是一位“系统文件整理”专家。你的任务是基于当前规划范围，为用户产出一份可编辑的整理草案。
@@ -91,11 +92,13 @@ def _mode_rules(planning_context: dict | None = None) -> str:
         for item in (context.get("target_directory_details") or [])
         if isinstance(item, dict) and str(item.get("path") or "").strip()
     ]
-    target_slots = [
-        dict(item)
-        for item in (context.get("target_slots") or [])
-        if isinstance(item, dict) and str(item.get("slot_id") or "").strip()
-    ]
+    target_slots = directory_target_slots(
+        [
+            dict(item)
+            for item in (context.get("target_slots") or [])
+            if isinstance(item, dict) and str(item.get("slot_id") or "").strip()
+        ]
+    )
     detail_by_path = {
         str(item.get("path") or "").strip(): item
         for item in target_directory_details
@@ -131,10 +134,8 @@ def _mode_rules(planning_context: dict | None = None) -> str:
         lines.append("可用目标槽位：")
         for slot in target_slots:
             slot_id = str(slot.get("slot_id") or "").strip()
-            relpath = str(slot.get("relpath") or "").strip()
-            display_name = str(slot.get("display_name") or "").strip()
             depth = max(0, int(slot.get("depth") or 0))
-            label = relpath or display_name or slot_id
+            label = slot_label(slot)
             lines.append(f"{'  ' * depth}- {slot_id} -> {label}")
     new_directory_root = str(context.get("new_directory_root") or "").strip()
     review_root = str(context.get("review_root") or "").strip()

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, ArrowRight, CheckCircle2, ChevronDown, ChevronRight, ChevronUp, FileText, Folder, FolderOpen, Layers, Search, Sparkles, Edit2, Info, ChevronsDownUp, ChevronsUpDown, FileImage, FileVideo, FileAudio, FileSpreadsheet, FileCode, FileArchive, FileSymlink } from "lucide-react";
+import { AlertTriangle, ArrowRight, CheckCircle2, ChevronDown, ChevronRight, ChevronUp, FileText, Folder, FolderOpen, Layers, Search, Sparkles, Edit2, Info, ChevronsDownUp, ChevronsUpDown, FileImage, FileVideo, FileAudio, FileSpreadsheet, FileCode, FileArchive, FileSymlink, RotateCcw } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { MarkdownProse } from "./markdown-prose";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogClose } from "@/components/ui/dialog";
@@ -9,8 +9,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { getSessionStageView } from "@/lib/session-view-model";
 import { cn } from "@/lib/utils";
 import { canRunPrecheck as deriveCanRunPrecheck } from "@/lib/workspace-precheck";
-import type { IncrementalSelectionSnapshot, OrganizeMode, PlacementConfig, PlanItem, PlanSnapshot, PlanTargetSlot, SessionStage, SourceTreeEntry } from "@/types/session";
+import type { IncrementalSelectionSnapshot, OrganizeMode, PlacementConfig, PlanItem, PlanSnapshot, PlanTargetSlot, PrecheckSummary, SessionStage, SourceTreeEntry } from "@/types/session";
 import { QueueCard, QueuePanel } from "./preview/queue-manager";
+import { isReviewDirectory, isReviewPlanItem, isReviewTargetSlot, REVIEW_DIRECTORY, REVIEW_LABEL } from "./preview/preview-utils";
 
 export type PreviewFilter = "all" | "changed" | "unresolved" | "review" | "invalidated";
 
@@ -33,8 +34,10 @@ interface PreviewPanelProps {
   plannerRunKey?: string | null;
   readOnly?: boolean;
   onRunPrecheck: () => void;
+  onApplyTargetConflictSuggestions?: () => Promise<void> | void;
   onUpdateItem: (itemId: string, payload: { target_dir?: string; target_slot?: string; move_to_review?: boolean }) => Promise<void> | void;
-  precheckSummary?: { mkdir_preview?: string[] } | null;
+  onRestoreAiSuggestion?: (itemId: string) => Promise<void> | void;
+  precheckSummary?: Pick<PrecheckSummary, "mkdir_preview" | "target_conflict_suggestions"> | null;
   focusRequest?: PreviewFocusRequest | null;
   sourceTreeEntries?: SourceTreeEntry[];
   incrementalSelection?: IncrementalSelectionSnapshot | null;
@@ -48,6 +51,13 @@ interface TreeNode {
   item?: PlanItem;
   sourceEntry?: SourceTreeEntry;
   children: TreeNode[];
+}
+
+function treeNodeKey(node: TreeNode): string {
+  if (node.kind === "file") {
+    return `${node.path}::${node.item?.item_id || node.sourceEntry?.source_relpath || node.path}`;
+  }
+  return node.path;
 }
 
 interface AvailableTargetOption {
@@ -169,7 +179,7 @@ function itemStatusMeta(item: PlanItem, acceptedReviewItemIds: string[]) {
 }
 
 function resolveItemDirectory(item: PlanItem, targetSlotById: TargetSlotLookup, placement: PlacementConfig): string {
-  if (item.status === "review" || item.target_slot_id === "Review") return "Review";
+  if (isReviewPlanItem(item, targetSlotById)) return REVIEW_DIRECTORY;
   if (item.target_slot_id) {
     const slot = targetSlotById.get(item.target_slot_id);
     if (slot?.relpath) return slot.relpath;
@@ -178,7 +188,7 @@ function resolveItemDirectory(item: PlanItem, targetSlotById: TargetSlotLookup, 
 }
 
 function displayDirectoryLabel(directory: string): string {
-  return directory === "Review" ? "待确认区" : directory;
+  return directory === REVIEW_DIRECTORY ? REVIEW_LABEL : directory;
 }
 
 function resolveItemTargetPath(item: PlanItem, targetSlotById: TargetSlotLookup, placement: PlacementConfig): string {
@@ -207,7 +217,7 @@ function matchesFilter(item: PlanItem, filter: PreviewFilter, targetSlotById: Ta
   if (filter === "all") return true;
   if (filter === "changed") return isItemChanged(item, targetSlotById, placement);
   if (filter === "unresolved") return item.status === "unresolved";
-  if (filter === "review") return item.status === "review";
+  if (filter === "review") return isReviewPlanItem(item, targetSlotById);
   return item.status === "invalidated";
 }
 
@@ -540,7 +550,7 @@ function TreeBranch({
           >
             {node.children.map((child) => (
               <TreeBranch
-                key={child.path}
+                key={treeNodeKey(child)}
                 node={child}
                 depth={depth + 1}
                 expanded={expanded}
@@ -735,7 +745,9 @@ export function PreviewPanel(props: PreviewPanelProps) {
     plannerRunKey = null,
     readOnly = false,
     onRunPrecheck,
+    onApplyTargetConflictSuggestions,
     onUpdateItem,
+    onRestoreAiSuggestion,
     precheckSummary,
     focusRequest,
     sourceTreeEntries = [],
@@ -768,9 +780,13 @@ export function PreviewPanel(props: PreviewPanelProps) {
   const previousPlannerRunKeyRef = useRef<string | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const queuePanelRef = useRef<HTMLDivElement | null>(null);
+  const targetSlotById = useMemo<TargetSlotLookup>(
+    () => new Map((plan.target_slots || []).map((slot) => [slot.slot_id, slot])),
+    [plan.target_slots],
+  );
 
   const unresolvedItems = useMemo(() => allItems.filter((item) => item.status === "unresolved"), [allItems]);
-  const reviewItems = useMemo(() => allItems.filter((item) => item.status === "review"), [allItems]);
+  const reviewItems = useMemo(() => allItems.filter((item) => item.status === "review" || item.mapping_status === "review"), [allItems]);
   const invalidatedItems = useMemo(() => (plan.invalidated_items || []).map((item) => ({ ...item, status: "invalidated" as const })), [plan.invalidated_items]);
   const reviewItemsPendingAcceptance = useMemo(
     () => reviewItems.filter((item) => !acceptedReviewItemIds.includes(item.item_id)),
@@ -800,10 +816,6 @@ export function PreviewPanel(props: PreviewPanelProps) {
     ],
     [allItems, sourceTreeEntries],
   );
-  const targetSlotById = useMemo<TargetSlotLookup>(
-    () => new Map((plan.target_slots || []).map((slot) => [slot.slot_id, slot])),
-    [plan.target_slots],
-  );
   const placement = plan.placement || { new_directory_root: "", review_root: "" };
   const resolveTargetLabel = (item: PlanItem) => displayDirectoryLabel(resolveItemDirectory(item, targetSlotById, placement));
   const resolveTargetMeta = (item: PlanItem) => {
@@ -813,7 +825,7 @@ export function PreviewPanel(props: PreviewPanelProps) {
     return { directoryLabel, fullTargetPath, mappingLabel };
   };
   const reviewTargetUnresolvedItems = useMemo(
-    () => unresolvedItems.filter((item) => resolveItemDirectory(item, targetSlotById, placement) === "Review"),
+    () => unresolvedItems.filter((item) => resolveItemDirectory(item, targetSlotById, placement) === REVIEW_DIRECTORY),
     [placement, targetSlotById, unresolvedItems],
   );
   const filteredItems = useMemo(() => {
@@ -907,8 +919,9 @@ export function PreviewPanel(props: PreviewPanelProps) {
   const groupedByTargetSlot = useMemo(() => groupItemsByTargetSlot(allItems, targetSlotById, placement), [allItems, placement, targetSlotById]);
   const availableTargetOptions = useMemo<AvailableTargetOption[]>(() => {
     const options = new Map<string, AvailableTargetOption>();
-    options.set("Review", { key: "review", label: "待确认区", directory: "Review" });
+    options.set(REVIEW_DIRECTORY, { key: "review", label: REVIEW_LABEL, directory: REVIEW_DIRECTORY });
     (plan.target_slots || []).forEach((slot: PlanTargetSlot) => {
+      if (isReviewTargetSlot(slot)) return;
       const directory = normalizePath(slot.relpath);
       if (!directory) return;
       const realPath = normalizePath(slot.real_path);
@@ -938,6 +951,7 @@ export function PreviewPanel(props: PreviewPanelProps) {
     }
     plan.groups.forEach((group) => {
       const normalized = normalizePath(group.directory);
+      if (isReviewDirectory(normalized)) return;
       const identity = optionIdentityForTarget(normalized, placement);
       if (normalized && !options.has(identity)) {
         options.set(identity, { key: `dir:${identity}`, label: normalized, directory: normalized });
@@ -945,6 +959,7 @@ export function PreviewPanel(props: PreviewPanelProps) {
     });
     Array.from(groupedByTargetSlot.keys()).forEach((directory) => {
       const dir = normalizePath(directory);
+      if (isReviewDirectory(dir)) return;
       const identity = optionIdentityForTarget(dir, placement);
       if (dir && !options.has(identity)) {
         options.set(identity, { key: `dir:${identity}`, label: dir, directory: dir });
@@ -957,7 +972,7 @@ export function PreviewPanel(props: PreviewPanelProps) {
   const manualTargetInvalid =
     isAbsolutePath(manualTargetTrimmed) ||
     escapesRelativeRoot(manualTargetTrimmed) ||
-    /^review([\\/]|$)/i.test(manualTargetTrimmed) ||
+    isReviewDirectory(manualTargetTrimmed) ||
     (organizeMode === "incremental" && Boolean(manualTargetTrimmed) && !availableDirectories.includes(normalizePath(manualTargetTrimmed)));
   const canRunPrecheck = deriveCanRunPrecheck(stage, plan.readiness, isPlanSyncing) && activeReviewItems.length === 0;
   const incrementalSummary = useMemo(() => {
@@ -989,7 +1004,7 @@ export function PreviewPanel(props: PreviewPanelProps) {
       return;
     }
     const directory = resolveItemDirectory(editingItem, targetSlotById, placement);
-    setManualTarget(directory === "当前目录" || directory === "Review" ? "" : directory);
+    setManualTarget(directory === "当前目录" || directory === REVIEW_DIRECTORY ? "" : directory);
   }, [editingItem, placement, targetSlotById]);
 
   useEffect(() => {
@@ -1010,6 +1025,13 @@ export function PreviewPanel(props: PreviewPanelProps) {
 
   const applyItemTarget = async (itemId: string, payload: { target_dir?: string; target_slot?: string; move_to_review?: boolean }) => {
     await Promise.resolve(onUpdateItem(itemId, payload));
+  };
+
+  const restoreAiSuggestion = async (itemId: string) => {
+    if (!onRestoreAiSuggestion) {
+      return;
+    }
+    await Promise.resolve(onRestoreAiSuggestion(itemId));
   };
 
   const applyBatch = async (items: PlanItem[], payload: { target_dir?: string; target_slot?: string; move_to_review?: boolean }) => {
@@ -1051,8 +1073,14 @@ export function PreviewPanel(props: PreviewPanelProps) {
   const blockingQueueCount = invalidatedItems.length + unresolvedItems.length;
   const pendingQueueCount = invalidatedItems.length + unresolvedItems.length + activeReviewItems.length;
   const reviewQueueCount = activeReviewItems.length;
+  const targetConflictSuggestionCount = useMemo(
+    () => (precheckSummary?.target_conflict_suggestions || []).reduce((total, group) => total + (group.items?.length || 0), 0),
+    [precheckSummary?.target_conflict_suggestions],
+  );
   const precheckNotice = canRunPrecheck
     ? "待处理项目已清空，可以进行移动前检查。"
+    : targetConflictSuggestionCount > 0
+      ? `检测到 ${targetConflictSuggestionCount} 个同名目标，可应用建议后重新检查。`
     : invalidatedItems.length > 0
       ? `仍有 ${invalidatedItems.length} 项需重新确认。`
       : unresolvedItems.length > 0
@@ -1421,7 +1449,7 @@ export function PreviewPanel(props: PreviewPanelProps) {
                             onClick={() => {
                               void applyItemTarget(
                                 editingItem.item_id,
-                                option.directory === "Review"
+                                option.directory === REVIEW_DIRECTORY
                                   ? { move_to_review: true }
                                   : option.targetSlotId
                                     ? { target_slot: option.targetSlotId }
@@ -1442,6 +1470,19 @@ export function PreviewPanel(props: PreviewPanelProps) {
                             {option.label}
                           </button>
                         ))}
+                        {editingItem.can_restore_ai_suggestion ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              void restoreAiSuggestion(editingItem.item_id);
+                              setEditingItemId(null);
+                            }}
+                            className="inline-flex items-center gap-1.5 rounded-[6px] border border-on-surface/12 bg-surface px-3 py-1.5 text-[11.5px] font-semibold text-on-surface transition-all active:scale-95 hover:border-primary/20 hover:bg-surface-container"
+                          >
+                            <RotateCcw className="h-3.5 w-3.5" />
+                            恢复 AI 建议
+                          </button>
+                        ) : null}
                       </div>
                     </div>
 
@@ -1460,11 +1501,11 @@ export function PreviewPanel(props: PreviewPanelProps) {
                                 className="h-9 w-full rounded-[6px] border border-on-surface/15 bg-surface px-3 text-[12px] font-medium text-on-surface outline-none focus:border-primary/50"
                               />
                               {/* 目标路径建议 */}
-                              {manualTargetTrimmed && !manualTargetInvalid && availableDirectories.filter(d => d.toLowerCase().includes(manualTargetTrimmed.toLowerCase()) && d !== manualTargetTrimmed && d !== "Review").length > 0 && (
+                              {manualTargetTrimmed && !manualTargetInvalid && availableDirectories.filter(d => d.toLowerCase().includes(manualTargetTrimmed.toLowerCase()) && d !== manualTargetTrimmed && !isReviewDirectory(d)).length > 0 && (
                                 <div className="absolute top-full left-0 right-0 z-50 mt-1 max-h-48 overflow-y-auto rounded-[8px] border border-on-surface/10 bg-surface py-1 scrollbar-thin animate-in fade-in slide-in-from-top-2">
                                   <div className="px-3 py-1.5 text-[10px] font-bold text-ui-muted uppercase tracking-wider bg-on-surface/[0.02]">建议目标目录</div>
                                   {availableDirectories
-                                    .filter(d => d.toLowerCase().includes(manualTargetTrimmed.toLowerCase()) && d !== manualTargetTrimmed && d !== "Review")
+                                    .filter(d => d.toLowerCase().includes(manualTargetTrimmed.toLowerCase()) && d !== manualTargetTrimmed && !isReviewDirectory(d))
                                     .slice(0, 8)
                                     .map((dir) => (
                                       <button
@@ -1620,6 +1661,17 @@ export function PreviewPanel(props: PreviewPanelProps) {
             </motion.div>
           )}
           </AnimatePresence>
+          {targetConflictSuggestionCount > 0 && onApplyTargetConflictSuggestions ? (
+            <button
+              type="button"
+              onClick={onApplyTargetConflictSuggestions}
+              disabled={isBusy}
+              className="mb-2 flex w-full items-center justify-center gap-2 rounded-md border border-primary/20 bg-primary/8 px-3 py-2 text-[13px] font-bold text-primary transition-colors hover:bg-primary/12 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <Sparkles className="h-4 w-4" />
+              应用冲突建议
+            </button>
+          ) : null}
           <button type="button" onClick={onRunPrecheck} disabled={isBusy || !canRunPrecheck} className={cn("flex w-full items-center justify-center gap-2 rounded-md py-3 text-[14px] font-black uppercase tracking-widest transition-all active:scale-[0.98]", canRunPrecheck && !isBusy ? "bg-primary text-white" : "cursor-not-allowed border border-on-surface/8 bg-on-surface/[0.05] text-ui-muted")}>
             <Layers className="h-4 w-4" />
             {isBusy ? "正在更新方案" : canRunPrecheck ? "检查移动风险" : pendingQueueCount > 0 ? "先处理待处理项" : isPlanSyncing ? "等待方案更新完成" : "等待方案准备好"}

@@ -31,6 +31,19 @@ function normalizeFsPath(path: string): string {
   return path.replace(/\\/g, "/").replace(/\/+$/, "");
 }
 
+type JournalMoveItem = NonNullable<JournalSummary["items"]>[number];
+
+function hasReviewPathSegment(path: string | null | undefined): boolean {
+  return String(path || "").split(/[\\/]/).some((part) => part.toLowerCase() === "review");
+}
+
+function isReviewJournalItem(item: JournalMoveItem): boolean {
+  return Boolean(item.is_review)
+    || String(item.target_kind || "").toLowerCase() === "review"
+    || item.target_slot_id === "Review"
+    || hasReviewPathSegment(item.target);
+}
+
 export function CompletionView({
   journal,
   summary,
@@ -78,9 +91,7 @@ export function CompletionView({
   const moveItems = allItems.filter((item) => item.action_type === "MOVE");
   const mkdirItems = allItems.filter((item) => item.action_type === "MKDIR" && item.target);
   const failedItems = moveItems.filter((item) => item.status === "failed");
-  const reviewItems = moveItems.filter((item) =>
-    (item.target || "").split(/[\\/]/).some((part) => part.toLowerCase() === "review"),
-  );
+  const reviewItems = moveItems.filter(isReviewJournalItem);
   const isPartial = (journal.failure_count || 0) > 0;
   const baseLabel = targetDir.split(/[\\/]/).filter(Boolean).at(-1) || "当前目录";
   const normalizedTargetDir = normalizeFsPath(targetDir);
@@ -134,11 +145,7 @@ export function CompletionView({
       .filter((item): item is typeof item & { target: string } => Boolean(item.target))
       .map<DirectoryTreeLeafEntry>((item) => ({
         path: item.target,
-        status: item.status === "failed"
-          ? "failed"
-          : item.target.split(/[\\/]/).some((part) => part.toLowerCase() === "review")
-            ? "review"
-            : "success",
+        status: item.status === "failed" ? "failed" : isReviewJournalItem(item) ? "review" : "success",
       })),
     directoryEntries: mkdirItems
       .map((item) => item.target)

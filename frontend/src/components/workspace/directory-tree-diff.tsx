@@ -44,6 +44,7 @@ interface DirectoryTreeNode {
   children: DirectoryTreeNode[];
   status?: DirectoryTreeLeafStatus;
   descendantFileCount: number;
+  hasReviewDescendant?: boolean;
 }
 
 function normalizePath(path: string): string {
@@ -164,9 +165,11 @@ function buildTree(column: DirectoryTreeColumnData, filter: DirectoryTreeFilter 
   const computeCounts = (node: DirectoryTreeNode): number => {
     if (node.kind === "file") {
       node.descendantFileCount = 1;
+      node.hasReviewDescendant = node.status === "review";
       return 1;
     }
     node.descendantFileCount = node.children.reduce((sum, child) => sum + computeCounts(child), 0);
+    node.hasReviewDescendant = node.children.some((child) => child.hasReviewDescendant);
     return node.descendantFileCount;
   };
 
@@ -253,7 +256,7 @@ function DirectoryTreePanel({
   const renderNode = (node: DirectoryTreeNode, depth: number) => {
     if (node.kind === "file") {
       const badge = statusBadge(node.status);
-      const isReviewFile = node.path.split("/")[0]?.toLowerCase() === "review" || node.status === "review";
+      const isReviewFile = node.status === "review" || node.path.split("/")[0]?.toLowerCase() === "review";
       const isAdded = node.status === "pending" || node.status === "success";
       const isFailed = node.status === "failed";
       
@@ -316,7 +319,9 @@ function DirectoryTreePanel({
     }
 
     const isExpanded = expanded[node.path] ?? depth === 0;
-    const isReviewDirectory = node.path.toLowerCase() === "review" || node.path.toLowerCase().startsWith("review/");
+    const isReviewDirectory = Boolean(node.hasReviewDescendant)
+      || node.path.toLowerCase() === "review"
+      || node.path.toLowerCase().startsWith("review/");
     return (
       <div key={node.path} className="relative">
         <button

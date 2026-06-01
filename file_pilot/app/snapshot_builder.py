@@ -202,6 +202,13 @@ class SnapshotBuilder:
                 reason=mapping.reason,
                 confidence=mapping.confidence,
                 user_overridden=mapping.user_overridden,
+                original_target_slot_id=mapping.original_target_slot_id,
+                original_status=mapping.original_status,
+                overridden_at=mapping.overridden_at,
+                can_restore_ai_suggestion=(
+                    mapping.original_target_slot_id is not None
+                    and mapping.original_status is not None
+                ),
             )
             for mapping in task.mappings
         ]
@@ -246,6 +253,11 @@ class SnapshotBuilder:
             target_slot_id=target_slot_id,
             mapping_status=mapping_status,
             status=status,
+            user_overridden=bool(raw_item.get("user_overridden", False)),
+            original_target_slot_id=raw_item.get("original_target_slot_id"),
+            original_status=raw_item.get("original_status"),
+            overridden_at=raw_item.get("overridden_at"),
+            can_restore_ai_suggestion=bool(raw_item.get("can_restore_ai_suggestion", False)),
         )
 
     def plan_snapshot(
@@ -337,6 +349,14 @@ class SnapshotBuilder:
                         "review"
                         if mapping.target_slot_id == REVIEW_SLOT_ID
                         else ("unresolved" if mapping.status == "unresolved" else ("planned" if mapping.status == "assigned" else str(mapping.status or "planned")))
+                    ),
+                    user_overridden=bool(mapping.user_overridden),
+                    original_target_slot_id=mapping.original_target_slot_id,
+                    original_status=mapping.original_status,
+                    overridden_at=mapping.overridden_at,
+                    can_restore_ai_suggestion=(
+                        mapping.original_target_slot_id is not None
+                        and mapping.original_status is not None
                     ),
                 )
                 item_ids_from_snapshot.add(item.item_id)

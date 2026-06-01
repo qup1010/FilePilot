@@ -84,7 +84,13 @@ export function RollbackPreviewDialog({
                       </span>
                     </div>
                     <div className="mt-2 border-t border-on-surface/5 pt-2">
-                      <PathDiffViewer source={action.source} target={action.target} compact={true} />
+                      <PathDiffViewer
+                        source={action.source}
+                        target={action.target}
+                        compact={true}
+                        targetKind={action.target_kind}
+                        isReview={action.is_review}
+                      />
                     </div>
                   </motion.div>
                 ))}

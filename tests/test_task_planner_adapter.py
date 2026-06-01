@@ -63,6 +63,38 @@ class TaskPlannerAdapterTests(unittest.TestCase):
         self.assertEqual(review_task.mappings[0].status, "review")
         self.assertEqual(review_pending.moves[0].target, "Review/md")
 
+    def test_assign_mapping_preserves_first_ai_suggestion_until_restore(self):
+        first_override = self.adapter.assign_mapping(self.base_task, source_relpath="md", target_dir="Docs/Notes")
+        mapping = first_override.mappings[0]
+
+        self.assertTrue(mapping.user_overridden)
+        self.assertEqual(mapping.target_slot_id, "D002")
+        self.assertEqual(mapping.original_target_slot_id, "D001")
+        self.assertEqual(mapping.original_status, "assigned")
+        self.assertTrue(mapping.overridden_at)
+
+        second_override = self.adapter.assign_mapping(first_override, source_relpath="md", target_dir="Review")
+        mapping = second_override.mappings[0]
+
+        self.assertEqual(mapping.target_slot_id, "Review")
+        self.assertEqual(mapping.status, "review")
+        self.assertEqual(mapping.original_target_slot_id, "D001")
+        self.assertEqual(mapping.original_status, "assigned")
+
+        restored = self.adapter.restore_ai_mapping(second_override, source_relpath="md")
+        mapping = restored.mappings[0]
+
+        self.assertFalse(mapping.user_overridden)
+        self.assertEqual(mapping.target_slot_id, "D001")
+        self.assertEqual(mapping.status, "assigned")
+        self.assertIsNone(mapping.original_target_slot_id)
+        self.assertIsNone(mapping.original_status)
+        self.assertIsNone(mapping.overridden_at)
+
+    def test_restore_ai_mapping_rejects_mapping_without_original(self):
+        with self.assertRaisesRegex(RuntimeError, "AI_SUGGESTION_NOT_FOUND"):
+            self.adapter.restore_ai_mapping(self.base_task, source_relpath="md")
+
     def test_apply_pending_plan_defaults_unresolved_items_to_review(self):
         pending = PendingPlan(
             directories=[],

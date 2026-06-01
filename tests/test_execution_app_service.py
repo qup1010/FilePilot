@@ -73,6 +73,127 @@ class ExecutionAppServiceTests(unittest.TestCase):
         precheck = result.session_snapshot["precheck_summary"]
         self.assertTrue(any("待确认区" in item["message"] for item in precheck["issues"]))
         self.assertFalse(any("进入 Review" in item["message"] for item in precheck["issues"]))
+        self.assertEqual(precheck["move_preview"][0]["target_slot_id"], "Review")
+        self.assertEqual(precheck["move_preview"][0]["target_kind"], "review")
+        self.assertTrue(precheck["move_preview"][0]["is_review"])
+
+    def test_run_precheck_marks_directory_move_preview_as_directory_kind(self):
+        (self.target_dir / "a.txt").write_text("hello", encoding="utf-8")
+        created = self.service.create_session(str(self.target_dir), resume_if_exists=False)
+        session = created.session
+        assert session is not None
+        session.stage = "planning"
+        session.pending_plan = {
+            "directories": ["Docs"],
+            "moves": [{"source": "a.txt", "target": "Docs/a.txt"}],
+            "unresolved_items": [],
+            "summary": "move to docs",
+        }
+        self.store.save(session)
+
+        result = self.service.execution_app.run_precheck(session.session_id)
+
+        move_preview = result.session_snapshot["precheck_summary"]["move_preview"]
+        self.assertEqual(move_preview[0]["target_kind"], "directory")
+        self.assertFalse(move_preview[0]["is_review"])
+        self.assertTrue(str(move_preview[0]["target_slot_id"]).startswith("D"))
+
+    def test_run_precheck_blocks_duplicate_targets_and_suggests_renames(self):
+        (self.target_dir / "alpha").mkdir()
+        (self.target_dir / "beta").mkdir()
+        (self.target_dir / "alpha" / "report.pdf").write_text("alpha", encoding="utf-8")
+        (self.target_dir / "beta" / "report.pdf").write_text("beta", encoding="utf-8")
+        created = self.service.create_session(str(self.target_dir), resume_if_exists=False)
+        session = created.session
+        assert session is not None
+        session.stage = "planning"
+        session.planner_items = [
+            {
+                "planner_id": "F001",
+                "source_relpath": "alpha/report.pdf",
+                "display_name": "report.pdf",
+                "suggested_purpose": "报告",
+                "summary": "alpha report",
+                "entry_type": "file",
+                "ext": "pdf",
+                "parent_hint": "alpha",
+            },
+            {
+                "planner_id": "F002",
+                "source_relpath": "beta/report.pdf",
+                "display_name": "report.pdf",
+                "suggested_purpose": "报告",
+                "summary": "beta report",
+                "entry_type": "file",
+                "ext": "pdf",
+                "parent_hint": "beta",
+            },
+        ]
+        session.pending_plan = {
+            "directories": ["Docs"],
+            "moves": [
+                {"source": "alpha/report.pdf", "target": "Docs/report.pdf"},
+                {"source": "beta/report.pdf", "target": "Docs/report.pdf"},
+            ],
+            "unresolved_items": [],
+            "summary": "move reports",
+        }
+        self.store.save(session)
+
+        result = self.service.execution_app.run_precheck(session.session_id)
+
+        snapshot = result.session_snapshot
+        self.assertEqual(snapshot["stage"], "planning")
+        precheck = snapshot["precheck_summary"]
+        self.assertFalse(precheck["can_execute"])
+        self.assertTrue(any("计划内多个项目指向同一目标" in item for item in precheck["blocking_errors"]))
+        suggestions = precheck["target_conflict_suggestions"]
+        self.assertEqual(len(suggestions), 1)
+        self.assertEqual(suggestions[0]["type"], "target_name_conflict")
+        self.assertEqual(suggestions[0]["target"], "Docs/report.pdf")
+        suggested_targets = [item["suggested_target"] for item in suggestions[0]["items"]]
+        self.assertEqual(suggested_targets, ["Docs/report.pdf", "Docs/report (2).pdf"])
+        self.assertEqual([item["item_id"] for item in suggestions[0]["items"]], ["F001", "F002"])
+
+    def test_run_precheck_suggests_renames_for_existing_targets(self):
+        (self.target_dir / "Docs").mkdir()
+        (self.target_dir / "Docs" / "report.pdf").write_text("exists", encoding="utf-8")
+        (self.target_dir / "alpha").mkdir()
+        (self.target_dir / "alpha" / "report.pdf").write_text("alpha", encoding="utf-8")
+        created = self.service.create_session(str(self.target_dir), resume_if_exists=False)
+        session = created.session
+        assert session is not None
+        session.stage = "planning"
+        session.planner_items = [
+            {
+                "planner_id": "F001",
+                "source_relpath": "alpha/report.pdf",
+                "display_name": "report.pdf",
+                "suggested_purpose": "报告",
+                "summary": "alpha report",
+                "entry_type": "file",
+                "ext": "pdf",
+                "parent_hint": "alpha",
+            }
+        ]
+        session.pending_plan = {
+            "directories": ["Docs"],
+            "moves": [{"source": "alpha/report.pdf", "target": "Docs/report.pdf"}],
+            "unresolved_items": [],
+            "summary": "move report",
+        }
+        self.store.save(session)
+
+        result = self.service.execution_app.run_precheck(session.session_id)
+
+        precheck = result.session_snapshot["precheck_summary"]
+        self.assertFalse(precheck["can_execute"])
+        self.assertTrue(any("目标已存在" in item for item in precheck["blocking_errors"]))
+        suggestions = precheck["target_conflict_suggestions"]
+        self.assertEqual(len(suggestions), 1)
+        self.assertEqual(suggestions[0]["type"], "target_exists")
+        self.assertEqual(suggestions[0]["target"], "Docs/report.pdf")
+        self.assertEqual(suggestions[0]["items"][0]["suggested_target"], "Docs/report (2).pdf")
 
     def test_run_precheck_warns_for_high_impact_project_files(self):
         (self.target_dir / "package-lock.json").write_text("{}", encoding="utf-8")
@@ -266,6 +387,29 @@ class ExecutionAppServiceTests(unittest.TestCase):
         self.assertEqual(executed.session_snapshot["stage"], "completed")
         self.assertEqual(rolled_back.session_snapshot["stage"], "stale")
         self.assertTrue((self.target_dir / "a.txt").exists())
+
+    def test_rollback_precheck_marks_review_actions_from_target_slot_id(self):
+        (self.target_dir / "a.txt").write_text("hello", encoding="utf-8")
+        created = self.service.create_session(str(self.target_dir), resume_if_exists=False)
+        session = created.session
+        assert session is not None
+        session.stage = "ready_to_execute"
+        session.pending_plan = {
+            "directories": ["Review"],
+            "moves": [{"source": "a.txt", "target": "Review/a.txt"}],
+            "unresolved_items": ["a.txt"],
+            "summary": "move to review",
+        }
+        self.store.save(session)
+        self.service.execution_app.execute(session.session_id, confirm=True)
+
+        result = self.service.execution_app.rollback(session.session_id, confirm=False)
+
+        actions = result.rollback_precheck["actions"]
+        move_action = next(action for action in actions if action["type"] == "MOVE")
+        self.assertEqual(move_action["target_slot_id"], "Review")
+        self.assertEqual(move_action["target_kind"], "review")
+        self.assertTrue(move_action["is_review"])
 
     def test_execute_marks_session_interrupted_when_execution_raises(self):
         (self.target_dir / "a.txt").write_text("hello", encoding="utf-8")

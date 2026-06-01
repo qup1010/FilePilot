@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, field, replace
 from pathlib import Path
 
+from file_pilot.app.target_slot_registry import TargetSlotRegistry
 from file_pilot.domain.models import SourceRef, TargetSlot
 
 
@@ -55,9 +56,9 @@ class IdRegistry:
         return str(value).replace("\\", "/").strip().rstrip("/")
 
     @staticmethod
-    def _id_number(value: str, prefix: str) -> int:
+    def _source_id_number(value: str) -> int:
         text = str(value or "").strip()
-        if len(text) >= 2 and text[0].upper() == prefix.upper() and text[1:].isdigit():
+        if len(text) >= 2 and text[0].upper() == "F" and text[1:].isdigit():
             return int(text[1:])
         return 0
 
@@ -79,7 +80,7 @@ class IdRegistry:
         normalized_relpath = self._normalize_path(source.relpath)
         has_persisted_id = normalized_relpath in self._source_ids_by_relpath
         ref_id = self._source_ids_by_relpath.get(normalized_relpath) or str(source.ref_id or "").strip()
-        suggested_number = self._id_number(ref_id, "F")
+        suggested_number = self._source_id_number(ref_id)
         id_reserved_for_other_source = any(
             registered_relpath != normalized_relpath and registered_id == ref_id
             for registered_relpath, registered_id in self._source_ids_by_relpath.items()
@@ -94,7 +95,7 @@ class IdRegistry:
         normalized_source = replace(source, ref_id=ref_id, relpath=normalized_relpath)
         self._sources[normalized_source.ref_id] = normalized_source
         self._source_ids_by_relpath[normalized_relpath] = normalized_source.ref_id
-        number = self._id_number(normalized_source.ref_id, "F")
+        number = self._source_id_number(normalized_source.ref_id)
         self._next_source_number = max(self._next_source_number, number + 1)
         return normalized_source
 
@@ -116,7 +117,7 @@ class IdRegistry:
         normalized_target = replace(target, slot_id=slot_id, real_path=normalized_path)
         self._targets[normalized_target.slot_id] = normalized_target
         self._target_ids_by_real_path[normalized_path] = normalized_target.slot_id
-        number = self._id_number(normalized_target.slot_id, "D")
+        number = TargetSlotRegistry.slot_number(normalized_target.slot_id)
         self._next_target_number = max(self._next_target_number, number + 1)
         return normalized_target
 

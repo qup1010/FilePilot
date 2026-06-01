@@ -116,3 +116,89 @@ class PlanningConversationService:
         self.helpers.store.save(session)
         self.helpers._record_event("plan.updated", session)
         return SessionMutationResult(session_snapshot=self.helpers._build_snapshot(session))
+
+    def restore_ai_mapping(self, session_id: str, item_id: str) -> SessionMutationResult:
+        session = self.helpers._load_or_raise(session_id)
+        self.helpers._ensure_mutable_stage(session)
+
+        pending = self.helpers._pending_plan_from_session(session)
+        source_relpath = self.helpers._planner_source_for_item_id(session, item_id)
+        if not source_relpath and any(move.source == item_id for move in pending.moves):
+            source_relpath = item_id
+        if not source_relpath:
+            raise RuntimeError("ITEM_NOT_FOUND")
+
+        task, _ = self.helpers._build_organize_task(session, pending)
+        adapter = self.helpers._task_planner_adapter(session)
+        task = adapter.restore_ai_mapping(task, source_relpath=source_relpath)
+        pending = self.helpers._apply_task_state(
+            session,
+            task,
+            {"diff_summary": ["restore_ai_mapping"]},
+            prefer_local_summary=True,
+        )
+        self.helpers._sync_manual_diff_from_last_ai(session, pending)
+        self.helpers._sync_session_views(session)
+
+        self.helpers.store.save(session)
+        self.helpers._record_event("plan.updated", session)
+        return SessionMutationResult(session_snapshot=self.helpers._build_snapshot(session))
+
+    def apply_target_conflict_suggestions(self, session_id: str) -> SessionMutationResult:
+        session = self.helpers._load_or_raise(session_id)
+        self.helpers._ensure_mutable_stage(session)
+
+        precheck_summary = session.precheck_summary or {}
+        suggestions = precheck_summary.get("target_conflict_suggestions") if isinstance(precheck_summary, dict) else None
+        if not suggestions:
+            raise RuntimeError("TARGET_CONFLICT_SUGGESTIONS_NOT_FOUND")
+
+        pending = self.helpers._pending_plan_from_session(session)
+        source_by_item_id = {
+            str(item.get("planner_id") or "").strip(): self.helpers._normalize_relpath(item.get("source_relpath"))
+            for item in (session.planner_items or [])
+            if str(item.get("planner_id") or "").strip() and self.helpers._normalize_relpath(item.get("source_relpath"))
+        }
+        move_by_source = {
+            self.helpers._normalize_relpath(move.source): move
+            for move in pending.moves
+            if self.helpers._normalize_relpath(move.source)
+        }
+
+        changed = False
+        for group in suggestions or []:
+            if not isinstance(group, dict):
+                continue
+            for item in group.get("items") or []:
+                if not isinstance(item, dict):
+                    continue
+                item_id = str(item.get("item_id") or "").strip()
+                source_relpath = self.helpers._normalize_relpath(item.get("source")) or source_by_item_id.get(item_id, "")
+                suggested_target = self.helpers._normalize_relpath(item.get("suggested_target"))
+                if not source_relpath or not suggested_target:
+                    continue
+                move = move_by_source.get(source_relpath)
+                if move is None:
+                    raise RuntimeError("ITEM_NOT_FOUND")
+                if self.helpers._normalize_relpath(move.target) != suggested_target:
+                    move.target = suggested_target
+                    move.raw = ""
+                    changed = True
+
+        if not changed:
+            raise RuntimeError("TARGET_CONFLICT_SUGGESTIONS_NOT_FOUND")
+
+        pending.directories = self.helpers._directories_from_moves(pending.moves)
+        task, _ = self.helpers._build_organize_task(session, pending)
+        self.helpers._apply_pending_plan_state(
+            session,
+            pending,
+            {"diff_summary": ["apply_target_conflict_suggestions"]},
+            prefer_local_summary=True,
+            task=task,
+        )
+        self.helpers._sync_manual_diff_from_last_ai(session, pending)
+        self.helpers._sync_session_views(session)
+        self.helpers.store.save(session)
+        self.helpers._record_event("plan.updated", session)
+        return self.helpers.execution_app.run_precheck(session_id)

@@ -6,6 +6,7 @@ from pathlib import Path
 
 from file_pilot.app.id_registry import IdRegistryState
 from file_pilot.app.session_constants import (
+    REVIEW_SLOT_ID,
     STAGE_ABANDONED,
     STAGE_COMPLETED,
     STAGE_DRAFT,
@@ -383,6 +384,14 @@ class PlanTargetSlotPayload:
     depth: int
     is_new: bool
     real_path: str = ""
+    kind: str = "directory"
+    is_review: bool = False
+
+    def __post_init__(self) -> None:
+        normalized_kind = str(self.kind or "").strip().lower()
+        is_review = bool(self.is_review) or str(self.slot_id or "").strip() == REVIEW_SLOT_ID or normalized_kind == "review"
+        self.is_review = is_review
+        self.kind = "review" if is_review else "directory"
 
 
 @dataclass
@@ -411,6 +420,10 @@ class PlanMappingPayload:
     reason: str = ""
     confidence: float | None = None
     user_overridden: bool = False
+    original_target_slot_id: str | None = None
+    original_status: str | None = None
+    overridden_at: str | None = None
+    can_restore_ai_suggestion: bool = False
 
 
 @dataclass
@@ -426,6 +439,11 @@ class PlanSnapshotItem:
     target_slot_id: str = ""
     mapping_status: str = "planned"
     status: str = "planned"
+    user_overridden: bool = False
+    original_target_slot_id: str | None = None
+    original_status: str | None = None
+    overridden_at: str | None = None
+    can_restore_ai_suggestion: bool = False
 
 
 @dataclass
@@ -504,6 +522,11 @@ class PlanSnapshotPayload:
                     "status",
                     "unresolved" if item.get("is_unresolved") else "planned",
                 ),
+                "user_overridden": bool(item.get("user_overridden", False)),
+                "original_target_slot_id": item.get("original_target_slot_id"),
+                "original_status": item.get("original_status"),
+                "overridden_at": item.get("overridden_at"),
+                "can_restore_ai_suggestion": bool(item.get("can_restore_ai_suggestion", False)),
             }
             return PlanSnapshotItem(**normalized)
 
@@ -632,6 +655,9 @@ class OrganizerSession:
                 reason=str(item.reason or ""),
                 confidence=item.confidence,
                 user_overridden=bool(item.user_overridden),
+                original_target_slot_id=item.original_target_slot_id,
+                original_status=item.original_status,
+                overridden_at=item.overridden_at,
             )
             for item in (snapshot.mappings or [])
             if str(item.source_ref_id or "").strip()

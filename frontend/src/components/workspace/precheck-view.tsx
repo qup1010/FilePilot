@@ -25,18 +25,21 @@ interface EnrichedMovePreview {
     item_id: string;
     display_name: string;
     target_slot_id: string;
+    target_kind?: string;
+    is_review?: boolean;
     source: string;
     target: string;
 }
 
 function reviewMoveCount(summary: PrecheckSummary) {
-    return (summary.move_preview || []).filter((move) =>
-        (move.target || "").split(/[\\/]/).some((part) => part.toLowerCase() === "review"),
-    ).length;
+    return (summary.move_preview || []).filter(isReviewTarget).length;
 }
 
-function isReviewTarget(move: Pick<EnrichedMovePreview, "target" | "target_slot_id">): boolean {
-    return move.target_slot_id === "Review" || (move.target || "").split(/[\\/]/).some((part) => part.toLowerCase() === "review");
+function isReviewTarget(move: { target?: string; target_slot_id?: string; target_kind?: string; is_review?: boolean }): boolean {
+    return Boolean(move.is_review)
+        || String(move.target_kind || "").toLowerCase() === "review"
+        || move.target_slot_id === "Review"
+        || (move.target || "").split(/[\\/]/).some((part) => part.toLowerCase() === "review");
 }
 
 function displayMoveTarget(move: EnrichedMovePreview): string {
@@ -77,6 +80,7 @@ export function PrecheckView({
     const hasErrors = (summary.blocking_errors || []).length > 0;
     const hasWarnings = (summary.warnings || []).length > 0;
     const reviewCount = reviewMoveCount(summary);
+    const targetConflictSuggestions = summary.target_conflict_suggestions || [];
     const summaryTone = hasErrors ? "danger" : hasWarnings ? "warning" : "success";
     const planItemById = new Map(planItems.map((item) => [item.item_id, item] as const));
     const targetSlotById = new Map(targetSlots.map((slot) => [slot.slot_id, slot] as const));
@@ -85,7 +89,9 @@ export function PrecheckView({
         return {
             item_id: move.item_id,
             display_name: planItem?.display_name || displayNameFromMoveSource(move.source),
-            target_slot_id: planItem?.target_slot_id || "",
+            target_slot_id: move.target_slot_id || planItem?.target_slot_id || "",
+            target_kind: move.target_kind,
+            is_review: move.is_review,
             source: move.source,
             target: move.target,
         };
@@ -319,6 +325,57 @@ export function PrecheckView({
                         </section>
                     ) : null}
 
+                    {targetConflictSuggestions.length ? (
+                        <section className="shrink-0 space-y-4 pb-4">
+                            <div className="border-b border-on-surface/8 pb-3 mb-4">
+                                <h3 className="text-[15px] font-black font-headline tracking-tight text-on-surface">同名冲突建议</h3>
+                            </div>
+                            <div className="space-y-3">
+                                {targetConflictSuggestions.map((suggestion, index) => (
+                                    <div
+                                        key={`${suggestion.target}-${index}`}
+                                        className="rounded-lg border border-error/10 bg-error/[0.02] p-4"
+                                    >
+                                        <div className="mb-3 flex items-center justify-between gap-3">
+                                            <div className="min-w-0">
+                                                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-error/70">{suggestionTypeLabel(suggestion.type)}</p>
+                                                <p className="mt-1 truncate text-[12px] font-black text-on-surface font-mono" title={suggestion.target}>
+                                                    {suggestion.target}
+                                                </p>
+                                            </div>
+                                            <div className="shrink-0 rounded-[4px] border border-error/15 bg-error/5 px-2 py-1 text-[10px] font-black text-error">
+                                                {suggestion.items.length} 项
+                                            </div>
+                                        </div>
+                                        <div className="space-y-2">
+                                            {suggestion.items.map((item) => (
+                                                <div
+                                                    key={`${item.item_id}-${item.suggested_target}`}
+                                                    className="grid gap-2 rounded-md border border-on-surface/8 bg-on-surface/[0.02] p-3 @2xl:grid-cols-[minmax(0,0.85fr)_minmax(0,1fr)]"
+                                                >
+                                                    <div className="min-w-0">
+                                                        <p className="truncate text-[12px] font-black text-on-surface" title={item.display_name || item.source}>
+                                                            {item.display_name || item.source}
+                                                        </p>
+                                                        <p className="mt-1 truncate text-[10px] font-mono text-ui-muted" title={item.source}>
+                                                            {item.source}
+                                                        </p>
+                                                    </div>
+                                                    <div className="min-w-0">
+                                                        <p className="text-[9px] font-black uppercase tracking-widest text-ui-muted opacity-60">建议目标</p>
+                                                        <p className="mt-1 truncate text-[11px] font-mono font-bold text-on-surface" title={item.suggested_target}>
+                                                            {item.suggested_target}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </section>
+                    ) : null}
+
                     {(hasErrors || hasWarnings || reviewCount > 0) ? (
                         <section className="shrink-0 space-y-4 pb-12">
                             <div className="border-b border-on-surface/8 pb-3 mb-4">
@@ -418,3 +475,8 @@ export function PrecheckView({
         </div>
     );
 }
+    const suggestionTypeLabel = (type: string) => {
+        if (type === "target_exists") return "目标已存在";
+        if (type === "target_name_conflict") return "目标重名";
+        return "冲突建议";
+    };

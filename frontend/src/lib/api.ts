@@ -76,6 +76,8 @@ export interface ApiClient {
   confirmTargetDirectories(session_id: string, payload: ConfirmTargetsRequest): Promise<ConfirmTargetsResponse>;
   sendMessage(session_id: string, content: string): Promise<MessageResponse>;
   updateItem(session_id: string, payload: UpdateItemRequest): Promise<{ session_id: string; session_snapshot: SessionSnapshot }>;
+  restoreAiSuggestion(session_id: string, item_id: string): Promise<{ session_id: string; session_snapshot: SessionSnapshot }>;
+  applyTargetConflictSuggestions(session_id: string): Promise<PrecheckResponse>;
   runPrecheck(session_id: string): Promise<PrecheckResponse>;
   returnToPlanning(session_id: string): Promise<{ session_id: string; session_snapshot: SessionSnapshot }>;
   execute(session_id: string, confirm?: boolean): Promise<ExecuteResponse>;
@@ -182,6 +184,26 @@ export function createApiClient(baseUrl: string, apiToken?: string): ApiClient {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
         },
+        apiToken,
+      );
+    },
+    async restoreAiSuggestion(session_id, item_id) {
+      return requestJson<{ session_id: string; session_snapshot: SessionSnapshot }>(
+        baseUrl,
+        `/api/sessions/${session_id}/restore-ai-suggestion`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ item_id }),
+        },
+        apiToken,
+      );
+    },
+    async applyTargetConflictSuggestions(session_id) {
+      return requestJson<PrecheckResponse>(
+        baseUrl,
+        `/api/sessions/${session_id}/apply-target-conflict-suggestions`,
+        { method: "POST" },
         apiToken,
       );
     },

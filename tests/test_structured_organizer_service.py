@@ -546,14 +546,56 @@ class StructuredOrganizerServiceTests(unittest.TestCase):
                 "target_directories": ["Finance"],
                 "root_directory_options": ["Finance", "Study"],
                 "target_slots": [
-                    {"slot_id": "D001", "display_name": "合同", "relpath": "Finance/合同", "depth": 1, "is_new": False}
+                    {"slot_id": "D001", "display_name": "合同", "relpath": "Finance/合同", "depth": 1, "is_new": False},
+                    {"slot_id": "D999", "display_name": "待确认区", "relpath": "Review", "depth": 0, "is_new": False, "kind": "review"},
                 ],
             },
         )
 
         self.assertIn("可用目标槽位", prompt)
         self.assertIn("D001 -> Finance/合同", prompt)
+        self.assertNotIn("D999", prompt)
+        self.assertNotIn("D999 -> Review", prompt)
         self.assertIn("优先使用 `target_slot`", prompt)
+
+    def test_run_organizer_cycle_translates_review_kind_target_slot_to_pending_area(self):
+        diff_call = SimpleNamespace(
+            function=SimpleNamespace(
+                name="submit_plan_diff",
+                arguments='{"directory_renames": [], "move_updates": [{"item_id": "F001", "target_slot": "D999"}], "unresolved_adds": [], "unresolved_removals": []}',
+            )
+        )
+        message = SimpleNamespace(content="", tool_calls=[diff_call])
+
+        with mock.patch.object(organizer_service, "chat_one_round", return_value=message):
+            _, result = organizer_service.run_organizer_cycle(
+                messages=[],
+                scan_lines="contract.pdf | 财务合同 | 付款协议",
+                planner_items=[
+                    {
+                        "planner_id": "F001",
+                        "source_relpath": "contract.pdf",
+                        "display_name": "contract.pdf",
+                        "suggested_purpose": "财务合同",
+                        "summary": "付款协议",
+                        "ext": "pdf",
+                        "parent_hint": "",
+                    }
+                ],
+                pending_plan=PendingPlan(),
+                planning_context={
+                    "organize_mode": "incremental",
+                    "target_directories": ["Finance"],
+                    "root_directory_options": ["Finance", "Study"],
+                    "target_slots": [
+                        {"slot_id": "D001", "display_name": "合同", "relpath": "Finance/合同", "depth": 1, "is_new": False},
+                        {"slot_id": "D999", "display_name": "待确认区", "relpath": "Review", "depth": 0, "is_new": False, "kind": "review"},
+                    ],
+                },
+            )
+
+        self.assertEqual(result["pending_plan"].moves[0].source, "contract.pdf")
+        self.assertEqual(result["pending_plan"].moves[0].target, "Review/contract.pdf")
 
     def test_run_organizer_cycle_does_not_leak_planner_ids_into_pending_unresolved_items(self):
         diff_call = self._tool_call(
@@ -790,6 +832,23 @@ class StructuredOrganizerServiceTests(unittest.TestCase):
         self.assertIn("target_dir 必须精确等于某个已选目标目录", description)
         self.assertIn("系统会自动放入待确认区", description)
         self.assertNotIn("或放入 Review", description)
+
+    def test_build_organizer_tools_filters_review_slots_from_incremental_description(self):
+        tool = organizer_service.build_organizer_tools(
+            {
+                "organize_mode": "incremental",
+                "target_directories": ["Finance"],
+                "target_slots": [
+                    {"slot_id": "D001", "relpath": "Finance", "depth": 0},
+                    {"slot_id": "D999", "relpath": "Review", "display_name": "待确认区", "kind": "review"},
+                ],
+            }
+        )[0]
+
+        description = tool["function"]["description"]
+
+        self.assertIn("D001=Finance", description)
+        self.assertNotIn("D999", description)
 
     def test_retry_and_repair_prompts_keep_review_as_internal_pending_area(self):
         validation = {
