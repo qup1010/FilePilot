@@ -17,8 +17,20 @@ from file_pilot.analysis.vision_runtime import (
 from file_pilot.shared.config import create_image_analysis_client, get_image_analysis_settings
 from file_pilot.shared.logging_utils import append_debug_event
 
-SYSTEM_PROMPT = "你是一个图片分析专家。请只返回一句简短自然语言摘要，用于概括图片的大概内容，不要输出标签、列表或多段解释。"
-USER_PROMPT = "请简要描述这张图片的主要内容。"
+SYSTEM_PROMPT = (
+    "你是文件扫描阶段的图片观察专家。你的职责是提取图片中可观察的关键信息，帮助后续整理阶段理解文件用途。"
+    "不要决定最终分类，不要生成归档路径，不要猜测图中不可见的背景信息。"
+    "请使用固定字段、简洁中文输出。"
+)
+USER_PROMPT = (
+    "请分析这张图片，并按以下字段输出：\n"
+    "图片类型：截图 / 照片 / 扫描件 / 图表 / 插画 / 设计稿 / 其他 / 无法判断\n"
+    "主体内容：一句话描述图中主体\n"
+    "可读文字：列出图中清晰可读的关键文字；如果没有或看不清，写“未识别到清晰文字”\n"
+    "关键线索：列出对判断文件用途有帮助的可见线索\n"
+    "用途画像：一句话说明这张图片在文件整理中可能代表的用途或材料属性\n"
+    "限制：列出无法确认但容易被误猜的信息；没有则写“无”"
+)
 
 
 @dataclass

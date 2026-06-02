@@ -5,6 +5,8 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest import mock
 
+from PIL import Image
+
 from file_pilot.analysis.image_describer import ImageDescriptionResult, describe_image, format_image_description_result
 from file_pilot.analysis.file_reader import read_local_file
 
@@ -16,7 +18,7 @@ class ImageDescriberTests(unittest.TestCase):
             shutil.rmtree(self.root_dir)
         self.root_dir.mkdir()
         self.image_path = self.root_dir / "sample.png"
-        self.image_path.write_bytes(b"fake-image-bytes")
+        Image.new("RGB", (10, 6), color="white").save(self.image_path)
 
     def tearDown(self):
         if self.root_dir.exists():
@@ -85,6 +87,11 @@ class ImageDescriberTests(unittest.TestCase):
         self.assertEqual(len(kwargs["messages"]), 2)
         self.assertEqual(kwargs["messages"][0]["role"], "system")
         self.assertEqual(kwargs["messages"][1]["role"], "user")
+        self.assertIn("提取图片中可观察的关键信息", kwargs["messages"][0]["content"])
+        self.assertIn("不要决定最终分类", kwargs["messages"][0]["content"])
+        self.assertIn("图片类型：", str(kwargs["messages"][1]["content"]))
+        self.assertIn("可读文字：", str(kwargs["messages"][1]["content"]))
+        self.assertIn("用途画像：", str(kwargs["messages"][1]["content"]))
         self.assertNotIn("文件整理助手", str(kwargs["messages"]))
         event_kinds = [call.kwargs["kind"] for call in append_debug_event.call_args_list]
         self.assertEqual(event_kinds, ["analysis.vision.request_started", "analysis.vision.request_completed"])

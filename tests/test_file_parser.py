@@ -5,6 +5,9 @@ import unittest
 import zipfile
 from unittest import mock
 
+import pandas as pd
+from PIL import Image
+
 from file_pilot.analysis.file_reader import list_local_files, read_local_file, read_local_files_batch
 from file_pilot.analysis.image_describer import ImageDescriptionResult
 
@@ -61,6 +64,11 @@ class FileReaderEncodingTests(unittest.TestCase):
         self.utf16_path = os.path.join(self.root_dir, "utf16.txt")
         self.zip_path = os.path.join(self.root_dir, "bundle.zip")
         self.image_path = os.path.join(self.root_dir, "screen.png")
+        self.mp3_path = os.path.join(self.root_dir, "song.mp3")
+        self.mp4_path = os.path.join(self.root_dir, "clip.mp4")
+        self.csv_path = os.path.join(self.root_dir, "records.csv")
+        self.xlsx_path = os.path.join(self.root_dir, "records.xlsx")
+        self.long_text_path = os.path.join(self.root_dir, "long.txt")
 
         with open(self.utf8_sig_path, "w", encoding="utf-8-sig") as file:
             file.write("带 BOM 的文本")
@@ -71,8 +79,22 @@ class FileReaderEncodingTests(unittest.TestCase):
         with zipfile.ZipFile(self.zip_path, "w") as archive:
             archive.writestr("docs/readme.md", "hello")
             archive.writestr("images/cover.png", "image")
-        with open(self.image_path, "wb") as file:
-            file.write(b"fake-image-bytes")
+        Image.new("RGB", (12, 8), color="white").save(self.image_path)
+        with open(self.mp3_path, "wb") as file:
+            file.write(b"\x00\x01binary-audio")
+        with open(self.mp4_path, "wb") as file:
+            file.write(b"\x00\x00\x00\x18ftypmp42")
+        dataframe = pd.DataFrame(
+            [
+                {"name": "alpha", "amount": 10},
+                {"name": "beta", "amount": 20},
+                {"name": "gamma", "amount": 30},
+            ]
+        )
+        dataframe.to_csv(self.csv_path, index=False)
+        dataframe.to_excel(self.xlsx_path, index=False)
+        with open(self.long_text_path, "w", encoding="utf-8") as file:
+            file.write("开头关键信息 " + ("中间内容" * 80) + " 结尾总结信息")
 
     def tearDown(self):
         if os.path.exists(self.root_dir):
@@ -108,8 +130,57 @@ class FileReaderEncodingTests(unittest.TestCase):
             result = read_local_file(self.image_path)
 
         self.assertIn("聊天截图", result)
+        self.assertIn("图片系统信息", result)
+        self.assertIn("尺寸：12x8", result)
         describe_image_mock.assert_called_once_with(self.image_path)
         self.assertNotIn("非 UTF-8 编码", result)
+
+    def test_read_local_file_returns_basic_info_for_known_binary_without_text_decoding(self):
+        with mock.patch("file_pilot.analysis.file_reader._read_text_with_fallback") as text_reader:
+            result = read_local_file(self.mp3_path)
+
+        text_reader.assert_not_called()
+        self.assertIn("系统信息", result)
+        self.assertIn("扩展名：.mp3", result)
+        self.assertIn("音频元数据", result)
+        self.assertNotIn("非 UTF-8 编码", result)
+
+    def test_read_local_file_returns_basic_info_for_video_without_text_decoding(self):
+        with mock.patch("file_pilot.analysis.file_reader._read_text_with_fallback") as text_reader, mock.patch(
+            "file_pilot.analysis.file_reader.shutil.which",
+            return_value=None,
+        ):
+            result = read_local_file(self.mp4_path)
+
+        text_reader.assert_not_called()
+        self.assertIn("系统信息", result)
+        self.assertIn("扩展名：.mp4", result)
+        self.assertIn("视频元数据", result)
+        self.assertIn("未找到 ffprobe", result)
+        self.assertNotIn("非 UTF-8 编码", result)
+
+    def test_read_local_file_uses_head_tail_preview_for_long_text(self):
+        result = read_local_file(self.long_text_path, max_len=120)
+
+        self.assertIn("开头关键信息", result)
+        self.assertIn("结尾总结信息", result)
+        self.assertIn("中间内容已省略", result)
+
+    def test_read_local_file_includes_csv_shape_and_columns(self):
+        result = read_local_file(self.csv_path, max_len=1000)
+
+        self.assertIn("CSV 表格", result)
+        self.assertIn("总行数: 3", result)
+        self.assertIn("总列数: 2", result)
+        self.assertIn("列名: name, amount", result)
+
+    def test_read_local_file_includes_excel_shape_and_columns(self):
+        result = read_local_file(self.xlsx_path, max_len=1000)
+
+        self.assertIn("Sheet:", result)
+        self.assertIn("总行数: 3", result)
+        self.assertIn("总列数: 2", result)
+        self.assertIn("列名: name, amount", result)
 
     def test_read_local_files_batch_keeps_input_order_when_parallelized(self):
         def fake_read(filename, max_len=300, allowed_base_dir=None):

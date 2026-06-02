@@ -9,3 +9,4 @@ uvicorn
 python-multipart
 python-dotenv
 Pillow
+mutagen
