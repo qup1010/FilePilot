@@ -573,7 +573,7 @@ class OrganizerSession:
     planning_schema_version: int = 5
     stage: str = STAGE_DRAFT
     strategy_template_id: str = DEFAULT_TEMPLATE_ID
-    strategy_template_label: str = "通用下载"
+    strategy_template_label: str = "通用整理"
     organize_mode: str = "initial"
     destination_index_depth: int = 2
     language: str = DEFAULT_LANGUAGE
@@ -768,7 +768,7 @@ class OrganizerSession:
             ],
             stage=stage,
             strategy_template_id=data.get("strategy_template_id", DEFAULT_TEMPLATE_ID),
-            strategy_template_label=data.get("strategy_template_label", "通用下载"),
+            strategy_template_label=data.get("strategy_template_label", "通用整理"),
             organize_mode=organize_mode,
             destination_index_depth=int(data.get("destination_index_depth", 2) or 2),
             language=data.get("language", DEFAULT_LANGUAGE),

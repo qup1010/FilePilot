@@ -31,6 +31,10 @@ function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+function normalizeMessageContent(value: string | null | undefined): string {
+  return (value || "").replace(/\s+/g, " ").trim();
+}
+
 function MessageAvatar({ role, hidden = false }: { role: "assistant" | "user"; hidden?: boolean }) {
   const isAssistant = role === "assistant";
   return (
@@ -185,7 +189,11 @@ export function ConversationPanel({
       scrollRafRef.current = null;
       const container = scrollContainerRef.current;
       if (!container) return;
-      container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
+      if (typeof container.scrollTo === "function") {
+        container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
+      } else {
+        container.scrollTop = container.scrollHeight;
+      }
     });
   }, [messages, assistantDraft, revealingMessage.visibleLength, isPinnedToBottom]);
 
@@ -208,7 +216,11 @@ export function ConversationPanel({
   const handleJumpToBottom = () => {
     const container = scrollContainerRef.current;
     if (!container) return;
-    container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
+    if (typeof container.scrollTo === "function") {
+      container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
+    } else {
+      container.scrollTop = container.scrollHeight;
+    }
     setIsPinnedToBottom(true);
   };
 
@@ -218,6 +230,16 @@ export function ConversationPanel({
     () => deriveScannerProgressViewModel(scanner || {}, progressPercent),
     [progressPercent, scanner],
   );
+  const visibleAssistantDraft = React.useMemo(() => {
+    const normalizedDraft = normalizeMessageContent(assistantDraft);
+    if (!normalizedDraft) {
+      return "";
+    }
+    const alreadyFinalized = [...messages]
+      .reverse()
+      .some((message) => message.role === "assistant" && normalizeMessageContent(message.content) === normalizedDraft);
+    return alreadyFinalized ? "" : assistantDraft;
+  }, [assistantDraft, messages]);
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-surface">
@@ -424,7 +446,7 @@ export function ConversationPanel({
               </motion.div>
             );
           })}
-          {assistantDraft && (
+          {visibleAssistantDraft && (
             <motion.div
               key="assistant-streaming-bubble"
               initial={{ opacity: 0, y: 8, scale: 0.97 }}
@@ -438,7 +460,7 @@ export function ConversationPanel({
               <div className="row-start-1 col-start-2 flex min-w-0 max-w-[88%] flex-col gap-2 items-start justify-self-start">
                 <div className="px-1 pt-[1px] text-on-surface transition-all leading-relaxed">
                   <div className="relative">
-                    <MarkdownProse content={assistantDraft} density="compact" />
+                    <MarkdownProse content={visibleAssistantDraft} density="compact" />
                     <motion.span
                       initial={{ opacity: 0 }}
                       animate={{ opacity: [0, 1, 0] }}
@@ -452,7 +474,7 @@ export function ConversationPanel({
           )}
         </div>
 
-        {!isPinnedToBottom && (messages.length > 0 || assistantDraft) && (
+        {!isPinnedToBottom && (messages.length > 0 || visibleAssistantDraft) && (
           <div className="sticky bottom-4 z-40 flex justify-end pr-2 pb-2">
             <button
               type="button"

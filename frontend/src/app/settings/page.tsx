@@ -31,6 +31,7 @@ import {
   SlidersHorizontal,
   Terminal,
   Trash2,
+  type LucideIcon,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -65,6 +66,7 @@ import type {
   SecretAction,
   SecretState,
   SettingsFamily,
+  SettingsModelListResult,
   SettingsSnapshot,
   SettingsTestResult,
   SettingsUpdatePayload,
@@ -109,6 +111,8 @@ type SwitchPresetDialogState = {
   family: PresetConfigFamily;
   presetId: string;
 };
+
+type ModelLookupState = Partial<Record<PresetConfigFamily, SettingsModelListResult>>;
 
 type TargetProfileDraft = {
   name: string;
@@ -482,6 +486,8 @@ export default function SettingsPage() {
   const [success, setSuccess] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [testResults, setTestResults] = useState<Partial<Record<SettingsFamily, SettingsTestResult>>>({});
+  const [modelLookupResults, setModelLookupResults] = useState<ModelLookupState>({});
+  const [loadingModelsFamily, setLoadingModelsFamily] = useState<PresetConfigFamily | null>(null);
   const [textSecret, setTextSecret] = useState<SecretDraft>(createSecretDraft());
   const [visionSecret, setVisionSecret] = useState<SecretDraft>(createSecretDraft());
   const [iconSecret, setIconSecret] = useState<SecretDraft>(createSecretDraft());
@@ -1002,6 +1008,76 @@ export default function SettingsPage() {
       };
     });
     setSuccess(null);
+  };
+
+  const buildModelLookupPayload = (family: PresetConfigFamily) => {
+    if (!draft) {
+      return null;
+    }
+    if (family === "text") {
+      return {
+        family,
+        ...buildFamilySavePayload("text", {
+          OPENAI_BASE_URL: draft.text.OPENAI_BASE_URL,
+          OPENAI_MODEL: draft.text.OPENAI_MODEL,
+        }),
+        secret: buildSecretPayload(textSecret),
+      };
+    }
+    if (family === "vision") {
+      return {
+        family,
+        mode: getVisionSourceMode(draft.global_config),
+        ...(getVisionSourceMode(draft.global_config) === "shared_text"
+          ? buildFamilySavePayload("text", {
+            OPENAI_BASE_URL: draft.text.OPENAI_BASE_URL,
+            OPENAI_MODEL: draft.text.OPENAI_MODEL,
+          })
+          : buildFamilySavePayload("vision", {
+            IMAGE_ANALYSIS_NAME: draft.vision.IMAGE_ANALYSIS_NAME,
+            IMAGE_ANALYSIS_BASE_URL: draft.vision.IMAGE_ANALYSIS_BASE_URL,
+            IMAGE_ANALYSIS_MODEL: draft.vision.IMAGE_ANALYSIS_MODEL,
+          })),
+        secret: getVisionSourceMode(draft.global_config) === "shared_text" ? buildSecretPayload(textSecret) : buildSecretPayload(visionSecret),
+      };
+    }
+    return {
+      family,
+      preset: {
+        image_model: {
+          base_url: draft.icon_image.image_model.base_url,
+          model: draft.icon_image.image_model.model,
+        },
+      },
+      secret: buildSecretPayload(iconSecret),
+    };
+  };
+
+  const handleFetchModels = async (family: PresetConfigFamily) => {
+    const payload = buildModelLookupPayload(family);
+    if (!payload) {
+      return;
+    }
+    setLoadingModelsFamily(family);
+    setError(null);
+    setModelLookupResults((current) => ({ ...current, [family]: undefined }));
+    try {
+      const result = await api.listSettingsModels(payload);
+      setModelLookupResults((current) => ({ ...current, [family]: result }));
+    } catch (err) {
+      setModelLookupResults((current) => ({
+        ...current,
+        [family]: {
+          status: "error",
+          family,
+          code: "request_failed",
+          message: err instanceof Error ? err.message : "获取模型列表失败",
+          models: [],
+        },
+      }));
+    } finally {
+      setLoadingModelsFamily(null);
+    }
   };
 
   const updateTargetProfileDraft = (profileId: string, updater: (current: TargetProfileDraft) => TargetProfileDraft) => {
@@ -1624,6 +1700,93 @@ export default function SettingsPage() {
     </div>
   );
 
+  const renderModelIdField = ({
+    family,
+    label,
+    icon,
+    value,
+    placeholder,
+    onChange,
+    className,
+  }: {
+    family: PresetConfigFamily;
+    label: string;
+    icon: LucideIcon;
+    value: string;
+    placeholder: string;
+    onChange: (value: string) => void;
+    className?: string;
+  }) => {
+    const lookupResult = modelLookupResults[family];
+    const isLoadingModels = loadingModelsFamily === family;
+    const models = lookupResult?.models || [];
+    return (
+      <FieldGroup label={label} className={className}>
+        <InputShell icon={icon} className="flex items-center gap-2">
+          <input
+            value={value}
+            onChange={(event) => onChange(event.target.value)}
+            className="min-w-0 flex-1 bg-transparent py-2 text-sm font-semibold text-on-surface outline-none"
+            placeholder={placeholder}
+          />
+          <button
+            type="button"
+            onClick={() => void handleFetchModels(family)}
+            disabled={isLoadingModels}
+            className="inline-flex h-7 shrink-0 items-center gap-1.5 rounded-[5px] border border-on-surface/8 bg-surface px-2.5 text-[11px] font-bold text-on-surface/70 transition-colors hover:border-primary/20 hover:text-primary disabled:opacity-55"
+          >
+            {isLoadingModels ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
+            获取
+          </button>
+        </InputShell>
+        {lookupResult ? (
+          <div
+            className={cn(
+              "rounded-[6px] border px-2.5 py-2",
+              lookupResult.status === "ok"
+                ? "border-on-surface/8 bg-surface-container-lowest"
+                : "border-error/15 bg-error/[0.03]",
+            )}
+          >
+            {lookupResult.status === "ok" ? (
+              models.length ? (
+                <div className="flex flex-wrap gap-1.5">
+                  {models.slice(0, 8).map((model) => (
+                    <button
+                      key={model.id}
+                      type="button"
+                      onClick={() => onChange(model.id)}
+                      className={cn(
+                        "max-w-full truncate rounded-[5px] border px-2 py-1 text-[11px] font-semibold transition-colors",
+                        model.id === value
+                          ? "border-primary/25 bg-primary/10 text-primary"
+                          : "border-on-surface/8 bg-surface text-on-surface/70 hover:border-primary/18 hover:text-primary",
+                      )}
+                      title={model.id}
+                    >
+                      {model.id}
+                    </button>
+                  ))}
+                  {models.length > 8 ? (
+                    <span className="rounded-[5px] border border-on-surface/8 bg-surface px-2 py-1 text-[11px] font-semibold text-ui-muted">
+                      +{models.length - 8}
+                    </span>
+                  ) : null}
+                </div>
+              ) : (
+                <p className="text-[11.5px] font-medium text-ui-muted">端点已响应，但没有返回可选模型。</p>
+              )
+            ) : (
+              <p className="text-[11.5px] font-medium leading-relaxed text-error-dim">
+                {lookupResult.message || "获取模型列表失败，请检查端点和密钥。"}
+              </p>
+            )}
+          </div>
+        ) : null}
+      </FieldGroup>
+    );
+  };
+
   const renderSecretField = (
     label: string,
     state: SecretState,
@@ -1893,11 +2056,14 @@ export default function SettingsPage() {
                 />
                 {textPresetEditable ? (
                   <div className="grid gap-4 xl:grid-cols-2">
-                    <FieldGroup label="模型 ID">
-                      <InputShell icon={Terminal}>
-                        <input value={draft.text.OPENAI_MODEL} onChange={(event) => updateDraft("text", (current) => ({ ...current, OPENAI_MODEL: event.target.value }))} className="w-full bg-transparent py-2 text-sm font-semibold text-on-surface outline-none" placeholder="gpt-5.4" />
-                      </InputShell>
-                    </FieldGroup>
+                    {renderModelIdField({
+                      family: "text",
+                      label: "模型 ID",
+                      icon: Terminal,
+                      value: draft.text.OPENAI_MODEL,
+                      placeholder: "gpt-5.4",
+                      onChange: (value) => updateDraft("text", (current) => ({ ...current, OPENAI_MODEL: value })),
+                    })}
                     <FieldGroup label="接口地址" hint="填写 OpenAI 兼容地址，通常以 /v1 结尾。">
                       <InputShell icon={Globe}>
                         <input value={draft.text.OPENAI_BASE_URL} onChange={(event) => updateDraft("text", (current) => ({ ...current, OPENAI_BASE_URL: event.target.value }))} className="w-full bg-transparent py-2 text-sm font-mono font-medium text-on-surface outline-none" placeholder="https://api.openai.com/v1" />
@@ -2018,11 +2184,14 @@ export default function SettingsPage() {
                       />
                       {visionPresetEditable ? (
                         <div className="grid gap-4 xl:grid-cols-2">
-                          <FieldGroup label="模型 ID">
-                            <InputShell icon={ImageIcon}>
-                              <input value={draft.vision.IMAGE_ANALYSIS_MODEL} onChange={(event) => updateDraft("vision", (current) => ({ ...current, IMAGE_ANALYSIS_MODEL: event.target.value }))} className="w-full bg-transparent py-2 text-sm font-semibold text-on-surface outline-none" placeholder="gpt-4o-mini" />
-                            </InputShell>
-                          </FieldGroup>
+                          {renderModelIdField({
+                            family: "vision",
+                            label: "模型 ID",
+                            icon: ImageIcon,
+                            value: draft.vision.IMAGE_ANALYSIS_MODEL,
+                            placeholder: "gpt-4o-mini",
+                            onChange: (value) => updateDraft("vision", (current) => ({ ...current, IMAGE_ANALYSIS_MODEL: value })),
+                          })}
                           <FieldGroup label="接口地址" hint="填写 OpenAI 兼容地址，通常以 /v1 结尾；该模型还需要支持图片输入。">
                             <InputShell icon={Globe}>
                               <input value={draft.vision.IMAGE_ANALYSIS_BASE_URL} onChange={(event) => updateDraft("vision", (current) => ({ ...current, IMAGE_ANALYSIS_BASE_URL: event.target.value }))} className="w-full bg-transparent py-2 text-sm font-mono font-medium text-on-surface outline-none" placeholder="https://host.example/v1" />
@@ -2070,11 +2239,14 @@ export default function SettingsPage() {
                 />
                 {iconImagePresetEditable ? (
                   <div className="grid gap-4 xl:grid-cols-2">
-                    <FieldGroup label="生图模型 ID">
-                      <InputShell icon={Terminal}>
-                        <input value={draft.icon_image.image_model.model} onChange={(event) => updateDraft("icon_image", (current) => ({ ...current, image_model: { ...current.image_model, model: event.target.value } }))} className="w-full bg-transparent py-2 text-sm font-semibold text-on-surface outline-none" placeholder="gpt-image-1" />
-                      </InputShell>
-                    </FieldGroup>
+                    {renderModelIdField({
+                      family: "icon_image",
+                      label: "生图模型 ID",
+                      icon: Terminal,
+                      value: draft.icon_image.image_model.model,
+                      placeholder: "gpt-image-1",
+                      onChange: (value) => updateDraft("icon_image", (current) => ({ ...current, image_model: { ...current.image_model, model: value } })),
+                    })}
                     <FieldGroup label="生图接口地址" className="xl:col-span-2" hint="可填写 OpenAI 兼容 /v1 地址，或服务商给出的完整 /images/generations 端点。">
                       <InputShell icon={Globe}>
                         <input value={draft.icon_image.image_model.base_url} onChange={(event) => updateDraft("icon_image", (current) => ({ ...current, image_model: { ...current.image_model, base_url: event.target.value } }))} className="w-full bg-transparent py-2 text-sm font-mono font-medium text-on-surface outline-none" placeholder="https://host.example/v1" />

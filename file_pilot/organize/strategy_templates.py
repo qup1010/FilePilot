@@ -324,8 +324,9 @@ def build_strategy_prompt_fragment(selection: dict | None = None) -> str:
         density = DENSITIES[normalized["density"]]
         prefix_style = PREFIX_STYLES[normalized["prefix_style"]]
         lines = [
-            "当前固定整理策略（必须优先遵守）：",
-            f"- 主模板：{normalized['template_label']}。{template['description']}",
+            "当前整理偏好（用于参考）：",
+            "- 优先依据扫描结果、文件用途、现有目录结构和用户补充说明判断目标结构；不要机械套用模板。",
+            f"- 参考模板：{normalized['template_label']}。{template['description']}",
             template["prompt_fragment"],
             language["prompt_fragment"],
             density["prompt_fragment"],

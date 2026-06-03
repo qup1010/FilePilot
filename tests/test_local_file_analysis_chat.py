@@ -53,7 +53,7 @@ class ScannerServiceTests(unittest.TestCase):
 
         self.assertIn("若用途仍不明确，再结合“内容摘要”判断", prompt)
         self.assertIn("不要过度细分", prompt)
-        self.assertIn("按实际用途归到清晰的大类", prompt)
+        self.assertIn("根据文件用途和上下文把内容归到清晰的大类", prompt)
         self.assertIn("submit_plan_diff", prompt)
         self.assertIn("directory_renames", prompt)
         self.assertIn("move_updates", prompt)
@@ -67,7 +67,9 @@ class ScannerServiceTests(unittest.TestCase):
         self.assertIn("目录语言：优先使用简洁、自然、统一的中文目录名", prompt)
         self.assertIn("整理保守度：平衡", prompt)
         self.assertIn("允许为清晰结构创建适量目录，但不要过度细分", prompt)
-        self.assertIn("当前固定整理策略（必须优先遵守）", prompt)
+        self.assertIn("当前整理偏好（用于参考）", prompt)
+        self.assertIn("参考模板：通用整理", prompt)
+        self.assertIn("不要机械套用模板", prompt)
         self.assertIn("summary", prompt)
         self.assertNotIn("submit" + "_final_plan", prompt)
 

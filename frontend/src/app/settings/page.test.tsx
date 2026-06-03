@@ -12,6 +12,7 @@ const getSettings = vi.fn<() => Promise<SettingsSnapshot>>();
 const createSettingsPreset = vi.fn();
 const updateSettings = vi.fn();
 const testSettings = vi.fn();
+const listSettingsModels = vi.fn();
 const getTargetProfiles = vi.fn();
 const createTargetProfile = vi.fn();
 const updateTargetProfile = vi.fn();
@@ -49,6 +50,7 @@ vi.mock("@/lib/api", () => ({
       activateSettingsPreset: vi.fn(),
       deleteSettingsPreset: vi.fn(),
       testSettings,
+      listSettingsModels,
       getTargetProfiles,
       createTargetProfile,
       updateTargetProfile,
@@ -191,6 +193,27 @@ function createSnapshotWithEditableVisionPreset(): SettingsSnapshot {
   return snapshot;
 }
 
+function createSnapshotWithEditableTextPreset(): SettingsSnapshot {
+  const snapshot = createSnapshot();
+  const activePreset = {
+    ...snapshot.families.text.active_preset,
+    id: "text-1",
+    name: "文本预设",
+  };
+  snapshot.families.text = {
+    ...snapshot.families.text,
+    configured: true,
+    active_preset_id: activePreset.id,
+    active_preset: activePreset,
+    presets: [activePreset],
+  };
+  snapshot.status = {
+    ...snapshot.status,
+    text_configured: true,
+  };
+  return snapshot;
+}
+
 async function expectCreatePresetPrompt() {
   expect((await screen.findAllByText("请先点击 + 创建一个预设")).length).toBeGreaterThan(0);
 }
@@ -215,6 +238,7 @@ describe("SettingsPage preset flow", () => {
     createSettingsPreset.mockReset();
     updateSettings.mockReset();
     testSettings.mockReset();
+    listSettingsModels.mockReset();
     getTargetProfiles.mockReset();
     createTargetProfile.mockReset();
     updateTargetProfile.mockReset();
@@ -253,6 +277,14 @@ describe("SettingsPage preset flow", () => {
         expected: "VISION TEST 42",
         actual: "VISION TEST 42",
       },
+    });
+    listSettingsModels.mockResolvedValue({
+      status: "ok",
+      family: "text",
+      models: [
+        { id: "gpt-4.1" },
+        { id: "gpt-4.1-mini" },
+      ],
     });
   });
 
@@ -321,6 +353,30 @@ describe("SettingsPage preset flow", () => {
     });
   });
 
+  it("fetches models from the current text endpoint and fills the selected model id", async () => {
+    const user = userEvent.setup();
+    getSettings.mockResolvedValue(createSnapshotWithEditableTextPreset());
+
+    render(<SettingsPage />);
+
+    await waitForSettingsHydrated();
+    await user.click(await screen.findByRole("button", { name: /获取/i }));
+
+    expect(await screen.findByRole("button", { name: "gpt-4.1" })).toBeInTheDocument();
+    expect(listSettingsModels).toHaveBeenCalledWith(
+      expect.objectContaining({
+        family: "text",
+        preset: expect.objectContaining({
+          OPENAI_BASE_URL: "https://api.openai.com/v1",
+          OPENAI_MODEL: "gpt-5.4",
+        }),
+      }),
+    );
+
+    await user.click(screen.getByRole("button", { name: "gpt-4.1" }));
+    expect(screen.getByDisplayValue("gpt-4.1")).toBeInTheDocument();
+  });
+
   it("creates a vision preset without reusing the stale internal image name", async () => {
     const user = userEvent.setup();
 
@@ -363,6 +419,32 @@ describe("SettingsPage preset flow", () => {
     expect(screen.getByPlaceholderText("例如：D:/archive/sorted")).toBeInTheDocument();
     expect(screen.getByText("待确认区跟随新目录位置")).toBeInTheDocument();
     expect(screen.getByPlaceholderText("新目录生成位置/Review")).toBeDisabled();
+  });
+
+  it("keeps general organize as the selected default template and applies template suggestions", async () => {
+    const user = userEvent.setup();
+
+    render(<SettingsPage />);
+
+    await clickSettingsCategory("整理策略配置");
+    expect(await screen.findByRole("button", { name: /通用整理/ })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /项目资料/ }));
+    await user.click(await screen.findByRole("button", { name: "保存当前修改" }));
+
+    await waitFor(() => {
+      expect(updateSettings).toHaveBeenCalledWith(
+        expect.objectContaining({
+          global_config: expect.objectContaining({
+            LAUNCH_DEFAULT_TEMPLATE_ID: "project_workspace",
+            LAUNCH_DEFAULT_LANGUAGE: "en",
+            LAUNCH_DEFAULT_DENSITY: "normal",
+            LAUNCH_DEFAULT_PREFIX_STYLE: "none",
+            LAUNCH_DEFAULT_CAUTION_LEVEL: "balanced",
+          }),
+        }),
+      );
+    });
   });
 
   it("manages explicit target directory profiles in the launch settings tab", async () => {

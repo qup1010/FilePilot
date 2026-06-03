@@ -216,3 +216,17 @@ export interface SettingsTestResult {
     actual?: string;
   };
 }
+
+export interface SettingsModelItem {
+  id: string;
+  created?: number | string | null;
+  owned_by?: string | null;
+}
+
+export interface SettingsModelListResult {
+  status: "ok" | "error";
+  family: SettingsFamily;
+  code?: string;
+  message?: string;
+  models: SettingsModelItem[];
+}

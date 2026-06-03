@@ -149,6 +149,13 @@ class SettingsTestPayload(BaseModel):
     mode: str | None = None
 
 
+class SettingsModelsPayload(BaseModel):
+    family: str
+    preset: dict[str, Any] | None = None
+    secret: SettingsSecretPayload | None = None
+    mode: str | None = None
+
+
 class IconWorkbenchCreatePayload(BaseModel):
     target_paths: list[str] = Field(default_factory=list)
 
@@ -417,6 +424,73 @@ def _build_icon_image_test_runtime(payload: SettingsTestPayload, settings_servic
     )
     runtime["save_mode"] = str(preset.get("save_mode", runtime.get("save_mode", "centralized")) or "centralized")
     return runtime
+
+
+def _build_settings_models_runtime(payload: SettingsModelsPayload, settings_service) -> dict[str, str]:
+    test_payload = SettingsTestPayload(
+        family=payload.family,
+        preset=payload.preset,
+        secret=payload.secret,
+        mode=payload.mode,
+    )
+    family = str(payload.family or "").strip()
+    if family == "text":
+        runtime = _build_text_test_runtime(test_payload, settings_service)
+        return {
+            "family": family,
+            "base_url": str(runtime.get("base_url") or "").strip(),
+            "api_key": str(runtime.get("api_key") or "").strip(),
+        }
+    if family == "vision":
+        runtime = _build_vision_test_runtime(test_payload, settings_service)
+        return {
+            "family": family,
+            "base_url": str(runtime.get("base_url") or "").strip(),
+            "api_key": str(runtime.get("api_key") or "").strip(),
+        }
+    if family == "icon_image":
+        runtime = _build_icon_image_test_runtime(test_payload, settings_service)
+        image_model = dict(runtime.get("image_model") or {})
+        return {
+            "family": family,
+            "base_url": str(image_model.get("base_url") or "").strip(),
+            "api_key": str(image_model.get("api_key") or "").strip(),
+        }
+    return {"family": family, "base_url": "", "api_key": ""}
+
+
+def _normalize_models_base_url(base_url: str) -> str:
+    value = str(base_url or "").strip().rstrip("/")
+    for suffix in ("/chat/completions", "/images/generations", "/responses", "/models"):
+        if value.lower().endswith(suffix):
+            return value[: -len(suffix)] or value
+    return value
+
+
+def _extract_model_items(response: Any) -> list[dict[str, Any]]:
+    data = getattr(response, "data", None)
+    if data is None and isinstance(response, dict):
+        data = response.get("data")
+    models: list[dict[str, Any]] = []
+    for item in data or []:
+        model_id = getattr(item, "id", None)
+        created = getattr(item, "created", None)
+        owned_by = getattr(item, "owned_by", None)
+        if isinstance(item, dict):
+            model_id = item.get("id", model_id)
+            created = item.get("created", created)
+            owned_by = item.get("owned_by", owned_by)
+        model_id = str(model_id or "").strip()
+        if not model_id:
+            continue
+        models.append(
+            {
+                "id": model_id,
+                "created": created,
+                "owned_by": str(owned_by or "").strip() or None,
+            }
+        )
+    return sorted(models, key=lambda item: item["id"].lower())
 
 
 def _strip_json_code_fence(value: str) -> str:
@@ -1431,6 +1505,62 @@ def create_app(service: OrganizerSessionService | None = None) -> FastAPI:
     @app.post("/api/settings/test")
     def test_settings(payload: SettingsTestPayload, request: Request):
         return _execute_settings_test(payload, request=request)
+
+    @app.post("/api/settings/models")
+    def list_settings_models(payload: SettingsModelsPayload):
+        from openai import OpenAI
+        from file_pilot.shared.config_manager import config_manager
+
+        family = str(payload.family or "").strip()
+        try:
+            runtime = _build_settings_models_runtime(payload, config_manager.service)
+            if family not in {"text", "vision", "icon_image"}:
+                return JSONResponse(
+                    status_code=400,
+                    content={
+                        "status": "error",
+                        "family": family,
+                        "code": "invalid_family",
+                        "message": "不支持从该设置分类获取模型列表。",
+                        "models": [],
+                    },
+                )
+            if not runtime["base_url"] or not runtime["api_key"]:
+                hint = _describe_base_url_hint(runtime["base_url"])
+                return JSONResponse(
+                    status_code=400,
+                    content={
+                        "status": "error",
+                        "family": family,
+                        "code": "incomplete_config",
+                        "message": "请先补全接口地址和 API 密钥，再从端点获取模型列表。" + (f" {hint}" if hint else ""),
+                        "models": [],
+                    },
+                )
+
+            client = OpenAI(
+                api_key=runtime["api_key"],
+                base_url=_normalize_models_base_url(runtime["base_url"]),
+                default_headers=SPOOF_HEADERS,
+            )
+            return {
+                "status": "ok",
+                "family": family,
+                "models": _extract_model_items(client.models.list()),
+            }
+        except Exception as exc:
+            logger.exception("设置模型列表获取失败", extra={"family": family})
+            code, message = _classify_test_error(exc)
+            return JSONResponse(
+                status_code=400,
+                content={
+                    "status": "error",
+                    "family": family,
+                    "code": code,
+                    "message": message,
+                    "models": [],
+                },
+            )
 
     @app.get("/api/utils/config")
     def get_config():

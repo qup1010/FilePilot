@@ -57,6 +57,9 @@ class OrganizerServiceTests(unittest.TestCase):
         )
 
         self.assertIn("办公事务", prompt)
+        self.assertIn("当前整理偏好（用于参考）", prompt)
+        self.assertIn("参考模板：办公事务", prompt)
+        self.assertIn("不要机械套用模板", prompt)
         self.assertIn("英文目录", prompt)
         self.assertIn("分类粒度：极简", prompt)
         self.assertIn("类别标签前缀", prompt)
@@ -115,6 +118,12 @@ class OrganizerServiceTests(unittest.TestCase):
         )
 
         self.assertEqual(preview[:3], ["01_截图", "02_媒体", "03_设计"])
+
+    def test_default_strategy_template_remains_general_downloads_with_general_label(self):
+        prompt = build_prompt("合同.pdf | 财务/合同 | 付款协议", {"template_id": "unknown"})
+
+        self.assertIn("参考模板：通用整理", prompt)
+        self.assertIn("混合文件目录", prompt)
 
     def test_strategy_catalog_does_not_expose_review_as_candidate_directory(self):
         catalog_path = Path(__file__).resolve().parents[1] / "frontend" / "src" / "lib" / "strategy-catalog.json"

@@ -25,7 +25,7 @@ const baseProps = {
       updated_at: "2026-04-21T00:00:00Z",
       strategy: {
         template_id: "general_downloads",
-        template_label: "通用下载",
+        template_label: "通用整理",
         task_type: "organize_full_directory",
         task_type_label: "整理整个目录",
         organize_mode: "initial",
@@ -46,7 +46,7 @@ const baseProps = {
   },
   resumeStrategy: {
     template_id: "general_downloads",
-    template_label: "通用下载",
+    template_label: "通用整理",
     task_type: "organize_full_directory",
     task_type_label: "整理整个目录",
     organize_mode: "initial",

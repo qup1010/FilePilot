@@ -266,6 +266,35 @@ class ApiConfigTests(unittest.TestCase):
         self.assertEqual(openai_mock.call_args.kwargs["base_url"], "https://text.example/v1")
         mock_client.chat.completions.create.assert_called_once()
 
+    def test_list_settings_models_uses_current_text_endpoint(self):
+        mock_client = mock.Mock()
+        mock_client.models.list.return_value = mock.Mock(
+            data=[
+                mock.Mock(id="gpt-4.1-mini", created=123, owned_by="openai"),
+                mock.Mock(id="gpt-4.1", created=124, owned_by="openai"),
+            ]
+        )
+        with mock.patch("openai.OpenAI", return_value=mock_client) as openai_mock:
+            response = self.client.post(
+                "/api/settings/models",
+                json={
+                    "family": "text",
+                    "preset": {
+                        "OPENAI_BASE_URL": "https://text.example/v1",
+                        "OPENAI_MODEL": "gpt-5.4",
+                    },
+                    "secret": {"action": "replace", "value": "text-secret"},
+                },
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["status"], "ok")
+        self.assertEqual([item["id"] for item in response.json()["models"]], ["gpt-4.1", "gpt-4.1-mini"])
+        openai_mock.assert_called_once()
+        self.assertEqual(openai_mock.call_args.kwargs["api_key"], "text-secret")
+        self.assertEqual(openai_mock.call_args.kwargs["base_url"], "https://text.example/v1")
+        mock_client.models.list.assert_called_once()
+
     def test_test_settings_vision_sends_inline_image_probe(self):
         mock_client = mock.Mock()
         mock_client.chat.completions.create.return_value = {

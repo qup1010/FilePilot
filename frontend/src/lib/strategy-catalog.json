@@ -9,9 +9,9 @@
   "strategyTemplates": [
     {
       "id": "general_downloads",
-      "label": "通用下载",
-      "description": "适合下载目录、桌面暂存区等混合文件场景。",
-      "applicableScenarios": "下载文件夹、桌面离散文件、回收站前的暂存区",
+      "label": "通用整理",
+      "description": "适合混合文件、桌面暂存区和零散收纳目录。",
+      "applicableScenarios": "混合文件夹、桌面离散文件、下载目录、回收站前的暂存区",
       "defaultLanguage": "zh",
       "defaultDensity": "normal",
       "defaultPrefixStyle": "none",
@@ -110,7 +110,7 @@
           }
         ]
       },
-      "promptFragment": "场景重点：这是一个混合下载目录或零散收纳目录。\n优先目标：快速把杂乱文件按实际用途归到清晰的大类，而不是过度细分。\n优先考虑的目录语义：项目资料、财务票据、学习资料、安装程序、截图记录、媒体素材、历史归档。"
+      "promptFragment": "场景重点：这是一个混合文件目录、桌面暂存区或零散收纳目录。\n优先目标：根据文件用途和上下文把内容归到清晰的大类，而不是过度细分。\n优先考虑的目录语义：项目资料、财务票据、学习资料、安装程序、截图记录、媒体素材、历史归档。"
     },
     {
       "id": "project_workspace",

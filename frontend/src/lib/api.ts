@@ -20,6 +20,7 @@ import type {
   UpdateItemRequest,
 } from "@/types/session";
 import type {
+  SettingsModelListResult,
   SettingsPresetCreatePayload,
   SettingsSnapshot,
   SettingsTestResult,
@@ -100,6 +101,7 @@ export interface ApiClient {
   createSettingsPreset(family: "text" | "vision" | "icon_image", payload: SettingsPresetCreatePayload): Promise<{ status: string; id: string }>;
   deleteSettingsPreset(family: "text" | "vision" | "icon_image", id: string): Promise<{ status: string }>;
   testSettings(payload: { family: "text" | "vision" | "icon_image"; mode?: "shared_text" | "separate"; preset?: Record<string, any>; secret?: { action: string; value?: string } }): Promise<SettingsTestResult>;
+  listSettingsModels(payload: { family: "text" | "vision" | "icon_image"; mode?: "shared_text" | "separate"; preset?: Record<string, any>; secret?: { action: string; value?: string } }): Promise<SettingsModelListResult>;
 }
 
 export function createApiClient(baseUrl: string, apiToken?: string): ApiClient {
@@ -384,6 +386,19 @@ export function createApiClient(baseUrl: string, apiToken?: string): ApiClient {
         body: JSON.stringify(payload),
       });
       const data = (await response.json()) as SettingsTestResult;
+      if (!response.ok && data?.status !== "error") {
+        throw createUserFacingRequestError(response.status, response.statusText, JSON.stringify(data));
+      }
+      return data;
+    },
+    async listSettingsModels(payload) {
+      const runtime = await resolveRequestRuntime(baseUrl, apiToken);
+      const response = await fetch(joinUrl(runtime.baseUrl, "/api/settings/models"), {
+        method: "POST",
+        headers: buildAuthHeaders(runtime.apiToken, { "Content-Type": "application/json" }),
+        body: JSON.stringify(payload),
+      });
+      const data = (await response.json()) as SettingsModelListResult;
       if (!response.ok && data?.status !== "error") {
         throw createUserFacingRequestError(response.status, response.statusText, JSON.stringify(data));
       }

@@ -120,7 +120,7 @@ function createSnapshot(stage: string = "planning", sessionId = "session-old") {
     summary: "",
     strategy: {
       template_id: "general_downloads",
-      template_label: "通用下载",
+      template_label: "通用整理",
       task_type: "organize_full_directory",
       task_type_label: "整理整个目录",
       organize_mode: "initial",
@@ -254,6 +254,7 @@ describe("SessionLauncher", () => {
           organize_method: "categorize_into_new_structure",
           output_dir: "D:/sorted",
           strategy: expect.objectContaining({
+            template_id: "general_downloads",
             organize_mode: "initial",
             task_type: "organize_full_directory",
             organize_method: "categorize_into_new_structure",
