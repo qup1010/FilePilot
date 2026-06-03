@@ -336,6 +336,12 @@ class SessionOrchestrator:
                 or self.helpers._default_review_root(str(normalized_strategy.get("new_directory_root") or "").strip())
             )
 
+        self.helpers.target_resolver.validate_review_root_safety(
+            new_directory_root=str(normalized_strategy.get("new_directory_root") or ""),
+            review_root=str(normalized_strategy.get("review_root") or ""),
+            target_directories=selected_target_directories,
+        )
+
         path = default_workspace_root
         latest = self.helpers.store.find_latest_by_directory(path)
         if latest is not None and not is_terminal_stage(latest.stage):

@@ -79,8 +79,8 @@ export function RollbackPreviewDialog({
                   >
                     <div className="flex items-center justify-between gap-3">
                       <span className="truncate text-[12px] font-black text-on-surface/80">{action.display_name}</span>
-                      <span className="shrink-0 rounded-[4px] bg-primary/10 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider text-primary">
-                        {action.type}
+                      <span className="shrink-0 rounded-[4px] bg-primary/10 px-1.5 py-0.5 text-[9px] font-black tracking-wider text-primary">
+                        {action.restore_kind === "from_review" ? "从待确认区恢复" : action.type}
                       </span>
                     </div>
                     <div className="mt-2 border-t border-on-surface/5 pt-2">

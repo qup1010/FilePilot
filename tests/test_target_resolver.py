@@ -55,6 +55,54 @@ class TargetResolverTests(unittest.TestCase):
         self.assertEqual(resolved, (self.root / "Sorted" / "Docs" / "Notes").resolve())
         self.assertEqual(review_path, (self.root / "ManualReview" / "note.md").resolve())
 
+    def test_create_session_allows_default_review_root_under_new_root(self):
+        result = self.service.create_session(
+            str(self.target_dir),
+            resume_if_exists=False,
+            new_directory_root=str((self.root / "Sorted").resolve()),
+        )
+
+        session = result.session
+        assert session is not None
+        self.assertEqual(session.placement.review_root, str((self.root / "Sorted" / "Review").resolve()))
+
+    def test_create_session_rejects_review_root_conflicts_with_new_root(self):
+        sorted_root = (self.root / "Sorted").resolve()
+        cases = [
+            sorted_root,
+            self.root.resolve(),
+            sorted_root / "NestedReview",
+        ]
+
+        for review_root in cases:
+            with self.subTest(review_root=review_root):
+                with self.assertRaisesRegex(ValueError, "REVIEW_ROOT_CONFLICT"):
+                    self.service.create_session(
+                        str(self.target_dir),
+                        resume_if_exists=False,
+                        new_directory_root=str(sorted_root),
+                        review_root=str(review_root),
+                    )
+
+    def test_create_session_rejects_review_root_conflicts_with_target_directories(self):
+        sorted_root = (self.root / "Sorted").resolve()
+        archive_root = (self.root / "Archive").resolve()
+        review_root = (archive_root / "Review").resolve()
+        archive_root.mkdir(parents=True, exist_ok=True)
+
+        for target_directory in [review_root, archive_root, review_root / "Accepted"]:
+            with self.subTest(target_directory=target_directory):
+                with self.assertRaisesRegex(ValueError, "REVIEW_ROOT_CONFLICT"):
+                    self.service.create_session(
+                        str(self.target_dir),
+                        resume_if_exists=False,
+                        organize_method="assign_into_existing_categories",
+                        strategy={"organize_mode": "incremental"},
+                        new_directory_root=str(sorted_root),
+                        review_root=str(review_root),
+                        target_directories=[str(target_directory)],
+                    )
+
     def test_normalized_target_rejects_absolute_target_dir_and_review_subdirectory(self):
         result = self.service.create_session(str(self.target_dir), resume_if_exists=False)
         session = result.session

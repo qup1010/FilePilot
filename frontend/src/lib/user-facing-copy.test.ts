@@ -50,6 +50,13 @@ describe("user-facing copy helpers", () => {
     expect(getUserFacingErrorCode(error)).toBe("TARGET_DIRECTORIES_REQUIRED");
   });
 
+  it("maps review root placement conflicts to safety copy", () => {
+    const error = createUserFacingRequestError(400, "Bad Request", JSON.stringify({ error_code: "REVIEW_ROOT_CONFLICT" }));
+
+    expect(error.message).toBe("待确认区位置不能与新目录生成位置或目标目录重合、互相包含。请改选一个独立目录。");
+    expect(getUserFacingErrorCode(error)).toBe("REVIEW_ROOT_CONFLICT");
+  });
+
   it("maps unsafe source path errors to specific user-facing copy", () => {
     const error = createUserFacingRequestError(400, "Bad Request", JSON.stringify({ error_code: "SOURCE_PATH_SYSTEM_PROTECTED" }));
 

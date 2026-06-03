@@ -565,6 +565,9 @@ class ExecutionAppService:
                     "target_slot_id": str(action.target_slot_id or ""),
                     "target_kind": "review" if _is_review_action(action) else "directory",
                     "is_review": _is_review_action(action),
+                    "restore_kind": "from_review" if _is_review_action(action) else "from_directory",
+                    "current_path": action.source.as_posix(),
+                    "original_path": action.target.as_posix(),
                 }
                 for action in plan.actions
             ],

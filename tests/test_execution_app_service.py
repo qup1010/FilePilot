@@ -410,6 +410,32 @@ class ExecutionAppServiceTests(unittest.TestCase):
         self.assertEqual(move_action["target_slot_id"], "Review")
         self.assertEqual(move_action["target_kind"], "review")
         self.assertTrue(move_action["is_review"])
+        self.assertEqual(move_action["restore_kind"], "from_review")
+        self.assertEqual(Path(move_action["current_path"]), (self.target_dir / "Review" / "a.txt").resolve())
+        self.assertEqual(Path(move_action["original_path"]), (self.target_dir / "a.txt").resolve())
+
+    def test_rollback_precheck_marks_directory_actions_with_restore_paths(self):
+        (self.target_dir / "a.txt").write_text("hello", encoding="utf-8")
+        created = self.service.create_session(str(self.target_dir), resume_if_exists=False)
+        session = created.session
+        assert session is not None
+        session.stage = "ready_to_execute"
+        session.pending_plan = {
+            "directories": ["Docs"],
+            "moves": [{"source": "a.txt", "target": "Docs/a.txt"}],
+            "unresolved_items": [],
+            "summary": "move to docs",
+        }
+        self.store.save(session)
+        self.service.execution_app.execute(session.session_id, confirm=True)
+
+        result = self.service.execution_app.rollback(session.session_id, confirm=False)
+
+        move_action = next(action for action in result.rollback_precheck["actions"] if action["type"] == "MOVE")
+        self.assertEqual(move_action["restore_kind"], "from_directory")
+        self.assertFalse(move_action["is_review"])
+        self.assertEqual(Path(move_action["current_path"]), (self.target_dir / "Docs" / "a.txt").resolve())
+        self.assertEqual(Path(move_action["original_path"]), (self.target_dir / "a.txt").resolve())
 
     def test_execute_marks_session_interrupted_when_execution_raises(self):
         (self.target_dir / "a.txt").write_text("hello", encoding="utf-8")

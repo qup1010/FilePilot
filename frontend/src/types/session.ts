@@ -471,6 +471,9 @@ export interface RollbackPrecheckAction {
   target_slot_id?: string;
   target_kind?: "directory" | "review" | string;
   is_review?: boolean;
+  restore_kind?: "from_review" | "from_directory" | string;
+  current_path?: string;
+  original_path?: string;
 }
 
 export interface RollbackPrecheckSummary {

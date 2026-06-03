@@ -54,6 +54,9 @@ function requestErrorMessage(status: number, detail?: string): string {
   if (normalizedDetail === "REVIEW_ROOT_REQUIRED") {
     return "请先指定待确认区位置，再开始整理。";
   }
+  if (normalizedDetail === "REVIEW_ROOT_CONFLICT") {
+    return "待确认区位置不能与新目录生成位置或目标目录重合、互相包含。请改选一个独立目录。";
+  }
   if (normalizedDetail === "TARGET_DIRECTORIES_REQUIRED") {
     return "归入已有目录时，请先选择至少一个目标目录。";
   }

@@ -635,6 +635,7 @@ def create_app(service: OrganizerSessionService | None = None) -> FastAPI:
                 "OUTPUT_DIR_REQUIRED",
                 "NEW_DIRECTORY_ROOT_REQUIRED",
                 "REVIEW_ROOT_REQUIRED",
+                "REVIEW_ROOT_CONFLICT",
                 "TARGET_DIRECTORIES_REQUIRED",
                 "TARGET_PROFILE_NOT_FOUND",
             }:

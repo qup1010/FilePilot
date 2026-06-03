@@ -39,6 +39,50 @@ class TargetResolver:
             return ""
         return str((Path(normalized_new_root) / REVIEW_DIR_NAME).resolve())
 
+    @staticmethod
+    def _is_same_or_nested_path(child: str, parent: str) -> bool:
+        child_key = canonical_target_dir(child)
+        parent_key = canonical_target_dir(parent)
+        if not child_key or not parent_key:
+            return False
+        if child_key == parent_key:
+            return True
+        return child_key.startswith(f"{parent_key}/")
+
+    @classmethod
+    def validate_review_root_safety(
+        cls,
+        *,
+        new_directory_root: str,
+        review_root: str,
+        target_directories: list[str] | None = None,
+    ) -> None:
+        normalized_new_root = cls.normalize_placement_root(new_directory_root)
+        normalized_review_root = cls.normalize_placement_root(review_root)
+        if not normalized_new_root or not normalized_review_root:
+            return
+
+        default_review_root = cls.default_review_root(normalized_new_root)
+        review_is_default = canonical_target_dir(normalized_review_root) == canonical_target_dir(default_review_root)
+        if canonical_target_dir(normalized_review_root) == canonical_target_dir(normalized_new_root):
+            raise ValueError("REVIEW_ROOT_CONFLICT")
+        if cls._is_same_or_nested_path(normalized_new_root, normalized_review_root):
+            raise ValueError("REVIEW_ROOT_CONFLICT")
+        if not review_is_default and cls._is_same_or_nested_path(normalized_review_root, normalized_new_root):
+            raise ValueError("REVIEW_ROOT_CONFLICT")
+
+        for target_directory in target_directories or []:
+            normalized_target = cls.normalize_placement_root(target_directory)
+            if not normalized_target:
+                continue
+            if review_is_default and canonical_target_dir(normalized_target) == canonical_target_dir(normalized_new_root):
+                continue
+            if (
+                cls._is_same_or_nested_path(normalized_review_root, normalized_target)
+                or cls._is_same_or_nested_path(normalized_target, normalized_review_root)
+            ):
+                raise ValueError("REVIEW_ROOT_CONFLICT")
+
     @classmethod
     def placement_payload(
         cls,
