@@ -501,7 +501,7 @@ export default function SettingsPage() {
   const [pendingDeleteTargetProfileId, setPendingDeleteTargetProfileId] = useState<string | null>(null);
 
   // 关于与检查更新相关 State
-  const [appVersion, setAppVersion] = useState("v0.1.1");
+  const [appVersion, setAppVersion] = useState("v1.0.4");
   const [checkingUpdate, setCheckingUpdate] = useState(false);
   const [updateResult, setUpdateResult] = useState<{
     hasUpdate: boolean;
