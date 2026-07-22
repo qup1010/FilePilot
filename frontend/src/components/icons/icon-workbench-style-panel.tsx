@@ -178,7 +178,7 @@ export function IconWorkbenchStylePanel({
                     创建新模板
                   </h3>
                   <p className="line-clamp-2 text-[11px] leading-relaxed text-ui-muted/70 font-medium italic">
-                    定义属于你自己的风格预设与提示词。
+                    用「主体 + 风格短语」自定义一套画风。
                   </p>
                 </div>
               </button>

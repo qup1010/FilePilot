@@ -1,6 +1,17 @@
 from __future__ import annotations
 
 from file_pilot.icon_workbench.models import IconTemplate, utc_now_iso
+from file_pilot.icon_workbench.prompts import (
+    DEFAULT_FALLBACK_SUBJECT,
+    ICON_CONSTRAINTS,
+    compose_icon_prompt,
+    normalize_visual_subject,
+)
+
+
+def _style_template(style_phrase: str) -> str:
+    """Builtin templates only carry style; subject + constraints are composed at render time."""
+    return f"{{{{subject}}}}, {style_phrase.strip()}"
 
 
 def builtin_templates() -> list[IconTemplate]:
@@ -10,9 +21,9 @@ def builtin_templates() -> list[IconTemplate]:
             template_id="3d_clay",
             name="3D 黏土",
             description="柔和的粉彩颜色与圆润的黏土质感，营造出可爱有趣的视觉氛围。",
-            prompt_template=(
-                "A Windows folder icon of {{subject}}, cute 3D claymorphism style, "
-                "soft pastel colors, rounded edges, plasticine texture, studio lighting, playful vibe, no text, transparent background"
+            prompt_template=_style_template(
+                "cute 3D claymorphism style, soft pastel colors, rounded edges, "
+                "plasticine texture, studio lighting, playful vibe"
             ),
             cover_image="/template-covers/3d_clay.webp",
             is_builtin=True,
@@ -23,9 +34,9 @@ def builtin_templates() -> list[IconTemplate]:
             template_id="glassmorphism",
             name="毛玻璃风格",
             description="磨砂玻璃质感与半透明层次，底层透出绚丽渐变，极具现代 UI 质感。",
-            prompt_template=(
-                "A Windows folder icon of {{subject}}, glassmorphism style, "
-                "frosted glass texture, translucent layers, soft blur, vibrant gradients underneath, modern UI design, no text, transparent background"
+            prompt_template=_style_template(
+                "glassmorphism style, frosted glass texture, translucent layers, "
+                "soft blur, vibrant gradients underneath, modern UI design"
             ),
             cover_image="/template-covers/glassmorphism.webp",
             is_builtin=True,
@@ -36,9 +47,9 @@ def builtin_templates() -> list[IconTemplate]:
             template_id="cyberpunk",
             name="赛博朋克",
             description="发光霓虹线条与深色背景，青色和洋红配色，带来强烈的未来科幻感。",
-            prompt_template=(
-                "A Windows folder icon of {{subject}}, cyberpunk style, "
-                "glowing neon lines, dark background, futuristic vibes, cyan and magenta color palette, high contrast, no text, transparent background"
+            prompt_template=_style_template(
+                "cyberpunk style, glowing neon lines, futuristic vibes, "
+                "cyan and magenta color palette, high contrast"
             ),
             cover_image="/template-covers/cyberpunk.webp",
             is_builtin=True,
@@ -49,9 +60,9 @@ def builtin_templates() -> list[IconTemplate]:
             template_id="low_poly",
             name="低多边形",
             description="几何切面与锐利边缘组合，极简且富有立体感的扁平鲜艳色彩。",
-            prompt_template=(
-                "A Windows folder icon of {{subject}}, low poly style, "
-                "geometric facets, sharp edges, minimalist, faceted 3D art, vibrant flat colors, no text, transparent background"
+            prompt_template=_style_template(
+                "low poly style, geometric facets, sharp edges, minimalist, "
+                "faceted 3D art, vibrant flat colors"
             ),
             cover_image="/template-covers/low_poly.webp",
             is_builtin=True,
@@ -62,9 +73,9 @@ def builtin_templates() -> list[IconTemplate]:
             template_id="paper_cut",
             name="剪纸艺术",
             description="层叠纸张质感与深邃阴影，精致的立体手工艺表现，层次感极强。",
-            prompt_template=(
-                "A Windows folder icon of {{subject}}, paper cutout art style, "
-                "layered paper texture, deep shadows, craft paper aesthetic, subtle gradients, dimensional look, no text, transparent background"
+            prompt_template=_style_template(
+                "paper cutout art style, layered paper texture, deep shadows, "
+                "craft paper aesthetic, subtle gradients, dimensional look"
             ),
             cover_image="/template-covers/paper_cut.webp",
             is_builtin=True,
@@ -75,9 +86,9 @@ def builtin_templates() -> list[IconTemplate]:
             template_id="pixel_art",
             name="复古像素",
             description="8-bit 经典复古游戏美学，清晰的锐利像素边缘，充满怀旧气息。",
-            prompt_template=(
-                "A Windows folder icon of {{subject}}, pixel art style, "
-                "8-bit retro game aesthetic, sharp pixels, vibrant palette, nostalgic, no text, transparent background"
+            prompt_template=_style_template(
+                "pixel art style, 8-bit retro game aesthetic, sharp pixels, "
+                "vibrant palette, nostalgic"
             ),
             cover_image="/template-covers/pixel_art.webp",
             is_builtin=True,
@@ -88,9 +99,9 @@ def builtin_templates() -> list[IconTemplate]:
             template_id="watercolor",
             name="水彩手绘",
             description="柔和边缘与艺术性的水墨喷溅感，适合清新文艺类的目录呈现。",
-            prompt_template=(
-                "A Windows folder icon of {{subject}}, watercolor painting style, "
-                "soft edges, artistic splashes, hand-painted texture, on white paper background, no text, transparent background"
+            prompt_template=_style_template(
+                "watercolor painting style, soft edges, artistic splashes, "
+                "hand-painted texture"
             ),
             cover_image="/template-covers/watercolor.webp",
             is_builtin=True,
@@ -101,9 +112,9 @@ def builtin_templates() -> list[IconTemplate]:
             template_id="minimalist_line",
             name="极简线稿",
             description="纯细线描绘，抽象、干净且优雅，毫不繁复。",
-            prompt_template=(
-                "A Windows folder icon of {{subject}}, minimalist line art, "
-                "continuous black line drawing on white background, abstract, clean, elegant, no text, transparent background"
+            prompt_template=_style_template(
+                "minimalist line art, continuous black line drawing, "
+                "abstract, clean, elegant"
             ),
             cover_image="/template-covers/minimalist_line.webp",
             is_builtin=True,
@@ -114,9 +125,9 @@ def builtin_templates() -> list[IconTemplate]:
             template_id="ukiyo_e",
             name="浮世绘画",
             description="传统日本木版画风格，粗犷的黑色轮廓与扁平透视，纸张纹理感十足。",
-            prompt_template=(
-                "A Windows folder icon of {{subject}}, Ukiyo-e style, "
-                "traditional Japanese woodblock print, bold outlines, flat perspective, textured paper, no text, transparent background"
+            prompt_template=_style_template(
+                "Ukiyo-e style, traditional Japanese woodblock print, "
+                "bold outlines, flat perspective, textured paper"
             ),
             cover_image="/template-covers/ukiyo_e.webp",
             is_builtin=True,
@@ -127,9 +138,9 @@ def builtin_templates() -> list[IconTemplate]:
             template_id="vaporwave",
             name="蒸汽波艺术",
             description="80年代复古美学，故障艺术效果与古典元素，粉蓝渐变营造迷幻感。",
-            prompt_template=(
-                "A Windows folder icon of {{subject}}, vaporwave aesthetic, "
-                "retro 80s style, glitched effects, statue busts, palm trees, pink and blue gradients, no text, transparent background"
+            prompt_template=_style_template(
+                "vaporwave aesthetic, retro 80s style, glitched effects, "
+                "pink and blue gradients"
             ),
             cover_image="/template-covers/vaporwave.webp",
             is_builtin=True,
@@ -140,9 +151,9 @@ def builtin_templates() -> list[IconTemplate]:
             template_id="industrial_metal",
             name="工业重金属",
             description="拉丝钢纹理与金属反射光泽，布满螺栓与铆钉，重型机械视觉冲击。",
-            prompt_template=(
-                "A Windows folder icon of {{subject}}, industrial metal style, "
-                "brushed steel texture, metallic reflections, bolts and rivets, heavy machinery look, no text, transparent background"
+            prompt_template=_style_template(
+                "industrial metal style, brushed steel texture, metallic reflections, "
+                "bolts and rivets, heavy machinery look"
             ),
             cover_image="/template-covers/industrial_metal.webp",
             is_builtin=True,
@@ -153,9 +164,9 @@ def builtin_templates() -> list[IconTemplate]:
             template_id="pop_art",
             name="波普艺术",
             description="流行漫画美学，半色调网点与粗黑轮廓，对比强烈的明艳原色。",
-            prompt_template=(
-                "A Windows folder icon of {{subject}}, Pop Art style, "
-                "comic book aesthetic, halftones, bold black outlines, vibrant primary colors, Andy Warhol vibe, no text, transparent background"
+            prompt_template=_style_template(
+                "Pop Art style, comic book aesthetic, halftones, "
+                "bold black outlines, vibrant primary colors"
             ),
             cover_image="/template-covers/pop_art.webp",
             is_builtin=True,
@@ -166,9 +177,10 @@ def builtin_templates() -> list[IconTemplate]:
             template_id="neon_origami",
             name="霓虹折纸",
             description="发光的折纸结构，结合几何折线与霓虹渐变光效，带来立体几何美感。",
-            prompt_template=(
-                "A Windows folder icon of {{subject}}, glowing neon origami style, "
-                "geometric folded paper art, vibrant neon ambient lighting, translucent light-up edges, paper folds and creases, minimalist 3D rendering, no text, transparent background"
+            prompt_template=_style_template(
+                "glowing neon origami style, geometric folded paper art, "
+                "vibrant neon ambient lighting, translucent light-up edges, "
+                "paper folds and creases, minimalist 3D rendering"
             ),
             cover_image="/template-covers/neon_origami.webp",
             is_builtin=True,
@@ -179,9 +191,10 @@ def builtin_templates() -> list[IconTemplate]:
             template_id="chalkboard_sketch",
             name="黑板手绘",
             description="复古黑板质感上的白粉笔手绘线条，带有微弱擦拭痕迹与粉笔颗粒感。",
-            prompt_template=(
-                "A Windows folder icon of {{subject}}, chalkboard sketch style, "
-                "hand-drawn white chalk lines, realistic blackboard texture, dusty chalk powder details, vintage classroom aesthetic, no text, transparent background"
+            prompt_template=_style_template(
+                "chalkboard sketch style, hand-drawn white chalk lines, "
+                "realistic blackboard texture, dusty chalk powder details, "
+                "vintage classroom aesthetic"
             ),
             cover_image="/template-covers/chalkboard_sketch.webp",
             is_builtin=True,
@@ -192,9 +205,9 @@ def builtin_templates() -> list[IconTemplate]:
             template_id="wooden_craft",
             name="木雕风格",
             description="细腻的手工木雕凹凸质感，配合深色胡桃木纹，带来古典温暖的手工感。",
-            prompt_template=(
-                "A Windows folder icon of {{subject}}, wooden craft style, "
-                "organic wood grain texture, polished walnut finish, finely carved details, warm hand-crafted aesthetic, soft shadow, no text, transparent background"
+            prompt_template=_style_template(
+                "wooden craft style, organic wood grain texture, polished walnut finish, "
+                "finely carved details, warm hand-crafted aesthetic, soft shadow"
             ),
             cover_image="/template-covers/wooden_craft.webp",
             is_builtin=True,
@@ -205,9 +218,9 @@ def builtin_templates() -> list[IconTemplate]:
             template_id="vintage_parchment",
             name="古朴羊皮纸",
             description="斑驳微黄的羊皮纸纹路，辅以细致的手绘排线与棕褐色钢笔墨迹。",
-            prompt_template=(
-                "A Windows folder icon of {{subject}}, vintage parchment style, "
-                "aged sepia paper texture, realistic ink sketch drawings, fine hatching lines, classic antique look, no text, transparent background"
+            prompt_template=_style_template(
+                "vintage parchment style, aged sepia paper texture, "
+                "realistic ink sketch drawings, fine hatching lines, classic antique look"
             ),
             cover_image="/template-covers/vintage_parchment.webp",
             is_builtin=True,
@@ -224,19 +237,24 @@ def render_prompt_template(
     category: str,
     subject: str,
 ) -> str:
+    subject_value = normalize_visual_subject(
+        subject,
+        fallback=normalize_visual_subject(folder_name, fallback=DEFAULT_FALLBACK_SUBJECT),
+    )
     normalized_template = (prompt_template or "").strip()
     if not normalized_template:
-        normalized_template = (
-            "A Windows folder icon featuring {{subject}}, balanced modern style, "
-            "no text, transparent background"
-        )
+        return compose_icon_prompt(subject_value)
+
     replacements = {
         "{{folder_name}}": folder_name.strip() or "Folder",
         "{{category}}": category.strip() or "General",
-        "{{subject}}": subject.strip() or folder_name.strip() or "Folder",
+        "{{subject}}": subject_value,
     }
     rendered = normalized_template
     for key, value in replacements.items():
         rendered = rendered.replace(key, value)
-    return rendered
 
+    rendered = rendered.strip().rstrip(",")
+    if ICON_CONSTRAINTS not in rendered:
+        rendered = f"{rendered}, {ICON_CONSTRAINTS}"
+    return rendered

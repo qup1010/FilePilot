@@ -43,10 +43,34 @@ TEXT_ANALYSIS_SYSTEM_PROMPT = """你是一个敏锐的 Windows 文件夹视觉�
 - 个人照片 -> "a photo album stack"
 - Rust 项目 -> "a crab and a gear"
 """
+
+# Shared composition for image prompts: subject first, then style, then icon constraints.
+DEFAULT_FALLBACK_SUBJECT = "a simple geometric symbol"
+
+DEFAULT_STYLE_PHRASE = (
+    "minimalist 2D flat vector icon, clean geometric shapes, bold simple contours, "
+    "high contrast, system blue-cyan accent, clean palette, "
+    "2d flat icon design, no 3d, no realistic depth"
+)
+
+ICON_CONSTRAINTS = (
+    "single centered subject, clear silhouette at small size, "
+    "isolated on a solid white background, minimal soft shadow, sharp edges, "
+    "no complex background, no ground plane, no text, no watermark"
+)
+
+
+def normalize_visual_subject(visual_subject: str, *, fallback: str = DEFAULT_FALLBACK_SUBJECT) -> str:
+    subject = (visual_subject or "").strip()
+    return subject or fallback
+
+
+def compose_icon_prompt(visual_subject: str, style_phrase: str | None = None) -> str:
+    """Assemble an image prompt: subject + style + shared icon constraints."""
+    subject = normalize_visual_subject(visual_subject)
+    style = (style_phrase or DEFAULT_STYLE_PHRASE).strip() or DEFAULT_STYLE_PHRASE
+    return f"{subject}, {style}, {ICON_CONSTRAINTS}"
+
+
 def build_default_icon_prompt(visual_subject: str) -> str:
-    subject = visual_subject.strip() or "organized folder"
-    return (
-        f"A Windows folder icon featuring {subject}, modern pictogram style, "
-        "single centered subject, clean silhouette, subtle dimensional shading, "
-        "transparent or plain background, no text, no border, no watermark, full icon composition"
-    )
+    return compose_icon_prompt(visual_subject)

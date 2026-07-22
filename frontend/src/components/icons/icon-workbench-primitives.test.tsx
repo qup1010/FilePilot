@@ -98,12 +98,13 @@ describe("Icon workbench primitives", () => {
 
     render(<Wrapper />);
 
-    expect(screen.getByText(/{{subject}}/i)).toBeInTheDocument();
-    expect(screen.getByText(/{{folder_name}}/i)).toBeInTheDocument();
-    expect(screen.getByText(/{{category}}/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/\{\{subject\}\}/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/\{\{folder_name\}\}/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/\{\{category\}\}/i).length).toBeGreaterThan(0);
     expect(screen.getByText("系统内置模板不可修改。若需调整，请新建自定义模板。")).toBeInTheDocument();
+    expect(screen.getByText(/自动追加通用图标约束/i)).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: /插入 主题/i }));
+    await user.click(screen.getByRole("button", { name: /插入 视觉主体/i }));
 
     const textboxes = screen.getAllByRole("textbox");
     expect(textboxes.at(-1)).toHaveValue("{{subject}}");

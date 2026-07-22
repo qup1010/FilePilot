@@ -48,7 +48,7 @@ export function IconWorkbenchTemplateDrawer({
   onDeleteTemplate,
 }: IconWorkbenchTemplateDrawerProps) {
   const supportedPlaceholders = [
-    { label: "主题", value: "{{subject}}" },
+    { label: "视觉主体", value: "{{subject}}" },
     { label: "文件夹名", value: "{{folder_name}}" },
     { label: "分类", value: "{{category}}" },
   ];
@@ -88,7 +88,7 @@ export function IconWorkbenchTemplateDrawer({
                 </div>
                 <div>
                   <h2 className="text-[18px] font-black tracking-tight text-on-surface">模板管理</h2>
-                  <p className="text-[12px] text-ui-muted">在此创建或修改用于生成图标的 Prompt 风格预设。</p>
+                  <p className="text-[12px] text-ui-muted">定义「视觉主体 + 风格描述」的预设；系统会在应用时补全通用图标约束。</p>
                 </div>
               </div>
               <button
@@ -164,7 +164,7 @@ export function IconWorkbenchTemplateDrawer({
                       </div>
                       <div>
                         <p className="text-[13px] font-bold">创建新模板</p>
-                        <p className="mt-1 text-[11px] leading-5 text-primary/70">新建一套自定义风格与 Prompt 模板。</p>
+                        <p className="mt-1 text-[11px] leading-5 text-primary/70">新建一套自定义风格短语模板。</p>
                       </div>
                     </button>
                   </div>
@@ -180,7 +180,9 @@ export function IconWorkbenchTemplateDrawer({
                     </span>
                   </div>
                   <p className="mt-2 text-[12px] leading-6 text-ui-muted">
-                    通过定义风格名称、描述与 Prompt 模板，自定义图标生成的视觉表现。
+                    模板只需写风格部分：以{" "}
+                    <code className="rounded bg-on-surface/6 px-1 py-0.5 font-mono text-[11px]">{"{{subject}}"}</code>{" "}
+                    开头，后接风格与材质描述；把「画什么」交给主体变量，模板只负责「怎么画」。
                   </p>
                 </div>
 
@@ -208,11 +210,11 @@ export function IconWorkbenchTemplateDrawer({
                     </div>
 
                     <div className="space-y-1.5">
-                      <label className="pl-1 text-[12px] font-bold uppercase tracking-[0.14em] text-ui-muted">Prompt 模板</label>
+                      <label className="pl-1 text-[12px] font-bold uppercase tracking-[0.14em] text-ui-muted">风格 Prompt</label>
                       <textarea
                         value={templatePromptDraft}
                         onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => onTemplatePromptChange(e.target.value)}
-                        placeholder="Flat folder icon of {{subject}}, labeled for {{folder_name}}, visual category {{category}}..."
+                        placeholder="{{subject}}, minimalist 2D flat vector icon, clean geometric shapes, bold contours, high contrast"
                         rows={10}
                         className="w-full resize-none rounded-[10px] border border-on-surface/10 bg-surface-container-lowest px-4 py-3 font-mono text-[13px] leading-6 outline-none transition-all focus:border-primary/20 focus:ring-4 focus:ring-primary/4"
                       />
@@ -228,9 +230,22 @@ export function IconWorkbenchTemplateDrawer({
                           </button>
                         ))}
                       </div>
-                      <p className="text-[11px] leading-5 text-ui-muted">
-                        AI 会自动将提取到的 [识别主体] 填入 <code>{`{{subject}}`}</code>，将 [分类建议] 填入 <code>{`{{category}}`}</code>，将 [文件夹名] 填入 <code>{`{{folder_name}}`}</code> 以生成最终的图标提示词。
-                      </p>
+                      <div className="space-y-1.5 pt-1 text-[11px] leading-5 text-ui-muted">
+                        <p>
+                          推荐写法：
+                          <code className="rounded bg-on-surface/6 px-1 py-0.5 font-mono">
+                            {"{{subject}}, minimalist 2D flat vector icon, clean geometric shapes"}
+                          </code>
+                          。应用时会把分析得到的视觉主体填入{" "}
+                          <code className="rounded bg-on-surface/6 px-1 py-0.5 font-mono">{"{{subject}}"}</code>
+                          ，并自动追加通用图标约束（居中、小尺寸剪影、白底、无文字等）。
+                        </p>
+                        <p>
+                          <code className="rounded bg-on-surface/6 px-1 py-0.5 font-mono">{"{{folder_name}}"}</code>、
+                          <code className="rounded bg-on-surface/6 px-1 py-0.5 font-mono">{"{{category}}"}</code>{" "}
+                          可选，一般不必写进画面描述。模板里只需描述风格，不必再写完整构图句。
+                        </p>
+                      </div>
                     </div>
                   </div>
                 </div>
