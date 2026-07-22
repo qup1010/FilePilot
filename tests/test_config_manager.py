@@ -157,11 +157,12 @@ class ConfigManagerPresetTests(unittest.TestCase):
     def test_add_switch_delete_text_preset_are_independent(self):
         manager = config_module.ConfigManager()
         manager.update_active_profile({"OPENAI_MODEL": "gpt-5.2", "OPENAI_API_KEY": "secret-a"})
+        original_id = manager.service.get_settings_snapshot()["families"]["text"]["active_preset_id"]
 
         new_id = manager.add_preset("text", "Anthropic 兼容", copy_from_active=True)
         manager.update_active_profile({"OPENAI_MODEL": "claude-compatible"})
 
-        manager.switch_preset("text", "default")
+        manager.switch_preset("text", original_id)
         active = manager.get_active_config(mask_secrets=False)
 
         self.assertEqual(active["OPENAI_MODEL"], "gpt-5.2")
@@ -180,11 +181,12 @@ class ConfigManagerPresetTests(unittest.TestCase):
                 "IMAGE_ANALYSIS_API_KEY": "secret-a",
             }
         )
+        original_id = manager.service.get_settings_snapshot()["families"]["vision"]["active_preset_id"]
 
         new_id = manager.add_preset("vision", "Qwen Vision", copy_from_active=True)
         manager.update_active_profile({"IMAGE_ANALYSIS_NAME": "Qwen Vision", "IMAGE_ANALYSIS_MODEL": "qwen-vl"})
 
-        manager.switch_preset("vision", "default")
+        manager.switch_preset("vision", original_id)
         active = manager.get_active_config(mask_secrets=False)
 
         self.assertEqual(active["IMAGE_ANALYSIS_MODEL"], "vision-a")
