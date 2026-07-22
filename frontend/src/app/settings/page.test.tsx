@@ -214,10 +214,6 @@ function createSnapshotWithEditableTextPreset(): SettingsSnapshot {
   return snapshot;
 }
 
-async function expectCreatePresetPrompt() {
-  expect((await screen.findAllByText("请先点击 + 创建一个预设")).length).toBeGreaterThan(0);
-}
-
 async function waitForSettingsHydrated() {
   await waitFor(() => {
     expect(screen.queryByText("正在读取统一设置快照")).not.toBeInTheDocument();
@@ -288,20 +284,39 @@ describe("SettingsPage preset flow", () => {
     });
   });
 
-  it("shows an empty-state prompt instead of editing the default text preset", async () => {
+  it("allows first-run editing without creating a preset first", async () => {
     render(<SettingsPage />);
 
-    await expectCreatePresetPrompt();
-    expect(screen.queryByDisplayValue("gpt-5.4")).not.toBeInTheDocument();
+    await waitForSettingsHydrated();
+    expect(screen.queryByText("请先点击 + 创建一个预设")).not.toBeInTheDocument();
+    expect(screen.getByDisplayValue("gpt-5.4")).toBeInTheDocument();
+    expect(screen.getByText(/最小配置路径/i)).toBeInTheDocument();
+    expect(screen.getByText(/首次保存时会自动创建可编辑预设/i)).toBeInTheDocument();
   });
-
 
   it("does not show a cross-page reminder banner inside settings", async () => {
     render(<SettingsPage />);
 
-    await expectCreatePresetPrompt();
+    await waitForSettingsHydrated();
     expect(screen.queryByText("当前还没有可用的文本模型")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /去配置文本模型/i })).not.toBeInTheDocument();
+  });
+
+  it("shows icon dual-model dependency and advanced options", async () => {
+    const user = userEvent.setup();
+    render(<SettingsPage />);
+
+    await waitForSettingsHydrated();
+    await clickSettingsCategory("生图模型配置");
+
+    expect(await screen.findByText("双模型依赖")).toBeInTheDocument();
+    expect(screen.getByText("文本模型（分析）")).toBeInTheDocument();
+    expect(screen.getByText("生图模型（预览）")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /去配置整理模型/i })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /高级选项/i }));
+    expect(screen.getByText("图片尺寸")).toBeInTheDocument();
+    expect(screen.getByText(/默认 1024x1024/i)).toBeInTheDocument();
   });
 
   it("opens the create preset dialog from the add button", async () => {
@@ -334,7 +349,7 @@ describe("SettingsPage preset flow", () => {
 
     const createButtons = await screen.findAllByRole("button", { name: /新建文本预设|新建预设/i });
     await user.click(createButtons[0]);
-    const presetNameInput = screen.getByRole("textbox");
+    const presetNameInput = screen.getByPlaceholderText("请输入预设名称");
     await user.clear(presetNameInput);
     await user.type(presetNameInput, "我的文本预设");
     await user.click(screen.getByRole("button", { name: /创建并切换|确认/i }));
@@ -390,7 +405,7 @@ describe("SettingsPage preset flow", () => {
     await user.click(await screen.findByRole("button", { name: /单独图片模型/i }));
     const createButtons = await screen.findAllByRole("button", { name: /新建图片理解预设|新建预设/i });
     await user.click(createButtons[0]);
-    const presetNameInput = screen.getByRole("textbox");
+    const presetNameInput = screen.getByPlaceholderText("请输入预设名称");
     await user.clear(presetNameInput);
     await user.type(presetNameInput, "我的图片预设");
     await user.click(screen.getByRole("button", { name: /创建并切换|确认/i }));
@@ -568,7 +583,8 @@ describe("SettingsPage preset flow", () => {
 
     render(<SettingsPage />);
 
-    await expectCreatePresetPrompt();
+    await waitForSettingsHydrated();
+    expect(await screen.findByText("双模型依赖")).toBeInTheDocument();
     expect(screen.getAllByRole("button", { name: /新建图标生图预设|新建预设/i }).length).toBeGreaterThan(0);
     expect(screen.queryByRole("button", { name: /新建文本预设/i })).not.toBeInTheDocument();
   });

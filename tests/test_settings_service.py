@@ -127,6 +127,48 @@ class SettingsServiceTests(unittest.TestCase):
         self.assertTrue(snapshot["runtime"]["log_paths"]["runtime_log"].endswith("logs\\backend\\runtime.log"))
         self.assertTrue(snapshot["runtime"]["log_paths"]["debug_log"].endswith("logs\\backend\\debug.jsonl"))
 
+    def test_first_save_creates_non_default_editable_preset_ids(self):
+        service = SettingsService(
+            config_path=self.config_path,
+            legacy_icon_config_path=self.legacy_icon_path,
+        )
+        snapshot = service.update_settings(
+            {
+                "families": {
+                    "text": {
+                        "preset": {
+                            "OPENAI_BASE_URL": "https://text.example/v1",
+                            "OPENAI_MODEL": "gpt-5.4",
+                        },
+                        "secret": {"action": "replace", "value": "text-secret"},
+                    },
+                    "icon_image": {
+                        "preset": {
+                            "image_model": {
+                                "base_url": "https://image.example/v1",
+                                "model": "gpt-image-1",
+                            }
+                        },
+                        "secret": {"action": "replace", "value": "image-secret"},
+                    },
+                }
+            }
+        )
+
+        text_id = snapshot["families"]["text"]["active_preset_id"]
+        icon_id = snapshot["families"]["icon_image"]["active_preset_id"]
+        self.assertTrue(text_id)
+        self.assertTrue(icon_id)
+        text_ids = {item["id"] for item in snapshot["families"]["text"]["presets"]}
+        icon_ids = {item["id"] for item in snapshot["families"]["icon_image"]["presets"]}
+        self.assertIn(text_id, text_ids)
+        self.assertIn(icon_id, icon_ids)
+        self.assertEqual(snapshot["families"]["text"]["active_preset"]["OPENAI_MODEL"], "gpt-5.4")
+        self.assertEqual(
+            snapshot["families"]["icon_image"]["active_preset"]["image_model"]["model"],
+            "gpt-image-1",
+        )
+
     def test_icon_image_runtime_supports_split_concurrency_limits(self):
         service = SettingsService(
             config_path=self.config_path,

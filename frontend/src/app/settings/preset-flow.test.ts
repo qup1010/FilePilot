@@ -3,11 +3,13 @@ import { describe, expect, it } from "vitest";
 import { buildFamilySavePayload, isEditablePreset } from "./preset-flow";
 
 describe("isEditablePreset", () => {
-  it("returns false for default preset", () => {
-    expect(isEditablePreset("default")).toBe(false);
+  it("returns false for empty synthetic active id", () => {
+    expect(isEditablePreset("")).toBe(false);
+    expect(isEditablePreset(null)).toBe(false);
   });
 
-  it("returns true for user preset id", () => {
+  it("returns true for stored preset ids including legacy default", () => {
+    expect(isEditablePreset("default")).toBe(true);
     expect(isEditablePreset("preset-user-1")).toBe(true);
   });
 });

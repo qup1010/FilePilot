@@ -11,7 +11,9 @@ type FamilyFields = {
 };
 
 export function isEditablePreset(presetId: string | null | undefined): boolean {
-  return Boolean(presetId && presetId !== "default");
+  // Any non-empty stored preset id is editable, including legacy "default".
+  // Empty id means synthetic draft (no row yet) — form still editable; save will create one.
+  return Boolean(String(presetId || "").trim());
 }
 
 export function buildFamilySavePayload(family: "text", fields: FamilyFields["text"]): { preset: FamilyFields["text"] };
