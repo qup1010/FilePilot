@@ -1,30 +1,37 @@
 {
+  "settings_version": 2,
   "global_config": {
+    "IMAGE_ANALYSIS_ENABLED": false,
+    "IMAGE_ANALYSIS_SOURCE_MODE": "shared_text",
+    "DEBUG_MODE": false,
+    "LAUNCH_DEFAULT_ORGANIZE_METHOD": "categorize_into_new_structure",
+    "LAUNCH_DEFAULT_TARGET_PROFILE_ID": "",
+    "LAUNCH_DEFAULT_TEMPLATE_ID": "general_downloads",
+    "LAUNCH_DEFAULT_LANGUAGE": "zh",
+    "LAUNCH_DEFAULT_DENSITY": "normal",
+    "LAUNCH_DEFAULT_PREFIX_STYLE": "none",
     "LAUNCH_DEFAULT_CAUTION_LEVEL": "balanced",
     "LAUNCH_DEFAULT_NOTE": "",
-    "LAUNCH_SKIP_STRATEGY_PROMPT": false,
-    "LAUNCH_DEFAULT_TEMPLATE_ID": "general_downloads",
-    "LAUNCH_DEFAULT_NAMING_STYLE": "zh",
-    "IMAGE_ANALYSIS_ENABLED": false,
-    "DEBUG_MODE": false
+    "LAUNCH_DEFAULT_NEW_DIRECTORY_ROOT": "",
+    "LAUNCH_DEFAULT_REVIEW_ROOT": "",
+    "LAUNCH_REVIEW_FOLLOWS_NEW_ROOT": true,
+    "LAUNCH_SKIP_STRATEGY_PROMPT": false
   },
-  "text_presets": {
-    "default": {
-      "name": "默认文本模型",
-      "OPENAI_BASE_URL": "https://your-text-endpoint/v1",
-      "OPENAI_MODEL": "gpt-5.2",
-      "OPENAI_API_KEY": "your_text_api_key_here"
+  "text_presets": {},
+  "vision_presets": {},
+  "icon_image_presets": {},
+  "bg_removal": {
+    "mode": "preset",
+    "preset_id": "bria-rmbg-2.0",
+    "custom": {
+      "name": "自定义抠图",
+      "model_id": "",
+      "api_type": "gradio_space",
+      "payload_template": "",
+      "hf_api_token": ""
     }
   },
-  "vision_presets": {
-    "default": {
-      "name": "可选图片理解模型",
-      "IMAGE_ANALYSIS_NAME": "可选图片理解模型",
-      "IMAGE_ANALYSIS_BASE_URL": "https://your-vision-endpoint/v1",
-      "IMAGE_ANALYSIS_MODEL": "gpt-5.2",
-      "IMAGE_ANALYSIS_API_KEY": "your_vision_api_key_here"
-    }
-  },
-  "active_text_preset_id": "default",
-  "active_vision_preset_id": "default"
+  "active_text_preset_id": "",
+  "active_vision_preset_id": "",
+  "active_icon_image_preset_id": ""
 }

@@ -7,11 +7,7 @@ import uuid
 from pathlib import Path
 from typing import Any
 
-from file_pilot.shared.constants import (
-    DEFAULT_ANALYSIS_MODEL,
-    DEFAULT_BASE_URL,
-    PROJECT_ROOT,
-)
+from file_pilot.shared.constants import PROJECT_ROOT
 from file_pilot.shared.logging_utils import DEBUG_LOG_PATH, RUNTIME_LOG_PATH
 
 DEFAULT_PRESET_ID = "default"
@@ -68,8 +64,8 @@ DEFAULT_GLOBAL_CONFIG = {
 
 DEFAULT_TEXT_PRESET = {
     "name": "默认文本模型",
-    "OPENAI_BASE_URL": DEFAULT_BASE_URL,
-    "OPENAI_MODEL": DEFAULT_ANALYSIS_MODEL,
+    "OPENAI_BASE_URL": "",
+    "OPENAI_MODEL": "",
     TEXT_SECRET_KEY: "",
 }
 
@@ -80,6 +76,16 @@ DEFAULT_VISION_PRESET = {
     "IMAGE_ANALYSIS_MODEL": "",
     VISION_SECRET_KEY: "",
 }
+
+# Example / template values that must never count as a real configuration.
+_EXAMPLE_PLACEHOLDER_MARKERS = (
+    "your_text_api_key",
+    "your_vision_api_key",
+    "your-text-endpoint",
+    "your-vision-endpoint",
+    "your_api_key",
+    "your-api-key",
+)
 
 DEFAULT_ICON_IMAGE_PRESET = {
     "name": "默认图标生图",
@@ -153,6 +159,25 @@ def _public_secret_placeholder(_: Any) -> str:
     return ""
 
 
+def _is_example_placeholder(value: Any) -> bool:
+    text = str(value or "").strip()
+    if not text:
+        return False
+    lowered = text.lower()
+    if any(marker in lowered for marker in _EXAMPLE_PLACEHOLDER_MARKERS):
+        return True
+    if lowered.startswith("your_") and lowered.endswith("_here"):
+        return True
+    return False
+
+
+def _normalize_config_value(value: Any) -> str:
+    text = str(value or "").strip()
+    if not text or _is_example_placeholder(text):
+        return ""
+    return text
+
+
 class SettingsService:
     def __init__(
         self,
@@ -199,22 +224,41 @@ class SettingsService:
 
     def _sanitize_text_preset(self, payload: dict[str, Any] | None) -> dict[str, Any]:
         data = dict(payload or {})
+        raw_url = str(data.get("OPENAI_BASE_URL") or "").strip()
+        raw_secret = str(data.get(TEXT_SECRET_KEY, "") or "").strip()
+        base_url = _normalize_config_value(raw_url)
+        secret = _normalize_config_value(raw_secret)
+        model = _normalize_config_value(data.get("OPENAI_MODEL"))
+        # Drop orphan model ids left behind by example templates once URL/key are placeholders.
+        if not base_url and not secret and (
+            _is_example_placeholder(raw_url) or _is_example_placeholder(raw_secret)
+        ):
+            model = ""
         return {
-            "name": str(data.get("name") or DEFAULT_TEXT_PRESET["name"]),
-            "OPENAI_BASE_URL": str(data.get("OPENAI_BASE_URL") or DEFAULT_TEXT_PRESET["OPENAI_BASE_URL"]).strip(),
-            "OPENAI_MODEL": str(data.get("OPENAI_MODEL") or DEFAULT_TEXT_PRESET["OPENAI_MODEL"]).strip(),
-            TEXT_SECRET_KEY: str(data.get(TEXT_SECRET_KEY, "") or ""),
+            "name": str(data.get("name") or DEFAULT_TEXT_PRESET["name"]).strip() or DEFAULT_TEXT_PRESET["name"],
+            "OPENAI_BASE_URL": base_url,
+            "OPENAI_MODEL": model,
+            TEXT_SECRET_KEY: secret,
         }
 
     def _sanitize_vision_preset(self, payload: dict[str, Any] | None) -> dict[str, Any]:
         data = dict(payload or {})
         name = str(data.get("IMAGE_ANALYSIS_NAME") or data.get("name") or DEFAULT_VISION_PRESET["name"]).strip()
+        raw_url = str(data.get("IMAGE_ANALYSIS_BASE_URL") or "").strip()
+        raw_secret = str(data.get(VISION_SECRET_KEY, "") or "").strip()
+        base_url = _normalize_config_value(raw_url)
+        secret = _normalize_config_value(raw_secret)
+        model = _normalize_config_value(data.get("IMAGE_ANALYSIS_MODEL"))
+        if not base_url and not secret and (
+            _is_example_placeholder(raw_url) or _is_example_placeholder(raw_secret)
+        ):
+            model = ""
         return {
             "name": name or DEFAULT_VISION_PRESET["name"],
             "IMAGE_ANALYSIS_NAME": name or DEFAULT_VISION_PRESET["IMAGE_ANALYSIS_NAME"],
-            "IMAGE_ANALYSIS_BASE_URL": str(data.get("IMAGE_ANALYSIS_BASE_URL") or "").strip(),
-            "IMAGE_ANALYSIS_MODEL": str(data.get("IMAGE_ANALYSIS_MODEL") or "").strip(),
-            VISION_SECRET_KEY: str(data.get(VISION_SECRET_KEY, "") or ""),
+            "IMAGE_ANALYSIS_BASE_URL": base_url,
+            "IMAGE_ANALYSIS_MODEL": model,
+            VISION_SECRET_KEY: secret,
         }
 
     def _sanitize_icon_image_preset(self, payload: dict[str, Any] | None) -> dict[str, Any]:
@@ -236,9 +280,9 @@ class SettingsService:
         return {
             "name": str(data.get("name") or DEFAULT_ICON_IMAGE_PRESET["name"]).strip() or DEFAULT_ICON_IMAGE_PRESET["name"],
             "image_model": {
-                "base_url": str(image_model.get("base_url", "") or "").strip(),
-                "model": str(image_model.get("model", "") or "").strip(),
-                "api_key": str(image_model.get("api_key", "") or ""),
+                "base_url": _normalize_config_value(image_model.get("base_url", "")),
+                "model": _normalize_config_value(image_model.get("model", "")),
+                "api_key": _normalize_config_value(image_model.get("api_key", "")),
             },
             "image_size": str(data.get("image_size") or DEFAULT_ICON_IMAGE_PRESET["image_size"]).strip() or DEFAULT_ICON_IMAGE_PRESET["image_size"],
             "analysis_concurrency_limit": max(1, min(analysis_concurrency_limit, 6)),
@@ -278,40 +322,101 @@ class SettingsService:
             return next(iter(presets))
         return EMPTY_PRESET_ID
 
-    def _prune_placeholder_default_presets(self) -> None:
-        if self._text_presets.get(DEFAULT_PRESET_ID) == self._sanitize_text_preset(DEFAULT_TEXT_PRESET):
-            self._text_presets.pop(DEFAULT_PRESET_ID, None)
-        if self._vision_presets.get(DEFAULT_PRESET_ID) == self._sanitize_vision_preset(DEFAULT_VISION_PRESET):
-            self._vision_presets.pop(DEFAULT_PRESET_ID, None)
-        if self._icon_image_presets.get(DEFAULT_PRESET_ID) == self._sanitize_icon_image_preset(DEFAULT_ICON_IMAGE_PRESET):
-            self._icon_image_presets.pop(DEFAULT_PRESET_ID, None)
+    def _is_empty_text_preset(self, preset: dict[str, Any] | None) -> bool:
+        sanitized = self._sanitize_text_preset(preset)
+        return not (
+            sanitized.get("OPENAI_BASE_URL")
+            or sanitized.get("OPENAI_MODEL")
+            or sanitized.get(TEXT_SECRET_KEY)
+        )
 
-    def _ensure_defaults(self) -> None:
-        self._prune_placeholder_default_presets()
-        self._active_text_preset_id = self._normalize_active_preset_id(self._text_presets, self._active_text_preset_id)
-        self._active_vision_preset_id = self._normalize_active_preset_id(self._vision_presets, self._active_vision_preset_id)
-        self._active_icon_image_preset_id = self._normalize_active_preset_id(self._icon_image_presets, self._active_icon_image_preset_id)
-        self._bg_removal = self._sanitize_bg_removal_config(self._bg_removal)
+    def _is_empty_vision_preset(self, preset: dict[str, Any] | None) -> bool:
+        sanitized = self._sanitize_vision_preset(preset)
+        return not (
+            sanitized.get("IMAGE_ANALYSIS_BASE_URL")
+            or sanitized.get("IMAGE_ANALYSIS_MODEL")
+            or sanitized.get(VISION_SECRET_KEY)
+        )
 
-    def _sync_from_env(self) -> None:
-        flat = {
-            **DEFAULT_GLOBAL_CONFIG,
-            **DEFAULT_TEXT_PRESET,
-            **DEFAULT_VISION_PRESET,
-        }
-        for key, default in list(flat.items()):
+    def _is_empty_icon_image_preset(self, preset: dict[str, Any] | None) -> bool:
+        sanitized = self._sanitize_icon_image_preset(preset)
+        image_model = dict(sanitized.get("image_model") or {})
+        has_credentials = bool(
+            image_model.get("base_url")
+            or image_model.get("model")
+            or image_model.get("api_key")
+        )
+        if has_credentials:
+            return False
+        # Keep presets that only customize workbench options (size/concurrency/save mode).
+        default = self._sanitize_icon_image_preset(DEFAULT_ICON_IMAGE_PRESET)
+        return (
+            sanitized.get("image_size") == default.get("image_size")
+            and sanitized.get("analysis_concurrency_limit") == default.get("analysis_concurrency_limit")
+            and sanitized.get("image_concurrency_limit") == default.get("image_concurrency_limit")
+            and sanitized.get("save_mode") == default.get("save_mode")
+        )
+
+    def _prune_placeholder_default_presets(self) -> bool:
+        changed = False
+        for preset_id, preset in list(self._text_presets.items()):
+            if self._is_empty_text_preset(preset):
+                self._text_presets.pop(preset_id, None)
+                changed = True
+        for preset_id, preset in list(self._vision_presets.items()):
+            if self._is_empty_vision_preset(preset):
+                self._vision_presets.pop(preset_id, None)
+                changed = True
+        for preset_id, preset in list(self._icon_image_presets.items()):
+            if self._is_empty_icon_image_preset(preset):
+                self._icon_image_presets.pop(preset_id, None)
+                changed = True
+        return changed
+
+    def _ensure_defaults(self) -> bool:
+        changed = self._prune_placeholder_default_presets()
+        next_active_text = self._normalize_active_preset_id(self._text_presets, self._active_text_preset_id)
+        next_active_vision = self._normalize_active_preset_id(self._vision_presets, self._active_vision_preset_id)
+        next_active_icon = self._normalize_active_preset_id(self._icon_image_presets, self._active_icon_image_preset_id)
+        if next_active_text != self._active_text_preset_id:
+            self._active_text_preset_id = next_active_text
+            changed = True
+        if next_active_vision != self._active_vision_preset_id:
+            self._active_vision_preset_id = next_active_vision
+            changed = True
+        if next_active_icon != self._active_icon_image_preset_id:
+            self._active_icon_image_preset_id = next_active_icon
+            changed = True
+        next_bg = self._sanitize_bg_removal_config(self._bg_removal)
+        if next_bg != self._bg_removal:
+            self._bg_removal = next_bg
+            changed = True
+        return changed
+
+    def _apply_env_overrides(self, target: dict[str, Any]) -> dict[str, Any]:
+        next_payload = copy.deepcopy(target)
+        for key, default in list(target.items()):
             raw = os.getenv(key)
             if raw is None:
                 continue
             if isinstance(default, bool):
-                flat[key] = raw.strip().lower() in {"1", "true", "yes", "on"}
+                next_payload[key] = raw.strip().lower() in {"1", "true", "yes", "on"}
             else:
-                flat[key] = raw
-        self._global_config = self._sanitize_global(flat)
-        if any(os.getenv(key) for key in ("IMAGE_ANALYSIS_NAME", "IMAGE_ANALYSIS_BASE_URL", "IMAGE_ANALYSIS_MODEL", VISION_SECRET_KEY)):
+                next_payload[key] = raw
+        return next_payload
+
+    def _sync_from_env(self) -> None:
+        global_flat = self._apply_env_overrides(DEFAULT_GLOBAL_CONFIG)
+        text_flat = self._apply_env_overrides(DEFAULT_TEXT_PRESET)
+        vision_flat = self._apply_env_overrides(DEFAULT_VISION_PRESET)
+        self._global_config = self._sanitize_global(global_flat)
+        if any(
+            str(os.getenv(key) or "").strip()
+            for key in ("IMAGE_ANALYSIS_NAME", "IMAGE_ANALYSIS_BASE_URL", "IMAGE_ANALYSIS_MODEL", VISION_SECRET_KEY)
+        ):
             self._global_config["IMAGE_ANALYSIS_SOURCE_MODE"] = VISION_SOURCE_SEPARATE
-        self._text_presets = {DEFAULT_PRESET_ID: self._sanitize_text_preset(flat)}
-        self._vision_presets = {DEFAULT_PRESET_ID: self._sanitize_vision_preset(flat)}
+        self._text_presets = {DEFAULT_PRESET_ID: self._sanitize_text_preset(text_flat)}
+        self._vision_presets = {DEFAULT_PRESET_ID: self._sanitize_vision_preset(vision_flat)}
         self._active_text_preset_id = DEFAULT_PRESET_ID
         self._active_vision_preset_id = DEFAULT_PRESET_ID
 
@@ -421,7 +526,8 @@ class SettingsService:
                 self._icon_image_presets, self._active_icon_image_preset_id = legacy_icon
                 needs_save = True
 
-        self._ensure_defaults()
+        if self._ensure_defaults():
+            needs_save = True
         if needs_save:
             self.save()
 
@@ -643,7 +749,7 @@ class SettingsService:
     def is_text_configured(self) -> bool:
         if self._active_text_preset_id not in self._text_presets:
             return False
-        preset = self._get_active_text_preset()
+        preset = self._sanitize_text_preset(self._get_active_text_preset())
         return bool(preset.get("OPENAI_BASE_URL") and preset.get("OPENAI_MODEL") and preset.get(TEXT_SECRET_KEY))
 
     def is_vision_configured(self) -> bool:
@@ -651,15 +757,24 @@ class SettingsService:
             return self.is_text_configured()
         if self._active_vision_preset_id not in self._vision_presets:
             return False
-        preset = self._get_active_vision_preset()
-        return bool(preset.get("IMAGE_ANALYSIS_BASE_URL") and preset.get("IMAGE_ANALYSIS_MODEL") and preset.get(VISION_SECRET_KEY))
+        preset = self._sanitize_vision_preset(self._get_active_vision_preset())
+        return bool(
+            preset.get("IMAGE_ANALYSIS_BASE_URL")
+            and preset.get("IMAGE_ANALYSIS_MODEL")
+            and preset.get(VISION_SECRET_KEY)
+        )
 
     def is_icon_image_configured(self) -> bool:
         if self._active_icon_image_preset_id not in self._icon_image_presets:
             return False
-        preset = self._get_active_icon_image_preset()
+        preset = self._sanitize_icon_image_preset(self._get_active_icon_image_preset())
         image_model = dict(preset.get("image_model") or {})
-        return bool(image_model.get("base_url") and image_model.get("model") and image_model.get("api_key"))
+        api_key = _normalize_config_value(image_model.get("api_key"))
+        return bool(
+            _normalize_config_value(image_model.get("base_url"))
+            and _normalize_config_value(image_model.get("model"))
+            and api_key
+        )
 
     def is_bg_removal_configured(self) -> bool:
         if self._bg_removal.get("mode") == "preset":
@@ -740,7 +855,7 @@ class SettingsService:
         if action == "clear":
             return ""
         if action == "replace":
-            return str((payload or {}).get("value", "") or "")
+            return _normalize_config_value((payload or {}).get("value", ""))
         raise ValueError("不支持的密钥操作")
 
     def update_settings(self, payload: dict[str, Any]) -> dict[str, Any]:

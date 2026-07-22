@@ -1,7 +1,9 @@
 import json
+import os
 import shutil
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from file_pilot.shared.settings_service import SettingsService
 
@@ -472,6 +474,137 @@ class SettingsServiceTests(unittest.TestCase):
         self.assertIn("bg_removal", snapshot["families"])
         self.assertIn("bg_removal", saved)
         self.assertEqual(saved["bg_removal"]["mode"], "preset")
+
+    def test_fresh_install_without_config_is_unconfigured_and_empty(self):
+        cleared_env = {
+            "OPENAI_BASE_URL": "",
+            "OPENAI_MODEL": "",
+            "OPENAI_API_KEY": "",
+            "OPENAI_ANALYSIS_MODEL": "",
+            "OPENAI_ORGANIZER_MODEL": "",
+            "IMAGE_ANALYSIS_NAME": "",
+            "IMAGE_ANALYSIS_BASE_URL": "",
+            "IMAGE_ANALYSIS_MODEL": "",
+            "IMAGE_ANALYSIS_API_KEY": "",
+            "IMAGE_ANALYSIS_ENABLED": "",
+            "IMAGE_ANALYSIS_SOURCE_MODE": "",
+        }
+        with mock.patch.dict(os.environ, cleared_env, clear=False):
+            for key in list(cleared_env):
+                os.environ.pop(key, None)
+            service = SettingsService(
+                config_path=self.config_path,
+                legacy_icon_config_path=self.legacy_icon_path,
+            )
+        snapshot = service.get_settings_snapshot()
+        saved = json.loads(self.config_path.read_text(encoding="utf-8"))
+
+        self.assertFalse(service.is_text_configured())
+        self.assertFalse(service.is_vision_configured())
+        self.assertFalse(snapshot["status"]["text_configured"])
+        self.assertFalse(snapshot["status"]["vision_configured"])
+        self.assertEqual(snapshot["families"]["vision"]["mode"], "shared_text")
+        self.assertEqual(snapshot["families"]["text"]["active_preset"]["OPENAI_BASE_URL"], "")
+        self.assertEqual(snapshot["families"]["text"]["active_preset"]["OPENAI_MODEL"], "")
+        self.assertEqual(snapshot["families"]["text"]["active_preset"]["secret_state"], "empty")
+        self.assertEqual(saved.get("text_presets"), {})
+        self.assertEqual(saved.get("vision_presets"), {})
+        self.assertEqual(saved.get("active_text_preset_id"), "")
+        self.assertEqual(saved.get("active_vision_preset_id"), "")
+
+    def test_example_placeholder_secrets_are_not_configured(self):
+        self.config_path.write_text(
+            json.dumps(
+                {
+                    "settings_version": 2,
+                    "global_config": {
+                        "IMAGE_ANALYSIS_ENABLED": False,
+                        "IMAGE_ANALYSIS_SOURCE_MODE": "shared_text",
+                    },
+                    "text_presets": {
+                        "default": {
+                            "name": "默认文本模型",
+                            "OPENAI_BASE_URL": "https://your-text-endpoint/v1",
+                            "OPENAI_MODEL": "gpt-5.2",
+                            "OPENAI_API_KEY": "your_text_api_key_here",
+                        }
+                    },
+                    "vision_presets": {
+                        "default": {
+                            "name": "可选图片理解模型",
+                            "IMAGE_ANALYSIS_NAME": "可选图片理解模型",
+                            "IMAGE_ANALYSIS_BASE_URL": "https://your-vision-endpoint/v1",
+                            "IMAGE_ANALYSIS_MODEL": "gpt-5.2",
+                            "IMAGE_ANALYSIS_API_KEY": "your_vision_api_key_here",
+                        }
+                    },
+                    "icon_image_presets": {},
+                    "active_text_preset_id": "default",
+                    "active_vision_preset_id": "default",
+                    "active_icon_image_preset_id": "",
+                    "bg_removal": {
+                        "mode": "preset",
+                        "preset_id": "bria-rmbg-2.0",
+                        "custom": {
+                            "name": "自定义抠图",
+                            "model_id": "",
+                            "api_type": "gradio_space",
+                            "payload_template": "",
+                            "hf_api_token": "",
+                        },
+                    },
+                },
+                ensure_ascii=False,
+            ),
+            encoding="utf-8",
+        )
+
+        service = SettingsService(
+            config_path=self.config_path,
+            legacy_icon_config_path=self.legacy_icon_path,
+        )
+        snapshot = service.get_settings_snapshot()
+        saved = json.loads(self.config_path.read_text(encoding="utf-8"))
+
+        self.assertFalse(service.is_text_configured())
+        self.assertFalse(service.is_vision_configured())
+        self.assertFalse(snapshot["status"]["text_configured"])
+        self.assertFalse(snapshot["status"]["vision_configured"])
+        self.assertEqual(snapshot["families"]["text"]["active_preset"]["secret_state"], "empty")
+        self.assertEqual(snapshot["families"]["text"]["active_preset"]["OPENAI_BASE_URL"], "")
+        self.assertEqual(snapshot["families"]["text"]["active_preset"]["OPENAI_MODEL"], "")
+        self.assertEqual(saved.get("text_presets"), {})
+        self.assertEqual(saved.get("vision_presets"), {})
+
+    def test_real_credentials_still_mark_text_and_shared_vision_configured(self):
+        service = SettingsService(
+            config_path=self.config_path,
+            legacy_icon_config_path=self.legacy_icon_path,
+        )
+        service.update_settings(
+            {
+                "families": {
+                    "text": {
+                        "preset": {
+                            "OPENAI_BASE_URL": "https://text.example/v1",
+                            "OPENAI_MODEL": "gpt-5.4",
+                        },
+                        "secret": {"action": "replace", "value": "real-text-secret"},
+                    },
+                    "vision": {
+                        "enabled": True,
+                        "mode": "shared_text",
+                    },
+                }
+            }
+        )
+
+        self.assertTrue(service.is_text_configured())
+        self.assertTrue(service.is_vision_configured())
+        snapshot = service.get_settings_snapshot()
+        self.assertTrue(snapshot["status"]["text_configured"])
+        self.assertTrue(snapshot["status"]["vision_configured"])
+        self.assertEqual(snapshot["families"]["vision"]["mode"], "shared_text")
 
 
 if __name__ == "__main__":

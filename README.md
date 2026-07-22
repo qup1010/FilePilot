@@ -149,16 +149,16 @@ FilePilot 使用 OpenAI-compatible 接口。你至少需要配置文本模型的
 
 **桌面版用户**：打开应用后在设置页中配置即可，不需要手动编辑配置文件。
 
-**源码运行**：复制 `config.example.json` 为 `config.json`，然后填写自己的配置：
+**源码运行**：复制 `config.example.json` 为 `config.json`。默认是空配置（未配置模型时字段为空，健康状态显示「待配置」），可在设置页填写，或直接编辑配置文件：
 
 ```json
 {
   "text_presets": {
     "default": {
       "name": "默认文本模型",
-      "OPENAI_BASE_URL": "https://your-text-endpoint/v1",
-      "OPENAI_MODEL": "your-model-name",
-      "OPENAI_API_KEY": "your-api-key"
+      "OPENAI_BASE_URL": "https://api.openai.com/v1",
+      "OPENAI_MODEL": "gpt-5.2",
+      "OPENAI_API_KEY": "sk-..."
     }
   },
   "active_text_preset_id": "default"
