@@ -1,14 +1,14 @@
-import unittest
 import json
 import os
 import shutil
 import threading
+import unittest
 from pathlib import Path
 from types import SimpleNamespace
 from unittest import mock
 
-from file_pilot.organize.models import FinalPlan, PendingPlan, PlanMove
 from file_pilot.organize import service as organizer_service
+from file_pilot.organize.models import FinalPlan, PendingPlan, PlanMove
 
 
 class StructuredOrganizerServiceTests(unittest.TestCase):

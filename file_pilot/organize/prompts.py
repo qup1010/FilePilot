@@ -1,7 +1,6 @@
 from file_pilot.organize.strategy_templates import build_strategy_prompt_fragment
 from file_pilot.organize.target_slots import directory_target_slots, slot_label
 
-
 PROMPT_TEMPLATE = """你是一位“系统文件整理”专家。你的任务是基于当前规划范围，为用户产出一份可编辑的整理草案。
 
 一、结构化工具

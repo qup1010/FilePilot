@@ -5,7 +5,6 @@ from copy import deepcopy
 from functools import lru_cache
 from pathlib import Path
 
-
 _CATALOG_PATH = Path(__file__).resolve().parents[2] / "frontend" / "src" / "lib" / "strategy-catalog.json"
 
 

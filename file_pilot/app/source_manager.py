@@ -7,8 +7,8 @@ from file_pilot.app.source_payloads import (
     build_planner_items_from_scan_lines,
     normalize_relpath,
     planner_items_from_source_refs,
-    scan_entries_from_planner_items,
     scan_entries_from_lines,
+    scan_entries_from_planner_items,
 )
 
 if TYPE_CHECKING:

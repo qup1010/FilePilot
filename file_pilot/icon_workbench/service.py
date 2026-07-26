@@ -15,9 +15,9 @@ from file_pilot.icon_workbench.client import (
 )
 from file_pilot.icon_workbench.models import (
     FolderIconCandidate,
+    IconPreviewVersion,
     IconTemplate,
     IconWorkbenchClientActionSummary,
-    IconPreviewVersion,
     IconWorkbenchSession,
     utc_now_iso,
 )

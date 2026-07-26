@@ -1,7 +1,6 @@
 ﻿import json
 from pathlib import Path
 
-
 JSON_EMPTY_OBJECT = "{}"
 
 

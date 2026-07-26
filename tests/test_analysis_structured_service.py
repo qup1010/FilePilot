@@ -1,13 +1,12 @@
 ﻿import shutil
+import threading
 import unittest
-import shutil
 from pathlib import Path
 from types import SimpleNamespace
 from unittest import mock
-import threading
 
-from file_pilot.analysis.models import AnalysisItem
 from file_pilot.analysis import service as analysis_service
+from file_pilot.analysis.models import AnalysisItem
 
 
 class StructuredAnalysisServiceTests(unittest.TestCase):

@@ -1,10 +1,10 @@
 import os
 import unittest
-from pathlib import Path
 from importlib import reload
+from pathlib import Path
 
-from file_pilot.shared import constants
 from file_pilot.shared import config as config_module
+from file_pilot.shared import constants
 
 
 class RuntimePathTests(unittest.TestCase):

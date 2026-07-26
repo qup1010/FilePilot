@@ -4,7 +4,6 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from file_pilot.app.session_constants import REVIEW_SLOT_ID
 from file_pilot.app.models import (
     PlanGroupPayload,
     PlanMappingPayload,
@@ -12,6 +11,7 @@ from file_pilot.app.models import (
     PlanSnapshotPayload,
     PlanTargetSlotPayload,
 )
+from file_pilot.app.session_constants import REVIEW_SLOT_ID
 from file_pilot.domain.models import MappingEntry
 
 if TYPE_CHECKING:
@@ -278,12 +278,6 @@ class SnapshotBuilder:
             for item in (planner_items or [])
             if str(item.get("source_relpath") or "").strip()
         }
-        planner_by_id = {
-            str(item.get("planner_id") or "").strip(): dict(item)
-            for item in (planner_items or [])
-            if str(item.get("planner_id") or "").strip()
-        }
-
         def target_directory_for_slot(slot_id: str) -> str:
             normalized_slot_id = str(slot_id or "").strip()
             if not normalized_slot_id:

@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Any
 
+from file_pilot.shared.constants import PROJECT_ROOT
 from file_pilot.shared.settings_service import (
     DEFAULT_PRESET_ID,
     SETTINGS_FAMILIES,
@@ -10,7 +10,6 @@ from file_pilot.shared.settings_service import (
     VISION_FAMILY,
     SettingsService,
 )
-from file_pilot.shared.constants import PROJECT_ROOT
 
 CONFIG_PATH = PROJECT_ROOT / "config.json"
 

@@ -21,7 +21,6 @@ from file_pilot.organize.models import (
 )
 from file_pilot.organize.prompts import build_prompt
 from file_pilot.organize.target_slots import directory_target_slots, is_review_slot, slot_label
-from file_pilot.shared.review import REVIEW_SLOT_ID
 from file_pilot.shared.config import (
     RESULT_FILE_PATH,
     create_openai_client,
@@ -32,10 +31,12 @@ from file_pilot.shared.events import emit
 from file_pilot.shared.logging_utils import append_debug_event
 from file_pilot.shared.model_response import (
     extract_message_text as extract_model_message_text,
+)
+from file_pilot.shared.model_response import (
     normalize_non_stream_response as normalize_model_non_stream_response,
 )
 from file_pilot.shared.path_utils import normalize_source_name, split_relative_parts
-
+from file_pilot.shared.review import REVIEW_SLOT_ID
 
 COMMANDS_BLOCK_RE = re.compile(r"<COMMANDS>(.*?)</COMMANDS>", flags=re.S | re.I)
 MOVE_LINE_RE = re.compile(r'^\s*MOVE\s+"(.*?)"\s+"(.*?)"\s*$', flags=re.I)
@@ -612,8 +613,9 @@ def chat_one_round(
     target_dir: str | None = None,
     cancel_event: threading.Event | None = None,
 ):
-    from file_pilot.shared.config import RUNTIME_DIR, config_manager
     from datetime import datetime
+
+    from file_pilot.shared.config import RUNTIME_DIR, config_manager
 
     model = model or get_organizer_model_name()
 

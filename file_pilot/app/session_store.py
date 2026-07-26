@@ -3,16 +3,15 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import threading
+import time
 import uuid
 from pathlib import Path
 
-from file_pilot.app.session_constants import STAGE_ABANDONED, is_reclaimable_lock_stage
 from file_pilot.app.models import LockResult, OrganizerSession
+from file_pilot.app.session_constants import STAGE_ABANDONED, is_reclaimable_lock_stage
 from file_pilot.shared.path_utils import canonical_target_dir
 
-
-import threading
-import time
 
 def _atomic_write_json(path: Path, payload: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)

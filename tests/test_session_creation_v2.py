@@ -1,7 +1,7 @@
+import os
 import shutil
 import time
 import unittest
-import os
 from pathlib import Path
 from unittest import mock
 

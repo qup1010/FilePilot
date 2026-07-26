@@ -14,8 +14,9 @@ class HistoryAppService:
         self.helpers = helpers
 
     def list_history(self) -> list[dict]:
-        from file_pilot.shared import config
         import json
+
+        from file_pilot.shared import config
 
         history_map: dict[str, dict] = {}
 
@@ -139,6 +140,7 @@ class HistoryAppService:
                 {
                     "action_type": item.action_type,
                     "status": item.status,
+                    "message": item.message,
                     "source": item.source_before,
                     "target": item.target_after or item.created_path,
                     "display_name": str(

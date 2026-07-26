@@ -7,6 +7,7 @@ from unittest import mock
 
 from file_pilot.analysis import service as analysis_service
 from file_pilot.analysis.models import AnalysisItem
+from file_pilot.shared.config import ANALYSIS_MODEL_NAME
 
 
 class ParallelAnalysisTests(unittest.TestCase):
@@ -93,7 +94,7 @@ class ParallelAnalysisTests(unittest.TestCase):
                 0,
                 2,
                 files_info,
-                analysis_service.ANALYSIS_MODEL_NAME,
+                ANALYSIS_MODEL_NAME,
             )
 
         self.assertEqual([item.entry_name for item in items], ["alpha.txt", "keepdir"])

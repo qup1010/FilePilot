@@ -7,8 +7,8 @@ from unittest import mock
 
 from PIL import Image
 
-from file_pilot.analysis.image_describer import ImageDescriptionResult, describe_image, format_image_description_result
 from file_pilot.analysis.file_reader import read_local_file
+from file_pilot.analysis.image_describer import ImageDescriptionResult, describe_image, format_image_description_result
 
 
 class ImageDescriberTests(unittest.TestCase):

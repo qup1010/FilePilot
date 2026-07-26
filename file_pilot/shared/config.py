@@ -4,12 +4,11 @@ from pathlib import Path
 import httpx
 from openai import OpenAI
 
-
 from file_pilot.shared.constants import (
-    PROJECT_ROOT,
-    DEFAULT_BASE_URL,
     DEFAULT_ANALYSIS_MODEL,
+    DEFAULT_BASE_URL,
     DEFAULT_ORGANIZER_MODEL,
+    PROJECT_ROOT,
 )
 from file_pilot.shared.logging_utils import BACKEND_LOG_DIR, DEBUG_LOG_PATH, RUNTIME_LOG_PATH
 
@@ -57,6 +56,7 @@ SPOOF_HEADERS = {
 
 
 from file_pilot.shared.config_manager import config_manager
+
 
 def _get_int_config(name: str, default: int, *, minimum: int, maximum: int) -> int:
     try:
