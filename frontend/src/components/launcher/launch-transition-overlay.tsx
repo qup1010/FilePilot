@@ -1,4 +1,4 @@
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence } from "motion/react";
 import { Loader2 } from "lucide-react";
 
 export function LaunchTransitionOverlay({ open, targetDir }: { open: boolean; targetDir: string }) {

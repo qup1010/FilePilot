@@ -65,7 +65,7 @@ let latestStreamOptions: null | {
 let tauriDragDropHandler: null | ((event: any) => void) = null;
 const findDropZoneForPositionMock = vi.fn(() => "target");
 
-vi.mock("framer-motion", () => ({
+vi.mock("motion/react", () => ({
   AnimatePresence: ({ children }: { children: React.ReactNode }) => <>{children}</>,
   motion: {
     div: ({ children, ...props }: React.ComponentProps<"div">) => <div {...props}>{children}</div>,

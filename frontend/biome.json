@@ -5,9 +5,7 @@
       "src/**/*.ts",
       "src/**/*.tsx",
       "src/**/*.js",
-      "src/**/*.jsx",
-      "!src/**/*.test.ts",
-      "!src/**/*.test.tsx"
+      "src/**/*.jsx"
     ],
     "ignoreUnknown": true
   },
@@ -33,7 +31,9 @@
         "noSwitchDeclarations": "error",
         "noUndeclaredVariables": "error",
         "noUnreachable": "error",
-        "noUnreachableSuper": "error"
+        "noUnreachableSuper": "error",
+        "noUnusedImports": "warn",
+        "noUnusedVariables": "warn"
       }
     }
   }

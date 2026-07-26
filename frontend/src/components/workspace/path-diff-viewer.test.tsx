@@ -1,6 +1,5 @@
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
-import React from "react";
 import { PathDiffViewer } from "./path-diff-viewer";
 
 describe("PathDiffViewer", () => {

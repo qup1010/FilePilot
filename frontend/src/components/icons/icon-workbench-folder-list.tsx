@@ -1,8 +1,8 @@
 "use client";
 
 import React, { useMemo } from "react";
-import { FolderOpen, FolderPlus, Palette, Plus, Sparkles } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
+import { FolderOpen, FolderPlus, Plus, Sparkles } from "lucide-react";
+import { motion, } from "motion/react";
 
 import { DropZoneOverlay, getDropZoneSurfaceClassName } from "@/components/ui/drop-zone-feedback";
 import type { FolderIconCandidate, IconPreviewVersion } from "@/types/icon-workbench";
@@ -71,7 +71,7 @@ export function IconWorkbenchFolderList({
   dropZoneRef,
   isDraggingGlobal = false,
 }: IconWorkbenchFolderListProps) {
-  const hasReadyVersions = useMemo(
+  const _hasReadyVersions = useMemo(
     () => folders.some((folder) => folder.versions.some((version) => version.status === "ready")),
     [folders],
   );

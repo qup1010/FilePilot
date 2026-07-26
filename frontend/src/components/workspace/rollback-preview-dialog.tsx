@@ -1,6 +1,5 @@
 "use client";
 
-import React from "react";
 import {
   Dialog,
   DialogContent,
@@ -12,14 +11,13 @@ import {
 import { Button } from "@/components/ui/button";
 import { 
   AlertTriangle, 
-  ArrowRight, 
   CheckCircle2, 
   XCircle, 
   RotateCcw,
   Info
 } from "lucide-react";
 import type { RollbackPrecheckSummary } from "@/types/session";
-import { motion } from "framer-motion";
+import { motion } from "motion/react";
 import { PathDiffViewer } from "./path-diff-viewer";
 
 interface RollbackPreviewDialogProps {
@@ -165,7 +163,7 @@ export function RollbackPreviewDialog({
   );
 }
 
-function formatPath(path: string): string {
+function _formatPath(path: string): string {
   if (!path) return "";
   const parts = path.split(/[\\/]/);
   if (parts.length <= 3) return path;

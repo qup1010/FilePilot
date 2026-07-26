@@ -3,7 +3,7 @@
 import React, { ReactNode } from "react";
 import { PageTransition } from "@/components/page-transition";
 import { usePathname, useSearchParams } from "next/navigation";
-import { motion } from "framer-motion";
+import { motion } from "motion/react";
 
 // ... (existing imports)
 import Link from "next/link";

@@ -3,16 +3,14 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { AlertCircle, FolderOpen, LoaderCircle, Sparkles, X } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence } from "motion/react";
 
-import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { ErrorAlert } from "@/components/ui/error-alert";
 import { ModelConfigBanner } from "@/components/ui/model-config-banner";
 import { createApiClient } from "@/lib/api";
 import { createIconWorkbenchApiClient } from "@/lib/icon-workbench-api";
 import { createIconWorkbenchEventStream, type IconWorkbenchEventStream } from "@/lib/icon-workbench-sse";
-import { getApiBaseUrl, getApiToken, inspectPathsWithTauri, invokeTauriCommand, isTauriDesktop, openDirectoryWithTauri, pickDirectoriesWithTauri } from "@/lib/runtime";
+import { getApiBaseUrl, getApiToken, invokeTauriCommand, isTauriDesktop, openDirectoryWithTauri, pickDirectoriesWithTauri } from "@/lib/runtime";
 import {
   findDropZoneForPosition,
   isTauriDragDropPayload,
@@ -109,12 +107,12 @@ export default function IconWorkbenchV2() {
   const [streamStatus, setStreamStatus] = useState<IconWorkbenchStreamStatus>("offline");
   const [isNoticeFading, setIsNoticeFading] = useState(false);
   const [isTargetDropActive, setIsTargetDropActive] = useState(false);
-  const [isDraggingGlobal, setIsDraggingGlobal] = useState(false);
+  const [_isDraggingGlobal, setIsDraggingGlobal] = useState(false);
   const targetDropZoneRef = useRef<HTMLDivElement | null>(null);
-  const handledImportPathsRef = useRef<string | null>(null);
+  const _handledImportPathsRef = useRef<string | null>(null);
 
-  const searchParams = useSearchParams();
-  const router = useRouter();
+  const _searchParams = useSearchParams();
+  const _router = useRouter();
 
   const clearNoticeTimers = useCallback(() => {
     if (noticeFadeTimerRef.current !== null) {

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect } from "react";
+import { useEffect } from "react";
 import { Clock, FolderOpen, LoaderCircle, RefreshCw, Trash2, X } from "lucide-react";
 
 import { cn } from "@/lib/utils";

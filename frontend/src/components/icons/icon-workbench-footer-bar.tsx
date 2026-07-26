@@ -1,7 +1,5 @@
 "use client";
-
-import React from "react";
-import { FolderDown, Info, LoaderCircle, Sparkles } from "lucide-react";
+import { FolderDown, LoaderCircle, Sparkles } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";

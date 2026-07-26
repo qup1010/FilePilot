@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   FolderOpen,
   ArrowRight,
@@ -8,18 +8,15 @@ import {
   History as HistoryIcon,
   Undo2,
   PlayCircle,
-  Eye,
   Search,
   Trash2,
   ShieldCheck,
-  PanelLeft,
   FileClock,
   CheckCircle2,
   AlertCircle,
-  XCircle,
 } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
-import { cn, formatDisplayDate, getFriendlyStage } from "@/lib/utils";
+import { motion, AnimatePresence } from "motion/react";
+import { cn, formatDisplayDate, } from "@/lib/utils";
 import { localizeSessionLastError, localizeUserFacingError } from "@/lib/user-facing-copy";
 import { useRouter, useSearchParams } from "next/navigation";
 
@@ -335,7 +332,7 @@ export default function HistoryPage() {
   const moveRows = journal?.restore_items?.length
     ? journal.restore_items
     : journal?.items?.filter((it) => it.action_type === "MOVE") ?? [];
-  const moveRowsSummary = summarizeMoveNames(moveRows);
+  const _moveRowsSummary = summarizeMoveNames(moveRows);
 
   const filteredMoveRows = moveRows.filter((item) => {
     if (!detailQuery) return true;

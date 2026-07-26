@@ -1,9 +1,6 @@
 "use client";
-
-import React from "react";
 import { FolderPlus, History, Settings2, Sparkles, Trash2 } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 interface IconWorkbenchToolbarProps {
@@ -28,7 +25,7 @@ export function IconWorkbenchToolbar({
   selectedTemplateName = "请先选择风格模板",
 }: IconWorkbenchToolbarProps) {
   const targetSummary = targetCount > 0 ? `${targetCount} 个选定目标` : "未选择目标";
-  const targetDetail = targetCount > 0
+  const _targetDetail = targetCount > 0
     ? latestTargetPath || "继续添加文件夹..."
     : "支持一次性选择并分类多个目标。";
 

@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { ResumePromptDialog } from "./resume-prompt-dialog";
 
-vi.mock("framer-motion", () => ({
+vi.mock("motion/react", () => ({
   AnimatePresence: ({ children }: { children: React.ReactNode }) => <>{children}</>,
   motion: {
     div: ({ children, ...props }: React.ComponentProps<"div">) => <div {...props}>{children}</div>,

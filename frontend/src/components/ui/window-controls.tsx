@@ -1,8 +1,7 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { Minus, Square, Copy, X } from "lucide-react";
-import { cn } from "@/lib/utils";
 
 export function WindowControls() {
   const [isTauri, setIsTauri] = useState(false);

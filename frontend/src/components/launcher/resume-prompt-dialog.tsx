@@ -1,4 +1,4 @@
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence } from "motion/react";
 import { History } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { getFriendlyStage } from "@/lib/utils";
