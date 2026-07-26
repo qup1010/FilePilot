@@ -1,6 +1,6 @@
 ﻿from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields
 from pathlib import Path
 
 
@@ -79,10 +79,16 @@ class ExecutionJournalItem:
     source_ref_id: str | None = None
     target_slot_id: str | None = None
     display_name: str | None = None
+    # 文件身份（跨改名/挪动追踪的依据），仅 MOVE 且来源为文件时记录
+    size_bytes: int | None = None
+    mtime: float | None = None
+    # 判定依据："rule"（命中用户规则）| "ai"（模型判断），由一键管线填充
+    decision_basis: str | None = None
 
     @classmethod
     def from_dict(cls, data: dict) -> "ExecutionJournalItem":
-        return cls(**data)
+        known = {f.name for f in fields(cls)}
+        return cls(**{key: value for key, value in data.items() if key in known})
 
 
 @dataclass
@@ -93,6 +99,9 @@ class ExecutionJournal:
     status: str
     items: list[ExecutionJournalItem] = field(default_factory=list)
     rollback_attempts: list[dict] = field(default_factory=list)
+    # 执行时刻的规则快照（profile + 各目录 description），规则会演进，
+    # 回看历史必须还能理解当时的分类依据
+    rule_snapshot: dict | None = None
 
     def to_dict(self) -> dict:
         return {
@@ -113,10 +122,14 @@ class ExecutionJournal:
                     "source_ref_id": item.source_ref_id,
                     "target_slot_id": item.target_slot_id,
                     "display_name": item.display_name,
+                    "size_bytes": item.size_bytes,
+                    "mtime": item.mtime,
+                    "decision_basis": item.decision_basis,
                 }
                 for item in self.items
             ],
             "rollback_attempts": list(self.rollback_attempts),
+            "rule_snapshot": self.rule_snapshot,
         }
 
     @classmethod
@@ -128,4 +141,5 @@ class ExecutionJournal:
             status=data["status"],
             items=[ExecutionJournalItem.from_dict(item) for item in data.get("items", [])],
             rollback_attempts=list(data.get("rollback_attempts", [])),
+            rule_snapshot=data.get("rule_snapshot"),
         )

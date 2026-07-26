@@ -5,6 +5,7 @@ import logging
 import os
 import shutil
 import uuid
+from dataclasses import replace
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -23,7 +24,6 @@ from file_pilot.organize.models import FinalPlan, PlanMove
 from file_pilot.shared.history_store import build_journal_path, read_latest_index, write_latest_index
 from file_pilot.shared.path_utils import relative_display
 
-JOURNAL_CHECKPOINT_INTERVAL = 10
 _CROSS_VOLUME_WARNING_TEMPLATE = "检测到可能跨磁盘分区移动: {source} -> {target}（可能耗时较久）"
 _NESTED_SOURCE_WARNING_TEMPLATE = "来源 {child} 位于同批移动的 {parent} 内部，两者将被分别移动"
 
@@ -403,39 +403,67 @@ def _build_running_journal(plan: ExecutionPlan) -> ExecutionJournal:
     )
 
 
-def _append_journal_item(
+def _file_identity(source: Path | None) -> tuple[int | None, float | None]:
+    """采集移动前的文件身份（size + mtime），目录与不可访问的来源返回空。"""
+    if source is None:
+        return (None, None)
+    try:
+        stat = source.stat()
+    except OSError:
+        return (None, None)
+    if not source.is_file():
+        return (None, None)
+    return (int(stat.st_size), float(stat.st_mtime))
+
+
+def _begin_journal_item(
     journal: ExecutionJournal,
+    action: ExecutionAction,
     *,
     action_type: str,
-    status: str,
-    message: str,
-    raw: str,
-    source_before: Path | None = None,
-    target_after: Path | None = None,
-    created_path: Path | None = None,
-    item_id: str | None = None,
-    source_ref_id: str | None = None,
-    target_slot_id: str | None = None,
-    display_name: str | None = None,
-    flush: bool = False,
-) -> None:
+) -> int:
+    """write-ahead：动作执行前先把意图以 pending 状态落盘，返回条目索引。
+
+    崩溃发生在执行与结果落盘之间时，journal 里留有 pending 意图而不是空白，
+    对账与恢复据此判断「这个文件可能已被移动」。
+    """
+    size_bytes, mtime = _file_identity(action.source) if action_type == "MOVE" else (None, None)
     journal.items.append(
         ExecutionJournalItem(
             action_type=action_type,
-            status=status,
-            message=message,
-            raw=raw,
-            source_before=str(source_before.resolve()) if source_before else None,
-            target_after=str(target_after.resolve(strict=False)) if target_after else None,
-            created_path=str(created_path.resolve()) if created_path else None,
-            item_id=str(item_id or "").strip() or None,
-            source_ref_id=str(source_ref_id or "").strip() or None,
-            target_slot_id=str(target_slot_id or "").strip() or None,
-            display_name=str(display_name or "").strip() or None,
+            status="pending",
+            message="",
+            raw=action.raw,
+            source_before=str(action.source.resolve()) if action.source else None,
+            target_after=str(action.target.resolve(strict=False)) if action_type == "MOVE" else None,
+            item_id=str(action.item_id or "").strip() or None,
+            source_ref_id=str(action.source_ref_id or "").strip() or None,
+            target_slot_id=str(action.target_slot_id or "").strip() or None,
+            display_name=str(action.display_name or "").strip() or None,
+            size_bytes=size_bytes,
+            mtime=mtime,
         )
     )
-    if flush or len(journal.items) % JOURNAL_CHECKPOINT_INTERVAL == 0:
-        save_execution_journal(journal)
+    save_execution_journal(journal)
+    return len(journal.items) - 1
+
+
+def _finish_journal_item(
+    journal: ExecutionJournal,
+    index: int,
+    *,
+    status: str,
+    message: str,
+    created_path: Path | None = None,
+) -> None:
+    item = journal.items[index]
+    journal.items[index] = replace(
+        item,
+        status=status,
+        message=message,
+        created_path=str(created_path.resolve()) if created_path else item.created_path,
+    )
+    save_execution_journal(journal)
 
 
 def execute_plan(plan: ExecutionPlan) -> ExecutionReport:
@@ -446,24 +474,19 @@ def execute_plan(plan: ExecutionPlan) -> ExecutionReport:
     save_execution_journal(journal)
 
     for action in plan.mkdir_actions:
+        index = _begin_journal_item(journal, action, action_type="MKDIR")
         try:
             created_now = not action.target.exists()
             action.target.mkdir(parents=True, exist_ok=True)
             message = "目录已创建" if created_now else "目录已存在"
             results.append(ExecutionItemResult(action=action, status="success", message=message))
             success_count += 1
-            _append_journal_item(
+            _finish_journal_item(
                 journal,
-                action_type="MKDIR",
+                index,
                 status="success",
                 message=message,
-                raw=action.raw,
                 created_path=action.target if created_now else None,
-                item_id=action.item_id,
-                source_ref_id=action.source_ref_id,
-                target_slot_id=action.target_slot_id,
-                display_name=action.display_name,
-                flush=False,
             )
         except Exception as exc:  # pragma: no cover - defensive branch
             message = str(exc)
@@ -475,39 +498,16 @@ def execute_plan(plan: ExecutionPlan) -> ExecutionReport:
             )
             results.append(ExecutionItemResult(action=action, status="failed", message=message))
             failure_count += 1
-            _append_journal_item(
-                journal,
-                action_type="MKDIR",
-                status="failed",
-                message=message,
-                raw=action.raw,
-                item_id=action.item_id,
-                source_ref_id=action.source_ref_id,
-                target_slot_id=action.target_slot_id,
-                display_name=action.display_name,
-                flush=True,
-            )
+            _finish_journal_item(journal, index, status="failed", message=message)
 
     for action in plan.move_actions:
+        assert action.source is not None
+        index = _begin_journal_item(journal, action, action_type="MOVE")
         try:
-            assert action.source is not None
             shutil.move(str(action.source), str(action.target))
             results.append(ExecutionItemResult(action=action, status="success", message="移动成功"))
             success_count += 1
-            _append_journal_item(
-                journal,
-                action_type="MOVE",
-                status="success",
-                message="移动成功",
-                raw=action.raw,
-                source_before=action.source,
-                target_after=action.target,
-                item_id=action.item_id,
-                source_ref_id=action.source_ref_id,
-                target_slot_id=action.target_slot_id,
-                display_name=action.display_name,
-                flush=False,
-            )
+            _finish_journal_item(journal, index, status="success", message="移动成功")
         except Exception as exc:
             message = str(exc)
             logger.warning(
@@ -519,20 +519,7 @@ def execute_plan(plan: ExecutionPlan) -> ExecutionReport:
             )
             results.append(ExecutionItemResult(action=action, status="failed", message=message))
             failure_count += 1
-            _append_journal_item(
-                journal,
-                action_type="MOVE",
-                status="failed",
-                message=message,
-                raw=action.raw,
-                source_before=action.source,
-                target_after=action.target,
-                item_id=action.item_id,
-                source_ref_id=action.source_ref_id,
-                target_slot_id=action.target_slot_id,
-                display_name=action.display_name,
-                flush=True,
-            )
+            _finish_journal_item(journal, index, status="failed", message=message)
 
     journal.status = "completed" if failure_count == 0 else "partial_failure"
     if failure_count:
