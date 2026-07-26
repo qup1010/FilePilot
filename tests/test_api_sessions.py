@@ -675,8 +675,9 @@ class SessionApiTests(unittest.TestCase):
         response = self.client.post(f"/api/sessions/{session.session_id}/apply-target-conflict-suggestions")
 
         self.assertEqual(precheck.status_code, 200)
-        self.assertEqual(precheck.json()["session_snapshot"]["stage"], "planning")
-        self.assertFalse(precheck.json()["session_snapshot"]["precheck_summary"]["can_execute"])
+        # 重名只跳过后来者：预检直接放行到 ready_to_execute，改名建议仍可应用
+        self.assertEqual(precheck.json()["session_snapshot"]["stage"], "ready_to_execute")
+        self.assertTrue(precheck.json()["session_snapshot"]["precheck_summary"]["can_execute"])
         self.assertEqual(response.status_code, 200)
         snapshot = response.json()["session_snapshot"]
         self.assertEqual(snapshot["stage"], "ready_to_execute")

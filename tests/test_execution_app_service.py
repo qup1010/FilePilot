@@ -143,10 +143,13 @@ class ExecutionAppServiceTests(unittest.TestCase):
         result = self.service.execution_app.run_precheck(session.session_id)
 
         snapshot = result.session_snapshot
-        self.assertEqual(snapshot["stage"], "planning")
+        # 重名只跳过后来者，不再阻断整批：保留项仍可执行
+        self.assertEqual(snapshot["stage"], "ready_to_execute")
         precheck = snapshot["precheck_summary"]
-        self.assertFalse(precheck["can_execute"])
-        self.assertTrue(any("计划内多个项目指向同一目标" in item for item in precheck["blocking_errors"]))
+        self.assertTrue(precheck["can_execute"])
+        self.assertEqual(precheck["blocking_errors"], [])
+        duplicate_skips = [skip for skip in precheck["item_skips"] if skip["reason"] == "duplicate_target"]
+        self.assertEqual(len(duplicate_skips), 1)
         suggestions = precheck["target_conflict_suggestions"]
         self.assertEqual(len(suggestions), 1)
         self.assertEqual(suggestions[0]["type"], "target_name_conflict")
@@ -187,8 +190,11 @@ class ExecutionAppServiceTests(unittest.TestCase):
         result = self.service.execution_app.run_precheck(session.session_id)
 
         precheck = result.session_snapshot["precheck_summary"]
+        # 唯一一项被跳过时没有可执行项，仍不放行
         self.assertFalse(precheck["can_execute"])
-        self.assertTrue(any("目标已存在" in item for item in precheck["blocking_errors"]))
+        self.assertEqual(precheck["blocking_errors"], [])
+        self.assertEqual(precheck["item_skips"][0]["reason"], "target_exists")
+        self.assertIn("Docs/report.pdf", precheck["item_skips"][0]["message"])
         suggestions = precheck["target_conflict_suggestions"]
         self.assertEqual(len(suggestions), 1)
         self.assertEqual(suggestions[0]["type"], "target_exists")

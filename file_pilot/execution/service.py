@@ -18,6 +18,7 @@ from file_pilot.execution.models import (
     ExecutionPlan,
     ExecutionReport,
     MappedExecutionPlan,
+    PrecheckItemSkip,
     PrecheckResult,
 )
 from file_pilot.organize.models import FinalPlan, PlanMove
@@ -182,9 +183,27 @@ def build_execution_plan_from_mapped(mapped_plan: MappedExecutionPlan) -> Execut
     )
 
 
+def _item_skip(action: ExecutionAction, base_dir: Path, *, reason: str, message: str) -> PrecheckItemSkip:
+    return PrecheckItemSkip(
+        reason=reason,
+        message=message,
+        item_id=str(action.item_id or "").strip() or None,
+        display_name=str(action.display_name or "").strip() or None,
+        source=relative_display(action.source, base_dir) if action.source else None,
+        target=relative_display(action.target, base_dir),
+    )
+
+
 def validate_execution_preconditions(plan: ExecutionPlan) -> PrecheckResult:
+    """预检：单项问题标记为跳过而非阻断整批。
+
+    「跳过留原地」是既定决策——同名冲突等单项问题不该让其余几十项陪葬。
+    ``can_execute`` 表示「存在至少一个可执行的移动」；没有任何移动的
+    纯建目录计划沿用旧语义。
+    """
     blocking_errors: list[str] = []
     warnings: list[str] = []
+    item_skips: list[PrecheckItemSkip] = []
     planned_dirs = {action.target.resolve(strict=False) for action in plan.mkdir_actions}
     seen_cross_volume_pairs: set[tuple[str, str]] = set()
     move_targets_by_key: dict[str, list[ExecutionAction]] = {}
@@ -193,21 +212,43 @@ def validate_execution_preconditions(plan: ExecutionPlan) -> PrecheckResult:
         target_key = _path_key(action.target)
         move_targets_by_key.setdefault(target_key, []).append(action)
 
+    # 同一目标被多项指向：按执行顺序保留第一个，其余跳过
+    duplicate_skipped_ids: set[int] = set()
     for actions in move_targets_by_key.values():
         if len(actions) <= 1:
             continue
         target = actions[0].target
-        blocking_errors.append(f"计划内多个项目指向同一目标: {relative_display(target, plan.base_dir)}")
+        for action in actions[1:]:
+            duplicate_skipped_ids.add(id(action))
+            item_skips.append(
+                _item_skip(
+                    action,
+                    plan.base_dir,
+                    reason="duplicate_target",
+                    message=f"计划内多个项目指向同一目标: {relative_display(target, plan.base_dir)}",
+                )
+            )
 
     warnings.extend(_nested_source_warnings(plan))
 
+    executable_move_count = 0
     for action in plan.move_actions:
         assert action.source is not None
         source = action.source
         target = action.target
 
+        if id(action) in duplicate_skipped_ids:
+            continue
+
         if not source.exists():
-            blocking_errors.append(f"源项目不存在: {relative_display(source, plan.base_dir)}")
+            item_skips.append(
+                _item_skip(
+                    action,
+                    plan.base_dir,
+                    reason="source_missing",
+                    message=f"源项目不存在: {relative_display(source, plan.base_dir)}",
+                )
+            )
             continue
 
         source_abs = source.resolve()
@@ -215,20 +256,44 @@ def validate_execution_preconditions(plan: ExecutionPlan) -> PrecheckResult:
 
         if source_abs == target_abs:
             # No-op move, skip validation
+            executable_move_count += 1
             continue
 
         if target.exists():
-            blocking_errors.append(f"目标已存在: {relative_display(target, plan.base_dir)}")
+            item_skips.append(
+                _item_skip(
+                    action,
+                    plan.base_dir,
+                    reason="target_exists",
+                    message=f"目标已存在: {relative_display(target, plan.base_dir)}",
+                )
+            )
             continue
 
         if source_abs in target_abs.parents:
-            blocking_errors.append(f"不能移动到自身子路径: {relative_display(target, plan.base_dir)}")
+            item_skips.append(
+                _item_skip(
+                    action,
+                    plan.base_dir,
+                    reason="self_subpath",
+                    message=f"不能移动到自身子路径: {relative_display(target, plan.base_dir)}",
+                )
+            )
+            continue
 
         parent_dir = target.parent.resolve(strict=False)
         if not parent_dir.exists() and parent_dir not in planned_dirs:
-            blocking_errors.append(f"目标父目录不存在: {relative_display(target.parent, plan.base_dir)}")
+            item_skips.append(
+                _item_skip(
+                    action,
+                    plan.base_dir,
+                    reason="parent_missing",
+                    message=f"目标父目录不存在: {relative_display(target.parent, plan.base_dir)}",
+                )
+            )
             continue
 
+        executable_move_count += 1
         if _is_cross_volume_move(source_abs, _existing_ancestor(parent_dir)):
             pair = (str(source_abs), str(target_abs))
             if pair not in seen_cross_volume_pairs:
@@ -240,10 +305,16 @@ def validate_execution_preconditions(plan: ExecutionPlan) -> PrecheckResult:
                     )
                 )
 
+    if plan.move_actions:
+        can_execute = executable_move_count > 0
+    else:
+        can_execute = not blocking_errors
+
     return PrecheckResult(
-        can_execute=not blocking_errors,
+        can_execute=can_execute,
         blocking_errors=blocking_errors,
         warnings=warnings,
+        item_skips=item_skips,
     )
 
 
@@ -343,11 +414,18 @@ def render_execution_preview(plan: ExecutionPlan, precheck: PrecheckResult) -> s
     lines.append(f"- 新建目录：{len(plan.mkdir_actions)} 个")
     lines.append(f"- 移动项目：{len(plan.move_actions)} 个")
     lines.append(f"- 阻断问题：{len(precheck.blocking_errors)} 个")
+    if precheck.item_skips:
+        lines.append(f"- 将跳过：{len(precheck.item_skips)} 个")
 
     if precheck.blocking_errors:
         lines.append("")
         lines.append("阻断问题：")
         lines.extend(f"- {item}" for item in precheck.blocking_errors)
+
+    if precheck.item_skips:
+        lines.append("")
+        lines.append("将跳过（留在原地）：")
+        lines.extend(f"- {skip.message}" for skip in precheck.item_skips)
 
     if precheck.warnings:
         lines.append("")
@@ -466,10 +544,46 @@ def _finish_journal_item(
     save_execution_journal(journal)
 
 
+def _runtime_move_skip_reason(action: ExecutionAction) -> str | None:
+    """执行时刻的最后防线：预检与执行之间世界可能已变化。
+
+    Windows 下跨盘 ``shutil.move`` 走 copy2 会静默覆盖同名目标，
+    这里的检查是「从不覆盖文件」保证的实际来源，预检只是提前提示。
+    """
+    assert action.source is not None
+    if not action.source.exists():
+        return "来源已不存在，跳过"
+    if action.target.exists() and action.source.resolve() != action.target.resolve(strict=False):
+        return "目标已有同名文件，跳过并留在原地"
+    return None
+
+
+def _append_skipped_item(journal: ExecutionJournal, action: ExecutionAction, message: str) -> None:
+    size_bytes, mtime = _file_identity(action.source)
+    journal.items.append(
+        ExecutionJournalItem(
+            action_type="MOVE",
+            status="skipped",
+            message=message,
+            raw=action.raw,
+            source_before=str(action.source.resolve()) if action.source and action.source.exists() else None,
+            target_after=str(action.target.resolve(strict=False)),
+            item_id=str(action.item_id or "").strip() or None,
+            source_ref_id=str(action.source_ref_id or "").strip() or None,
+            target_slot_id=str(action.target_slot_id or "").strip() or None,
+            display_name=str(action.display_name or "").strip() or None,
+            size_bytes=size_bytes,
+            mtime=mtime,
+        )
+    )
+    save_execution_journal(journal)
+
+
 def execute_plan(plan: ExecutionPlan) -> ExecutionReport:
     results: list[ExecutionItemResult] = []
     success_count = 0
     failure_count = 0
+    skipped_count = 0
     journal = _build_running_journal(plan)
     save_execution_journal(journal)
 
@@ -502,6 +616,12 @@ def execute_plan(plan: ExecutionPlan) -> ExecutionReport:
 
     for action in plan.move_actions:
         assert action.source is not None
+        skip_message = _runtime_move_skip_reason(action)
+        if skip_message is not None:
+            results.append(ExecutionItemResult(action=action, status="skipped", message=skip_message))
+            skipped_count += 1
+            _append_skipped_item(journal, action, skip_message)
+            continue
         index = _begin_journal_item(journal, action, action_type="MOVE")
         try:
             shutil.move(str(action.source), str(action.target))
@@ -537,6 +657,7 @@ def execute_plan(plan: ExecutionPlan) -> ExecutionReport:
         success_count=success_count,
         failure_count=failure_count,
         results=results,
+        skipped_count=skipped_count,
     )
 
 
@@ -544,6 +665,8 @@ def render_execution_report(report: ExecutionReport) -> str:
     lines = ["执行结果：", ""]
     lines.append(f"- 成功：{report.success_count}")
     lines.append(f"- 失败：{report.failure_count}")
+    if report.skipped_count:
+        lines.append(f"- 跳过：{report.skipped_count}")
     lines.append("")
 
     if report.results:

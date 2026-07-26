@@ -69,7 +69,31 @@ class ExecutionServiceTests(unittest.TestCase):
         self.assertEqual(plan.move_actions[0].source_ref_id, "F001")
         self.assertEqual(plan.move_actions[0].display_name, "demo.txt")
 
-    def test_validate_execution_preconditions_blocks_existing_target(self):
+    def test_validate_execution_preconditions_skips_existing_target_per_item(self):
+        (self.base_dir / "demo.txt").write_text("demo", encoding="utf-8")
+        (self.base_dir / "ok.txt").write_text("ok", encoding="utf-8")
+        (self.base_dir / "Projects").mkdir()
+        (self.base_dir / "Projects" / "demo.txt").write_text("exists", encoding="utf-8")
+        parsed = organizer_service.parse_commands_block(
+            '<COMMANDS>\n'
+            'MKDIR "Projects"\n'
+            'MOVE "demo.txt" "Projects/demo.txt"\n'
+            'MOVE "ok.txt" "Projects/ok.txt"\n'
+            '</COMMANDS>'
+        )
+        plan = execution_service.build_execution_plan(parsed, self.base_dir)
+
+        precheck = execution_service.validate_execution_preconditions(plan)
+
+        # 单项冲突不再阻断整批：其余可执行项仍放行
+        self.assertTrue(precheck.can_execute)
+        self.assertEqual(precheck.blocking_errors, [])
+        self.assertEqual(len(precheck.item_skips), 1)
+        skip = precheck.item_skips[0]
+        self.assertEqual(skip.reason, "target_exists")
+        self.assertIn("Projects/demo.txt", skip.message)
+
+    def test_validate_execution_preconditions_blocks_when_no_item_executable(self):
         (self.base_dir / "demo.txt").write_text("demo", encoding="utf-8")
         (self.base_dir / "Projects").mkdir()
         (self.base_dir / "Projects" / "demo.txt").write_text("exists", encoding="utf-8")
@@ -80,10 +104,11 @@ class ExecutionServiceTests(unittest.TestCase):
 
         precheck = execution_service.validate_execution_preconditions(plan)
 
+        # 所有移动都被跳过时没有执行的意义
         self.assertFalse(precheck.can_execute)
-        self.assertTrue(any("Projects/demo.txt" in error for error in precheck.blocking_errors))
+        self.assertEqual(len(precheck.item_skips), 1)
 
-    def test_validate_execution_preconditions_blocks_duplicate_planned_targets(self):
+    def test_validate_execution_preconditions_skips_duplicate_targets_keeping_first(self):
         (self.base_dir / "alpha").mkdir()
         (self.base_dir / "beta").mkdir()
         (self.base_dir / "alpha" / "report.pdf").write_text("alpha", encoding="utf-8")
@@ -99,9 +124,62 @@ class ExecutionServiceTests(unittest.TestCase):
 
         precheck = execution_service.validate_execution_preconditions(plan)
 
-        self.assertFalse(precheck.can_execute)
-        self.assertTrue(any("计划内多个项目指向同一目标" in error for error in precheck.blocking_errors))
-        self.assertTrue(any("Docs/report.pdf" in error for error in precheck.blocking_errors))
+        # 按执行顺序保留第一个，其余跳过；不再整批阻断
+        self.assertTrue(precheck.can_execute)
+        duplicate_skips = [skip for skip in precheck.item_skips if skip.reason == "duplicate_target"]
+        self.assertEqual(len(duplicate_skips), 1)
+        self.assertIn("Docs/report.pdf", duplicate_skips[0].message)
+
+    def test_execute_plan_skips_move_when_target_appears_after_precheck(self):
+        (self.base_dir / "demo.txt").write_text("demo", encoding="utf-8")
+        (self.base_dir / "ok.txt").write_text("ok", encoding="utf-8")
+        parsed = organizer_service.parse_commands_block(
+            '<COMMANDS>\n'
+            'MKDIR "Projects"\n'
+            'MOVE "demo.txt" "Projects/demo.txt"\n'
+            'MOVE "ok.txt" "Projects/ok.txt"\n'
+            '</COMMANDS>'
+        )
+        plan = execution_service.build_execution_plan(parsed, self.base_dir)
+        # 预检之后、执行之前目标才出现（模拟 TOCTOU）
+        (self.base_dir / "Projects").mkdir()
+        (self.base_dir / "Projects" / "demo.txt").write_text("occupied", encoding="utf-8")
+
+        report = execution_service.execute_plan(plan)
+
+        # 冲突项跳过且原文件原样留在原地，绝不覆盖
+        self.assertEqual(report.skipped_count, 1)
+        self.assertEqual(report.failure_count, 0)
+        self.assertTrue((self.base_dir / "demo.txt").exists())
+        self.assertEqual(
+            (self.base_dir / "Projects" / "demo.txt").read_text(encoding="utf-8"),
+            "occupied",
+        )
+        self.assertTrue((self.base_dir / "Projects" / "ok.txt").exists())
+        skipped = [item for item in report.results if item.status == "skipped"]
+        self.assertEqual(len(skipped), 1)
+
+    def test_execute_plan_records_skipped_status_in_journal(self):
+        (self.base_dir / "demo.txt").write_text("demo", encoding="utf-8")
+        parsed = organizer_service.parse_commands_block(
+            '<COMMANDS>\nMKDIR "Projects"\nMOVE "demo.txt" "Projects/demo.txt"\n</COMMANDS>'
+        )
+        plan = execution_service.build_execution_plan(parsed, self.base_dir)
+        (self.base_dir / "Projects").mkdir()
+        (self.base_dir / "Projects" / "demo.txt").write_text("occupied", encoding="utf-8")
+        executions_dir = self.history_root / "executions"
+        latest_path = self.history_root / "latest_by_directory.json"
+
+        with mock.patch.object(execution_service.config, "EXECUTION_LOG_DIR", executions_dir), \
+             mock.patch.object(execution_service.config, "LATEST_BY_DIRECTORY_PATH", latest_path):
+            execution_service.execute_plan(plan)
+
+        journal_files = list(executions_dir.glob("*.json"))
+        journal = json.loads(journal_files[0].read_text(encoding="utf-8"))
+        move_item = journal["items"][1]
+        self.assertEqual(move_item["status"], "skipped")
+        self.assertIn("同名", move_item["message"])
+        self.assertEqual(journal["status"], "completed")
 
     def test_validate_execution_preconditions_warns_cross_volume_move(self):
         (self.base_dir / "demo.txt").write_text("demo", encoding="utf-8")

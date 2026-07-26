@@ -45,11 +45,34 @@ class ExecutionPlan:
     all_actions: list[ExecutionAction] = field(default_factory=list)
 
 
+@dataclass(frozen=True)
+class PrecheckItemSkip:
+    """预检发现的单项跳过：该项不执行、留在原地，其余项照常放行。"""
+
+    reason: str  # target_exists | source_missing | duplicate_target | self_subpath | parent_missing
+    message: str
+    item_id: str | None = None
+    display_name: str | None = None
+    source: str | None = None
+    target: str | None = None
+
+    def to_dict(self) -> dict:
+        return {
+            "reason": self.reason,
+            "message": self.message,
+            "item_id": self.item_id,
+            "display_name": self.display_name,
+            "source": self.source,
+            "target": self.target,
+        }
+
+
 @dataclass
 class PrecheckResult:
     can_execute: bool
     blocking_errors: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
+    item_skips: list[PrecheckItemSkip] = field(default_factory=list)
 
 
 @dataclass
@@ -64,6 +87,7 @@ class ExecutionReport:
     success_count: int
     failure_count: int
     results: list[ExecutionItemResult] = field(default_factory=list)
+    skipped_count: int = 0
 
 
 @dataclass

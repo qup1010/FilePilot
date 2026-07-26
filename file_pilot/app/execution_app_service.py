@@ -310,16 +310,18 @@ class ExecutionAppService:
                     "is_review": action.target_slot_id == REVIEW_SLOT_ID,
                 }
             )
+        item_skip_messages = [f"将跳过（留在原地）：{skip.message}" for skip in precheck.item_skips]
         session.precheck_summary = {
             "can_execute": precheck.can_execute,
             "blocking_errors": list(precheck.blocking_errors),
             "warnings": list(precheck.warnings),
+            "item_skips": [skip.to_dict() for skip in precheck.item_skips],
             "mkdir_preview": [self._display_path(action.target_path, plan.base_dir) for action in mapped_plan.mkdir_actions],
             "move_preview": move_preview,
             "target_conflict_suggestions": target_conflict_suggestions,
             "issues": self.helpers._precheck_issues(
                 list(precheck.blocking_errors),
-                list(precheck.warnings),
+                list(precheck.warnings) + item_skip_messages,
                 final_plan.moves,
                 planner_by_source,
             ),
@@ -333,6 +335,7 @@ class ExecutionAppService:
             can_execute=precheck.can_execute,
             blocking_error_count=len(precheck.blocking_errors),
             warning_count=len(precheck.warnings),
+            item_skip_count=len(precheck.item_skips),
         )
         self.helpers._write_session_debug_event(
             "precheck.completed",
