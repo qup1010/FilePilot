@@ -1,0 +1,379 @@
+"use client";
+
+import type { Dispatch, SetStateAction } from "react";
+import {
+  FolderOpen,
+  FolderPlus,
+  Settings as SettingsIcon,
+  SlidersHorizontal,
+} from "lucide-react";
+
+import {
+  FieldGroup,
+  InputShell,
+  SettingsSection,
+  StrategyOptionButton,
+  ToggleSwitch,
+} from "@/components/settings/settings-primitives";
+import {
+  buildStrategySummary,
+  CAUTION_LEVEL_OPTIONS,
+  DENSITY_OPTIONS,
+  getSuggestedSelection,
+  getTemplateMeta,
+  LANGUAGE_OPTIONS,
+  PREFIX_STYLE_OPTIONS,
+  STRATEGY_TEMPLATES,
+} from "@/lib/strategy-templates";
+import { cn } from "@/lib/utils";
+import type { TargetProfileDraft } from "@/app/settings/settings-draft";
+import { TargetProfilesSection } from "@/app/settings/target-profiles-section";
+import type { SettingsSnapshot } from "@/types/settings";
+import type { OrganizeMethod, TargetProfile } from "@/types/session";
+
+export type LaunchSection = "strategy" | "placement" | "targets";
+
+const LAUNCH_SECTIONS: Array<{
+  id: LaunchSection;
+  label: string;
+  description: string;
+  icon: typeof SettingsIcon;
+}> = [
+    { id: "strategy", label: "启动策略", description: "模板、语言、粒度", icon: SlidersHorizontal },
+    { id: "placement", label: "放置规则", description: "新目录与待确认区", icon: FolderOpen },
+    { id: "targets", label: "目标目录", description: "归档目录池", icon: FolderPlus },
+  ];
+
+
+export interface LaunchTabProps {
+  globalConfig: SettingsSnapshot["global_config"];
+  activeSection: LaunchSection;
+  onSelectSection: (section: LaunchSection) => void;
+  onUpdateGlobal: (key: string, value: unknown) => void;
+  targetProfiles: TargetProfile[];
+  targetProfilesLoading: boolean;
+  targetProfileDrafts: Record<string, TargetProfileDraft>;
+  selectedTargetProfileId: string;
+  onSelectTargetProfile: (profileId: string) => void;
+  creatingTargetProfile: boolean;
+  onSetCreatingTargetProfile: (creating: boolean) => void;
+  newTargetProfileName: string;
+  onChangeNewTargetProfileName: (name: string) => void;
+  expandedDirectoryEditors: Record<string, boolean>;
+  onToggleDirectoryEditor: (editorKey: string) => void;
+  dragTargetProfileId: string | null;
+  setDragTargetProfileId: Dispatch<SetStateAction<string | null>>;
+  registerDropZone: (profileId: string, element: HTMLDivElement | null) => void;
+  onUpdateTargetProfileDraft: (profileId: string, updater: (current: TargetProfileDraft) => TargetProfileDraft) => void;
+  onAddDirectories: (profileId: string, paths: string[]) => void;
+  onAddDirectory: (profileId: string) => void;
+  onRemoveDirectory: (profileId: string, path: string) => void;
+  onCreateTargetProfile: () => void;
+  onDeleteTargetProfile: (profileId: string) => void;
+  onPickDirectory: () => Promise<string | null>;
+}
+
+export function LaunchTab({
+  globalConfig,
+  activeSection,
+  onSelectSection,
+  onUpdateGlobal,
+  targetProfiles,
+  targetProfilesLoading,
+  targetProfileDrafts,
+  selectedTargetProfileId,
+  onSelectTargetProfile,
+  creatingTargetProfile,
+  onSetCreatingTargetProfile,
+  newTargetProfileName,
+  onChangeNewTargetProfileName,
+  expandedDirectoryEditors,
+  onToggleDirectoryEditor,
+  dragTargetProfileId,
+  setDragTargetProfileId,
+  registerDropZone,
+  onUpdateTargetProfileDraft,
+  onAddDirectories,
+  onAddDirectory,
+  onRemoveDirectory,
+  onCreateTargetProfile,
+  onDeleteTargetProfile,
+  onPickDirectory,
+}: LaunchTabProps) {
+  const launchTemplate = getTemplateMeta(globalConfig.LAUNCH_DEFAULT_TEMPLATE_ID ?? "general_downloads");
+  const launchDefaultOrganizeMethod = (
+    globalConfig.LAUNCH_DEFAULT_ORGANIZE_METHOD === "assign_into_existing_categories"
+      ? "assign_into_existing_categories"
+      : "categorize_into_new_structure"
+  ) satisfies OrganizeMethod;
+  const launchDefaultTargetProfileId = String(globalConfig.LAUNCH_DEFAULT_TARGET_PROFILE_ID ?? "");
+  const launchDefaultOrganizeMode = launchDefaultOrganizeMethod === "assign_into_existing_categories" ? "incremental" : "initial";
+  const launchReviewFollowsNewRoot = globalConfig.LAUNCH_REVIEW_FOLLOWS_NEW_ROOT !== false;
+  const launchDefaultNewDirectoryRoot = String(globalConfig.LAUNCH_DEFAULT_NEW_DIRECTORY_ROOT ?? "");
+  const launchDefaultReviewRoot = String(globalConfig.LAUNCH_DEFAULT_REVIEW_ROOT ?? "");
+  const launchDerivedReviewRoot = launchDefaultNewDirectoryRoot
+    ? `${launchDefaultNewDirectoryRoot.replace(/[\\/]$/, "")}/Review`
+    : "新目录生成位置/Review";
+  const launchStrategyPreview = buildStrategySummary({
+    template_id: globalConfig.LAUNCH_DEFAULT_TEMPLATE_ID ?? "general_downloads",
+    organize_mode: launchDefaultOrganizeMode,
+    task_type: launchDefaultOrganizeMethod === "assign_into_existing_categories" ? "organize_into_existing" : "organize_full_directory",
+    organize_method: launchDefaultOrganizeMethod,
+    target_profile_id: launchDefaultTargetProfileId || undefined,
+    destination_index_depth: 2,
+    language: globalConfig.LAUNCH_DEFAULT_LANGUAGE ?? "zh",
+    density: globalConfig.LAUNCH_DEFAULT_DENSITY ?? "normal",
+    prefix_style: globalConfig.LAUNCH_DEFAULT_PREFIX_STYLE ?? "none",
+    caution_level: globalConfig.LAUNCH_DEFAULT_CAUTION_LEVEL ?? "balanced",
+    note: globalConfig.LAUNCH_DEFAULT_NOTE ?? "",
+  });
+
+  return (
+    <SettingsSection
+      icon={SettingsIcon}
+      title="新任务默认值"
+      description="配置新任务的整理方式、默认模板、放置规则和归档目录。"
+    >
+      <div className="rounded-[12px] border border-on-surface/8 bg-surface px-4 py-4">
+        <div className="grid gap-2 md:grid-cols-3">
+          {LAUNCH_SECTIONS.map((section) => {
+            const active = activeSection === section.id;
+            return (
+              <button
+                key={section.id}
+                type="button"
+                onClick={() => onSelectSection(section.id)}
+                className={cn(
+                  "flex min-h-[58px] items-center gap-3 rounded-[8px] border px-3 py-2 text-left transition-colors",
+                  active
+                    ? "border-primary/28 bg-primary/8 text-primary"
+                    : "border-on-surface/8 bg-surface-container-lowest text-on-surface hover:border-primary/18 hover:bg-surface-container-low",
+                )}
+              >
+                <section.icon className="h-4 w-4 shrink-0" />
+                <div className="min-w-0">
+                  <p className="text-[12.5px] font-black">{section.label}</p>
+                  <p className="mt-1 truncate text-[11px] font-medium text-ui-muted">{section.description}</p>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {activeSection === "strategy" && (
+        <div className="space-y-4">
+          <div className="rounded-[12px] border border-on-surface/8 bg-surface px-4 py-4">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="rounded-full border border-primary/12 bg-primary/8 px-3 py-1 text-[12px] font-semibold text-primary">{launchTemplate.label}</span>
+              <span className="rounded-full border border-primary/12 bg-primary/8 px-3 py-1 text-[12px] font-semibold text-primary">{launchStrategyPreview.organize_mode_label}</span>
+              <span className="rounded-full border border-on-surface/8 bg-surface-container-low px-3 py-1 text-[12px] font-medium text-on-surface-variant">{launchStrategyPreview.language_label}</span>
+              <span className="rounded-full border border-on-surface/8 bg-surface-container-low px-3 py-1 text-[12px] font-medium text-on-surface-variant">{launchStrategyPreview.density_label}</span>
+              <span className="rounded-full border border-on-surface/8 bg-surface-container-low px-3 py-1 text-[12px] font-medium text-on-surface-variant">{launchStrategyPreview.prefix_style_label}</span>
+              <span className="rounded-full border border-on-surface/8 bg-surface-container-low px-3 py-1 text-[12px] font-medium text-on-surface-variant">{launchStrategyPreview.caution_level_label}</span>
+            </div>
+          </div>
+          <FieldGroup label="默认整理方式">
+            <div className="grid gap-3 md:grid-cols-2">
+              <StrategyOptionButton
+                active={launchDefaultOrganizeMethod === "categorize_into_new_structure"}
+                label="生成新的分类结构"
+                description="默认让 AI 为这批内容生成一套新目录，再写入新目录生成位置。"
+                onClick={() => onUpdateGlobal("LAUNCH_DEFAULT_ORGANIZE_METHOD", "categorize_into_new_structure")}
+              />
+              <StrategyOptionButton
+                active={launchDefaultOrganizeMethod === "assign_into_existing_categories"}
+                label="归入已有目录"
+                description="默认把内容归入已保存的目标目录配置；拿不准的项目进入待确认区（不会自动归入目标目录）。"
+                onClick={() => onUpdateGlobal("LAUNCH_DEFAULT_ORGANIZE_METHOD", "assign_into_existing_categories")}
+              />
+            </div>
+          </FieldGroup>
+          <FieldGroup label="默认模板">
+            <div className="grid gap-2 xl:grid-cols-2">
+              {STRATEGY_TEMPLATES.map((template) => (
+                <StrategyOptionButton
+                  key={template.id}
+                  active={globalConfig.LAUNCH_DEFAULT_TEMPLATE_ID === template.id}
+                  label={template.label}
+                  description={template.description}
+                  onClick={() => {
+                    const suggested = getSuggestedSelection(template.id);
+                    onUpdateGlobal("LAUNCH_DEFAULT_TEMPLATE_ID", template.id);
+                    onUpdateGlobal("LAUNCH_DEFAULT_LANGUAGE", suggested.language);
+                    onUpdateGlobal("LAUNCH_DEFAULT_DENSITY", suggested.density);
+                    onUpdateGlobal("LAUNCH_DEFAULT_PREFIX_STYLE", suggested.prefix_style);
+                    onUpdateGlobal("LAUNCH_DEFAULT_CAUTION_LEVEL", suggested.caution_level);
+                  }}
+                />
+              ))}
+            </div>
+          </FieldGroup>
+          <div className="grid gap-3 xl:grid-cols-4">
+            {[
+              { label: "目录语言", key: "LAUNCH_DEFAULT_LANGUAGE", options: LANGUAGE_OPTIONS },
+              { label: "分类粒度", key: "LAUNCH_DEFAULT_DENSITY", options: DENSITY_OPTIONS },
+              { label: "目录前缀", key: "LAUNCH_DEFAULT_PREFIX_STYLE", options: PREFIX_STYLE_OPTIONS },
+              { label: "归档倾向", key: "LAUNCH_DEFAULT_CAUTION_LEVEL", options: CAUTION_LEVEL_OPTIONS },
+            ].map((group) => (
+              <FieldGroup key={group.key} label={group.label}>
+                <div className="grid gap-1.5">
+                  {group.options.map((option) => {
+                    const active = globalConfig[group.key] === option.id;
+                    return (
+                      <button
+                        key={option.id}
+                        type="button"
+                        onClick={() => onUpdateGlobal(group.key, option.id)}
+                        className={cn(
+                          "rounded-[6px] border px-3 py-2 text-left transition-colors",
+                          active
+                            ? "border-primary/35 bg-primary/[0.06] text-primary"
+                            : "border-on-surface/8 bg-surface-container-lowest text-on-surface hover:border-primary/20",
+                        )}
+                      >
+                        <span className="text-[12px] font-black">{option.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </FieldGroup>
+            ))}
+          </div>
+          <FieldGroup label="补充说明">
+            <textarea
+              value={globalConfig.LAUNCH_DEFAULT_NOTE ?? ""}
+              onChange={(event) => onUpdateGlobal("LAUNCH_DEFAULT_NOTE", event.target.value.slice(0, 200))}
+              className="min-h-24 w-full resize-none rounded-[10px] border border-on-surface/8 bg-surface-container-lowest px-4 py-3 text-[13px] leading-6 text-on-surface outline-none transition-all placeholder:text-on-surface-variant/35 focus:border-primary focus:ring-4 focus:ring-primary/5"
+              placeholder="例如：拿不准的先放待确认区，课程资料尽量按学期整理。"
+            />
+          </FieldGroup>
+        </div>
+      )}
+
+      {activeSection === "placement" && (
+        <div className="space-y-4">
+          <div className="rounded-[12px] border border-on-surface/8 bg-surface px-4 py-4">
+            <div className="mb-4">
+              <h3 className="text-[13px] font-semibold text-on-surface">默认放置规则</h3>
+              <p className="mt-1 text-[12px] leading-5 text-on-surface-variant/65">
+                这里只定义新任务的默认落点；任务页仍然可以按单次任务覆盖。
+              </p>
+            </div>
+            <div className="grid gap-4 xl:grid-cols-2">
+              <FieldGroup label="默认新目录生成位置" hint="留空时，新结构任务默认使用输出目录；归入已有目录任务默认使用当前任务工作区根。">
+                <InputShell icon={FolderOpen} className="flex items-center">
+                  <input
+                    value={launchDefaultNewDirectoryRoot}
+                    onChange={(event) => onUpdateGlobal("LAUNCH_DEFAULT_NEW_DIRECTORY_ROOT", event.target.value)}
+                    className="flex-1 bg-transparent py-2 text-sm font-semibold text-on-surface outline-none"
+                    placeholder="例如：D:/archive/sorted"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void (async () => {
+                        const selected = await onPickDirectory();
+                        if (selected) {
+                          onUpdateGlobal("LAUNCH_DEFAULT_NEW_DIRECTORY_ROOT", selected);
+                        }
+                      })();
+                    }}
+                    className="ml-2 shrink-0 rounded-[4px] border border-on-surface/10 bg-surface px-2.5 py-1 text-[11px] font-bold text-on-surface transition-colors hover:border-primary/20 hover:text-primary active:scale-95"
+                  >
+                    浏览...
+                  </button>
+                </InputShell>
+              </FieldGroup>
+              <FieldGroup
+                label="默认待确认区位置"
+                hint={
+                  launchReviewFollowsNewRoot
+                    ? `当前会自动跟随新目录位置，默认使用 ${launchDerivedReviewRoot}。`
+                    : "只在关闭“跟随新目录位置”后单独生效。"
+                }
+              >
+                <InputShell icon={FolderOpen} className="flex items-center">
+                  <input
+                    value={launchDefaultReviewRoot}
+                    onChange={(event) => onUpdateGlobal("LAUNCH_DEFAULT_REVIEW_ROOT", event.target.value)}
+                    disabled={launchReviewFollowsNewRoot}
+                    className="flex-1 bg-transparent py-2 text-sm font-semibold text-on-surface outline-none disabled:opacity-60"
+                    placeholder={launchReviewFollowsNewRoot ? launchDerivedReviewRoot : "例如：D:/archive/review"}
+                  />
+                  <button
+                    type="button"
+                    disabled={launchReviewFollowsNewRoot}
+                    onClick={() => {
+                      void (async () => {
+                        const selected = await onPickDirectory();
+                        if (selected) {
+                          onUpdateGlobal("LAUNCH_DEFAULT_REVIEW_ROOT", selected);
+                        }
+                      })();
+                    }}
+                    className="ml-2 shrink-0 rounded-[4px] border border-on-surface/10 bg-surface px-2.5 py-1 text-[11px] font-bold text-on-surface transition-colors hover:border-primary/20 hover:text-primary active:scale-95 disabled:pointer-events-none disabled:opacity-40"
+                  >
+                    浏览...
+                  </button>
+                </InputShell>
+              </FieldGroup>
+            </div>
+            <div className="mt-4 rounded-[12px] border border-on-surface/8 bg-surface-container-low px-4 py-3.5">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <h3 className="text-[13px] font-semibold text-on-surface">待确认区跟随新目录位置</h3>
+                  <p className="mt-1 text-[12px] leading-5 text-on-surface-variant/65">
+                    开启后，待确认区默认派生为 `新目录生成位置/Review`。它只作为暂存落点，不会再自动拆分子目录。
+                  </p>
+                </div>
+                <ToggleSwitch
+                  checked={launchReviewFollowsNewRoot}
+                  onClick={() => onUpdateGlobal("LAUNCH_REVIEW_FOLLOWS_NEW_ROOT", !launchReviewFollowsNewRoot)}
+                  ariaLabel="待确认区跟随新目录位置"
+                />
+              </div>
+            </div>
+          </div>
+          <div className="rounded-[12px] border border-on-surface/8 bg-surface px-4 py-3.5">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h3 className="text-[13px] font-semibold text-on-surface">直接使用默认值启动</h3>
+                <p className="mt-1 text-[12px] leading-5 text-on-surface-variant/65">开启后，首页点击开始时直接进入任务。</p>
+              </div>
+              <ToggleSwitch checked={Boolean(globalConfig.LAUNCH_SKIP_STRATEGY_PROMPT)} onClick={() => onUpdateGlobal("LAUNCH_SKIP_STRATEGY_PROMPT", !globalConfig.LAUNCH_SKIP_STRATEGY_PROMPT)} ariaLabel="直接使用默认值启动" />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {activeSection === "targets" && (
+        <TargetProfilesSection
+          launchDefaultTargetProfileId={launchDefaultTargetProfileId}
+          onUpdateGlobal={onUpdateGlobal}
+          targetProfiles={targetProfiles}
+          targetProfilesLoading={targetProfilesLoading}
+          targetProfileDrafts={targetProfileDrafts}
+          selectedTargetProfileId={selectedTargetProfileId}
+          onSelectTargetProfile={onSelectTargetProfile}
+          creatingTargetProfile={creatingTargetProfile}
+          onSetCreatingTargetProfile={onSetCreatingTargetProfile}
+          newTargetProfileName={newTargetProfileName}
+          onChangeNewTargetProfileName={onChangeNewTargetProfileName}
+          expandedDirectoryEditors={expandedDirectoryEditors}
+          onToggleDirectoryEditor={onToggleDirectoryEditor}
+          dragTargetProfileId={dragTargetProfileId}
+          setDragTargetProfileId={setDragTargetProfileId}
+          registerDropZone={registerDropZone}
+          onUpdateTargetProfileDraft={onUpdateTargetProfileDraft}
+          onAddDirectories={onAddDirectories}
+          onAddDirectory={onAddDirectory}
+          onRemoveDirectory={onRemoveDirectory}
+          onCreateTargetProfile={onCreateTargetProfile}
+          onDeleteTargetProfile={onDeleteTargetProfile}
+          onPickDirectory={onPickDirectory}
+        />
+      )}
+    </SettingsSection>
+  );
+}

@@ -2,94 +2,66 @@
 
 import { useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "motion/react";
-import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  AlertCircle,
   CheckCircle2,
-  ChevronDown,
-  ChevronRight,
-  ClipboardCopy,
   Cpu,
-  Eye,
-  EyeOff,
-  FolderPlus,
-  FolderOpen,
-  Github,
   Globe,
   ImageIcon,
-  Key,
   Layers3,
-  Loader2,
   RefreshCw,
   Scissors,
   Settings as SettingsIcon,
   ShieldCheck,
-  SlidersHorizontal,
-  Terminal,
-  type LucideIcon,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ErrorAlert } from "@/components/ui/error-alert";
+import { buildFamilySavePayload } from "@/app/settings/preset-flow";
 import {
-  FieldGroup,
-  InputShell,
-  PresetSelector,
-  SettingsSection,
-  StrategyOptionButton,
-  ToggleSwitch,
-} from "@/components/settings/settings-primitives";
-import { buildFamilySavePayload, isEditablePreset } from "@/app/settings/preset-flow";
+  buildFingerprint,
+  buildSecretPayload,
+  buildSettingsTabFingerprint,
+  buildTargetProfilesFingerprint,
+  clampConcurrencyInput,
+  copyTextToClipboard,
+  createSecretDraft,
+  createSecretDraftsFromSnapshot,
+  getVisionSourceMode,
+  normalizeImageSize,
+  SETTINGS_TAB_IDS,
+  snapshotToDraft,
+  type DraftState,
+  type ModelLookupState,
+  type PresetConfigFamily,
+  type SecretDraft,
+  type TargetProfileDraft,
+} from "@/app/settings/settings-draft";
+import {
+  ConnectionTestPanel,
+  SecretField,
+  type ConnectionTestControls,
+  type ModelLookupControls,
+} from "@/app/settings/preset-form-fields";
+import { BgRemovalTab } from "@/app/settings/bg-removal-tab";
+import { IconImageTab } from "@/app/settings/icon-image-tab";
+import { LaunchTab, type LaunchSection } from "@/app/settings/launch-tab";
+import { SystemTab, type UpdateCheckResult } from "@/app/settings/system-tab";
+import { TextTab } from "@/app/settings/text-tab";
 import { createApiClient } from "@/lib/api";
 import { notifyAppContextChange } from "@/lib/app-context-store";
 import { getApiBaseUrl, getApiToken, invokeTauriCommand, isTauriDesktop, pickDirectoryWithTauri, openUrlWithTauri } from "@/lib/runtime";
 import { findDropZoneForPosition, listenToTauriDragDrop } from "@/lib/tauri-drag-drop";
-import {
-  buildStrategySummary,
-  CAUTION_LEVEL_OPTIONS,
-  DENSITY_OPTIONS,
-  getSuggestedSelection,
-  getTemplateMeta,
-  LANGUAGE_OPTIONS,
-  PREFIX_STYLE_OPTIONS,
-  STRATEGY_TEMPLATES,
-} from "@/lib/strategy-templates";
 import { cn } from "@/lib/utils";
 import type {
-  SecretAction,
-  SecretState,
   SettingsFamily,
-  SettingsModelListResult,
   SettingsSnapshot,
   SettingsTestResult,
   SettingsUpdatePayload,
-  TextSettingsPreset,
-  VisionSourceMode,
-  VisionSettingsPreset,
 } from "@/types/settings";
-import type { OrganizeMethod, TargetProfile, TargetProfileDirectory } from "@/types/session";
-
-type SecretDraft = {
-  action: SecretAction;
-  value: string;
-  visible: boolean;
-};
-
-type PresetConfigFamily = Exclude<SettingsFamily, "bg_removal">;
-
-type DraftState = {
-  global_config: SettingsSnapshot["global_config"];
-  text: TextSettingsPreset;
-  vision: VisionSettingsPreset;
-  icon_image: SettingsSnapshot["families"]["icon_image"]["active_preset"];
-  bg_removal: {
-    mode: SettingsSnapshot["families"]["bg_removal"]["mode"];
-    preset_id: SettingsSnapshot["families"]["bg_removal"]["preset_id"];
-    custom: SettingsSnapshot["families"]["bg_removal"]["custom"];
-  };
-};
+import type { TargetProfile, TargetProfileDirectory } from "@/types/session";
 
 type CreatePresetDialogState = {
   family: PresetConfigFamily;
@@ -107,338 +79,8 @@ type SwitchPresetDialogState = {
   presetId: string;
 };
 
-type ModelLookupState = Partial<Record<PresetConfigFamily, SettingsModelListResult>>;
-
-type TargetProfileDraft = {
-  name: string;
-  directories: TargetProfileDirectory[];
-  newPath: string;
-  newLabel: string;
-  newDescription: string;
-};
-
-type LaunchSection = "strategy" | "placement" | "targets";
-type ProviderSummaryKind = "text" | "vision" | "icon_image";
-const SETTINGS_TAB_IDS = ["text", "icon_image", "bg_removal", "launch", "system"] as const;
-
 const SETTINGS_CONTEXT_KEY = "settings_header_context";
-const IMAGE_SIZE_OPTIONS = ["1024x1024", "512x512", "256x256"] as const;
-
-const formatProviderLabel = (value?: string) => {
-  if (value === "openai_compatible") {
-    return "OpenAI 兼容服务";
-  }
-  return value?.trim() || "OpenAI 兼容服务";
-};
-
-const formatApiFormatLabel = (value?: string) => {
-  if (value === "openai_chat_completions") {
-    return "聊天补全接口";
-  }
-  return value?.trim() || "聊天补全接口";
-};
-
-function ProviderCapabilitySummary({
-  title,
-  kind,
-  provider,
-  apiFormat,
-}: {
-  title: string;
-  kind: ProviderSummaryKind;
-  provider?: string;
-  apiFormat?: string;
-  toolMode?: string;
-  capabilities?: SettingsSnapshot["families"]["text"]["active_preset"]["capabilities"];
-}) {
-  const serviceLabel = formatProviderLabel(provider);
-  const formatLabel = kind === "icon_image" ? "图像生成接口" : formatApiFormatLabel(apiFormat);
-  const hint =
-    kind === "icon_image"
-      ? "OpenAI 兼容 /images 生图；保存后可测试连接"
-      : "OpenAI 兼容聊天接口；保存后可测试连接";
-
-  return (
-    <div
-      className="xl:col-span-2 flex flex-wrap items-center gap-2 rounded-[6px] border border-on-surface/6 bg-surface-container-lowest/70 px-3 py-2 text-[11.5px]"
-      title={hint}
-    >
-      <div className="flex min-w-0 items-center gap-2 pr-1">
-        <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-primary/65" />
-        <span className="shrink-0 font-bold text-on-surface-variant/65">{title}</span>
-        <span className="truncate font-semibold text-on-surface/85">
-          {serviceLabel} · {formatLabel}
-        </span>
-      </div>
-      <span className="rounded-[5px] border border-on-surface/8 bg-surface px-1.5 py-0.5 text-[10.5px] font-semibold text-on-surface-variant/55">
-        保存后可测试
-      </span>
-    </div>
-  );
-}
-
-function SettingsMinPath({ items }: { items: string[] }) {
-  return (
-    <div className="rounded-[10px] border border-on-surface/8 bg-surface-container-lowest px-4 py-3">
-      <p className="text-[10px] font-black uppercase tracking-[0.16em] text-primary/55">最小配置路径</p>
-      <ul className="mt-2 space-y-1.5">
-        {items.map((item) => (
-          <li key={item} className="flex gap-2 text-[12px] leading-5 text-on-surface/70">
-            <span className="mt-2 h-1 w-1 shrink-0 rounded-full bg-primary/50" />
-            <span>{item}</span>
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
 const COMPACT_SETTINGS_BREAKPOINT = 960;
-
-function targetDirectoryEditorKey(profileId: string, path: string): string {
-  return `${profileId}::${path.trim().toLowerCase()}`;
-}
-
-function normalizeImageSize(value: string | null | undefined): (typeof IMAGE_SIZE_OPTIONS)[number] {
-  if (value && IMAGE_SIZE_OPTIONS.includes(value as (typeof IMAGE_SIZE_OPTIONS)[number])) {
-    return value as (typeof IMAGE_SIZE_OPTIONS)[number];
-  }
-  return "1024x1024";
-}
-
-function cloneValue<T>(value: T): T {
-  return JSON.parse(JSON.stringify(value)) as T;
-}
-
-function createSecretDraft(initialValue: string = "", isStored?: boolean): SecretDraft {
-  const hasValue = Boolean(initialValue.trim());
-  const stored = hasValue || isStored;
-  return {
-    action: "keep",
-    value: hasValue ? initialValue : (stored ? "********" : ""),
-    visible: false,
-  };
-}
-
-function clampConcurrencyInput(value: string, fallback: number): number {
-  const trimmed = value.trim();
-  if (!trimmed) {
-    return Math.max(1, Math.min(6, fallback || 1));
-  }
-  const parsed = Number(trimmed);
-  if (!Number.isFinite(parsed)) {
-    return Math.max(1, Math.min(6, fallback || 1));
-  }
-  return Math.max(1, Math.min(6, Math.trunc(parsed) || 1));
-}
-
-function snapshotToDraft(snapshot: SettingsSnapshot): DraftState {
-  const iconImagePreset = cloneValue(snapshot.families.icon_image.active_preset);
-  return {
-    global_config: cloneValue(snapshot.global_config),
-    text: cloneValue(snapshot.families.text.active_preset),
-    vision: cloneValue(snapshot.families.vision.active_preset),
-    icon_image: {
-      ...iconImagePreset,
-      image_size: normalizeImageSize(iconImagePreset.image_size),
-    },
-    bg_removal: {
-      mode: snapshot.families.bg_removal.mode,
-      preset_id: snapshot.families.bg_removal.preset_id,
-      custom: cloneValue(snapshot.families.bg_removal.custom),
-    },
-  };
-}
-
-function buildSecretPayload(secret: SecretDraft) {
-  if (secret.action === "replace" && secret.value.trim()) {
-    return { action: "replace" as const, value: secret.value.trim() };
-  }
-  if (secret.action === "clear") {
-    return { action: "clear" as const };
-  }
-  return { action: "keep" as const };
-}
-
-function describeSecret(secretState: SecretState, secret: SecretDraft) {
-  if (secret.action === "replace" && secret.value.trim()) {
-    return "新密钥已输入，保存当前修改后生效。";
-  }
-  if (secret.action === "clear") {
-    return "已标记为移除，保存当前修改后生效。";
-  }
-  return secretState === "stored" ? "密钥已在本地安全存储。" : "当前还没有保存密钥。";
-}
-
-const LAUNCH_GLOBAL_KEYS = [
-  "LAUNCH_DEFAULT_TEMPLATE_ID",
-  "LAUNCH_DEFAULT_ORGANIZE_METHOD",
-  "LAUNCH_DEFAULT_LANGUAGE",
-  "LAUNCH_DEFAULT_DENSITY",
-  "LAUNCH_DEFAULT_PREFIX_STYLE",
-  "LAUNCH_DEFAULT_CAUTION_LEVEL",
-  "LAUNCH_DEFAULT_NOTE",
-  "LAUNCH_DEFAULT_NEW_DIRECTORY_ROOT",
-  "LAUNCH_DEFAULT_REVIEW_ROOT",
-  "LAUNCH_REVIEW_FOLLOWS_NEW_ROOT",
-  "LAUNCH_SKIP_STRATEGY_PROMPT",
-  "LAUNCH_DEFAULT_TARGET_PROFILE_ID",
-] as const;
-
-function pickGlobalConfig(source: SettingsSnapshot["global_config"], keys: readonly string[]) {
-  return keys.reduce<Record<string, unknown>>((result, key) => {
-    result[key] = source[key];
-    return result;
-  }, {});
-}
-
-function buildSettingsTabFingerprint(
-  tabId: string,
-  draft: DraftState | null,
-  secrets: Record<SettingsFamily, SecretDraft>,
-  transientInputs: {
-    analysisConcurrencyInput: string;
-    imageConcurrencyInput: string;
-  },
-) {
-  if (!draft) {
-    return "";
-  }
-
-  if (tabId === "text") {
-    return JSON.stringify({
-      text: draft.text,
-      visionEnabled: Boolean(draft.global_config.IMAGE_ANALYSIS_ENABLED),
-      visionMode: getVisionSourceMode(draft.global_config),
-      vision: draft.vision,
-      secret: { action: secrets.text.action, value: secrets.text.action === "keep" ? "" : secrets.text.value },
-      visionSecret: { action: secrets.vision.action, value: secrets.vision.action === "keep" ? "" : secrets.vision.value },
-    });
-  }
-  if (tabId === "icon_image") {
-    return JSON.stringify({
-      icon_image: draft.icon_image,
-      analysisConcurrencyInput: transientInputs.analysisConcurrencyInput,
-      imageConcurrencyInput: transientInputs.imageConcurrencyInput,
-      secret: { action: secrets.icon_image.action, value: secrets.icon_image.action === "keep" ? "" : secrets.icon_image.value },
-    });
-  }
-  if (tabId === "bg_removal") {
-    return JSON.stringify({
-      bg_removal: draft.bg_removal,
-      secret: { action: secrets.bg_removal.action, value: secrets.bg_removal.action === "keep" ? "" : secrets.bg_removal.value },
-    });
-  }
-  if (tabId === "launch") {
-    return JSON.stringify(pickGlobalConfig(draft.global_config, LAUNCH_GLOBAL_KEYS));
-  }
-  if (tabId === "system") {
-    return JSON.stringify({
-      DEBUG_MODE: Boolean(draft.global_config.DEBUG_MODE),
-    });
-  }
-  return "";
-}
-
-function createSecretDraftsFromSnapshot(snapshot: SettingsSnapshot): Record<SettingsFamily, SecretDraft> {
-  return {
-    text: createSecretDraft(
-      snapshot.families.text.active_preset.OPENAI_API_KEY || "",
-      snapshot.families.text.active_preset.secret_state === "stored"
-    ),
-    vision: createSecretDraft(
-      snapshot.families.vision.active_preset.IMAGE_ANALYSIS_API_KEY || "",
-      snapshot.families.vision.active_preset.secret_state === "stored"
-    ),
-    icon_image: createSecretDraft(
-      snapshot.families.icon_image.active_preset.image_model.api_key || "",
-      snapshot.families.icon_image.active_preset.image_model.secret_state === "stored"
-    ),
-    bg_removal: createSecretDraft(
-      snapshot.families.bg_removal.active_preset.hf_api_token || "",
-      snapshot.families.bg_removal.active_preset.secret_state === "stored"
-    ),
-  };
-}
-
-function describeConnectionIssue(result: SettingsTestResult) {
-  if (result.code === "network_blocked") {
-    return "这次请求更像是被本机网络层拦截了。请优先检查 Windows 防火墙、安全软件、代理、TUN 或分流规则，而不只是模型配置本身。";
-  }
-  if (result.code === "vision_image_format_rejected") {
-    return "接口已经返回响应，但当前服务商可能不接受这次测试使用的图片传入格式。通常需要改供应商兼容适配，而不是单纯重填模型名称。";
-  }
-  const haystack = `${result.code} ${result.message}`.toLowerCase();
-  if (/(timeout|timed out|504|gateway)/.test(haystack)) {
-    return "远端服务响应超时或代理网关过慢，可以稍后重试，或换一个更稳定的接口地址。";
-  }
-  if (/(401|403|unauthori[sz]ed|forbidden|api key|apikey|密钥|key)/.test(haystack)) {
-    return "密钥或访问权限可能不正确，请检查 API Key、账号额度和接口权限。";
-  }
-  if (/(model|模型|not found|404)/.test(haystack)) {
-    return "模型名称可能不可用，或当前账号没有该模型的调用权限。";
-  }
-  if (/(network|fetch|connect|econn|dns|refused|unreachable|不可达|连接)/.test(haystack)) {
-    return "本地或远端服务不可达，请检查接口地址、网络代理和后端服务状态。";
-  }
-  return "请求没有成功完成，请根据错误信息检查当前配置。";
-}
-
-function getVisionSourceMode(globalConfig: SettingsSnapshot["global_config"] | null | undefined): VisionSourceMode {
-  return globalConfig?.IMAGE_ANALYSIS_SOURCE_MODE === "separate" ? "separate" : "shared_text";
-}
-
-function buildFingerprint(
-  draft: DraftState | null,
-  secrets: Record<SettingsFamily, SecretDraft>,
-  transientInputs?: {
-    analysisConcurrencyInput: string;
-    imageConcurrencyInput: string;
-  },
-) {
-  if (!draft) {
-    return "";
-  }
-  return JSON.stringify({
-    draft,
-    transientInputs: transientInputs ?? null,
-    secrets: {
-      text: { action: secrets.text.action, value: secrets.text.action === "keep" ? "" : secrets.text.value },
-      vision: { action: secrets.vision.action, value: secrets.vision.action === "keep" ? "" : secrets.vision.value },
-      icon_image: { action: secrets.icon_image.action, value: secrets.icon_image.action === "keep" ? "" : secrets.icon_image.value },
-      bg_removal: { action: secrets.bg_removal.action, value: secrets.bg_removal.action === "keep" ? "" : secrets.bg_removal.value },
-    },
-  });
-}
-
-function copyTextToClipboard(value: string, onSuccess: (message: string) => void, onError: (message: string) => void) {
-  if (typeof navigator === "undefined" || !navigator.clipboard) {
-    onError("当前环境不支持复制日志路径。");
-    return;
-  }
-  void navigator.clipboard.writeText(value).then(
-    () => onSuccess("日志路径已复制"),
-    () => onError("复制日志路径失败"),
-  );
-}
-
-function buildTargetProfilesFingerprint(drafts: Record<string, TargetProfileDraft>): string {
-  return JSON.stringify(
-    Object.entries(drafts)
-      .sort(([left], [right]) => left.localeCompare(right))
-      .map(([profileId, draft]) => ({
-        profile_id: profileId,
-        name: draft.name.trim(),
-        directories: draft.directories
-          .map((item) => ({
-            path: item.path.trim(),
-            label: item.label?.trim() || "",
-            description: item.description?.trim() || "",
-          }))
-          .filter((item) => item.path)
-          .sort((left, right) => left.path.localeCompare(right.path)),
-      })),
-  );
-}
 
 export default function SettingsPage() {
   const searchParams = useSearchParams();
@@ -490,12 +132,7 @@ export default function SettingsPage() {
   // 关于与检查更新相关 State
   const [appVersion, setAppVersion] = useState("v1.0.4");
   const [checkingUpdate, setCheckingUpdate] = useState(false);
-  const [updateResult, setUpdateResult] = useState<{
-    hasUpdate: boolean;
-    version: string;
-    body?: string;
-    url?: string;
-  } | null>(null);
+  const [updateResult, setUpdateResult] = useState<UpdateCheckResult | null>(null);
   const [updateError, setUpdateError] = useState<string | null>(null);
   const [cooldown, setCooldown] = useState(0);
 
@@ -593,17 +230,6 @@ export default function SettingsPage() {
     { id: "system", label: "关于与运行日志", icon: ShieldCheck, description: "项目版本、检查更新与系统日志" },
   ];
 
-  const launchSections: Array<{
-    id: LaunchSection;
-    label: string;
-    description: string;
-    icon: typeof SettingsIcon;
-  }> = [
-      { id: "strategy", label: "启动策略", description: "模板、语言、粒度", icon: SlidersHorizontal },
-      { id: "placement", label: "放置规则", description: "新目录与待确认区", icon: FolderOpen },
-      { id: "targets", label: "目标目录", description: "归档目录池", icon: FolderPlus },
-    ];
-
   const secretMap = useMemo(
     () => ({
       text: textSecret,
@@ -614,10 +240,6 @@ export default function SettingsPage() {
     [bgRemovalSecret, iconSecret, textSecret, visionSecret],
   );
   const activeCategory = categories.find((item) => item.id === activeTab) ?? categories[0];
-  const selectedTargetProfile = targetProfiles.find((profile) => profile.profile_id === selectedTargetProfileId) ?? targetProfiles[0] ?? null;
-  const selectedTargetProfileDraft = selectedTargetProfile ? targetProfileDrafts[selectedTargetProfile.profile_id] : null;
-  const _selectedTargetProfileName = selectedTargetProfileDraft?.name || selectedTargetProfile?.name || "选择目标目录配置";
-  const _selectedTargetDirectoryCount = selectedTargetProfileDraft?.directories.length ?? selectedTargetProfile?.directories.length ?? 0;
 
   const settingsDirty = useMemo(
     () =>
@@ -895,35 +517,6 @@ export default function SettingsPage() {
     };
   }, []);
 
-  const launchTemplate = getTemplateMeta(draft?.global_config.LAUNCH_DEFAULT_TEMPLATE_ID ?? "general_downloads");
-  const launchDefaultOrganizeMethod = (
-    draft?.global_config.LAUNCH_DEFAULT_ORGANIZE_METHOD === "assign_into_existing_categories"
-      ? "assign_into_existing_categories"
-      : "categorize_into_new_structure"
-  ) satisfies OrganizeMethod;
-  const launchDefaultTargetProfileId = String(draft?.global_config.LAUNCH_DEFAULT_TARGET_PROFILE_ID ?? "");
-  const launchDefaultTargetProfile = targetProfiles.find((profile) => profile.profile_id === launchDefaultTargetProfileId) ?? null;
-  const launchDefaultOrganizeMode = launchDefaultOrganizeMethod === "assign_into_existing_categories" ? "incremental" : "initial";
-  const launchReviewFollowsNewRoot = draft?.global_config.LAUNCH_REVIEW_FOLLOWS_NEW_ROOT !== false;
-  const launchDefaultNewDirectoryRoot = String(draft?.global_config.LAUNCH_DEFAULT_NEW_DIRECTORY_ROOT ?? "");
-  const launchDefaultReviewRoot = String(draft?.global_config.LAUNCH_DEFAULT_REVIEW_ROOT ?? "");
-  const launchDerivedReviewRoot = launchDefaultNewDirectoryRoot
-    ? `${launchDefaultNewDirectoryRoot.replace(/[\\/]$/, "")}/Review`
-    : "新目录生成位置/Review";
-  const launchStrategyPreview = buildStrategySummary({
-    template_id: draft?.global_config.LAUNCH_DEFAULT_TEMPLATE_ID ?? "general_downloads",
-    organize_mode: launchDefaultOrganizeMode,
-    task_type: launchDefaultOrganizeMethod === "assign_into_existing_categories" ? "organize_into_existing" : "organize_full_directory",
-    organize_method: launchDefaultOrganizeMethod,
-    target_profile_id: launchDefaultTargetProfileId || undefined,
-    destination_index_depth: 2,
-    language: draft?.global_config.LAUNCH_DEFAULT_LANGUAGE ?? "zh",
-    density: draft?.global_config.LAUNCH_DEFAULT_DENSITY ?? "normal",
-    prefix_style: draft?.global_config.LAUNCH_DEFAULT_PREFIX_STYLE ?? "none",
-    caution_level: draft?.global_config.LAUNCH_DEFAULT_CAUTION_LEVEL ?? "balanced",
-    note: draft?.global_config.LAUNCH_DEFAULT_NOTE ?? "",
-  });
-
   const updateDraft = <K extends keyof DraftState>(key: K, updater: (current: DraftState[K]) => DraftState[K]) => {
     setDraft((current) => {
       if (!current) {
@@ -1194,25 +787,6 @@ export default function SettingsPage() {
     updateTargetProfileDraft(profileId, (current) => ({ ...current, directories, newPath: "", newLabel: "", newDescription: "" }));
   };
 
-  const extractDroppedPaths = (event: React.DragEvent<HTMLElement>): string[] => {
-    const textPayload = event.dataTransfer.getData("text/plain");
-    const uriPayload = event.dataTransfer.getData("text/uri-list");
-    const files = Array.from(event.dataTransfer.files)
-      .map((file) => {
-        const path = (file as File & { path?: string }).path || (file as File & { webkitRelativePath?: string }).webkitRelativePath;
-        return path || "";
-      })
-      .filter(Boolean);
-
-    const textPaths = `${textPayload}\n${uriPayload}`
-      .split(/\r?\n/)
-      .map((line) => line.trim())
-      .filter((line) => line && !line.startsWith("#"))
-      .map((line) => (line.startsWith("file:///") ? decodeURIComponent(line.replace(/^file:\/+/, "")) : line));
-
-    return [...files, ...textPaths];
-  };
-
   const removeDirectoryFromTargetProfile = (profileId: string, path: string) => {
     const draft = targetProfileDrafts[profileId];
     if (!draft) {
@@ -1220,6 +794,29 @@ export default function SettingsPage() {
     }
     const directories = draft.directories.filter((item) => item.path !== path);
     updateTargetProfileDraft(profileId, (current) => ({ ...current, directories }));
+  };
+
+  const toggleTargetDirectoryEditor = (editorKey: string) => {
+    setExpandedTargetDirectoryEditors((current) => ({
+      ...current,
+      [editorKey]: !(current[editorKey] ?? false),
+    }));
+  };
+
+  const registerTargetDropZone = (profileId: string, element: HTMLDivElement | null) => {
+    targetDropZoneRefs.current[profileId] = element;
+  };
+
+  const pickDirectory = async (): Promise<string | null> => {
+    try {
+      const selected = desktopReady
+        ? await pickDirectoryWithTauri()
+        : (await api.selectDir()).path;
+      return selected || null;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "选择目录失败");
+      return null;
+    }
   };
 
   const handleSelectTab = (tabId: string) => {
@@ -1562,287 +1159,17 @@ export default function SettingsPage() {
     }
   };
 
-  const renderResult = (family: SettingsFamily) => {
-    const result = testResults[family];
-    const isTesting = testingFamily === family;
-    const isVision = family === "vision";
-
-    if (isTesting) {
-      return (
-        <div className="flex items-center gap-3 rounded-[6px] border border-primary/15 bg-primary/5 px-4 py-3">
-          <div className="relative h-6 w-6 shrink-0">
-            <div className="absolute inset-0 animate-ping rounded-full bg-primary/20 opacity-75" />
-            <div className="relative flex h-full w-full items-center justify-center rounded-full bg-primary/10 text-primary">
-              <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-            </div>
-          </div>
-          <div className="min-w-0">
-            <p className="text-[13px] font-bold tracking-tight text-on-surface">
-              {isVision ? "正在验证图片理解能力..." : "正在进行连接测试..."}
-            </p>
-            <p className="mt-0.5 text-[10px] font-bold tracking-widest text-primary/60">
-              {isVision ? "图片能力验证" : "连接探测"}
-            </p>
-          </div>
-        </div>
-      );
-    }
-
-    if (!result) {
-      return null;
-    }
-
-    const isOk = result.status === "ok";
-    const issueHint = isOk ? null : describeConnectionIssue(result);
-
-    return (
-      <motion.div
-        initial={{ opacity: 0, y: 5 }}
-        animate={{ opacity: 1, y: 0 }}
-        className={cn(
-          "flex items-start gap-3.5 rounded-[6px] border px-4 py-3 transition-all",
-          isOk
-            ? "border-success/20 bg-success/[0.03]"
-            : "border-error/20 bg-error/[0.03]",
-        )}
-      >
-        <div className={cn(
-          "mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-[6px] border",
-          isOk ? "border-success/20 bg-success/10 text-success-dim" : "border-error/20 bg-error/10 text-error"
-        )}>
-          {isOk ? <CheckCircle2 className="h-4 w-4" /> : <AlertCircle className="h-4 w-4" />}
-        </div>
-        <div className="min-w-0 flex-1 space-y-1">
-          <div className="flex items-center justify-between gap-4">
-            <h4 className={cn("text-[13px] font-bold tracking-tight", isOk ? "text-success-dim" : "text-error-dim")}>
-              {isVision ? (isOk ? "图片能力已验证" : "图片能力验证失败") : isOk ? "服务已成功对齐" : "连接测试失败"}
-            </h4>
-            {isOk && (
-              <div className="flex items-center gap-1.5 rounded-[4px] bg-success/10 px-2 py-0.5 text-[9px] font-black uppercase tracking-widest text-success-dim">
-                <div className="h-1 w-1 rounded-full bg-success animate-pulse" />
-                可用
-              </div>
-            )}
-          </div>
-          <p className="text-[12px] leading-relaxed text-on-surface/70">{result.message}</p>
-          {!isOk && issueHint ? (
-            <p className="rounded-[6px] border border-error/10 bg-error/[0.04] px-3 py-2 text-[11.5px] font-medium leading-relaxed text-error-dim">
-              {issueHint}
-            </p>
-          ) : null}
-          {isVision && result.details ? (
-            <div className="rounded-[6px] border border-on-surface/8 bg-surface-container-low px-3 py-2 text-[11px] leading-relaxed text-on-surface/70">
-              <p>期望结果：{result.details.expected}</p>
-              <p>实际返回：{result.details.actual?.trim() ? result.details.actual : "空响应"}</p>
-            </div>
-          ) : null}
-          {!isOk && <p className="text-[10px] font-mono opacity-50">Code: {result.code}</p>}
-        </div>
-      </motion.div>
-    );
+  const connectionTestControls: ConnectionTestControls = {
+    testingFamily,
+    results: testResults,
+    onTest: (family) => void handleTest(family),
   };
 
-  const renderConnectionTestPanel = (
-    family: SettingsFamily,
-    disabled = false,
-    options?: {
-      title?: string;
-      description?: string;
-      buttonLabel?: string;
-    },
-  ) => (
-    <div className="rounded-[10px] border border-on-surface/8 bg-surface-container-lowest px-4 py-3">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h3 className="text-[12.5px] font-black text-on-surface">{options?.title || "连接测试"}</h3>
-          <p className="mt-1 text-[11.5px] font-medium text-ui-muted/65">{options?.description || "验证当前配置的连通性与可用性。"}</p>
-        </div>
-        <Button
-          variant="secondary"
-          size="sm"
-          onClick={() => void handleTest(family)}
-          loading={testingFamily === family}
-          disabled={disabled}
-        >
-          {disabled ? "仅桌面端可测试" : options?.buttonLabel || "测试连接"}
-        </Button>
-      </div>
-      <div className="mt-3">{renderResult(family)}</div>
-    </div>
-  );
-
-  const renderModelIdField = ({
-    family,
-    label,
-    icon,
-    value,
-    placeholder,
-    onChange,
-    className,
-  }: {
-    family: PresetConfigFamily;
-    label: string;
-    icon: LucideIcon;
-    value: string;
-    placeholder: string;
-    onChange: (value: string) => void;
-    className?: string;
-  }) => {
-    const lookupResult = modelLookupResults[family];
-    const isLoadingModels = loadingModelsFamily === family;
-    const models = lookupResult?.models || [];
-    return (
-      <FieldGroup label={label} className={className}>
-        <InputShell icon={icon} className="flex items-center gap-2">
-          <input
-            value={value}
-            onChange={(event) => onChange(event.target.value)}
-            className="min-w-0 flex-1 bg-transparent py-2 text-sm font-semibold text-on-surface outline-none"
-            placeholder={placeholder}
-          />
-          <button
-            type="button"
-            onClick={() => void handleFetchModels(family)}
-            disabled={isLoadingModels}
-            className="inline-flex h-7 shrink-0 items-center gap-1.5 rounded-[5px] border border-on-surface/8 bg-surface px-2.5 text-[11px] font-bold text-on-surface/70 transition-colors hover:border-primary/20 hover:text-primary disabled:opacity-55"
-          >
-            {isLoadingModels ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
-            获取
-          </button>
-        </InputShell>
-        {lookupResult ? (
-          <div
-            className={cn(
-              "rounded-[6px] border px-2.5 py-2",
-              lookupResult.status === "ok"
-                ? "border-on-surface/8 bg-surface-container-lowest"
-                : "border-error/15 bg-error/[0.03]",
-            )}
-          >
-            {lookupResult.status === "ok" ? (
-              models.length ? (
-                <div className="flex flex-wrap gap-1.5">
-                  {models.slice(0, 8).map((model) => (
-                    <button
-                      key={model.id}
-                      type="button"
-                      onClick={() => onChange(model.id)}
-                      className={cn(
-                        "max-w-full truncate rounded-[5px] border px-2 py-1 text-[11px] font-semibold transition-colors",
-                        model.id === value
-                          ? "border-primary/25 bg-primary/10 text-primary"
-                          : "border-on-surface/8 bg-surface text-on-surface/70 hover:border-primary/18 hover:text-primary",
-                      )}
-                      title={model.id}
-                    >
-                      {model.id}
-                    </button>
-                  ))}
-                  {models.length > 8 ? (
-                    <span className="rounded-[5px] border border-on-surface/8 bg-surface px-2 py-1 text-[11px] font-semibold text-ui-muted">
-                      +{models.length - 8}
-                    </span>
-                  ) : null}
-                </div>
-              ) : (
-                <p className="text-[11.5px] font-medium text-ui-muted">端点已响应，但没有返回可选模型。</p>
-              )
-            ) : (
-              <p className="text-[11.5px] font-medium leading-relaxed text-error-dim">
-                {lookupResult.message || "获取模型列表失败，请检查端点和密钥。"}
-              </p>
-            )}
-          </div>
-        ) : null}
-      </FieldGroup>
-    );
+  const modelLookupControls: ModelLookupControls = {
+    results: modelLookupResults,
+    loadingFamily: loadingModelsFamily,
+    onFetch: (family) => void handleFetchModels(family),
   };
-
-  const renderSecretField = (
-    label: string,
-    state: SecretState,
-    secret: SecretDraft,
-    setSecret: Dispatch<SetStateAction<SecretDraft>>,
-    family: SettingsFamily,
-  ) => (
-    <FieldGroup label={label} hint={describeSecret(state, secret)}>
-      <InputShell icon={Key} className="group flex items-center gap-2">
-        <input
-          type={secret.visible ? "text" : "password"}
-          value={secret.value}
-          onChange={(event) => {
-            const nextValue = event.target.value;
-            setSecret((current) => ({
-              ...current,
-              value: nextValue,
-              action: nextValue.trim() ? "replace" : "keep",
-            }));
-          }}
-          className="flex-1 bg-transparent py-2 text-sm font-mono font-medium text-on-surface outline-none placeholder:text-on-surface-variant/35"
-          placeholder={state === "stored" ? "输入新密钥以替换当前值" : "输入要保存的新密钥"}
-        />
-        <div className="flex shrink-0 items-center gap-1 pr-1">
-          <button
-            type="button"
-            onClick={async () => {
-              const willBeVisible = !secret.visible;
-              if (willBeVisible && state === "stored" && (secret.value === "" || secret.value === "********")) {
-                try {
-                  const res = await fetch(`${getApiBaseUrl()}/api/settings/runtime/${family}`, {
-                    headers: getApiToken() ? { "Authorization": `Bearer ${getApiToken()}` } : {},
-                  });
-                  if (res.ok) {
-                    const data = await res.json();
-                    let fetchedKey = "";
-                    if (family === "text") {
-                      fetchedKey = data.api_key || "";
-                    } else if (family === "vision") {
-                      fetchedKey = data.api_key || "";
-                    } else if (family === "icon_image") {
-                      fetchedKey = data.image_model?.api_key || "";
-                    } else if (family === "bg_removal") {
-                      fetchedKey = data.api_token || "";
-                    }
-                    setSecret((current) => ({
-                      ...current,
-                      value: fetchedKey,
-                      visible: true,
-                    }));
-                    return;
-                  }
-                } catch (e) {
-                  console.error("Failed to fetch plain secret:", e);
-                }
-              }
-              setSecret((current) => ({ ...current, visible: willBeVisible }));
-            }}
-            className="rounded-[6px] p-2 text-on-surface-variant/45 transition-colors hover:bg-surface-container-low hover:text-on-surface"
-            title={secret.visible ? "隐藏" : "显示"}
-          >
-            {secret.visible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-          </button>
-
-          {secret.action !== "keep" ? (
-            <button
-              type="button"
-              onClick={() => setSecret((current) => ({ ...current, action: "keep", value: "", visible: false }))}
-              className="rounded-[6px] px-2 py-1 text-[11px] font-bold text-primary hover:bg-primary/5 transition-colors"
-            >
-              撤销
-            </button>
-          ) : state === "stored" ? (
-            <button
-              type="button"
-              onClick={() => setSecret((current) => ({ ...current, action: "clear", value: "", visible: false }))}
-              className="rounded-[6px] px-2 py-1 text-[11px] font-bold text-on-surface-variant/60 hover:bg-on-surface/5 transition-colors"
-            >
-              清空
-            </button>
-          ) : null}
-        </div>
-      </InputShell>
-    </FieldGroup>
-  );
 
   if (loading || !draft || !snapshot) {
     return (
@@ -1855,11 +1182,7 @@ export default function SettingsPage() {
     );
   }
 
-  const textPresetEditable = isEditablePreset(snapshot.families.text.active_preset_id);
-  const visionPresetEditable = isEditablePreset(snapshot.families.vision.active_preset_id);
-  const iconImagePresetEditable = isEditablePreset(snapshot.families.icon_image.active_preset_id);
   const visionMode = getVisionSourceMode(draft.global_config);
-  const visionUsesSharedText = visionMode === "shared_text";
 
   return (
     <div className="flex h-full flex-col overflow-hidden bg-surface">
@@ -2011,1305 +1334,128 @@ export default function SettingsPage() {
             )}
 
             {activeTab === "text" && (
-              <SettingsSection
-                icon={Layers3}
-                title="文本模型与图片理解"
-                description="配置文本分析模型与可选的图片理解模型。"
-              >
-                <SettingsMinPath
-                  items={[
-                    "文本：接口地址 + 模型 ID + API Key（整理主链路必需）",
-                    "图片理解默认复用文本模型；仅当视觉模型不同时再选「单独图片模型」",
-                    "填写后点「测试连接」确认可用；多套环境可用上方预设切换",
-                  ]}
-                />
-                <PresetSelector
-                  label="文本预设"
-                  presets={snapshot.families.text.presets.map((item) => ({ id: item.id, name: item.name }))}
-                  activeId={snapshot.families.text.active_preset_id}
-                  onSwitch={(id) => void handleActivatePreset("text", id)}
-                  onAdd={() => handleCreatePreset("text")}
-                  onDelete={(preset) => void handleDeletePreset("text", preset.id, preset.name)}
-                />
-                {!textPresetEditable ? (
-                  <p className="text-[11px] leading-5 text-ui-muted">
-                    尚未保存过预设：可直接填写下方字段，首次保存时会自动创建可编辑预设。
-                  </p>
-                ) : null}
-                <div className="grid gap-4 xl:grid-cols-2">
-                  {renderModelIdField({
-                    family: "text",
-                    label: "模型 ID",
-                    icon: Terminal,
-                    value: draft.text.OPENAI_MODEL,
-                    placeholder: "gpt-5.4",
-                    onChange: (value) => updateDraft("text", (current) => ({ ...current, OPENAI_MODEL: value })),
-                  })}
-                  <FieldGroup label="接口地址" hint="填写 OpenAI 兼容地址，通常以 /v1 结尾。">
-                    <InputShell icon={Globe}>
-                      <input value={draft.text.OPENAI_BASE_URL} onChange={(event) => updateDraft("text", (current) => ({ ...current, OPENAI_BASE_URL: event.target.value }))} className="w-full bg-transparent py-2 text-sm font-mono font-medium text-on-surface outline-none" placeholder="https://api.openai.com/v1" />
-                    </InputShell>
-                  </FieldGroup>
-                  <div className="xl:col-span-2">{renderSecretField("接口密钥", draft.text.secret_state, textSecret, setTextSecret, "text")}</div>
-                  <ProviderCapabilitySummary
-                    title="当前连接方式"
-                    kind="text"
-                    provider={draft.text.provider}
-                    apiFormat={draft.text.api_format}
-                    toolMode={draft.text.tool_mode}
-                    capabilities={draft.text.capabilities}
-                  />
-                  <div className="xl:col-span-2">
-                    {renderConnectionTestPanel("text", false, {
-                      title: "文本连接测试",
-                      description: "验证当前配置的连通性与可用性。",
-                      buttonLabel: "测试文本连接",
-                    })}
-                  </div>
-                </div>
-                <div className="mt-6 rounded-[12px] border border-on-surface/8 bg-surface px-4 py-4">
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <Globe className="h-4 w-4 text-primary/70" />
-                        <h3 className="text-[14px] font-bold text-on-surface">图片理解能力</h3>
-                      </div>
-                      <p className="mt-1 text-[12px] leading-6 text-on-surface-variant/70">
-                        开启后，模型可在必要时查看图片内容；关闭时只按文件名判断。
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2 rounded-[10px] border border-on-surface/8 bg-surface-container-low px-3 py-2">
-                      <span className="text-[12px] font-medium text-on-surface-variant/70">启用</span>
-                      <ToggleSwitch
-                        checked={Boolean(draft.global_config.IMAGE_ANALYSIS_ENABLED)}
-                        onClick={() => updateGlobal("IMAGE_ANALYSIS_ENABLED", !draft.global_config.IMAGE_ANALYSIS_ENABLED)}
-                        ariaLabel="启用图片理解能力"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="mt-4">
-                    <p className="text-[11px] font-bold uppercase tracking-wider text-ui-muted">当前来源</p>
-                    <div className="mt-2 grid gap-2 xl:grid-cols-2">
-                      {([
-                        {
-                          id: "shared_text" as const,
-                          label: "复用文本模型",
-                          description: "默认方案，直接使用当前文本模型的端点、模型与密钥。",
-                        },
-                        {
-                          id: "separate" as const,
-                          label: "单独图片模型",
-                          description: "为图片理解保留独立预设，适合视觉模型与文本模型分开配置。",
-                        },
-                      ] as const).map((item) => {
-                        const active = visionMode === item.id;
-                        return (
-                          <button
-                            key={item.id}
-                            type="button"
-                            onClick={() => updateGlobal("IMAGE_ANALYSIS_SOURCE_MODE", item.id)}
-                            className={cn(
-                              "rounded-[10px] border px-3 py-3 text-left transition-colors",
-                              active
-                                ? "border-primary/35 bg-primary/[0.06]"
-                                : "border-on-surface/8 bg-surface-container-lowest hover:border-on-surface/16",
-                            )}
-                          >
-                            <div className="text-[12.5px] font-bold text-on-surface">{item.label}</div>
-                            <div className="mt-1 text-[11px] leading-relaxed text-ui-muted">{item.description}</div>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  {visionUsesSharedText ? (
-                    <div className="mt-4 space-y-4">
-                      <div className="rounded-[10px] border border-on-surface/8 bg-surface-container-lowest px-4 py-3">
-                        <div className="flex items-center gap-2">
-                          <Layers3 className="h-4 w-4 text-primary/70" />
-                          <p className="text-[12.5px] font-bold text-on-surface">当前复用文本模型</p>
-                        </div>
-                        <div className="mt-3 grid gap-3 xl:grid-cols-2">
-                          <div className="rounded-[8px] border border-on-surface/6 bg-surface px-3 py-2">
-                            <p className="text-[10px] font-bold uppercase tracking-wider text-ui-muted">模型 ID</p>
-                            <p className="mt-1 text-[12px] font-semibold text-on-surface">{draft.text.OPENAI_MODEL || "未填写"}</p>
-                          </div>
-                          <div className="rounded-[8px] border border-on-surface/6 bg-surface px-3 py-2">
-                            <p className="text-[10px] font-bold uppercase tracking-wider text-ui-muted">接口地址</p>
-                            <p className="mt-1 break-all font-mono text-[11px] font-medium text-on-surface">{draft.text.OPENAI_BASE_URL || "未填写"}</p>
-                          </div>
-                        </div>
-                        <p className="mt-3 text-[11px] leading-relaxed text-ui-muted">
-                          图片理解测试将复用文本模型的配置，并验证其是否支持图片输入。
-                        </p>
-                      </div>
-                      {renderConnectionTestPanel("vision", false, {
-                        title: "图片理解能力测试",
-                        description: "验证当前模型是否支持图片理解功能。",
-                        buttonLabel: "测试图片理解能力",
-                      })}
-                    </div>
-                  ) : (
-                    <div className="mt-4 space-y-4">
-                      <PresetSelector
-                        label="图片理解预设"
-                        presets={snapshot.families.vision.presets.map((item) => ({ id: item.id, name: item.name }))}
-                        activeId={snapshot.families.vision.active_preset_id}
-                        onSwitch={(id) => void handleActivatePreset("vision", id)}
-                        onAdd={() => handleCreatePreset("vision")}
-                        onDelete={(preset) => void handleDeletePreset("vision", preset.id, preset.name)}
-                      />
-                      {!visionPresetEditable ? (
-                        <p className="text-[11px] leading-5 text-ui-muted">
-                          可直接填写下方字段；首次保存时会自动创建图片理解预设。
-                        </p>
-                      ) : null}
-                      <div className="grid gap-4 xl:grid-cols-2">
-                        {renderModelIdField({
-                          family: "vision",
-                          label: "模型 ID",
-                          icon: ImageIcon,
-                          value: draft.vision.IMAGE_ANALYSIS_MODEL,
-                          placeholder: "gpt-4o-mini",
-                          onChange: (value) => updateDraft("vision", (current) => ({ ...current, IMAGE_ANALYSIS_MODEL: value })),
-                        })}
-                        <FieldGroup label="接口地址" hint="填写 OpenAI 兼容地址，通常以 /v1 结尾；该模型还需要支持图片输入。">
-                          <InputShell icon={Globe}>
-                            <input value={draft.vision.IMAGE_ANALYSIS_BASE_URL} onChange={(event) => updateDraft("vision", (current) => ({ ...current, IMAGE_ANALYSIS_BASE_URL: event.target.value }))} className="w-full bg-transparent py-2 text-sm font-mono font-medium text-on-surface outline-none" placeholder="https://host.example/v1" />
-                          </InputShell>
-                        </FieldGroup>
-                        <div className="xl:col-span-2">{renderSecretField("图片理解密钥", draft.vision.secret_state, visionSecret, setVisionSecret, "vision")}</div>
-                        <ProviderCapabilitySummary
-                          title="当前连接方式"
-                          kind="vision"
-                          provider={draft.vision.provider}
-                          apiFormat={draft.vision.api_format}
-                          toolMode={draft.vision.tool_mode}
-                          capabilities={draft.vision.capabilities}
-                        />
-                        <div className="xl:col-span-2">
-                          {renderConnectionTestPanel("vision", false, {
-                            title: "图片理解能力测试",
-                            description: "验证当前图片模型的连通性与可用性。",
-                            buttonLabel: "测试图片理解能力",
-                          })}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </SettingsSection>
+              <TextTab
+                textDraft={draft.text}
+                visionDraft={draft.vision}
+                visionEnabled={Boolean(draft.global_config.IMAGE_ANALYSIS_ENABLED)}
+                visionMode={visionMode}
+                textPresets={snapshot.families.text.presets.map((item) => ({ id: item.id, name: item.name }))}
+                textActivePresetId={snapshot.families.text.active_preset_id}
+                visionPresets={snapshot.families.vision.presets.map((item) => ({ id: item.id, name: item.name }))}
+                visionActivePresetId={snapshot.families.vision.active_preset_id}
+                textSecret={textSecret}
+                setTextSecret={setTextSecret}
+                visionSecret={visionSecret}
+                setVisionSecret={setVisionSecret}
+                onUpdateText={(updater) => updateDraft("text", updater)}
+                onUpdateVision={(updater) => updateDraft("vision", updater)}
+                onUpdateGlobal={updateGlobal}
+                onActivatePreset={(family, presetId) => void handleActivatePreset(family, presetId)}
+                onCreatePreset={handleCreatePreset}
+                onDeletePreset={(family, presetId, presetName) => void handleDeletePreset(family, presetId, presetName)}
+                connectionTest={connectionTestControls}
+                modelLookup={modelLookupControls}
+              />
             )}
 
             {activeTab === "icon_image" && (
-              <SettingsSection
-                icon={ImageIcon}
-                title="图标生成"
-                description="配置图标工坊的图像生成模型；目录分析使用整理文本模型。"
-              >
-                <SettingsMinPath
-                  items={[
-                    "目录分析依赖「整理模型配置」中的文本模型",
-                    "本页只配置生图端点：接口地址 + 模型 ID + API Key",
-                    "尺寸、并发、保存方式为高级选项，可按需展开",
-                  ]}
-                />
-                <div className="rounded-[10px] border border-on-surface/8 bg-surface-container-lowest px-4 py-3">
-                  <p className="text-[10px] font-black uppercase tracking-[0.16em] text-primary/55">双模型依赖</p>
-                  <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                    <div className={cn(
-                      "rounded-[8px] border px-3 py-2",
-                      snapshot.status.text_configured ? "border-success/20 bg-success/5" : "border-on-surface/8 bg-surface",
-                    )}>
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-[12px] font-bold text-on-surface">文本模型（分析）</span>
-                        <span className={cn("text-[10px] font-black", snapshot.status.text_configured ? "text-success-dim" : "text-on-surface/40")}>
-                          {snapshot.status.text_configured ? "已配置" : "未配置"}
-                        </span>
-                      </div>
-                      <p className="mt-1 text-[11px] text-ui-muted">图标工坊解析文件夹时使用</p>
-                      {!snapshot.status.text_configured ? (
-                        <button
-                          type="button"
-                          className="mt-2 text-[11px] font-bold text-primary hover:underline"
-                          onClick={() => handleSelectTab("text")}
-                        >
-                          去配置整理模型
-                        </button>
-                      ) : null}
-                    </div>
-                    <div className={cn(
-                      "rounded-[8px] border px-3 py-2",
-                      snapshot.status.icon_image_configured ? "border-success/20 bg-success/5" : "border-on-surface/8 bg-surface",
-                    )}>
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-[12px] font-bold text-on-surface">生图模型（预览）</span>
-                        <span className={cn("text-[10px] font-black", snapshot.status.icon_image_configured ? "text-success-dim" : "text-on-surface/40")}>
-                          {snapshot.status.icon_image_configured ? "已配置" : "未配置"}
-                        </span>
-                      </div>
-                      <p className="mt-1 text-[11px] text-ui-muted">本页下方端点负责生成图标预览</p>
-                    </div>
-                  </div>
-                </div>
-                <PresetSelector
-                  label="图标生图预设"
-                  presets={snapshot.families.icon_image.presets.map((item) => ({ id: item.id, name: item.name }))}
-                  activeId={snapshot.families.icon_image.active_preset_id}
-                  onSwitch={(id) => void handleActivatePreset("icon_image", id)}
-                  onAdd={() => handleCreatePreset("icon_image")}
-                  onDelete={(preset) => void handleDeletePreset("icon_image", preset.id, preset.name)}
-                />
-                {!iconImagePresetEditable ? (
-                  <p className="text-[11px] leading-5 text-ui-muted">
-                    尚未保存过预设：可直接填写下方字段，首次保存时会自动创建可编辑预设。
-                  </p>
-                ) : null}
-                <div className="grid gap-4 xl:grid-cols-2">
-                  {renderModelIdField({
-                    family: "icon_image",
-                    label: "生图模型 ID",
-                    icon: Terminal,
-                    value: draft.icon_image.image_model.model,
-                    placeholder: "gpt-image-1",
-                    onChange: (value) => updateDraft("icon_image", (current) => ({ ...current, image_model: { ...current.image_model, model: value } })),
-                  })}
-                  <FieldGroup label="生图接口地址" className="xl:col-span-2" hint="可填写 OpenAI 兼容 /v1 地址，或服务商给出的完整 /images/generations 端点。">
-                    <InputShell icon={Globe}>
-                      <input value={draft.icon_image.image_model.base_url} onChange={(event) => updateDraft("icon_image", (current) => ({ ...current, image_model: { ...current.image_model, base_url: event.target.value } }))} className="w-full bg-transparent py-2 text-sm font-mono font-medium text-on-surface outline-none" placeholder="https://host.example/v1" />
-                    </InputShell>
-                  </FieldGroup>
-                  <ProviderCapabilitySummary
-                    title="当前连接方式"
-                    kind="icon_image"
-                    provider={draft.icon_image.image_model.provider}
-                    apiFormat={draft.icon_image.image_model.api_format}
-                    toolMode={draft.icon_image.image_model.tool_mode}
-                    capabilities={draft.icon_image.image_model.capabilities}
-                  />
-                  <div className="xl:col-span-2">{renderSecretField("生图接口密钥", draft.icon_image.image_model.secret_state, iconSecret, setIconSecret, "icon_image")}</div>
-                  <div className="xl:col-span-2">{renderConnectionTestPanel("icon_image")}</div>
-                  <div className="xl:col-span-2">
-                    <button
-                      type="button"
-                      onClick={() => setIconAdvancedOpen((open) => !open)}
-                      className="flex w-full items-center justify-between rounded-[10px] border border-on-surface/8 bg-surface-container-lowest px-4 py-3 text-left transition-colors hover:border-primary/20"
-                    >
-                      <div>
-                        <p className="text-[12.5px] font-bold text-on-surface">高级选项</p>
-                        <p className="mt-0.5 text-[11px] text-ui-muted">图片尺寸、分析/生图并发、保存方式</p>
-                      </div>
-                      {iconAdvancedOpen ? <ChevronDown className="h-4 w-4 text-ui-muted" /> : <ChevronRight className="h-4 w-4 text-ui-muted" />}
-                    </button>
-                    {iconAdvancedOpen ? (
-                      <div className="mt-3 grid gap-4 xl:grid-cols-2">
-                        <FieldGroup label="图片尺寸" hint="默认 1024x1024，适合文件夹图标；更小尺寸生成更快。">
-                          <div className="grid gap-3 md:grid-cols-3">
-                            {IMAGE_SIZE_OPTIONS.map((size) => (
-                              <StrategyOptionButton
-                                key={size}
-                                active={normalizeImageSize(draft.icon_image.image_size) === size}
-                                label={size}
-                                description={
-                                  size === "1024x1024"
-                                    ? "默认，细节更清晰。"
-                                    : size === "512x512"
-                                      ? "更快，够用多数场景。"
-                                      : "预览用，细节较少。"
-                                }
-                                onClick={() =>
-                                  updateDraft("icon_image", (current) => ({
-                                    ...current,
-                                    image_size: size,
-                                  }))
-                                }
-                              />
-                            ))}
-                          </div>
-                        </FieldGroup>
-                        <FieldGroup label="分析并发上限" hint="控制文件夹内容分析阶段的并发数，通常可以设得比生图更高。">
-                          <InputShell icon={Cpu}>
-                            <input
-                              value={analysisConcurrencyInput}
-                              onChange={(event) => {
-                                const nextValue = event.target.value;
-                                if (/^\d*$/.test(nextValue)) {
-                                  setAnalysisConcurrencyInput(nextValue);
-                                }
-                              }}
-                              onBlur={commitAnalysisConcurrencyInput}
-                              className="w-full bg-transparent py-2 text-sm font-semibold text-on-surface outline-none"
-                              placeholder="2"
-                              inputMode="numeric"
-                            />
-                          </InputShell>
-                        </FieldGroup>
-                        <FieldGroup label="生图并发上限" hint="控制图标预览生成阶段的并发数，建议保守设置，避免触发限流。">
-                          <InputShell icon={Cpu}>
-                            <input
-                              value={imageConcurrencyInput}
-                              onChange={(event) => {
-                                const nextValue = event.target.value;
-                                if (/^\d*$/.test(nextValue)) {
-                                  setImageConcurrencyInput(nextValue);
-                                }
-                              }}
-                              onBlur={commitImageConcurrencyInput}
-                              className="w-full bg-transparent py-2 text-sm font-semibold text-on-surface outline-none"
-                              placeholder="1"
-                              inputMode="numeric"
-                            />
-                          </InputShell>
-                        </FieldGroup>
-                        <FieldGroup label="保存方式" className="xl:col-span-2">
-                          <div className="grid gap-3 md:grid-cols-2">
-                            <StrategyOptionButton active={draft.icon_image.save_mode === "centralized"} label="集中保存" onClick={() => updateDraft("icon_image", (current) => ({ ...current, save_mode: "centralized" }))} description="应用后的 .ico 写入 %APPDATA%/FilePilot/managed_icons；预览 PNG 仍保存在项目 output/icon_workbench/previews。" />
-                            <StrategyOptionButton active={draft.icon_image.save_mode === "in_folder"} label="就地保存" onClick={() => updateDraft("icon_image", (current) => ({ ...current, save_mode: "in_folder" }))} description="处理后资源靠近目标文件夹，适合边做边核对。" />
-                          </div>
-                        </FieldGroup>
-                      </div>
-                    ) : null}
-                  </div>
-                </div>
-              </SettingsSection>
+              <IconImageTab
+                iconImage={draft.icon_image}
+                presets={snapshot.families.icon_image.presets.map((item) => ({ id: item.id, name: item.name }))}
+                activePresetId={snapshot.families.icon_image.active_preset_id}
+                textConfigured={Boolean(snapshot.status.text_configured)}
+                iconImageConfigured={Boolean(snapshot.status.icon_image_configured)}
+                analysisConcurrencyInput={analysisConcurrencyInput}
+                imageConcurrencyInput={imageConcurrencyInput}
+                onChangeAnalysisConcurrencyInput={setAnalysisConcurrencyInput}
+                onChangeImageConcurrencyInput={setImageConcurrencyInput}
+                onCommitAnalysisConcurrencyInput={commitAnalysisConcurrencyInput}
+                onCommitImageConcurrencyInput={commitImageConcurrencyInput}
+                advancedOpen={iconAdvancedOpen}
+                onToggleAdvanced={() => setIconAdvancedOpen((open) => !open)}
+                iconSecret={iconSecret}
+                setIconSecret={setIconSecret}
+                onUpdate={(updater) => updateDraft("icon_image", updater)}
+                onActivatePreset={(presetId) => void handleActivatePreset("icon_image", presetId)}
+                onCreatePreset={() => handleCreatePreset("icon_image")}
+                onDeletePreset={(presetId, presetName) => void handleDeletePreset("icon_image", presetId, presetName)}
+                onGoToTextTab={() => handleSelectTab("text")}
+                connectionTest={connectionTestControls}
+                modelLookup={modelLookupControls}
+              />
             )}
 
             {activeTab === "bg_removal" && (
-              <SettingsSection
-                icon={Scissors}
-                title="背景处理"
-                description="配置背景裁剪及抠图服务的端点和模型参数。"
-              >
-                <SettingsMinPath
-                  items={[
-                    "与 OpenAI 兼容聊天/生图接口无关，走 Hugging Face Space 类服务",
-                    "默认选内置预设即可；需要私有 Space 时再切自定义",
-                    "HF Token 可选，公开 Space 通常不填也能用",
-                  ]}
-                />
-                <FieldGroup label="服务模式">
-                  <div className="grid gap-3 md:grid-cols-2">
-                    <StrategyOptionButton
-                      active={draft.bg_removal.mode === "preset"}
-                      label="使用内置预设"
-                      description="直接使用内置的背景处理服务，适合快速开始。"
-                      onClick={() => updateDraft("bg_removal", (current) => ({ ...current, mode: "preset" }))}
-                    />
-                    <StrategyOptionButton
-                      active={draft.bg_removal.mode === "custom"}
-                      label="自定义服务"
-                      description="手动填写 Space ID、API 类型和 payload_template。"
-                      onClick={() => updateDraft("bg_removal", (current) => ({ ...current, mode: "custom" }))}
-                    />
-                  </div>
-                </FieldGroup>
-                {draft.bg_removal.mode === "preset" ? (
-                  <FieldGroup label="内置预设">
-                    <div className="grid gap-3 xl:grid-cols-2">
-                      {snapshot.families.bg_removal.builtin_presets.map((preset) => (
-                        <StrategyOptionButton
-                          key={preset.id}
-                          active={draft.bg_removal.preset_id === preset.id}
-                          label={preset.name}
-                          description={`${preset.model_id} · ${preset.api_type}`}
-                          onClick={() => updateDraft("bg_removal", (current) => ({ ...current, preset_id: preset.id }))}
-                        />
-                      ))}
-                    </div>
-                  </FieldGroup>
-                ) : (
-                  <div className="grid gap-4 xl:grid-cols-2">
-                    <FieldGroup label="自定义名称">
-                      <InputShell icon={Cpu}>
-                        <input
-                          value={draft.bg_removal.custom.name}
-                          onChange={(event) =>
-                            updateDraft("bg_removal", (current) => ({
-                              ...current,
-                              custom: { ...current.custom, name: event.target.value },
-                            }))
-                          }
-                          className="w-full bg-transparent py-2 text-sm font-semibold text-on-surface outline-none"
-                          placeholder="自定义抠图"
-                        />
-                      </InputShell>
-                    </FieldGroup>
-                    <FieldGroup label="Space / Model ID">
-                      <InputShell icon={Terminal}>
-                        <input
-                          value={draft.bg_removal.custom.model_id}
-                          onChange={(event) =>
-                            updateDraft("bg_removal", (current) => ({
-                              ...current,
-                              custom: { ...current.custom, model_id: event.target.value },
-                            }))
-                          }
-                          className="w-full bg-transparent py-2 text-sm font-mono font-medium text-on-surface outline-none"
-                          placeholder="user/space-name"
-                        />
-                      </InputShell>
-                    </FieldGroup>
-                    <FieldGroup label="API 类型">
-                      <InputShell icon={Globe}>
-                        <input
-                          value={draft.bg_removal.custom.api_type}
-                          onChange={(event) =>
-                            updateDraft("bg_removal", (current) => ({
-                              ...current,
-                              custom: { ...current.custom, api_type: event.target.value },
-                            }))
-                          }
-                          className="w-full bg-transparent py-2 text-sm font-semibold text-on-surface outline-none"
-                          placeholder="gradio_space"
-                        />
-                      </InputShell>
-                    </FieldGroup>
-                    <FieldGroup label="Payload Template" className="xl:col-span-2" hint="填写原始 JSON 文本，可使用 {{uploaded_path}} 与 {{model_id}} 占位符。">
-                      <textarea
-                        value={draft.bg_removal.custom.payload_template}
-                        onChange={(event) =>
-                          updateDraft("bg_removal", (current) => ({
-                            ...current,
-                            custom: { ...current.custom, payload_template: event.target.value },
-                          }))
-                        }
-                        className="min-h-32 w-full resize-y rounded-[10px] border border-on-surface/8 bg-surface-container-lowest px-4 py-3 font-mono text-[13px] leading-6 text-on-surface outline-none transition-all placeholder:text-on-surface-variant/35 focus:border-primary focus:ring-4 focus:ring-primary/5"
-                        placeholder='{"data":[{"path":"{{uploaded_path}}","meta":{"_type":"gradio.FileData"}}],"fn_index":0}'
-                      />
-                    </FieldGroup>
-                  </div>
-                )}
-
-                {renderSecretField("Hugging Face Token（可选）", draft.bg_removal.custom.secret_state, bgRemovalSecret, setBgRemovalSecret, "bg_removal")}
-                {renderConnectionTestPanel("bg_removal", !desktopReady)}
-              </SettingsSection>
+              <BgRemovalTab
+                bgRemoval={draft.bg_removal}
+                builtinPresets={snapshot.families.bg_removal.builtin_presets}
+                onUpdate={(updater) => updateDraft("bg_removal", updater)}
+                secretField={
+                  <SecretField
+                    label="Hugging Face Token（可选）"
+                    state={draft.bg_removal.custom.secret_state}
+                    secret={bgRemovalSecret}
+                    setSecret={setBgRemovalSecret}
+                    family="bg_removal"
+                  />
+                }
+                connectionTestPanel={
+                  <ConnectionTestPanel
+                    family="bg_removal"
+                    disabled={!desktopReady}
+                    isTesting={testingFamily === "bg_removal"}
+                    result={testResults.bg_removal}
+                    onTest={() => void handleTest("bg_removal")}
+                  />
+                }
+              />
             )}
 
             {activeTab === "launch" && (
-              <SettingsSection
-                icon={SettingsIcon}
-                title="新任务默认值"
-                description="配置新任务的整理方式、默认模板、放置规则和归档目录。"
-              >
-                <div className="rounded-[12px] border border-on-surface/8 bg-surface px-4 py-4">
-                  <div className="grid gap-2 md:grid-cols-3">
-                    {launchSections.map((section) => {
-                      const active = activeLaunchSection === section.id;
-                      return (
-                        <button
-                          key={section.id}
-                          type="button"
-                          onClick={() => setActiveLaunchSection(section.id)}
-                          className={cn(
-                            "flex min-h-[58px] items-center gap-3 rounded-[8px] border px-3 py-2 text-left transition-colors",
-                            active
-                              ? "border-primary/28 bg-primary/8 text-primary"
-                              : "border-on-surface/8 bg-surface-container-lowest text-on-surface hover:border-primary/18 hover:bg-surface-container-low",
-                          )}
-                        >
-                          <section.icon className="h-4 w-4 shrink-0" />
-                          <div className="min-w-0">
-                            <p className="text-[12.5px] font-black">{section.label}</p>
-                            <p className="mt-1 truncate text-[11px] font-medium text-ui-muted">{section.description}</p>
-                          </div>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {activeLaunchSection === "strategy" && (
-                  <div className="space-y-4">
-                    <div className="rounded-[12px] border border-on-surface/8 bg-surface px-4 py-4">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="rounded-full border border-primary/12 bg-primary/8 px-3 py-1 text-[12px] font-semibold text-primary">{launchTemplate.label}</span>
-                        <span className="rounded-full border border-primary/12 bg-primary/8 px-3 py-1 text-[12px] font-semibold text-primary">{launchStrategyPreview.organize_mode_label}</span>
-                        <span className="rounded-full border border-on-surface/8 bg-surface-container-low px-3 py-1 text-[12px] font-medium text-on-surface-variant">{launchStrategyPreview.language_label}</span>
-                        <span className="rounded-full border border-on-surface/8 bg-surface-container-low px-3 py-1 text-[12px] font-medium text-on-surface-variant">{launchStrategyPreview.density_label}</span>
-                        <span className="rounded-full border border-on-surface/8 bg-surface-container-low px-3 py-1 text-[12px] font-medium text-on-surface-variant">{launchStrategyPreview.prefix_style_label}</span>
-                        <span className="rounded-full border border-on-surface/8 bg-surface-container-low px-3 py-1 text-[12px] font-medium text-on-surface-variant">{launchStrategyPreview.caution_level_label}</span>
-                      </div>
-                    </div>
-                    <FieldGroup label="默认整理方式">
-                      <div className="grid gap-3 md:grid-cols-2">
-                        <StrategyOptionButton
-                          active={launchDefaultOrganizeMethod === "categorize_into_new_structure"}
-                          label="生成新的分类结构"
-                          description="默认让 AI 为这批内容生成一套新目录，再写入新目录生成位置。"
-                          onClick={() => updateGlobal("LAUNCH_DEFAULT_ORGANIZE_METHOD", "categorize_into_new_structure")}
-                        />
-                        <StrategyOptionButton
-                          active={launchDefaultOrganizeMethod === "assign_into_existing_categories"}
-                          label="归入已有目录"
-                          description="默认把内容归入已保存的目标目录配置；拿不准的项目进入待确认区（不会自动归入目标目录）。"
-                          onClick={() => updateGlobal("LAUNCH_DEFAULT_ORGANIZE_METHOD", "assign_into_existing_categories")}
-                        />
-                      </div>
-                    </FieldGroup>
-                    <FieldGroup label="默认模板">
-                      <div className="grid gap-2 xl:grid-cols-2">
-                        {STRATEGY_TEMPLATES.map((template) => (
-                          <StrategyOptionButton
-                            key={template.id}
-                            active={draft.global_config.LAUNCH_DEFAULT_TEMPLATE_ID === template.id}
-                            label={template.label}
-                            description={template.description}
-                            onClick={() => {
-                              const suggested = getSuggestedSelection(template.id);
-                              updateGlobal("LAUNCH_DEFAULT_TEMPLATE_ID", template.id);
-                              updateGlobal("LAUNCH_DEFAULT_LANGUAGE", suggested.language);
-                              updateGlobal("LAUNCH_DEFAULT_DENSITY", suggested.density);
-                              updateGlobal("LAUNCH_DEFAULT_PREFIX_STYLE", suggested.prefix_style);
-                              updateGlobal("LAUNCH_DEFAULT_CAUTION_LEVEL", suggested.caution_level);
-                            }}
-                          />
-                        ))}
-                      </div>
-                    </FieldGroup>
-                    <div className="grid gap-3 xl:grid-cols-4">
-                      {[
-                        { label: "目录语言", key: "LAUNCH_DEFAULT_LANGUAGE", options: LANGUAGE_OPTIONS },
-                        { label: "分类粒度", key: "LAUNCH_DEFAULT_DENSITY", options: DENSITY_OPTIONS },
-                        { label: "目录前缀", key: "LAUNCH_DEFAULT_PREFIX_STYLE", options: PREFIX_STYLE_OPTIONS },
-                        { label: "归档倾向", key: "LAUNCH_DEFAULT_CAUTION_LEVEL", options: CAUTION_LEVEL_OPTIONS },
-                      ].map((group) => (
-                        <FieldGroup key={group.key} label={group.label}>
-                          <div className="grid gap-1.5">
-                            {group.options.map((option) => {
-                              const active = draft.global_config[group.key] === option.id;
-                              return (
-                                <button
-                                  key={option.id}
-                                  type="button"
-                                  onClick={() => updateGlobal(group.key, option.id)}
-                                  className={cn(
-                                    "rounded-[6px] border px-3 py-2 text-left transition-colors",
-                                    active
-                                      ? "border-primary/35 bg-primary/[0.06] text-primary"
-                                      : "border-on-surface/8 bg-surface-container-lowest text-on-surface hover:border-primary/20",
-                                  )}
-                                >
-                                  <span className="text-[12px] font-black">{option.label}</span>
-                                </button>
-                              );
-                            })}
-                          </div>
-                        </FieldGroup>
-                      ))}
-                    </div>
-                    <FieldGroup label="补充说明">
-                      <textarea
-                        value={draft.global_config.LAUNCH_DEFAULT_NOTE ?? ""}
-                        onChange={(event) => updateGlobal("LAUNCH_DEFAULT_NOTE", event.target.value.slice(0, 200))}
-                        className="min-h-24 w-full resize-none rounded-[10px] border border-on-surface/8 bg-surface-container-lowest px-4 py-3 text-[13px] leading-6 text-on-surface outline-none transition-all placeholder:text-on-surface-variant/35 focus:border-primary focus:ring-4 focus:ring-primary/5"
-                        placeholder="例如：拿不准的先放待确认区，课程资料尽量按学期整理。"
-                      />
-                    </FieldGroup>
-                  </div>
-                )}
-
-                {activeLaunchSection === "placement" && (
-                  <div className="space-y-4">
-                    <div className="rounded-[12px] border border-on-surface/8 bg-surface px-4 py-4">
-                      <div className="mb-4">
-                        <h3 className="text-[13px] font-semibold text-on-surface">默认放置规则</h3>
-                        <p className="mt-1 text-[12px] leading-5 text-on-surface-variant/65">
-                          这里只定义新任务的默认落点；任务页仍然可以按单次任务覆盖。
-                        </p>
-                      </div>
-                      <div className="grid gap-4 xl:grid-cols-2">
-                        <FieldGroup label="默认新目录生成位置" hint="留空时，新结构任务默认使用输出目录；归入已有目录任务默认使用当前任务工作区根。">
-                          <InputShell icon={FolderOpen} className="flex items-center">
-                            <input
-                              value={launchDefaultNewDirectoryRoot}
-                              onChange={(event) => updateGlobal("LAUNCH_DEFAULT_NEW_DIRECTORY_ROOT", event.target.value)}
-                              className="flex-1 bg-transparent py-2 text-sm font-semibold text-on-surface outline-none"
-                              placeholder="例如：D:/archive/sorted"
-                            />
-                            <button
-                              type="button"
-                              onClick={() => {
-                                void (async () => {
-                                  try {
-                                    const selected = desktopReady
-                                      ? await pickDirectoryWithTauri()
-                                      : (await api.selectDir()).path;
-                                    if (selected) {
-                                      updateGlobal("LAUNCH_DEFAULT_NEW_DIRECTORY_ROOT", selected);
-                                    }
-                                  } catch (err) {
-                                    setError(err instanceof Error ? err.message : "选择目录失败");
-                                  }
-                                })();
-                              }}
-                              className="ml-2 shrink-0 rounded-[4px] border border-on-surface/10 bg-surface px-2.5 py-1 text-[11px] font-bold text-on-surface transition-colors hover:border-primary/20 hover:text-primary active:scale-95"
-                            >
-                              浏览...
-                            </button>
-                          </InputShell>
-                        </FieldGroup>
-                        <FieldGroup
-                          label="默认待确认区位置"
-                          hint={
-                            launchReviewFollowsNewRoot
-                              ? `当前会自动跟随新目录位置，默认使用 ${launchDerivedReviewRoot}。`
-                              : "只在关闭“跟随新目录位置”后单独生效。"
-                          }
-                        >
-                          <InputShell icon={FolderOpen} className="flex items-center">
-                            <input
-                              value={launchDefaultReviewRoot}
-                              onChange={(event) => updateGlobal("LAUNCH_DEFAULT_REVIEW_ROOT", event.target.value)}
-                              disabled={launchReviewFollowsNewRoot}
-                              className="flex-1 bg-transparent py-2 text-sm font-semibold text-on-surface outline-none disabled:opacity-60"
-                              placeholder={launchReviewFollowsNewRoot ? launchDerivedReviewRoot : "例如：D:/archive/review"}
-                            />
-                            <button
-                              type="button"
-                              disabled={launchReviewFollowsNewRoot}
-                              onClick={() => {
-                                void (async () => {
-                                  try {
-                                    const selected = desktopReady
-                                      ? await pickDirectoryWithTauri()
-                                      : (await api.selectDir()).path;
-                                    if (selected) {
-                                      updateGlobal("LAUNCH_DEFAULT_REVIEW_ROOT", selected);
-                                    }
-                                  } catch (err) {
-                                    setError(err instanceof Error ? err.message : "选择目录失败");
-                                  }
-                                })();
-                              }}
-                              className="ml-2 shrink-0 rounded-[4px] border border-on-surface/10 bg-surface px-2.5 py-1 text-[11px] font-bold text-on-surface transition-colors hover:border-primary/20 hover:text-primary active:scale-95 disabled:pointer-events-none disabled:opacity-40"
-                            >
-                              浏览...
-                            </button>
-                          </InputShell>
-                        </FieldGroup>
-                      </div>
-                      <div className="mt-4 rounded-[12px] border border-on-surface/8 bg-surface-container-low px-4 py-3.5">
-                        <div className="flex items-start justify-between gap-4">
-                          <div>
-                            <h3 className="text-[13px] font-semibold text-on-surface">待确认区跟随新目录位置</h3>
-                            <p className="mt-1 text-[12px] leading-5 text-on-surface-variant/65">
-                              开启后，待确认区默认派生为 `新目录生成位置/Review`。它只作为暂存落点，不会再自动拆分子目录。
-                            </p>
-                          </div>
-                          <ToggleSwitch
-                            checked={launchReviewFollowsNewRoot}
-                            onClick={() => updateGlobal("LAUNCH_REVIEW_FOLLOWS_NEW_ROOT", !launchReviewFollowsNewRoot)}
-                            ariaLabel="待确认区跟随新目录位置"
-                          />
-                        </div>
-                      </div>
-                    </div>
-                    <div className="rounded-[12px] border border-on-surface/8 bg-surface px-4 py-3.5">
-                      <div className="flex items-start justify-between gap-4">
-                        <div>
-                          <h3 className="text-[13px] font-semibold text-on-surface">直接使用默认值启动</h3>
-                          <p className="mt-1 text-[12px] leading-5 text-on-surface-variant/65">开启后，首页点击开始时直接进入任务。</p>
-                        </div>
-                        <ToggleSwitch checked={Boolean(draft.global_config.LAUNCH_SKIP_STRATEGY_PROMPT)} onClick={() => updateGlobal("LAUNCH_SKIP_STRATEGY_PROMPT", !draft.global_config.LAUNCH_SKIP_STRATEGY_PROMPT)} ariaLabel="直接使用默认值启动" />
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {activeLaunchSection === "targets" && (
-                  <div className="rounded-[12px] border border-on-surface/8 bg-surface px-4 py-4">
-                    <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-                      <div>
-                        <h3 className="text-[13px] font-semibold text-on-surface">目标目录配置</h3>
-                        <p className="mt-1 text-[12px] leading-5 text-on-surface-variant/65">
-                          “归入已有目录”会使用这里保存的目录。可以直接把文件夹拖到对应配置里添加。
-                        </p>
-                      </div>
-                      {targetProfilesLoading ? <Loader2 className="h-4 w-4 animate-spin text-primary" /> : null}
-                    </div>
-                    <div className="mb-4 space-y-3">
-                      <div className="rounded-[10px] border border-primary/12 bg-primary/[0.035] px-4 py-3">
-                        <div className="flex flex-wrap items-start justify-between gap-3">
-                          <div>
-                            <h3 className="text-[12.5px] font-black text-on-surface">默认目标目录配置</h3>
-                            <p className="mt-1 text-[11.5px] font-medium leading-5 text-ui-muted/70">
-                              当“默认整理方式”为“归入已有目录”时，首页会优先选中这组目录。
-                            </p>
-                          </div>
-                          <select
-                            value={launchDefaultTargetProfileId}
-                            onChange={(event) => updateGlobal("LAUNCH_DEFAULT_TARGET_PROFILE_ID", event.target.value)}
-                            disabled={targetProfilesLoading || targetProfiles.length === 0}
-                            className="h-9 min-w-[220px] rounded-[8px] border border-on-surface/8 bg-surface px-3 text-[12px] font-semibold text-on-surface outline-none transition-colors focus:border-primary/40 disabled:opacity-60"
-                          >
-                            <option value="">不指定默认配置</option>
-                            {targetProfiles.map((profile) => (
-                              <option key={profile.profile_id} value={profile.profile_id}>
-                                {profile.name}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                        {launchDefaultTargetProfile ? (
-                          <p className="mt-2 text-[11px] font-medium text-primary/70">
-                            当前默认：{launchDefaultTargetProfile.name} · {launchDefaultTargetProfile.directories.length} 个目录
-                          </p>
-                        ) : null}
-                      </div>
-                      {/* 整合后的配置组水平管理栏 */}
-                      <div className="flex flex-wrap items-center gap-3 rounded-[10px] border border-on-surface/8 bg-surface-container-low p-3 w-full">
-                        <div className="flex flex-1 min-w-[180px] items-center gap-2 min-w-0">
-                          <span className="text-[12px] font-bold text-on-surface/70 shrink-0">配置组:</span>
-                          <select
-                            value={selectedTargetProfileId}
-                            onChange={(event) => setSelectedTargetProfileId(event.target.value)}
-                            disabled={targetProfilesLoading || targetProfiles.length === 0}
-                            className="h-9 flex-1 min-w-0 w-full rounded-[8px] border border-on-surface/8 bg-surface px-3 text-[12px] font-semibold text-on-surface outline-none transition-colors focus:border-primary/40 disabled:opacity-60"
-                          >
-                            {targetProfiles.length === 0 ? (
-                              <option value="">暂无可用配置组</option>
-                            ) : (
-                              targetProfiles.map((p) => {
-                                const pDraft = targetProfileDrafts[p.profile_id];
-                                return (
-                                  <option key={p.profile_id} value={p.profile_id}>
-                                    {pDraft?.name || p.name} ({pDraft?.directories.length ?? p.directories.length} 个目录)
-                                  </option>
-                                );
-                              })
-                            )}
-                          </select>
-                        </div>
-
-                        {selectedTargetProfile && !creatingTargetProfile && (
-                          <div className="flex items-center gap-2 min-w-[200px] flex-1 min-w-0">
-                            <span className="text-[12px] font-bold text-on-surface/70 shrink-0">重命名:</span>
-                            <input
-                              value={selectedTargetProfileDraft?.name || ""}
-                              onChange={(event) =>
-                                updateTargetProfileDraft(selectedTargetProfile.profile_id, (current) => ({
-                                  ...current,
-                                  name: event.target.value,
-                                }))
-                              }
-                              className="h-9 flex-1 min-w-0 w-full rounded-[8px] border border-on-surface/8 bg-surface px-3 text-[12px] font-semibold text-on-surface outline-none focus:border-primary/40 placeholder:text-on-surface-variant/30"
-                              placeholder="输入新配置名..."
-                            />
-                          </div>
-                        )}
-
-                        <div className="flex items-center gap-2 shrink-0 md:ml-auto">
-                          {!creatingTargetProfile ? (
-                            <Button
-                              type="button"
-                              variant="secondary"
-                              onClick={() => {
-                                setCreatingTargetProfile(true);
-                                setNewTargetProfileName("");
-                              }}
-                              disabled={targetProfilesLoading}
-                              className="h-9 px-3 text-[12px] font-bold"
-                            >
-                              <FolderPlus className="mr-1.5 h-3.5 w-3.5" />
-                              新建组
-                            </Button>
-                          ) : (
-                            <div className="flex items-center gap-2 bg-primary/[0.04] border border-primary/14 rounded-[8px] p-1">
-                              <input
-                                value={newTargetProfileName}
-                                onChange={(event) => setNewTargetProfileName(event.target.value)}
-                                className="h-7 w-28 bg-transparent px-2 text-[12px] font-semibold text-on-surface outline-none placeholder:text-on-surface-variant/30"
-                                placeholder="配置组名称"
-                                autoFocus
-                              />
-                              <Button
-                                type="button"
-                                size="sm"
-                                onClick={() => void createTargetProfile()}
-                                disabled={targetProfilesLoading || !newTargetProfileName.trim()}
-                                className="h-7 px-2.5 text-[11px] font-bold"
-                              >
-                                确定
-                              </Button>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => setCreatingTargetProfile(false)}
-                                className="h-7 px-2.5 text-[11px] font-bold text-ui-muted"
-                              >
-                                取消
-                              </Button>
-                            </div>
-                          )}
-
-                          {selectedTargetProfile && (
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              onClick={() => void deleteTargetProfile(selectedTargetProfile.profile_id)}
-                              disabled={targetProfilesLoading}
-                              className="h-9 px-3 text-[12px] font-bold text-error hover:bg-error/10 hover:text-error"
-                            >
-                              删除当前组
-                            </Button>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="grid gap-3">
-                      {selectedTargetProfile ? (() => {
-                        const profile = selectedTargetProfile;
-                        const profileDraft = targetProfileDrafts[profile.profile_id] ?? {
-                          name: profile.name,
-                          directories: profile.directories,
-                          newPath: "",
-                          newLabel: "",
-                          newDescription: "",
-                        };
-                        const dragActive = dragTargetProfileId === profile.profile_id;
-                        return (
-                          <div
-                            key={profile.profile_id}
-                            ref={(element) => {
-                              targetDropZoneRefs.current[profile.profile_id] = element;
-                            }}
-                            onDragOver={(event) => {
-                              event.preventDefault();
-                              setDragTargetProfileId(profile.profile_id);
-                            }}
-                            onDragLeave={() => setDragTargetProfileId((current) => (current === profile.profile_id ? null : current))}
-                            onDrop={(event) => {
-                              event.preventDefault();
-                              setDragTargetProfileId(null);
-                              addDirectoriesToTargetProfile(profile.profile_id, extractDroppedPaths(event));
-                            }}
-                            className={cn(
-                              "relative overflow-hidden rounded-[12px] border px-4 py-4 transition-all duration-200",
-                              dragActive
-                                ? "border-primary bg-primary/[0.04] ring-2 ring-primary/20 shadow-md"
-                                : "border-on-surface/8 bg-surface-container-lowest",
-                            )}
-                          >
-                            {/* 拖入文件夹时的半透明蓝色遮罩与动画 */}
-                            <AnimatePresence>
-                              {dragActive && (
-                                <motion.div
-                                  initial={{ opacity: 0 }}
-                                  animate={{ opacity: 1 }}
-                                  exit={{ opacity: 0 }}
-                                  className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-primary/10 backdrop-blur-[1px] pointer-events-none"
-                                >
-                                  <motion.div
-                                    initial={{ scale: 0.9, y: 10 }}
-                                    animate={{ scale: 1, y: 0 }}
-                                    exit={{ scale: 0.9, y: 10 }}
-                                    className="flex flex-col items-center gap-2 rounded-xl border border-primary/20 bg-surface px-6 py-5 shadow-lg"
-                                  >
-                                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary">
-                                      <FolderPlus className="h-6 w-6 animate-pulse" />
-                                    </div>
-                                    <p className="text-sm font-bold text-on-surface">释放以将文件夹导入当前配置</p>
-                                    <p className="text-[11px] text-ui-muted">可一次拖入多个文件夹路径</p>
-                                  </motion.div>
-                                </motion.div>
-                              )}
-                            </AnimatePresence>
-
-                            {/* 操作区 (拖拽提示框 + 手动添加表单) */}
-                            <div className="space-y-3 pb-4 border-b border-on-surface/6">
-                              {/* 拖拽提示框，更现代的虚线引导框 */}
-                              <div className="flex items-center gap-2.5 rounded-[8px] border border-dashed border-primary/20 bg-primary/[0.015] px-3.5 py-3 text-[11.5px] font-semibold text-ui-muted hover:bg-primary/[0.03] transition-colors">
-                                <FolderPlus className="h-4 w-4 text-primary/65 shrink-0" />
-                                <span>支持直接将文件夹拖拽至当前面板内任何位置，自动解析并添加路径。</span>
-                              </div>
-
-                              {/* 紧密排列的手动添加表单 */}
-                              <div className="grid gap-2 xl:grid-cols-[minmax(0,1fr)_130px_180px_auto]">
-                                <div className="relative flex items-center">
-                                  <input
-                                    value={profileDraft.newPath}
-                                    onChange={(event) => updateTargetProfileDraft(profile.profile_id, (current) => ({ ...current, newPath: event.target.value }))}
-                                    className="h-9 w-full rounded-[8px] border border-on-surface/8 bg-surface pl-3 pr-16 font-mono text-[12px] text-on-surface outline-none transition-colors focus:border-primary/40 placeholder:text-on-surface-variant/35"
-                                    placeholder="目标目录完整路径"
-                                  />
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      void (async () => {
-                                        try {
-                                          const selected = desktopReady
-                                            ? await pickDirectoryWithTauri()
-                                            : (await api.selectDir()).path;
-                                          if (selected) {
-                                            updateTargetProfileDraft(profile.profile_id, (current) => ({ ...current, newPath: selected }));
-                                          }
-                                        } catch (err) {
-                                          setError(err instanceof Error ? err.message : "选择目录失败");
-                                        }
-                                      })();
-                                    }}
-                                    className="absolute right-1.5 h-6 rounded-[4px] border border-on-surface/10 bg-surface px-2.5 py-0.5 text-[11px] font-bold text-on-surface transition-colors hover:border-primary/20 hover:text-primary active:scale-95"
-                                  >
-                                    浏览...
-                                  </button>
-                                </div>
-                                <input
-                                  value={profileDraft.newLabel}
-                                  onChange={(event) => updateTargetProfileDraft(profile.profile_id, (current) => ({ ...current, newLabel: event.target.value }))}
-                                  className="h-9 rounded-[8px] border border-on-surface/8 bg-surface px-3 text-[12px] text-on-surface outline-none transition-colors focus:border-primary/40"
-                                  placeholder="标签（可选）"
-                                />
-                                <input
-                                  value={profileDraft.newDescription}
-                                  onChange={(event) => updateTargetProfileDraft(profile.profile_id, (current) => ({ ...current, newDescription: event.target.value }))}
-                                  className="h-9 rounded-[8px] border border-on-surface/8 bg-surface px-3 text-[12px] text-on-surface outline-none transition-colors focus:border-primary/40"
-                                  placeholder="目录说明（可选）"
-                                />
-                                <Button
-                                  type="button"
-                                  variant="secondary"
-                                  onClick={() => addDirectoryToTargetProfile(profile.profile_id)}
-                                  disabled={targetProfilesLoading || !profileDraft.newPath.trim()}
-                                  className="h-9 px-4 text-[12px] font-bold"
-                                >
-                                  添加目录
-                                </Button>
-                              </div>
-                            </div>
-
-                            {/* 已添加目录的列表 - 限高与纵向滚动 */}
-                            <div className="mt-4">
-                              <div className="flex items-center justify-between mb-2">
-                                <h4 className="text-[11px] font-bold uppercase tracking-wider text-ui-muted">已配置目录 ({profileDraft.directories.length})</h4>
-                              </div>
-
-                              <div className="max-h-[360px] overflow-y-auto pr-1 space-y-1.5 scrollbar-thin">
-                                {profileDraft.directories.length ? profileDraft.directories.map((directory) => (
-                                  <div
-                                    key={directory.path}
-                                    className="group relative flex items-center justify-between gap-3 rounded-[8px] border border-on-surface/8 bg-surface px-3 py-2 transition-all hover:border-on-surface/16 hover:bg-on-surface/[0.015]"
-                                  >
-                                    {(() => {
-                                      const editorKey = targetDirectoryEditorKey(profile.profile_id, directory.path);
-                                      const isExpanded = expandedTargetDirectoryEditors[editorKey] ?? false;
-                                      return (
-                                        <div className="flex-1 min-w-0">
-                                          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                                            {directory.label ? (
-                                              <span className="shrink-0 rounded-[4px] bg-primary/10 px-1.5 py-0.5 text-[10px] font-bold text-primary">
-                                                {directory.label}
-                                              </span>
-                                            ) : null}
-                                            <span className="text-[12px] font-bold text-on-surface truncate">
-                                              {directory.path.split(/[\\/]/).pop() || directory.path}
-                                            </span>
-                                            <span className="font-mono text-[10.5px] text-ui-muted/50 truncate max-w-[280px]" title={directory.path}>
-                                              {directory.path}
-                                            </span>
-                                          </div>
-
-                                          {directory.description && (
-                                            <p className="mt-0.5 text-[11px] leading-relaxed text-ui-muted/75 truncate">
-                                              {directory.description}
-                                            </p>
-                                          )}
-
-                                          {isExpanded && (
-                                            <div className="mt-2.5 grid gap-2 border-t border-on-surface/6 pt-2 xl:grid-cols-[180px_minmax(0,1fr)]">
-                                              <input
-                                                value={directory.label || ""}
-                                                onChange={(event) =>
-                                                  updateTargetProfileDraft(profile.profile_id, (current) => ({
-                                                    ...current,
-                                                    directories: current.directories.map((item) => (
-                                                      item.path === directory.path
-                                                        ? { ...item, label: event.target.value }
-                                                        : item
-                                                    )),
-                                                  }))
-                                                }
-                                                className="h-8 rounded-[6px] border border-on-surface/8 bg-surface-container-lowest px-2.5 text-[11px] text-on-surface outline-none transition-colors focus:border-primary/40"
-                                                placeholder="标签（可选）"
-                                              />
-                                              <input
-                                                value={directory.description || ""}
-                                                onChange={(event) =>
-                                                  updateTargetProfileDraft(profile.profile_id, (current) => ({
-                                                    ...current,
-                                                    directories: current.directories.map((item) => (
-                                                      item.path === directory.path
-                                                        ? { ...item, description: event.target.value }
-                                                        : item
-                                                    )),
-                                                  }))
-                                                }
-                                                className="h-8 rounded-[6px] border border-on-surface/8 bg-surface-container-lowest px-2.5 text-[11px] text-on-surface outline-none transition-colors focus:border-primary/40"
-                                                placeholder="目录说明（可选）"
-                                              />
-                                            </div>
-                                          )}
-                                        </div>
-                                      );
-                                    })()}
-
-                                    <div className="flex shrink-0 items-center gap-1.5 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-150">
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          const editorKey = targetDirectoryEditorKey(profile.profile_id, directory.path);
-                                          setExpandedTargetDirectoryEditors((current) => ({
-                                            ...current,
-                                            [editorKey]: !(current[editorKey] ?? false),
-                                          }));
-                                        }}
-                                        disabled={targetProfilesLoading}
-                                        className={cn(
-                                          "rounded-[6px] px-2 py-1 text-[11px] font-bold transition-colors disabled:opacity-50",
-                                          expandedTargetDirectoryEditors[targetDirectoryEditorKey(profile.profile_id, directory.path)]
-                                            ? "bg-primary/10 text-primary"
-                                            : "text-primary hover:bg-primary/5"
-                                        )}
-                                      >
-                                        {expandedTargetDirectoryEditors[targetDirectoryEditorKey(profile.profile_id, directory.path)] ? "收起编辑" : "编辑"}
-                                      </button>
-                                      <button
-                                        type="button"
-                                        onClick={() => removeDirectoryFromTargetProfile(profile.profile_id, directory.path)}
-                                        disabled={targetProfilesLoading}
-                                        className="rounded-[6px] px-2 py-1 text-[11px] font-bold text-error transition-colors hover:bg-error/5 disabled:opacity-50"
-                                      >
-                                        移除
-                                      </button>
-                                    </div>
-                                  </div>
-                                )) : (
-                                  <div className="rounded-[8px] border border-dashed border-on-surface/10 bg-surface px-3 py-6 text-center text-[12px] font-medium text-ui-muted">
-                                    当前配置中还没有添加任何目录。
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })() : (
-                        <div className="rounded-[12px] border border-dashed border-on-surface/10 bg-surface-container-lowest px-4 py-6 text-center text-[13px] font-medium text-ui-muted">
-                          还没有目标目录配置。新建一个配置后，在启动页选择“归入现有目录”即可复用。
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </SettingsSection>
+              <LaunchTab
+                globalConfig={draft.global_config}
+                activeSection={activeLaunchSection}
+                onSelectSection={setActiveLaunchSection}
+                onUpdateGlobal={updateGlobal}
+                targetProfiles={targetProfiles}
+                targetProfilesLoading={targetProfilesLoading}
+                targetProfileDrafts={targetProfileDrafts}
+                selectedTargetProfileId={selectedTargetProfileId}
+                onSelectTargetProfile={setSelectedTargetProfileId}
+                creatingTargetProfile={creatingTargetProfile}
+                onSetCreatingTargetProfile={setCreatingTargetProfile}
+                newTargetProfileName={newTargetProfileName}
+                onChangeNewTargetProfileName={setNewTargetProfileName}
+                expandedDirectoryEditors={expandedTargetDirectoryEditors}
+                onToggleDirectoryEditor={toggleTargetDirectoryEditor}
+                dragTargetProfileId={dragTargetProfileId}
+                setDragTargetProfileId={setDragTargetProfileId}
+                registerDropZone={registerTargetDropZone}
+                onUpdateTargetProfileDraft={updateTargetProfileDraft}
+                onAddDirectories={addDirectoriesToTargetProfile}
+                onAddDirectory={addDirectoryToTargetProfile}
+                onRemoveDirectory={removeDirectoryFromTargetProfile}
+                onCreateTargetProfile={() => void createTargetProfile()}
+                onDeleteTargetProfile={(profileId) => void deleteTargetProfile(profileId)}
+                onPickDirectory={pickDirectory}
+              />
             )}
 
             {activeTab === "system" && (
-              <SettingsSection
-                icon={ShieldCheck}
-                title="关于与运行日志"
-                description="项目版本、检查更新、调试开关及系统运行日志。"
-              >
-                {/* 1. 关于与检查更新卡片 */}
-                <div className="rounded-[12px] border border-on-surface/8 bg-surface p-4">
-                  <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
-                    {/* 左侧：应用品牌与版本信息 */}
-                    <div className="flex items-center gap-4">
-                      <div className="relative flex h-14 w-14 shrink-0 items-center justify-center rounded-[12px] border border-on-surface/8 bg-surface-container-low p-2.5 shadow-sm transition-all hover:shadow-md">
-                        <img
-                          src="/app-icon.png"
-                          alt="FilePilot Logo"
-                          className="h-full w-full object-contain"
-                          onError={(e) => {
-                            e.currentTarget.style.display = 'none';
-                            const parent = e.currentTarget.parentElement;
-                            if (parent) {
-                              const fallback = document.createElement('div');
-                              fallback.className = 'text-primary';
-                              fallback.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-cpu h-6 w-6"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><path d="M9 1v3"/><path d="M15 1v3"/><path d="M9 20v3"/><path d="M15 20v3"/><path d="M20 9h3"/><path d="M20 15h3"/><path d="M1 9h3"/><path d="M1 15h3"/></svg>`;
-                              parent.appendChild(fallback);
-                            }
-                          }}
-                        />
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <h3 className="text-[14px] font-bold text-on-surface">FilePilot</h3>
-                          <span className="rounded-[6px] bg-primary/10 px-2 py-0.5 text-[10.5px] font-black text-primary uppercase">
-                            {appVersion}
-                          </span>
-                        </div>
-                        <p className="mt-1 text-[11.5px] leading-5 text-on-surface-variant/65">
-                          本地智能文件整理与归档工作台
-                        </p>
-                        <div className="mt-2 flex items-center gap-2">
-                          <a
-                            href="https://github.com/qup1010/FilePilot"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            onClick={(e) => handleOpenLink("https://github.com/qup1010/FilePilot", e)}
-                            className="inline-flex items-center gap-1.5 text-[11.5px] font-bold text-primary transition-colors hover:text-primary-dim hover:underline"
-                          >
-                            <Github className="h-3.5 w-3.5" />
-                            GitHub 仓库
-                          </a>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* 右侧：检查更新操作与提示 */}
-                    <div className="flex flex-col items-end shrink-0">
-                      <Button
-                        type="button"
-                        onClick={() => void handleCheckUpdate()}
-                        disabled={checkingUpdate || cooldown > 0}
-                        className={cn(
-                          "h-9 px-4 text-[12px] font-bold transition-all",
-                          cooldown > 0
-                            ? "border border-on-surface/8 bg-surface-container-low text-ui-muted"
-                            : "border border-primary/20 bg-primary hover:bg-primary-dim text-white"
-                        )}
-                      >
-                        {checkingUpdate ? (
-                          <span className="flex items-center gap-1.5">
-                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                            正在检查...
-                          </span>
-                        ) : cooldown > 0 ? (
-                          "重新检查"
-                        ) : (
-                          <span className="flex items-center gap-1.5">
-                            <RefreshCw className="h-3.5 w-3.5" />
-                            检查更新
-                          </span>
-                        )}
-                      </Button>
-                    </div>
-                  </div>
-
-                  {/* 检查更新结果展开项 */}
-                  {updateResult && (
-                    <div className="mt-4 pt-4 border-t border-on-surface/6">
-                      {updateResult.hasUpdate ? (
-                        <div className="rounded-[10px] border border-primary/25 bg-primary/[0.02] p-3">
-                          <div className="flex items-center gap-2 text-[12.5px] font-bold text-primary">
-                            <CheckCircle2 className="h-4 w-4 text-primary shrink-0" />
-                            发现新版本 {updateResult.version}！
-                          </div>
-                          {updateResult.body && (
-                            <div className="mt-2 max-h-36 overflow-y-auto rounded-[8px] bg-surface-container-lowest/50 p-2.5 font-mono text-[11px] leading-5 text-on-surface-variant/75 border border-on-surface/4">
-                              <div className="font-semibold text-on-surface text-[11px] mb-1">更新日志：</div>
-                              <pre className="whitespace-pre-wrap font-sans text-[11px] text-on-surface-variant">{updateResult.body}</pre>
-                            </div>
-                          )}
-                          <div className="mt-3 flex items-center justify-end">
-                            <a
-                              href={updateResult.url || "https://github.com/qup1010/FilePilot/releases"}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              onClick={(e) => handleOpenLink(updateResult.url || "https://github.com/qup1010/FilePilot/releases", e)}
-                              className="inline-flex items-center gap-1 rounded-[6px] border border-primary/20 bg-primary/8 px-3 py-1.5 text-[11.5px] font-bold text-primary transition-colors hover:bg-primary/14"
-                            >
-                              <Globe className="h-3.5 w-3.5" />
-                              前往 GitHub 下载更新
-                            </a>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="flex items-center gap-2 rounded-[10px] border border-on-surface/8 bg-surface-container-lowest px-3 py-2.5 text-[12px] font-semibold text-on-surface-variant/80">
-                          <CheckCircle2 className="h-4 w-4 text-green-500 shrink-0" />
-                          当前已是最新版本 ({updateResult.version})，无需更新。
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* 异常警示展开项 */}
-                  {updateError && (
-                    <div className="mt-4 pt-4 border-t border-on-surface/6">
-                      <div className="rounded-[10px] border border-yellow-500/20 bg-yellow-500/[0.02] p-3 text-[12px] leading-relaxed text-on-surface-variant">
-                        <div className="flex items-center gap-2 font-bold text-yellow-600 dark:text-yellow-500 mb-1">
-                          <AlertCircle className="h-4 w-4 shrink-0" />
-                          检查更新失败
-                        </div>
-                        <p className="text-[11.5px] text-on-surface-variant/80">
-                          {updateError}
-                        </p>
-                        <div className="mt-2.5 flex justify-end">
-                          <a
-                            href="https://github.com/qup1010/FilePilot/releases"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            onClick={(e) => handleOpenLink("https://github.com/qup1010/FilePilot/releases", e)}
-                            className="inline-flex items-center gap-1 text-[11px] font-bold text-yellow-600 dark:text-yellow-500 underline transition-colors hover:text-yellow-700 dark:hover:text-yellow-400"
-                          >
-                            前往 GitHub Releases 页面手动检查
-                            <ChevronRight className="h-3 w-3" />
-                          </a>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* 2. 系统日志与调试集成卡片 */}
-                <div className="rounded-[12px] border border-on-surface/8 bg-surface p-4">
-                  {/* 开关调试行 */}
-                  <div className="flex items-start justify-between gap-4 pb-4 border-b border-on-surface/6">
-                    <div>
-                      <h3 className="text-[13px] font-semibold text-on-surface">调试模式（详细日志）</h3>
-                      <p className="mt-1 text-[11.5px] leading-5 text-on-surface-variant/65">
-                        关闭时仅保留基础运行状态；开启后会额外输出详细的 API 调用与调试日志，帮助追踪问题。
-                      </p>
-                    </div>
-                    <ToggleSwitch
-                      checked={Boolean(draft.global_config.DEBUG_MODE)}
-                      onClick={() => updateGlobal("DEBUG_MODE", !draft.global_config.DEBUG_MODE)}
-                      ariaLabel="调试模式（详细日志）"
-                    />
-                  </div>
-
-                  {/* 日志路径行 */}
-                  <div className="pt-4">
-                    <div className="mb-3">
-                      <h3 className="text-[13px] font-semibold text-on-surface">系统日志路径</h3>
-                      <p className="mt-1 text-[11.5px] leading-5 text-on-surface-variant/65">
-                        运行日志保存在以下本地路径中，需要排错时可快速复制查看：
-                      </p>
-                    </div>
-                    <div className="grid gap-3 md:grid-cols-2">
-                      {[
-                        {
-                          label: "运行日志",
-                          path: snapshot?.runtime.log_paths.runtime_log || "",
-                        },
-                        {
-                          label: "调试日志",
-                          path: snapshot?.runtime.log_paths.debug_log || "",
-                        },
-                      ].map((item) => (
-                        <div key={item.label} className="rounded-[10px] border border-on-surface/8 bg-surface-container-lowest px-4 py-3">
-                          <div className="flex items-center justify-between gap-3">
-                            <span className="text-[11px] font-black uppercase tracking-[0.15em] text-ui-muted">{item.label}</span>
-                            <button
-                              type="button"
-                              onClick={() => copyTextToClipboard(item.path, setSuccess, setError)}
-                              className="inline-flex items-center gap-1 rounded-[6px] border border-on-surface/8 bg-surface px-2.5 py-1 text-[11px] font-bold text-on-surface transition-colors hover:border-primary/20 hover:text-primary"
-                            >
-                              <ClipboardCopy className="h-3 w-3" />
-                              复制路径
-                            </button>
-                          </div>
-                          <div className="mt-2 break-all font-mono text-[11px] leading-5 text-on-surface-variant/80">
-                            {item.path || "尚未生成"}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </SettingsSection>
+              <SystemTab
+                appVersion={appVersion}
+                checkingUpdate={checkingUpdate}
+                cooldown={cooldown}
+                updateResult={updateResult}
+                updateError={updateError}
+                debugMode={Boolean(draft.global_config.DEBUG_MODE)}
+                runtimeLogPath={snapshot?.runtime.log_paths.runtime_log || ""}
+                debugLogPath={snapshot?.runtime.log_paths.debug_log || ""}
+                onCheckUpdate={() => void handleCheckUpdate()}
+                onOpenLink={handleOpenLink}
+                onToggleDebugMode={() => updateGlobal("DEBUG_MODE", !draft.global_config.DEBUG_MODE)}
+                onCopyPath={(path) => copyTextToClipboard(path, setSuccess, setError)}
+              />
             )}
           </motion.div>
 
