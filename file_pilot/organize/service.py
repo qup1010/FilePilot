@@ -1181,7 +1181,7 @@ def _system_pending_summary(plan: PendingPlan) -> str:
     total_moves = len(plan.moves or [])
     unresolved_count = len(plan.unresolved_items or [])
     classified_count = max(0, total_moves - unresolved_count)
-    return f"已分类 {classified_count} 项，调整 {total_moves} 项，仍剩 {unresolved_count} 项待定"
+    return f"已分类 {classified_count} 项，待移动 {total_moves} 项，待确认 {unresolved_count} 项"
 
 
 def apply_plan_diff(

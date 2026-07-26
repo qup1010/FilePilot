@@ -206,6 +206,8 @@ export interface SourceTreeEntry {
   display_name: string;
   entry_type: "file" | "directory" | string;
   source_mode?: DirectorySourceMode | string;
+  /** 整体移动的目录内含的条目数；该目录在计划里只占 1 项，用于提示其余文件并未丢失。 */
+  child_count?: number;
 }
 
 export interface TargetDirectoryNode {

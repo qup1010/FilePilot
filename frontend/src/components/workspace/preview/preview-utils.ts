@@ -212,6 +212,24 @@ export function sortTree(root: TreeNode) {
   return root.children;
 }
 
+/**
+ * 整体移动的目录 → 其内含条目数。
+ * 这类目录在计划里只占 1 项，界面需要显式说明"里面还有 N 项"，
+ * 否则用户看到"移动 25 项"会以为其余文件被漏掉了。
+ */
+export function buildAtomicChildCounts(sourceEntries: SourceTreeEntry[]): Map<string, number> {
+  const counts = new Map<string, number>();
+  for (const entry of sourceEntries) {
+    if (String(entry.source_mode || "").toLowerCase() !== "atomic") continue;
+    const path = normalizePath(entry.source_relpath);
+    const count = Number(entry.child_count || 0);
+    if (path && count > 0) {
+      counts.set(path, count);
+    }
+  }
+  return counts;
+}
+
 function atomicRootPaths(sourceEntries: SourceTreeEntry[]): string[] {
   return sourceEntries
     .filter((entry) => String(entry.source_mode || "").toLowerCase() === "atomic")

@@ -107,13 +107,13 @@ describe("PreviewPanel", () => {
       />,
     );
 
-    expect(screen.getByText("待处理队列")).toBeInTheDocument();
+    expect(screen.getByText("待确认队列")).toBeInTheDocument();
     expect(screen.getAllByText("important_invoice_301.exe").length).toBeGreaterThan(0);
 
     fireEvent.click(screen.getByRole("button", { name: "收起" }));
 
     expect(screen.getByRole("button", { name: "展开列表" })).toBeInTheDocument();
-    expect(screen.getByText("待处理队列")).toBeInTheDocument();
+    expect(screen.getByText("待确认队列")).toBeInTheDocument();
     expect(screen.getAllByText("待核对 1").length).toBeGreaterThan(0);
 
     fireEvent.click(screen.getByRole("button", { name: "展开列表" }));
@@ -161,9 +161,9 @@ describe("PreviewPanel", () => {
       />,
     );
 
-    expect(screen.getAllByText("待处理 1").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("待确认 1").length).toBeGreaterThan(0);
     expect(screen.getByText("仍有 1 项待核对。")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "先处理待处理项" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "去处理待确认项（1）" })).toBeInTheDocument();
     expect(screen.queryByText("同步中")).not.toBeInTheDocument();
   });
 
@@ -203,7 +203,7 @@ describe("PreviewPanel", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "全部保留在待确认区" }));
 
-    expect(screen.queryByText("待处理队列")).not.toBeInTheDocument();
+    expect(screen.queryByText("待确认队列")).not.toBeInTheDocument();
     expect(screen.getByText("已保留")).toBeInTheDocument();
     expect(screen.queryAllByText("待核对").length).toBe(0);
   });
@@ -295,7 +295,8 @@ describe("PreviewPanel", () => {
     );
 
     expect(screen.getByRole("button", { name: "全部保留在待确认区" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "先处理待处理项" })).toBeDisabled();
+    // 有待确认项时主按钮不再是死的，而是带用户去处理队列。
+    expect(screen.getByRole("button", { name: "去处理待确认项（1）" })).toBeEnabled();
 
     fireEvent.click(screen.getByRole("button", { name: "全部保留在待确认区" }));
 

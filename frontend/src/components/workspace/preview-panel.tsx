@@ -20,6 +20,7 @@ import {
   buildPlanTree,
   buildSourceTree,
   displayDirectoryLabel,
+  buildAtomicChildCounts,
   escapesRelativeRoot,
   fileExtension,
   getFileIcon,
@@ -128,6 +129,7 @@ interface TreeBranchProps {
   viewMode: "before" | "after";
   targetSlotById: TargetSlotLookup;
   placement: PlacementConfig;
+  atomicChildCounts: Map<string, number>;
 }
 
 function TreeBranchInner({
@@ -142,12 +144,14 @@ function TreeBranchInner({
   viewMode,
   targetSlotById,
   placement,
+  atomicChildCounts,
 }: TreeBranchProps) {
   const [isHovered, setIsHovered] = useState(false);
 
   if (node.kind === "file") {
     if (node.item) {
       const status = itemStatusMeta(node.item, acceptedReviewItemIds);
+      const atomicChildCount = atomicChildCounts.get(normalizePath(node.item.source_relpath)) || 0;
       const ItemIcon = getFileIcon(node.item.display_name, node.item.entry_type);
       const active = selectedItemId === node.item.item_id;
       const hasMoved = viewMode === "after" && isItemChanged(node.item, targetSlotById, placement);
@@ -185,11 +189,20 @@ function TreeBranchInner({
                     ← {node.item.source_relpath.replace(/\\/g, "/").split('/').slice(0, -1).pop()}
                   </span>
                 )}
+                {atomicChildCount ? (
+                  <span
+                    className="shrink-0 whitespace-nowrap rounded-[4px] bg-on-surface/[0.05] px-1.5 py-0.5 text-[11px] font-bold text-ui-muted"
+                    title={`该目录整体移动，内含 ${atomicChildCount} 项`}
+                  >
+                    含 {atomicChildCount} 项
+                  </span>
+                ) : null}
               </div>
             </div>
 
             <div className="flex items-center gap-2 shrink-0">
-              {node.item.status !== "assigned" && node.item.status !== "skipped" && (
+              {/* "已就绪"是默认状态，满屏重复反而淹没真正需要注意的待确认项，只标例外。 */}
+              {node.item.status !== "assigned" && node.item.status !== "skipped" && status.label !== "已就绪" && (
                 <span className={cn("rounded-[4px] border px-1.5 py-0.5 text-[11px] font-black uppercase tracking-widest shrink-0", status.tone)}>
                   {status.label}
                 </span>
@@ -316,6 +329,7 @@ function TreeBranchInner({
                 viewMode={viewMode}
                 targetSlotById={targetSlotById}
                 placement={placement}
+                atomicChildCounts={atomicChildCounts}
               />
             ))}
           </motion.div>
@@ -576,6 +590,7 @@ export function PreviewPanel(props: PreviewPanelProps) {
     [allItems, sourceTreeEntries],
   );
   const placement = plan.placement || EMPTY_PLACEMENT;
+  const atomicChildCounts = useMemo(() => buildAtomicChildCounts(sourceTreeEntries), [sourceTreeEntries]);
   const resolveTargetLabel = useCallback(
     (item: PlanItem) => displayDirectoryLabel(resolveItemDirectory(item, targetSlotById, placement)),
     [placement, targetSlotById],
@@ -844,7 +859,7 @@ export function PreviewPanel(props: PreviewPanelProps) {
     [precheckSummary?.target_conflict_suggestions],
   );
   const precheckNotice = canRunPrecheck
-    ? "待处理项目已清空，可以进行移动前检查。"
+    ? "待确认项已清空，可以进行移动前检查。"
     : targetConflictSuggestionCount > 0
       ? `检测到 ${targetConflictSuggestionCount} 个同名目标，可应用建议后重新检查。`
     : invalidatedItems.length > 0
@@ -909,7 +924,7 @@ export function PreviewPanel(props: PreviewPanelProps) {
                     方案预览
                   </div>
                   <span className={cn("rounded-[4px] border px-2 py-0.5 text-[11px] font-black uppercase tracking-widest", pendingQueueCount > 0 || !canRunPrecheck ? "border-warning/30 bg-warning/5 text-warning" : "border-success/30 bg-success/5 text-success-dim")}>
-                    {pendingQueueCount > 0 ? `待处理 ${pendingQueueCount}` : canRunPrecheck ? "可进行检查" : isPlanSyncing ? "更新中" : "等待检查"}
+                    {pendingQueueCount > 0 ? `待确认 ${pendingQueueCount}` : canRunPrecheck ? "可进行检查" : isPlanSyncing ? "更新中" : "等待检查"}
                   </span>
                   <div className="flex shrink-0 items-center gap-1.5 rounded-[4px] border border-on-surface/8 bg-on-surface/[0.02] px-2 py-0.5 text-[11px] font-bold text-on-surface uppercase tracking-widest">
                     <Sparkles className="h-2.5 w-2.5 text-primary/60" />
@@ -921,12 +936,10 @@ export function PreviewPanel(props: PreviewPanelProps) {
                   </div>
                 </div>
 
-                <div className="flex min-w-0 items-center gap-3">
-                  <h2 className="truncate text-[14px] font-bold tracking-tight text-on-surface">先处理待处理项，再核对目标结构</h2>
-                  {plan.summary ? (
-                    <p className="min-w-0 flex-1 truncate text-[11px] text-ui-muted/80">{plan.summary}</p>
-                  ) : null}
-                </div>
+                {/* 标题只讲"现在该做什么"；后端 summary 里的移动/待确认数与上方徽标重复，不再重复展示。 */}
+                <h2 className="truncate text-[14px] font-bold tracking-tight text-on-surface">
+                  {pendingQueueCount > 0 ? "先处理待确认项，再核对目标结构" : "核对目标结构，确认后即可检查"}
+                </h2>
               </div>
 
               {incrementalSummary ? (
@@ -1098,6 +1111,7 @@ export function PreviewPanel(props: PreviewPanelProps) {
                       viewMode={viewMode}
                       targetSlotById={targetSlotById}
                       placement={placement}
+                      atomicChildCounts={atomicChildCounts}
                     />
                   )) : (
                     <div className="flex h-[360px] flex-col items-center justify-center gap-3 rounded-[8px] border border-dashed border-on-surface/10 bg-on-surface/[0.02] text-center">
@@ -1119,7 +1133,7 @@ export function PreviewPanel(props: PreviewPanelProps) {
                               : "扫描完成后，这里会展示真实的整理前目录结构。"
                             : !hasAfterPlanData && isPlanningRun
                               ? "先切回“前”查看原始目录，方案稳定后这里会自动出现整理后结构。"
-                              : "可以切换筛选条件，或先处理下方待处理队列。"}
+                              : "可以切换筛选条件，或先处理下方待确认队列。"}
                         </p>
                       </div>
                     </div>
@@ -1429,10 +1443,39 @@ export function PreviewPanel(props: PreviewPanelProps) {
               应用冲突建议
             </button>
           ) : null}
-          <button type="button" onClick={onRunPrecheck} disabled={isBusy || !canRunPrecheck} className={cn("flex w-full items-center justify-center gap-2 rounded-md py-3 text-[14px] font-black uppercase tracking-widest transition-all active:scale-[0.98]", canRunPrecheck && !isBusy ? "bg-primary text-white" : "cursor-not-allowed border border-on-surface/8 bg-on-surface/[0.05] text-ui-muted")}>
-            <Layers className="h-4 w-4" />
-            {isBusy ? "正在更新方案" : canRunPrecheck ? "检查移动风险" : pendingQueueCount > 0 ? "先处理待处理项" : isPlanSyncing ? "等待方案更新完成" : "等待方案准备好"}
-          </button>
+          {/* 有待确认项时，主按钮不再是一句点不动的指令，而是直接带用户去处理队列；
+              清零后才切换为真正的移动前检查。任何阶段屏幕上都保有一个可点的下一步。 */}
+          {(() => {
+            const shouldFocusQueue = !canRunPrecheck && pendingQueueCount > 0 && !isBusy;
+            const isActionable = (canRunPrecheck || shouldFocusQueue) && !isBusy;
+            const label = isBusy
+              ? "正在更新方案"
+              : canRunPrecheck
+                ? "检查移动风险"
+                : pendingQueueCount > 0
+                  ? `去处理待确认项（${pendingQueueCount}）`
+                  : isPlanSyncing
+                    ? "等待方案更新完成"
+                    : "等待方案准备好";
+            return (
+              <button
+                type="button"
+                onClick={shouldFocusQueue ? focusQueue : onRunPrecheck}
+                disabled={!isActionable}
+                className={cn(
+                  "flex w-full items-center justify-center gap-2 rounded-md py-3 text-[14px] font-black uppercase tracking-widest transition-all active:scale-[0.98]",
+                  canRunPrecheck && !isBusy
+                    ? "bg-primary text-white"
+                    : shouldFocusQueue
+                      ? "border border-primary/25 bg-primary/10 text-primary hover:bg-primary/15"
+                      : "cursor-not-allowed border border-on-surface/8 bg-on-surface/[0.05] text-ui-muted",
+                )}
+              >
+                <Layers className="h-4 w-4" />
+                {label}
+              </button>
+            );
+          })()}
         </div>
       ) : null}
     </div>

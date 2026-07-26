@@ -812,6 +812,7 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
   const workspacePrimaryNotice = useMemo<WorkspacePrimaryNotice>(() => {
     const baseNotice: ConversationNotice = statusNotice ?? {
       tone: stageView.isCompleted ? "info" : stageView.isReadyToExecute ? "warning" : "info",
+      // 标题讲"现在该做什么"；阶段名已由左侧 stageLabel 徽标承担，不再重复。
       title: stageView.isDraftLike
         ? "等待开始读取目录"
         : stageView.isReadyToExecute
@@ -824,7 +825,9 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
                 : "整理已完成"
               : canRunPrecheck
                 ? "方案已准备好检查"
-                : getFriendlyStage(stage),
+                : stageView.isPlanningConversation
+                  ? "可以继续调整方案"
+                  : getFriendlyStage(stage),
       description: nextStepHint,
       primaryAction: stageView.isDraftLike && !isReadOnly
         ? {

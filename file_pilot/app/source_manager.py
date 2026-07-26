@@ -89,6 +89,19 @@ class SourceManager:
                     "source_mode": "atomic",
                 }
 
+            # 整体移动的目录在计划里只占 1 项，但内部可能有成百上千个文件。
+            # 扫描结果本就包含这些子孙条目（随后会被折叠），顺带数出来交给前端提示，
+            # 避免用户看到"移动 25 项"时以为其余文件丢失。
+            for root_path, root_entry in atomic_root_entries.items():
+                prefix = f"{root_path}/"
+                child_count = sum(
+                    1
+                    for scan_entry in scan_entries
+                    if normalize_relpath(scan_entry.get("source_relpath")).startswith(prefix)
+                )
+                if child_count:
+                    root_entry["child_count"] = child_count
+
         def normalize_entry_type(source_relpath: str, raw_entry_type: str | None) -> str:
             normalized = str(raw_entry_type or "").strip().lower()
             if normalized in {"dir", "directory", "folder"}:

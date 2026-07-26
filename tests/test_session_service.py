@@ -608,7 +608,7 @@ class OrganizerSessionServiceTests(unittest.TestCase):
                             PlanMove(source="notes.txt", target="notes.txt"),
                         ],
                         unresolved_items=[],
-                        summary="已分类 2 项，调整 2 项，仍剩 0 项待定",
+                        summary="已分类 2 项，待移动 2 项，待确认 0 项",
                     ),
                     "assistant_message": {"role": "assistant", "content": "已生成增量方案"},
                 },
@@ -657,7 +657,7 @@ class OrganizerSessionServiceTests(unittest.TestCase):
                     "pending_plan": PendingPlan(
                         moves=[PlanMove(source="invoice.pdf", target="Docs/invoice.pdf")],
                         unresolved_items=[],
-                        summary="已分类 1 项，调整 1 项，仍剩 0 项待定",
+                        summary="已分类 1 项，待移动 1 项，待确认 0 项",
                     ),
                     "assistant_message": {"role": "assistant", "content": "已生成增量方案"},
                 },
@@ -701,7 +701,7 @@ class OrganizerSessionServiceTests(unittest.TestCase):
             PendingPlan(
                 moves=[PlanMove(source="invoice.pdf", target="Archive/invoice.pdf")],
                 unresolved_items=[],
-                summary="已分类 1 项，调整 1 项，仍剩 0 项待定",
+                summary="已分类 1 项，待移动 1 项，待确认 0 项",
             )
         )
         session.incremental_selection = {
@@ -751,7 +751,7 @@ class OrganizerSessionServiceTests(unittest.TestCase):
             PendingPlan(
                 moves=[PlanMove(source="invoice.pdf", target="Docs/invoice.pdf")],
                 unresolved_items=[],
-                summary="已分类 1 项，调整 1 项，仍剩 0 项待定",
+                summary="已分类 1 项，待移动 1 项，待确认 0 项",
             )
         )
         session.incremental_selection = {
@@ -1323,7 +1323,7 @@ class OrganizerSessionServiceTests(unittest.TestCase):
             result = self.service.submit_user_intent(session.session_id, "放到文档")
 
         self.assertEqual(result.assistant_message["content"], "已更新计划")
-        self.assertEqual(result.session_snapshot["plan_snapshot"]["summary"], "已分类 1 项，调整 1 项，仍剩 0 项待定")
+        self.assertEqual(result.session_snapshot["plan_snapshot"]["summary"], "已分类 1 项，待移动 1 项，待确认 0 项")
         self.assertEqual(result.session_snapshot["messages"][-1]["content"], "已更新计划")
         self.assertEqual(result.session_snapshot["messages"][-1]["id"], result.assistant_message["id"])
         self.assertTrue(all(message["role"] != "tool" for message in result.session_snapshot["messages"]))
@@ -2019,8 +2019,8 @@ class OrganizerSessionServiceTests(unittest.TestCase):
         self.assertEqual(result.session_snapshot["plan_snapshot"]["stats"]["unresolved_count"], 0)
         self.assertEqual(result.session_snapshot["messages"][-1]["visibility"], "internal")
         self.assertIn("[用户手动调整记录]", result.session_snapshot["messages"][-1]["content"])
-        self.assertEqual(result.session_snapshot["summary"], "已分类 1 项，调整 1 项，仍剩 0 项待定")
-        self.assertEqual(result.session_snapshot["plan_snapshot"]["summary"], "已分类 1 项，调整 1 项，仍剩 0 项待定")
+        self.assertEqual(result.session_snapshot["summary"], "已分类 1 项，待移动 1 项，待确认 0 项")
+        self.assertEqual(result.session_snapshot["plan_snapshot"]["summary"], "已分类 1 项，待移动 1 项，待确认 0 项")
 
     def test_update_item_target_move_to_review_removes_unresolved_item_immediately(self):
         created = self.service.create_session(str(self.target_dir), resume_if_exists=False)
@@ -2058,8 +2058,8 @@ class OrganizerSessionServiceTests(unittest.TestCase):
         self.assertEqual(self._plan_item_target_directory(result.session_snapshot, "md"), "Review")
         self.assertEqual(updated_item["status"], "review")
         self.assertEqual(result.session_snapshot["plan_snapshot"]["unresolved_items"], [])
-        self.assertEqual(result.session_snapshot["summary"], "已分类 1 项，调整 1 项，仍剩 0 项待定")
-        self.assertEqual(result.session_snapshot["plan_snapshot"]["summary"], "已分类 1 项，调整 1 项，仍剩 0 项待定")
+        self.assertEqual(result.session_snapshot["summary"], "已分类 1 项，待移动 1 项，待确认 0 项")
+        self.assertEqual(result.session_snapshot["plan_snapshot"]["summary"], "已分类 1 项，待移动 1 项，待确认 0 项")
 
     def test_plan_snapshot_uses_empty_target_slot_id_for_keep_in_place_move(self):
         created = self.service.create_session(str(self.target_dir), resume_if_exists=False)
@@ -2284,7 +2284,7 @@ class OrganizerSessionServiceTests(unittest.TestCase):
             "directories": ["Study"],
             "moves": [{"source": "md", "target": "Study/md"}],
             "unresolved_items": [],
-            "summary": "已分类 1 项，调整 1 项，仍剩 0 项待定",
+            "summary": "已分类 1 项，待移动 1 项，待确认 0 项",
         }
         session.messages = [
             {"role": "system", "content": "prompt"},
@@ -2329,7 +2329,7 @@ class OrganizerSessionServiceTests(unittest.TestCase):
             if message.get("visibility") == "internal" and "[用户手动调整记录]" in message.get("content", "")
         ]
         self.assertEqual(internal_sync_messages, [])
-        self.assertEqual(result.session_snapshot["summary"], "已分类 1 项，调整 1 项，仍剩 0 项待定")
+        self.assertEqual(result.session_snapshot["summary"], "已分类 1 项，待移动 1 项，待确认 0 项")
 
     def test_refresh_session_rebuilds_plan_and_marks_invalidated_items(self):
         created = self.service.create_session(str(self.target_dir), resume_if_exists=False)

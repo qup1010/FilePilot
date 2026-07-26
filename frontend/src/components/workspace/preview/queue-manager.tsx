@@ -107,7 +107,7 @@ export function QueuePanel({
         <div className="flex items-center justify-between gap-3 border-b border-on-surface/8 bg-surface-container-lowest/75 px-4 py-3">
           <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <h3 className="text-[13px] font-black tracking-tight text-on-surface/85">待处理队列</h3>
+              <h3 className="text-[13px] font-black tracking-tight text-on-surface/85">待确认队列</h3>
               <span className="rounded-full border border-warning/20 bg-warning/8 px-2 py-0.5 text-[11px] font-black text-warning tabular-nums">
                 {queueCount}
               </span>
