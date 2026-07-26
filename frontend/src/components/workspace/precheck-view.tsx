@@ -173,14 +173,7 @@ export function PrecheckView({
                                 {summaryTone === "danger" ? <ShieldAlert className="h-4 w-4" /> : summaryTone === "warning" ? <AlertCircle className="h-4 w-4" /> : <CheckCircle2 className="h-4 w-4" />}
                             </div>
                             <div className="min-w-0 flex-1">
-                                <div className="flex items-center gap-2">
-                                    <span className="text-[9px] font-black tracking-widest opacity-40">检查结果</span>
-                                    <span className="h-0.5 w-0.5 rounded-full bg-current opacity-20" />
-                                    <span className="text-[9px] font-black tracking-widest opacity-60">
-                                        {summaryTone === "danger" ? "存在阻塞问题" : summaryTone === "warning" ? "有风险提醒" : "检查通过"}
-                                    </span>
-                                </div>
-                                <h2 className="text-[14px] font-black tracking-tight text-on-surface mt-0.5 uppercase leading-none">
+                                <h2 className="text-[14px] font-black tracking-tight text-on-surface uppercase leading-none">
                                     {statusTitle}
                                 </h2>
                             </div>
@@ -206,7 +199,7 @@ export function PrecheckView({
                                             {stat.value}
                                         </div>
                                     </div>
-                                    <div className="text-[9px] font-black uppercase tracking-widest text-ui-muted opacity-40">
+                                    <div className="text-[11px] font-black uppercase tracking-widest text-ui-muted opacity-40">
                                         {stat.label}
                                     </div>
                                 </motion.div>
@@ -219,7 +212,7 @@ export function PrecheckView({
                         <div className="shrink-0 flex items-center justify-between bg-on-surface/[0.01] border-b border-on-surface/8 px-6 py-3.5">
                             <div className="space-y-0.5">
                                 <h3 className="text-[13px] font-black text-on-surface tracking-tight">移动前后对照</h3>
-                                <p className="text-[10px] font-black text-ui-muted opacity-40 tracking-widest">执行前不会移动文件</p>
+                                <p className="text-[11px] font-black text-ui-muted opacity-40 tracking-widest">执行前不会移动文件</p>
                             </div>
                             {reviewCount > 0 && (
                                 <div className="flex items-center gap-1 rounded-md border border-on-surface/8 bg-on-surface/[0.02] p-0.5">
@@ -231,7 +224,7 @@ export function PrecheckView({
                                             key={btn.id}
                                             onClick={() => setFilter(btn.id as DirectoryTreeFilter)}
                                             className={cn(
-                                                "rounded-[4px] px-3 py-1 text-[10px] font-black uppercase tracking-widest transition-all active:scale-95",
+                                                "rounded-[4px] px-3 py-1 text-[11px] font-black uppercase tracking-widest transition-all active:scale-95",
                                                 filter === btn.id
                                                     ? "bg-on-surface text-surface"
                                                     : "text-ui-muted hover:text-on-surface hover:bg-on-surface/[0.03]",
@@ -299,14 +292,14 @@ export function PrecheckView({
                                                             {move.display_name}
                                                         </p>
                                                         {isReview && (
-                                                            <div className="flex items-center gap-1 rounded-[3px] bg-warning/10 px-1.5 py-0.5 text-[8px] font-black uppercase text-warning border border-warning/20">
+                                                            <div className="flex items-center gap-1 rounded-[4px] bg-warning/10 px-1.5 py-0.5 text-[11px] font-black uppercase text-warning border border-warning/20">
                                                                 <AlertCircle className="h-2 w-2" />
                                                                 待确认
                                                             </div>
                                                         )}
                                                         {riskMessages.length > 0 && (
                                                             <div
-                                                                className="flex items-center gap-1 rounded-[3px] border border-error/20 bg-error/10 px-1.5 py-0.5 text-[8px] font-black uppercase text-error"
+                                                                className="flex items-center gap-1 rounded-[4px] border border-error/20 bg-error/10 px-1.5 py-0.5 text-[11px] font-black uppercase text-error"
                                                                 title={riskMessages.join("\n")}
                                                             >
                                                                 <ShieldAlert className="h-2 w-2" />
@@ -317,7 +310,7 @@ export function PrecheckView({
                                                     <div className="mt-1 flex items-center gap-1.5 opacity-50">
                                                         {slotLabel && (
                                                             <span className={cn(
-                                                                "rounded-[2px] px-1 py-0.5 text-[8px] font-black tracking-widest uppercase border",
+                                                                "rounded-[4px] px-1 py-0.5 text-[11px] font-black tracking-widest uppercase border",
                                                                 isReview ? "border-warning/30 bg-warning/10 text-warning" : "border-primary/20 bg-primary/10 text-primary/70"
                                                             )}>
                                                                 {slotLabel}
@@ -349,12 +342,12 @@ export function PrecheckView({
                                     >
                                         <div className="mb-3 flex items-center justify-between gap-3">
                                             <div className="min-w-0">
-                                                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-error/70">{suggestionTypeLabel(suggestion.type)}</p>
+                                                <p className="text-[11px] font-black uppercase tracking-[0.2em] text-error/70">{suggestionTypeLabel(suggestion.type)}</p>
                                                 <p className="mt-1 truncate text-[12px] font-black text-on-surface font-mono" title={suggestion.target}>
                                                     {suggestion.target}
                                                 </p>
                                             </div>
-                                            <div className="shrink-0 rounded-[4px] border border-error/15 bg-error/5 px-2 py-1 text-[10px] font-black text-error">
+                                            <div className="shrink-0 rounded-[4px] border border-error/15 bg-error/5 px-2 py-1 text-[11px] font-black text-error">
                                                 {suggestion.items.length} 项
                                             </div>
                                         </div>
@@ -368,12 +361,12 @@ export function PrecheckView({
                                                         <p className="truncate text-[12px] font-black text-on-surface" title={item.display_name || item.source}>
                                                             {item.display_name || item.source}
                                                         </p>
-                                                        <p className="mt-1 truncate text-[10px] font-mono text-ui-muted" title={item.source}>
+                                                        <p className="mt-1 truncate text-[11px] font-mono text-ui-muted" title={item.source}>
                                                             {item.source}
                                                         </p>
                                                     </div>
                                                     <div className="min-w-0">
-                                                        <p className="text-[9px] font-black uppercase tracking-widest text-ui-muted opacity-60">建议目标</p>
+                                                        <p className="text-[11px] font-black uppercase tracking-widest text-ui-muted opacity-60">建议目标</p>
                                                         <p className="mt-1 truncate text-[11px] font-mono font-bold text-on-surface" title={item.suggested_target}>
                                                             {item.suggested_target}
                                                         </p>
@@ -419,7 +412,7 @@ export function PrecheckView({
                                                     <Icon className="h-4 w-4" />
                                                 </div>
                                                 <div className="min-w-0">
-                                                    <p className="text-[10px] font-black tracking-[0.2em] opacity-40 leading-none">{title}</p>
+                                                    <p className="text-[11px] font-black tracking-[0.2em] opacity-40 leading-none">{title}</p>
                                                     <p className="text-[13px] font-bold text-on-surface mt-1 truncate" title={issue.message}>{issue.message}</p>
                                                 </div>
                                             </div>
@@ -428,7 +421,7 @@ export function PrecheckView({
                                                     variant="secondary"
                                                     size="sm"
                                                     onClick={() => onLocateIssue(issue.related_item_ids, locateFilter)}
-                                                    className="shrink-0 h-7 px-3 text-[10.5px] font-black rounded-[4px]"
+                                                    className="shrink-0 h-7 px-3 text-[11px] font-black rounded-[4px]"
                                                 >
                                                     定位问题
                                                 </Button>

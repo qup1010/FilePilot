@@ -143,7 +143,7 @@ export function IconWorkbenchFolderList({
                   idleClassName: "border-on-surface/8 bg-on-surface/[0.015] border-dashed text-on-surface/30 hover:bg-on-surface/[0.035] hover:border-on-surface/12 cursor-pointer",
                   activeClassName: "border-primary/35 bg-primary/[0.06] text-primary cursor-pointer",
                   draggingClassName: "border-primary/20 bg-primary/[0.015] text-on-surface/50",
-                  className: "flex h-11 w-full items-center justify-center rounded-lg px-3 text-[11.5px] font-black uppercase tracking-wider select-none transition-all",
+                  className: "flex h-11 w-full items-center justify-center rounded-lg px-3 text-[12px] font-black uppercase tracking-wider select-none transition-all",
                 })}
               >
                 {isTargetDropActive ? "松手即可追加目标文件夹" : "拖放文件夹至此，或点击载入"}
@@ -166,7 +166,7 @@ export function IconWorkbenchFolderList({
               })}
             >
               <Plus className="h-3.5 w-3.5 text-on-surface/20 group-hover/add-more:text-primary transition-colors" />
-              <span className="text-[11.5px] font-black uppercase tracking-widest text-on-surface/30 group-hover/add-more:text-primary/60 transition-colors">
+              <span className="text-[12px] font-black uppercase tracking-widest text-on-surface/30 group-hover/add-more:text-primary/60 transition-colors">
                 追加目标文件夹
               </span>
             </motion.div>

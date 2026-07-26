@@ -95,11 +95,11 @@ export function TargetProfilesSection({
         {targetProfilesLoading ? <Loader2 className="h-4 w-4 animate-spin text-primary" /> : null}
       </div>
       <div className="mb-4 space-y-3">
-        <div className="rounded-[10px] border border-primary/12 bg-primary/[0.035] px-4 py-3">
+        <div className="rounded-[8px] border border-primary/12 bg-primary/[0.035] px-4 py-3">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <h3 className="text-[12.5px] font-black text-on-surface">默认目标目录配置</h3>
-              <p className="mt-1 text-[11.5px] font-medium leading-5 text-ui-muted/70">
+              <h3 className="text-[13px] font-black text-on-surface">默认目标目录配置</h3>
+              <p className="mt-1 text-[12px] font-medium leading-5 text-ui-muted/70">
                 当“默认整理方式”为“归入已有目录”时，首页会优先选中这组目录。
               </p>
             </div>
@@ -124,7 +124,7 @@ export function TargetProfilesSection({
           ) : null}
         </div>
         {/* 整合后的配置组水平管理栏 */}
-        <div className="flex flex-wrap items-center gap-3 rounded-[10px] border border-on-surface/8 bg-surface-container-low p-3 w-full">
+        <div className="flex flex-wrap items-center gap-3 rounded-[8px] border border-on-surface/8 bg-surface-container-low p-3 w-full">
           <div className="flex flex-1 min-w-[180px] items-center gap-2 min-w-0">
             <span className="text-[12px] font-bold text-on-surface/70 shrink-0">配置组:</span>
             <select
@@ -286,7 +286,7 @@ export function TargetProfilesSection({
               {/* 操作区 (拖拽提示框 + 手动添加表单) */}
               <div className="space-y-3 pb-4 border-b border-on-surface/6">
                 {/* 拖拽提示框，更现代的虚线引导框 */}
-                <div className="flex items-center gap-2.5 rounded-[8px] border border-dashed border-primary/20 bg-primary/[0.015] px-3.5 py-3 text-[11.5px] font-semibold text-ui-muted hover:bg-primary/[0.03] transition-colors">
+                <div className="flex items-center gap-2.5 rounded-[8px] border border-dashed border-primary/20 bg-primary/[0.015] px-3.5 py-3 text-[12px] font-semibold text-ui-muted hover:bg-primary/[0.03] transition-colors">
                   <FolderPlus className="h-4 w-4 text-primary/65 shrink-0" />
                   <span>支持直接将文件夹拖拽至当前面板内任何位置，自动解析并添加路径。</span>
                 </div>
@@ -358,14 +358,14 @@ export function TargetProfilesSection({
                           <div className="flex-1 min-w-0">
                             <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                               {directory.label ? (
-                                <span className="shrink-0 rounded-[4px] bg-primary/10 px-1.5 py-0.5 text-[10px] font-bold text-primary">
+                                <span className="shrink-0 rounded-[4px] bg-primary/10 px-1.5 py-0.5 text-[11px] font-bold text-primary">
                                   {directory.label}
                                 </span>
                               ) : null}
                               <span className="text-[12px] font-bold text-on-surface truncate">
                                 {directory.path.split(/[\\/]/).pop() || directory.path}
                               </span>
-                              <span className="font-mono text-[10.5px] text-ui-muted/50 truncate max-w-[280px]" title={directory.path}>
+                              <span className="font-mono text-[11px] text-ui-muted/50 truncate max-w-[280px]" title={directory.path}>
                                 {directory.path}
                               </span>
                             </div>

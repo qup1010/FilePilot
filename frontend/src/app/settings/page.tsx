@@ -1219,12 +1219,12 @@ export default function SettingsPage() {
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
-                        <p className={cn("text-[12.5px] font-black leading-none tracking-tight", active ? "text-primary" : "text-on-surface/80")}>{cat.label}</p>
+                        <p className={cn("text-[13px] font-black leading-none tracking-tight", active ? "text-primary" : "text-on-surface/80")}>{cat.label}</p>
                         {dirtyTabs[cat.id] ? (
                           <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary" aria-label={`${cat.label} 有未保存修改`} />
                         ) : null}
                       </div>
-                      <p className="mt-1.5 truncate text-[10.5px] font-medium opacity-50">{cat.description}</p>
+                      <p className="mt-1.5 truncate text-[11px] font-medium opacity-50">{cat.description}</p>
                     </div>
                   </button>
                 );
@@ -1234,11 +1234,11 @@ export default function SettingsPage() {
             <div className="mt-8 rounded-xl border border-on-surface/8 bg-on-surface/[0.02] p-4">
               <div className="flex items-center gap-2 text-primary">
                 <Cpu className="h-3.5 w-3.5" />
-                <span className="text-[10px] font-black uppercase tracking-[0.2em] text-primary/60">配置健康</span>
+                <span className="text-[11px] font-black uppercase tracking-[0.2em] text-primary/60">配置健康</span>
               </div>
               <div className="mt-3 flex items-baseline justify-between gap-3">
                 <span className="text-[18px] font-black text-on-surface">{configuredHealthCount}/{healthItems.length}</span>
-                <span className="text-[10px] font-bold text-on-surface/35">能力已配置</span>
+                <span className="text-[11px] font-bold text-on-surface/35">能力已配置</span>
               </div>
               <div className="mt-4 space-y-2">
                 {healthItems.map((item) => (
@@ -1253,25 +1253,25 @@ export default function SettingsPage() {
                       <item.icon className="h-3 w-3 text-on-surface/25" />
                       <div className="min-w-0">
                         <span className="block truncate text-[11px] font-bold text-on-surface/50">{item.label}</span>
-                        <span className="block truncate text-[9.5px] font-semibold text-on-surface/25">{item.description}</span>
+                        <span className="block truncate text-[11px] font-semibold text-on-surface/25">{item.description}</span>
                       </div>
                     </div>
                     {item.configured ? (
                       <div className="flex items-center gap-1 rounded-full bg-success/10 px-1.5 py-0.5">
                         <div className="h-0.5 w-0.5 rounded-full bg-success" />
-                        <span className="text-[9px] font-black tracking-widest text-success-dim/80">可用</span>
+                        <span className="text-[11px] font-black tracking-widest text-success-dim/80">可用</span>
                       </div>
                     ) : (
                       <div className="flex items-center gap-1 rounded-full bg-on-surface/5 px-1.5 py-0.5">
                         <div className="h-0.5 w-0.5 rounded-full bg-on-surface/20" />
-                        <span className="text-[9px] font-black tracking-widest text-on-surface/35">{item.optional ? "可选" : "待配置"}</span>
+                        <span className="text-[11px] font-black tracking-widest text-on-surface/35">{item.optional ? "可选" : "待配置"}</span>
                       </div>
                     )}
                   </button>
                 ))}
               </div>
               <div className="mt-4 border-t border-on-surface/5 pt-3">
-                <p className="text-[10px] font-bold leading-relaxed text-on-surface/25">
+                <p className="text-[11px] font-bold leading-relaxed text-on-surface/25">
                   文本分析是整理主链路必需；其他能力会按功能场景启用。
                 </p>
               </div>
@@ -1289,7 +1289,7 @@ export default function SettingsPage() {
             className="mx-auto max-w-[800px] pb-24 pt-6 px-6"
           >
             {isCompactLayout && (
-              <div className="mb-6 rounded-[10px] border border-on-surface/8 bg-surface-container-lowest px-4 py-3">
+              <div className="mb-6 rounded-[8px] border border-on-surface/8 bg-surface-container-lowest px-4 py-3">
                 <div className="flex items-center justify-between gap-3">
                   <div className="min-w-0">
                     <p className="text-[11px] font-bold uppercase tracking-wider text-ui-muted">当前分类</p>
@@ -1303,7 +1303,7 @@ export default function SettingsPage() {
                   </Button>
                 </div>
                 <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-on-surface/6 pt-3">
-                  <span className="text-[10px] font-black uppercase tracking-[0.18em] text-primary/55">配置健康</span>
+                  <span className="text-[11px] font-black uppercase tracking-[0.18em] text-primary/55">配置健康</span>
                   <span className="text-[11px] font-bold text-on-surface/50">{configuredHealthCount}/{healthItems.length} 可用</span>
                   {healthItems.map((item) => (
                     <button
@@ -1311,7 +1311,7 @@ export default function SettingsPage() {
                       type="button"
                       onClick={() => handleSelectTab(item.id)}
                       className={cn(
-                        "rounded-full px-2 py-0.5 text-[10px] font-bold transition-colors",
+                        "rounded-full px-2 py-0.5 text-[11px] font-bold transition-colors",
                         item.configured ? "bg-success/10 text-success-dim hover:bg-success/15" : "bg-on-surface/5 text-on-surface/35 hover:bg-on-surface/10",
                       )}
                     >
@@ -1327,7 +1327,7 @@ export default function SettingsPage() {
               </div>
             )}
             {success && (
-              <div className="mb-6 flex items-center gap-2.5 rounded-[6px] border border-success/15 bg-success/5 px-4 py-3 text-[12.5px] font-bold text-success-dim animate-in fade-in slide-in-from-top-2 duration-300">
+              <div className="mb-6 flex items-center gap-2.5 rounded-[6px] border border-success/15 bg-success/5 px-4 py-3 text-[13px] font-bold text-success-dim animate-in fade-in slide-in-from-top-2 duration-300">
                 <CheckCircle2 className="h-4 w-4" />
                 {success}
               </div>
@@ -1472,15 +1472,15 @@ export default function SettingsPage() {
               >
                 <div className="mr-4 flex flex-col">
                   <span className="text-[11px] font-black uppercase tracking-wider text-primary">设置已修改</span>
-                  <span className="text-[10px] font-medium text-on-surface/40">
+                  <span className="text-[11px] font-medium text-on-surface/40">
                     {dirtyTabLabels.length ? `将保存：${dirtyTabLabels.join("、")}` : "会保存本页未提交的修改"}
                   </span>
                 </div>
                 <div className="h-8 w-px bg-primary/10" />
-                <Button variant="secondary" onClick={discardChanges} disabled={saving} className="h-9 px-4 text-[12.5px] font-bold">
+                <Button variant="secondary" onClick={discardChanges} disabled={saving} className="h-9 px-4 text-[13px] font-bold">
                   放弃修改
                 </Button>
-                <Button onClick={() => void handleSave()} loading={saving} disabled={saving} className="h-9 px-5 text-[12.5px] font-bold border border-primary/20 bg-primary active:bg-primary-dim">
+                <Button onClick={() => void handleSave()} loading={saving} disabled={saving} className="h-9 px-5 text-[13px] font-bold border border-primary/20 bg-primary active:bg-primary-dim">
                   保存当前修改
                 </Button>
               </motion.div>
@@ -1566,7 +1566,7 @@ export default function SettingsPage() {
                 })();
               }
             }}
-            className="w-full rounded-[10px] border border-on-surface/8 bg-surface-container-lowest px-4 py-3 text-[14px] font-semibold text-on-surface outline-none transition-all placeholder:text-on-surface-variant/35 focus:border-primary focus:ring-4 focus:ring-primary/5"
+            className="w-full rounded-[8px] border border-on-surface/8 bg-surface-container-lowest px-4 py-3 text-[14px] font-semibold text-on-surface outline-none transition-all placeholder:text-on-surface-variant/35 focus:border-primary focus:ring-4 focus:ring-primary/5"
             placeholder="请输入预设名称"
           />
         </div>

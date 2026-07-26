@@ -177,11 +177,11 @@ function TreeBranchInner({
             <ItemIcon className={cn("h-3.5 w-3.5 shrink-0 transition-colors", active ? "text-primary/70" : "text-on-surface-variant/30")} />
             <div className="min-w-0 flex-1 py-0.5">
               <div className="flex items-center gap-2">
-                <p className={cn("truncate font-mono text-[12.5px] tracking-tight transition-colors", active ? "text-primary font-bold" : "text-on-surface/80")}>
+                <p className={cn("truncate font-mono text-[13px] tracking-tight transition-colors", active ? "text-primary font-bold" : "text-on-surface/80")}>
                   {node.item.display_name}
                 </p>
                 {hasMoved && node.item.source_relpath.replace(/\\/g, "/").split('/').slice(0, -1).pop() && (
-                  <span className="truncate text-[9px] font-bold uppercase tracking-tighter text-ui-muted opacity-25 group-hover:opacity-50 transition-opacity whitespace-nowrap">
+                  <span className="truncate text-[11px] font-bold uppercase tracking-tighter text-ui-muted opacity-25 group-hover:opacity-50 transition-opacity whitespace-nowrap">
                     ← {node.item.source_relpath.replace(/\\/g, "/").split('/').slice(0, -1).pop()}
                   </span>
                 )}
@@ -190,7 +190,7 @@ function TreeBranchInner({
 
             <div className="flex items-center gap-2 shrink-0">
               {node.item.status !== "assigned" && node.item.status !== "skipped" && (
-                <span className={cn("rounded-[3px] border px-1.5 py-0.5 text-[9px] font-black uppercase tracking-widest shrink-0", status.tone)}>
+                <span className={cn("rounded-[4px] border px-1.5 py-0.5 text-[11px] font-black uppercase tracking-widest shrink-0", status.tone)}>
                   {status.label}
                 </span>
               )}
@@ -222,15 +222,15 @@ function TreeBranchInner({
               >
                 <div className="space-y-1 pb-1.5 pt-0.5 pr-4 border-b border-on-surface/[0.02]">
                   <div className="flex items-center gap-2">
-                    <span className="shrink-0 rounded-sm bg-primary/10 px-1 text-[8px] font-black tracking-wider text-primary/70">用途判断</span>
-                    <p className="truncate text-[10.5px] font-medium text-ui-muted/70 leading-tight italic">
+                    <span className="shrink-0 rounded-sm bg-primary/10 px-1 text-[11px] font-black tracking-wider text-primary/70">用途判断</span>
+                    <p className="truncate text-[11px] font-medium text-ui-muted/70 leading-tight italic">
                       {node.item.suggested_purpose || "根据文件名和内容线索预测"}
                     </p>
                   </div>
                   {node.item.content_summary ? (
                     <div className="flex items-center gap-2">
-                      <span className="shrink-0 rounded-sm bg-on-surface/[0.04] px-1 text-[8px] font-black tracking-wider text-ui-muted/50">内容摘要</span>
-                      <p className="truncate text-[10.5px] font-medium text-ui-muted/55 leading-tight" title={node.item.content_summary}>
+                      <span className="shrink-0 rounded-sm bg-on-surface/[0.04] px-1 text-[11px] font-black tracking-wider text-ui-muted/50">内容摘要</span>
+                      <p className="truncate text-[11px] font-medium text-ui-muted/55 leading-tight" title={node.item.content_summary}>
                         {node.item.content_summary}
                       </p>
                     </div>
@@ -260,8 +260,8 @@ function TreeBranchInner({
           return <ItemIcon className="h-3.5 w-3.5 shrink-0 text-on-surface-variant/20" />;
         })()}
         <div className="min-w-0 flex-1">
-          <p className="truncate font-mono text-[12.5px] tracking-tight text-on-surface/50">{node.sourceEntry?.display_name || node.name}</p>
-          <p className="truncate text-[10px] font-bold uppercase tracking-wider text-ui-muted opacity-30">Original Item</p>
+          <p className="truncate font-mono text-[13px] tracking-tight text-on-surface/50">{node.sourceEntry?.display_name || node.name}</p>
+          <p className="truncate text-[11px] font-bold text-ui-muted opacity-30">原始项目</p>
         </div>
       </div>
     );
@@ -291,8 +291,8 @@ function TreeBranchInner({
           )}
         </div>
         <Folder className={cn("h-3.5 w-3.5 shrink-0 transition-colors", isExpanded ? "text-primary/70" : "text-on-surface/30")} />
-        <span className="min-w-0 flex-1 truncate font-mono text-[12.5px] font-black tracking-tight text-on-surface/80">{node.name}</span>
-        <span className="font-mono text-[10px] font-bold text-ui-muted/30">{node.children.length}</span>
+        <span className="min-w-0 flex-1 truncate font-mono text-[13px] font-black tracking-tight text-on-surface/80">{node.name}</span>
+        <span className="font-mono text-[11px] font-bold text-ui-muted/30">{node.children.length}</span>
       </button>
       <AnimatePresence initial={false}>
         {isExpanded ? (
@@ -355,9 +355,9 @@ function IncrementalMappingPanelInner({
       <div className="flex items-start justify-between gap-3">
         <div className="space-y-0.5">
           <h3 className="text-[13px] font-black uppercase tracking-wider text-on-surface/80">归属映射清单</h3>
-          <p className="text-[11.5px] font-medium text-ui-muted opacity-60">实时显示文件与目标目录的映射关系。</p>
+          <p className="text-[12px] font-medium text-ui-muted opacity-60">实时显示文件与目标目录的映射关系。</p>
         </div>
-        <span className="rounded-full border border-on-surface/12 bg-on-surface/5 px-2.5 py-0.5 text-[10px] font-black text-ui-muted">
+        <span className="rounded-full border border-on-surface/12 bg-on-surface/5 px-2.5 py-0.5 text-[11px] font-black text-ui-muted">
           {items.length} 条目
         </span>
       </div>
@@ -367,7 +367,7 @@ function IncrementalMappingPanelInner({
           .sort((a, b) => zhCollator.compare(a[0], b[0]))
           .slice(0, 8)
           .map(([label, count]) => (
-            <span key={label} className="rounded-md border border-primary/15 bg-primary/[0.03] px-2 py-0.5 text-[10px] font-black text-primary/80 transition-colors hover:bg-primary/[0.06]">
+            <span key={label} className="rounded-md border border-primary/15 bg-primary/[0.03] px-2 py-0.5 text-[11px] font-black text-primary/80 transition-colors hover:bg-primary/[0.06]">
               {label} · {count}
             </span>
           ))}
@@ -398,11 +398,11 @@ function IncrementalMappingPanelInner({
               <div className="min-w-0 flex-1 py-0.5">
                 <p className={cn("truncate text-[13px] font-black tracking-tight", active ? "text-primary" : "text-on-surface/90")}>{item.display_name}</p>
                 <div className="mt-1 flex items-center gap-1.5 overflow-hidden">
-                  <p className="truncate font-mono text-[10.5px] font-medium text-ui-muted opacity-50">
+                  <p className="truncate font-mono text-[11px] font-medium text-ui-muted opacity-50">
                     {item.source_relpath}
                   </p>
                   <ArrowRight className="h-2.5 w-2.5 shrink-0 text-on-surface/10" />
-                  <p className={cn("truncate font-mono text-[10.5px] font-bold", active ? "text-primary/60" : "text-primary/40")}>
+                  <p className={cn("truncate font-mono text-[11px] font-bold", active ? "text-primary/60" : "text-primary/40")}>
                     {targetLabel}
                   </p>
                 </div>
@@ -410,7 +410,7 @@ function IncrementalMappingPanelInner({
 
               <div className="flex items-center gap-2 shrink-0">
                 {item.status !== "assigned" && item.status !== "skipped" && (
-                  <span className={cn("rounded-[4px] border px-1.5 py-0.5 text-[9px] font-black uppercase tracking-widest", status.tone)}>
+                  <span className={cn("rounded-[4px] border px-1.5 py-0.5 text-[11px] font-black uppercase tracking-widest", status.tone)}>
                     {status.label}
                   </span>
                 )}
@@ -904,18 +904,18 @@ export function PreviewPanel(props: PreviewPanelProps) {
             <div className="border-b border-on-surface/6 px-6 py-3">
               <div className="flex flex-col gap-2">
                 <div className="flex flex-wrap items-center gap-2">
-                  <div className="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.15em] text-primary/70">
+                  <div className="inline-flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.15em] text-primary/70">
                     <Layers className="h-3.5 w-3.5" />
                     方案预览
                   </div>
-                  <span className={cn("rounded-[3px] border px-2 py-0.5 text-[9px] font-black uppercase tracking-widest", pendingQueueCount > 0 || !canRunPrecheck ? "border-warning/30 bg-warning/5 text-warning" : "border-success/30 bg-success/5 text-success-dim")}>
+                  <span className={cn("rounded-[4px] border px-2 py-0.5 text-[11px] font-black uppercase tracking-widest", pendingQueueCount > 0 || !canRunPrecheck ? "border-warning/30 bg-warning/5 text-warning" : "border-success/30 bg-success/5 text-success-dim")}>
                     {pendingQueueCount > 0 ? `待处理 ${pendingQueueCount}` : canRunPrecheck ? "可进行检查" : isPlanSyncing ? "更新中" : "等待检查"}
                   </span>
-                  <div className="flex shrink-0 items-center gap-1.5 rounded-[3px] border border-on-surface/8 bg-on-surface/[0.02] px-2 py-0.5 text-[9px] font-bold text-on-surface uppercase tracking-widest">
+                  <div className="flex shrink-0 items-center gap-1.5 rounded-[4px] border border-on-surface/8 bg-on-surface/[0.02] px-2 py-0.5 text-[11px] font-bold text-on-surface uppercase tracking-widest">
                     <Sparkles className="h-2.5 w-2.5 text-primary/60" />
                     <span>移动 {plan.stats.move_count}</span>
                   </div>
-                  <div className="flex shrink-0 items-center gap-1.5 rounded-[3px] border border-on-surface/8 bg-on-surface/[0.02] px-2 py-0.5 text-[9px] font-bold text-on-surface uppercase tracking-widest">
+                  <div className="flex shrink-0 items-center gap-1.5 rounded-[4px] border border-on-surface/8 bg-on-surface/[0.02] px-2 py-0.5 text-[11px] font-bold text-on-surface uppercase tracking-widest">
                     <Folder className="h-2.5 w-2.5 text-primary/60" />
                     <span>新目录 {plan.stats.directory_count}</span>
                   </div>
@@ -930,8 +930,8 @@ export function PreviewPanel(props: PreviewPanelProps) {
               </div>
 
               {incrementalSummary ? (
-                <div className="mt-2 flex flex-wrap items-center gap-2 rounded-[10px] border border-primary/10 bg-primary/[0.045] px-3 py-2">
-                  <span className="rounded-full bg-surface px-2 py-0.5 text-[10px] font-bold text-primary">
+                <div className="mt-2 flex flex-wrap items-center gap-2 rounded-[8px] border border-primary/10 bg-primary/[0.045] px-3 py-2">
+                  <span className="rounded-full bg-surface px-2 py-0.5 text-[11px] font-bold text-primary">
                     归入已有目录
                   </span>
                   <span className="text-[11px] font-semibold text-on-surface">
@@ -955,7 +955,7 @@ export function PreviewPanel(props: PreviewPanelProps) {
                     type="button"
                     onClick={() => handleSwitchView("before")}
                     className={cn(
-                      "relative flex items-center gap-1.5 rounded-[4px] px-3 py-1 text-[10px] font-black uppercase tracking-widest transition-all active:scale-95 duration-200 z-10 select-none",
+                      "relative flex items-center gap-1.5 rounded-[4px] px-3 py-1 text-[11px] font-black uppercase tracking-widest transition-all active:scale-95 duration-200 z-10 select-none",
                       viewMode === "before" ? "text-on-surface" : "text-on-surface/40 hover:text-on-surface/60"
                     )}
                   >
@@ -967,13 +967,12 @@ export function PreviewPanel(props: PreviewPanelProps) {
                       />
                     )}
                     <span>原始</span>
-                    <span className={cn("hidden opacity-40 @sm:inline", viewMode === "before" && "opacity-60")}>RAW</span>
                   </button>
                   <button
                     type="button"
                     onClick={() => handleSwitchView("after")}
                     className={cn(
-                      "relative flex items-center gap-1.5 rounded-[4px] px-3 py-1 text-[10px] font-black uppercase tracking-widest transition-all active:scale-95 duration-200 z-10 select-none",
+                      "relative flex items-center gap-1.5 rounded-[4px] px-3 py-1 text-[11px] font-black uppercase tracking-widest transition-all active:scale-95 duration-200 z-10 select-none",
                       viewMode === "after" ? "text-primary font-black" : "text-on-surface/40 hover:text-on-surface/60"
                     )}
                   >
@@ -985,7 +984,6 @@ export function PreviewPanel(props: PreviewPanelProps) {
                       />
                     )}
                     <span>建议</span>
-                    <span className={cn("hidden opacity-40 @sm:inline", viewMode === "after" && "opacity-60")}>PLAN</span>
                   </button>
                 </div>
 
@@ -1002,7 +1000,7 @@ export function PreviewPanel(props: PreviewPanelProps) {
                       className="h-8 w-full rounded-md border border-on-surface/8 bg-surface-container-lowest pl-8 pr-12 text-[11px] font-black text-on-surface outline-none transition-all placeholder:text-ui-muted/50 focus:border-primary/40 focus:ring-1 focus:ring-primary/10"
                     />
                     {!search && (
-                      <kbd className="pointer-events-none absolute right-2.5 hidden h-4 select-none items-center gap-0.5 rounded border border-on-surface/10 bg-on-surface/[0.04] px-1.5 font-mono text-[9px] font-black text-ui-muted opacity-40 transition-opacity group-focus-within:opacity-0 sm:flex">
+                      <kbd className="pointer-events-none absolute right-2.5 hidden h-4 select-none items-center gap-0.5 rounded border border-on-surface/10 bg-on-surface/[0.04] px-1.5 font-mono text-[11px] font-black text-ui-muted opacity-40 transition-opacity group-focus-within:opacity-0 sm:flex">
                         Ctrl K
                       </kbd>
                     )}
@@ -1037,7 +1035,7 @@ export function PreviewPanel(props: PreviewPanelProps) {
                   </div>
                 </div>
 
-                <div className="hidden shrink-0 items-center px-1 font-mono text-[10px] font-bold text-ui-muted/40 @5xl:flex">
+                <div className="hidden shrink-0 items-center px-1 font-mono text-[11px] font-bold text-ui-muted/40 @5xl:flex">
                   {visibleCount} / {totalCount}
                 </div>
               </div>
@@ -1102,7 +1100,7 @@ export function PreviewPanel(props: PreviewPanelProps) {
                       placement={placement}
                     />
                   )) : (
-                    <div className="flex h-[360px] flex-col items-center justify-center gap-3 rounded-[10px] border border-dashed border-on-surface/10 bg-on-surface/[0.02] text-center">
+                    <div className="flex h-[360px] flex-col items-center justify-center gap-3 rounded-[8px] border border-dashed border-on-surface/10 bg-on-surface/[0.02] text-center">
                       <Sparkles className="h-8 w-8 text-primary/40" />
                       <div>
                         <p className="text-[14px] font-semibold text-on-surface">
@@ -1141,14 +1139,14 @@ export function PreviewPanel(props: PreviewPanelProps) {
                     !readOnly && activeReviewItems.length > 0 ? (
                       <div className="flex shrink-0 items-center gap-2">
                         {canRunPrecheck && invalidatedItems.length === 0 && unresolvedItems.length === 0 ? (
-                          <span className="hidden text-[10px] font-medium text-ui-muted/60 xl:inline">保留后可进行检查</span>
+                          <span className="hidden text-[11px] font-medium text-ui-muted/60 xl:inline">保留后可进行检查</span>
                         ) : null}
                         <button
                           type="button"
                           onClick={() => {
                             void acceptAllReviewItems();
                           }}
-                          className="inline-flex h-8 items-center rounded-[7px] border border-primary/15 bg-primary/[0.05] px-3 text-[11px] font-black text-primary transition-all hover:bg-primary/[0.08] active:scale-95"
+                          className="inline-flex h-8 items-center rounded-[8px] border border-primary/15 bg-primary/[0.05] px-3 text-[11px] font-black text-primary transition-all hover:bg-primary/[0.08] active:scale-95"
                         >
                           全部保留在待确认区
                         </button>
@@ -1217,7 +1215,7 @@ export function PreviewPanel(props: PreviewPanelProps) {
                               setEditingItemId(null);
                             }}
                             className={cn(
-                              "rounded-[6px] border px-3 py-1.5 text-[11.5px] font-semibold transition-all active:scale-95",
+                              "rounded-[6px] border px-3 py-1.5 text-[12px] font-semibold transition-all active:scale-95",
                               (
                                 (option.targetSlotId && editingItem.target_slot_id === option.targetSlotId) ||
                                 (!option.targetSlotId && resolveTargetLabel(editingItem) === displayDirectoryLabel(option.directory))
@@ -1236,7 +1234,7 @@ export function PreviewPanel(props: PreviewPanelProps) {
                               void restoreAiSuggestion(editingItem.item_id);
                               setEditingItemId(null);
                             }}
-                            className="inline-flex items-center gap-1.5 rounded-[6px] border border-on-surface/12 bg-surface px-3 py-1.5 text-[11.5px] font-semibold text-on-surface transition-all active:scale-95 hover:border-primary/20 hover:bg-surface-container"
+                            className="inline-flex items-center gap-1.5 rounded-[6px] border border-on-surface/12 bg-surface px-3 py-1.5 text-[12px] font-semibold text-on-surface transition-all active:scale-95 hover:border-primary/20 hover:bg-surface-container"
                           >
                             <RotateCcw className="h-3.5 w-3.5" />
                             恢复 AI 建议
@@ -1246,7 +1244,7 @@ export function PreviewPanel(props: PreviewPanelProps) {
                     </div>
 
                     <div className="space-y-2 pt-2 border-t border-on-surface/6">
-                      <button type="button" onClick={() => setShowManualInput((current) => !current)} className="text-[11.5px] font-bold text-primary flex items-center gap-1 opacity-80 hover:opacity-100 transition-opacity">
+                      <button type="button" onClick={() => setShowManualInput((current) => !current)} className="text-[12px] font-bold text-primary flex items-center gap-1 opacity-80 hover:opacity-100 transition-opacity">
                         {showManualInput ? "- 收起手动路径输入" : "+ 手动指定其他路径"}
                       </button>
                       {showManualInput ? (
@@ -1262,7 +1260,7 @@ export function PreviewPanel(props: PreviewPanelProps) {
                               {/* 目标路径建议 */}
                               {manualTargetTrimmed && !manualTargetInvalid && availableDirectories.filter(d => d.toLowerCase().includes(manualTargetTrimmed.toLowerCase()) && d !== manualTargetTrimmed && !isReviewDirectory(d)).length > 0 && (
                                 <div className="absolute top-full left-0 right-0 z-50 mt-1 max-h-48 overflow-y-auto rounded-[8px] border border-on-surface/10 bg-surface py-1 scrollbar-thin animate-in fade-in slide-in-from-top-2">
-                                  <div className="px-3 py-1.5 text-[10px] font-bold text-ui-muted uppercase tracking-wider bg-on-surface/[0.02]">建议目标目录</div>
+                                  <div className="px-3 py-1.5 text-[11px] font-bold text-ui-muted uppercase tracking-wider bg-on-surface/[0.02]">建议目标目录</div>
                                   {availableDirectories
                                     .filter(d => d.toLowerCase().includes(manualTargetTrimmed.toLowerCase()) && d !== manualTargetTrimmed && !isReviewDirectory(d))
                                     .slice(0, 8)
@@ -1290,12 +1288,12 @@ export function PreviewPanel(props: PreviewPanelProps) {
                                 setEditingItemId(null);
                               }}
                               disabled={manualTargetInvalid || !manualTargetTrimmed}
-                              className="shrink-0 h-9 rounded-[6px] bg-on-surface px-4 text-[12px] font-bold text-surface transition-transform active:scale-95 hover:bg-on-surface/90 disabled:cursor-not-allowed disabled:opacity-40"
+                              className="shrink-0 h-9 rounded-[6px] bg-primary px-4 text-[12px] font-bold text-white transition-[transform,background-color] active:scale-95 hover:bg-primary-dim disabled:cursor-not-allowed disabled:opacity-40"
                             >
                               应用此路径
                             </button>
                           </div>
-                          <p className="mt-1.5 text-[10.5px] text-ui-muted px-0.5">
+                          <p className="mt-1.5 text-[11px] text-ui-muted px-0.5">
                             {organizeMode === "incremental"
                               ? "归入已有目录时，只能填写已显式配置的目标目录；拿不准的项目请点“待确认区”。"
                               : "填写的是相对“新目录生成位置”的路径（不支持绝对路径或待确认区路径）。待确认区只作为暂存落点，不会自动归入目标目录。"}
@@ -1320,7 +1318,7 @@ export function PreviewPanel(props: PreviewPanelProps) {
                       <div className="break-all text-[13px] font-bold text-on-surface leading-snug">{editingItem.display_name}</div>
                     </div>
                     <div>
-                      <div className="text-[10px] font-bold tracking-[0.08em] uppercase text-ui-muted opacity-60 mb-1">来源路径</div>
+                      <div className="text-[11px] font-bold tracking-[0.08em] uppercase text-ui-muted opacity-60 mb-1">来源路径</div>
                       <div className="break-all font-mono text-[11px] text-on-surface-variant leading-relaxed">{editingItem.source_relpath}</div>
                     </div>
                   </div>
@@ -1333,13 +1331,13 @@ export function PreviewPanel(props: PreviewPanelProps) {
                       </div>
                       <div className="flex flex-wrap items-center gap-2">
                         <div className="break-all text-[14px] font-bold text-primary">{editingTargetMeta?.directoryLabel}</div>
-                        <span className="shrink-0 rounded-full border border-on-surface/10 bg-surface px-2 py-0.5 text-[10px] font-bold text-ui-muted">
+                        <span className="shrink-0 rounded-full border border-on-surface/10 bg-surface px-2 py-0.5 text-[11px] font-bold text-ui-muted">
                           {editingTargetMeta?.mappingLabel}
                         </span>
                       </div>
                     </div>
                     <div>
-                      <div className="text-[10px] font-bold tracking-[0.08em] uppercase text-ui-muted opacity-60 mb-1">完整目标路径</div>
+                      <div className="text-[11px] font-bold tracking-[0.08em] uppercase text-ui-muted opacity-60 mb-1">完整目标路径</div>
                       <div className="break-all font-mono text-[11px] text-on-surface-variant leading-relaxed">{editingTargetMeta?.fullTargetPath}</div>
                     </div>
                   </div>
@@ -1351,7 +1349,7 @@ export function PreviewPanel(props: PreviewPanelProps) {
                     <div className="text-[11px] font-bold uppercase tracking-[0.08em] text-ui-muted opacity-80 mb-3 flex items-center gap-1.5">
                       <Info className="w-3.5 h-3.5" /> 归类原因
                     </div>
-                    <div className="text-[12.5px] leading-[1.6] text-on-surface/90 text-justify [&>div>p]:mb-2 [&>div>p:last-child]:mb-0">
+                    <div className="text-[13px] leading-[1.6] text-on-surface/90 text-justify [&>div>p]:mb-2 [&>div>p:last-child]:mb-0">
                       {editingItem.reason || editingItem.suggested_purpose ? (
                         <MarkdownProse content={editingItem.reason || editingItem.suggested_purpose!} />
                       ) : (
@@ -1366,11 +1364,11 @@ export function PreviewPanel(props: PreviewPanelProps) {
                       <div className="flex items-center gap-1.5">
                         <FileText className="w-3.5 h-3.5" /> 内容摘要
                       </div>
-                      <div className="text-[10px] font-mono tracking-normal opacity-80">
+                      <div className="text-[11px] font-mono tracking-normal opacity-80">
                         置信度: {typeof editingItem.confidence === "number" ? `${Math.round(editingItem.confidence * 100)}%` : "N/A"}
                       </div>
                     </div>
-                    <div className="text-[12.5px] leading-[1.6] text-on-surface/90 text-justify [&>div>p]:mb-2 [&>div>p:last-child]:mb-0">
+                    <div className="text-[13px] leading-[1.6] text-on-surface/90 text-justify [&>div>p]:mb-2 [&>div>p:last-child]:mb-0">
                       {editingItem.content_summary ? (
                         <MarkdownProse content={editingItem.content_summary} />
                       ) : (

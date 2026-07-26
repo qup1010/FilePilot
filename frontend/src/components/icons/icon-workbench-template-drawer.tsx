@@ -65,7 +65,7 @@ export function IconWorkbenchTemplateDrawer({
         <DialogPrimitive.Content className="fixed right-0 top-0 z-[75] flex h-full w-full max-w-[1120px] flex-col border-l-2 border-on-surface/12 bg-surface-container-lowest outline-none transition-transform duration-300 ease-out starting:translate-x-full">
             <div className="flex items-center justify-between border-b border-on-surface/6 px-5 py-4 sm:px-6">
               <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-[10px] bg-primary/10 text-primary">
+                <div className="flex h-10 w-10 items-center justify-center rounded-[8px] bg-primary/10 text-primary">
                   <Palette className="h-5 w-5" />
                 </div>
                 <div>
@@ -79,7 +79,7 @@ export function IconWorkbenchTemplateDrawer({
               </div>
               <button
                 onClick={onClose}
-                className="flex h-10 w-10 items-center justify-center rounded-[10px] text-ui-muted transition-colors hover:bg-on-surface/4"
+                className="flex h-10 w-10 items-center justify-center rounded-[8px] text-ui-muted transition-colors hover:bg-on-surface/4"
               >
                 <X className="h-5 w-5" />
               </button>
@@ -116,7 +116,7 @@ export function IconWorkbenchTemplateDrawer({
                               : "border-transparent bg-transparent hover:border-on-surface/8 hover:bg-surface-container-lowest",
                           )}
                         >
-                          <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-[10px] border border-on-surface/6 bg-surface-container-lowest">
+                          <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-[8px] border border-on-surface/6 bg-surface-container-lowest">
                             {template.cover_image ? (
                               <img src={template.cover_image} alt={template.name} className="h-full w-full object-cover" />
                             ) : (
@@ -127,7 +127,7 @@ export function IconWorkbenchTemplateDrawer({
                             <div className="flex items-center gap-2">
                               <p className="truncate text-[13px] font-bold text-on-surface">{template.name}</p>
                               <span className={cn(
-                                "rounded-full px-2 py-0.5 text-[10px] font-bold tracking-[0.14em]",
+                                "rounded-full px-2 py-0.5 text-[11px] font-bold tracking-[0.14em]",
                                 template.is_builtin ? "bg-on-surface/6 text-ui-muted" : "bg-primary/10 text-primary",
                               )}>
                                 {template.is_builtin ? "系统" : "自定义"}
@@ -145,7 +145,7 @@ export function IconWorkbenchTemplateDrawer({
                       onClick={() => onSelectTemplate("")}
                       className="flex items-center gap-3 rounded-[12px] border border-dashed border-primary/18 bg-surface-container-lowest px-3 py-3 text-left text-primary transition-colors hover:bg-primary/5"
                     >
-                      <div className="flex h-11 w-11 items-center justify-center rounded-[10px] bg-primary/8">
+                      <div className="flex h-11 w-11 items-center justify-center rounded-[8px] bg-primary/8">
                         <Plus className="h-4 w-4" />
                       </div>
                       <div>
@@ -180,7 +180,7 @@ export function IconWorkbenchTemplateDrawer({
                         value={templateNameDraft}
                         onChange={(e: React.ChangeEvent<HTMLInputElement>) => onTemplateNameChange(e.target.value)}
                         placeholder="例如：3D 粘土风格"
-                        className="h-11 w-full rounded-[10px] border border-on-surface/10 bg-surface-container-lowest px-4 text-[14px] outline-none transition-all focus:border-primary/20 focus:ring-4 focus:ring-primary/4"
+                        className="h-11 w-full rounded-[8px] border border-on-surface/10 bg-surface-container-lowest px-4 text-[14px] outline-none transition-all focus:border-primary/20 focus:ring-4 focus:ring-primary/4"
                       />
                     </div>
 
@@ -191,7 +191,7 @@ export function IconWorkbenchTemplateDrawer({
                         onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => onTemplateDescriptionChange(e.target.value)}
                         placeholder="描述这种风格的视觉特征..."
                         rows={3}
-                        className="w-full resize-none rounded-[10px] border border-on-surface/10 bg-surface-container-lowest px-4 py-3 text-[14px] outline-none transition-all focus:border-primary/20 focus:ring-4 focus:ring-primary/4"
+                        className="w-full resize-none rounded-[8px] border border-on-surface/10 bg-surface-container-lowest px-4 py-3 text-[14px] outline-none transition-all focus:border-primary/20 focus:ring-4 focus:ring-primary/4"
                       />
                     </div>
 
@@ -202,7 +202,7 @@ export function IconWorkbenchTemplateDrawer({
                         onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => onTemplatePromptChange(e.target.value)}
                         placeholder="{{subject}}, minimalist 2D flat vector icon, clean geometric shapes, bold contours, high contrast"
                         rows={10}
-                        className="w-full resize-none rounded-[10px] border border-on-surface/10 bg-surface-container-lowest px-4 py-3 font-mono text-[13px] leading-6 outline-none transition-all focus:border-primary/20 focus:ring-4 focus:ring-primary/4"
+                        className="w-full resize-none rounded-[8px] border border-on-surface/10 bg-surface-container-lowest px-4 py-3 font-mono text-[13px] leading-6 outline-none transition-all focus:border-primary/20 focus:ring-4 focus:ring-primary/4"
                       />
                       <div className="flex flex-wrap gap-2 pt-1">
                         {supportedPlaceholders.map((placeholder) => (

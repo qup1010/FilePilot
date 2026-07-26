@@ -131,11 +131,11 @@ export function MinimalScanningView({
               </div>
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
-                  <span className="rounded bg-primary/20 px-1.5 py-0.5 text-[10px] font-black uppercase tracking-widest text-primary">
+                  <span className="rounded bg-primary/20 px-1.5 py-0.5 text-[11px] font-black uppercase tracking-widest text-primary">
                     {displayEyebrow}
                   </span>
                   <div className="h-3 w-[1px] bg-on-surface/10" />
-                  <span className="text-[10px] font-bold text-ui-muted uppercase tracking-widest">{displayStageLabel}</span>
+                  <span className="text-[11px] font-bold text-ui-muted uppercase tracking-widest">{displayStageLabel}</span>
                 </div>
                 <h2 className="mt-0.5 text-[18px] font-black tracking-tight text-on-surface">
                   {displayTitle}
@@ -145,21 +145,21 @@ export function MinimalScanningView({
 
             <div className="flex items-center gap-6">
               <div className="hidden flex-col items-end md:flex">
-                <span className="text-[10px] font-black tracking-widest text-ui-muted/40">{metricLabel}</span>
+                <span className="text-[11px] font-black tracking-widest text-ui-muted/40">{metricLabel}</span>
                 <span className="font-mono text-[16px] font-bold text-on-surface">{viewModel.countLabel}</span>
               </div>
               {viewModel.batchLabel && (
                 <>
                   <div className="hidden h-8 w-[1px] bg-on-surface/10 md:block" />
                   <div className="hidden flex-col items-end lg:flex">
-                    <span className="text-[10px] font-black tracking-widest text-ui-muted/40">批处理</span>
+                    <span className="text-[11px] font-black tracking-widest text-ui-muted/40">批处理</span>
                     <span className="font-mono text-[16px] font-bold text-on-surface">{viewModel.batchLabel}</span>
                   </div>
                 </>
               )}
               <div className="hidden h-8 w-[1px] bg-on-surface/10 md:block" />
               <div className="hidden flex-col items-end sm:flex">
-                <span className="text-[10px] font-black tracking-widest text-ui-muted/40">已用时间</span>
+                <span className="text-[11px] font-black tracking-widest text-ui-muted/40">已用时间</span>
                 <span className="font-mono text-[16px] font-bold text-on-surface">{formatElapsedLabel(elapsedSeconds)}</span>
               </div>
               <div className="h-8 w-[1px] bg-on-surface/10" />
@@ -211,16 +211,16 @@ export function MinimalScanningView({
                        <span className="flex h-5 w-5 items-center justify-center rounded-md bg-primary/10 text-primary">
                          <Terminal className="h-3 w-3" />
                        </span>
-                       <span className="text-[10px] font-black tracking-widest text-primary/60">正在查看的项目</span>
+                       <span className="text-[11px] font-black tracking-widest text-primary/60">正在查看的项目</span>
                     </div>
                     
-                    <div className="min-h-[140px] rounded-[10px] border border-on-surface/10 bg-surface-container-lowest p-6 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
+                    <div className="min-h-[140px] rounded-[8px] border border-on-surface/10 bg-surface-container-lowest p-6 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
                       <div className="flex items-start gap-4">
                         <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-on-surface/[0.03] border border-on-surface/5">
                            <FileText className="h-6 w-6 text-primary/60" />
                         </div>
                         <div className="min-w-0 flex-1">
-                          <h3 className="truncate text-[22px] font-black tracking-tight text-on-surface">
+                          <h3 className="truncate text-[20px] font-black tracking-tight text-on-surface">
                             {primaryItemLabel}
                           </h3>
                           <div className="mt-2 flex flex-wrap items-center gap-3">
@@ -246,11 +246,11 @@ export function MinimalScanningView({
                       
                       <div className="mt-6 grid grid-cols-2 gap-4 border-t border-on-surface/5 pt-6">
                          <div>
-                            <span className="text-[10px] font-black tracking-widest text-ui-muted/40">读取范围</span>
+                            <span className="text-[11px] font-black tracking-widest text-ui-muted/40">读取范围</span>
                             <p className="mt-1 text-[13px] font-bold text-on-surface/80">{viewModel.countLabel}</p>
                          </div>
                          <div>
-                            <span className="text-[10px] font-black tracking-widest text-ui-muted/40">当前状态</span>
+                            <span className="text-[11px] font-black tracking-widest text-ui-muted/40">当前状态</span>
                             <div className="mt-1 flex items-center gap-1.5 text-[13px] font-bold text-success-dim">
                                <div className="h-1.5 w-1.5 rounded-full bg-success-dim animate-pulse" />
                                {currentStatusLabel}
@@ -259,9 +259,9 @@ export function MinimalScanningView({
                       </div>
                     </div>
 
-                    <div className="rounded-[9px] border border-primary/15 bg-primary/[0.035] px-4 py-3">
+                    <div className="rounded-[8px] border border-primary/15 bg-primary/[0.035] px-4 py-3">
                       <div className="flex items-start gap-3">
-                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[7px] border border-primary/15 bg-primary/8 text-primary">
+                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[8px] border border-primary/15 bg-primary/8 text-primary">
                           <Bell className="h-4 w-4" />
                         </div>
                         <div className="min-w-0">
@@ -274,7 +274,7 @@ export function MinimalScanningView({
                     </div>
                   </div>
 
-                  <div className="rounded-[9px] border border-on-surface/8 bg-surface px-4 py-3">
+                  <div className="rounded-[8px] border border-on-surface/8 bg-surface px-4 py-3">
                      <div className="flex items-center gap-2">
                        <span className="flex h-5 w-5 items-center justify-center rounded-md bg-on-surface/5 text-on-surface/40">
                          <CheckCircle2 className="h-3 w-3" />
@@ -297,11 +297,11 @@ export function MinimalScanningView({
                   <h3 className="text-[11px] font-black tracking-widest text-ui-muted">{effectivePhase === "planning" ? "生成状态" : "扫描记录"}</h3>
                   <div className="flex items-center gap-1.5">
                     {viewModel.batchLabel && (
-                      <span className="rounded-full bg-primary/8 px-2 py-0.5 text-[10px] font-bold text-primary/70">
+                      <span className="rounded-full bg-primary/8 px-2 py-0.5 text-[11px] font-bold text-primary/70">
                         {viewModel.batchLabel}
                       </span>
                     )}
-                    <span className="rounded-full bg-on-surface/5 px-2 py-0.5 text-[10px] font-bold text-ui-muted">
+                    <span className="rounded-full bg-on-surface/5 px-2 py-0.5 text-[11px] font-bold text-ui-muted">
                       {viewModel.countLabel}
                     </span>
                   </div>
@@ -328,11 +328,11 @@ export function MinimalScanningView({
                             </div>
                             <div className="min-w-0 flex-1">
                               <p className="truncate text-[12px] font-bold text-on-surface/80">{item.display_name}</p>
-                              <p className="truncate text-[10px] font-medium text-ui-muted/45 tracking-tight">
+                              <p className="truncate text-[11px] font-medium text-ui-muted/45 tracking-tight">
                                 {completed ? (item.suggested_purpose || "已完成分析") : "等待分析结果"}
                               </p>
                               {completed && item.summary && (
-                                <p className="mt-0.5 line-clamp-1 text-[10px] font-medium text-ui-muted/35">
+                                <p className="mt-0.5 line-clamp-1 text-[11px] font-medium text-ui-muted/35">
                                   {item.summary}
                                 </p>
                               )}
@@ -352,7 +352,7 @@ export function MinimalScanningView({
                         </div>
                         <div className="min-w-0 flex-1">
                           <p className="truncate text-[12px] font-bold text-on-surface/80">{viewModel.currentItem}</p>
-                          <p className="truncate text-[10px] font-medium text-primary/60 tracking-tight">{viewModel.progressText || "正在读取"}</p>
+                          <p className="truncate text-[11px] font-medium text-primary/60 tracking-tight">{viewModel.progressText || "正在读取"}</p>
                         </div>
                       </motion.div>
                     ) : viewModel.totalCount > 0 ? (
@@ -366,7 +366,7 @@ export function MinimalScanningView({
                               <p className="truncate text-[12px] font-bold text-on-surface/55">
                                 {index === 0 ? "正在等待首批分析结果" : `已发现项目队列 ${index + 1}`}
                               </p>
-                              <p className="truncate text-[10px] font-medium text-ui-muted/35 tracking-tight">
+                              <p className="truncate text-[11px] font-medium text-ui-muted/35 tracking-tight">
                                 {index === 0 ? `已发现 ${viewModel.totalCount} 项` : "即将显示具体条目"}
                               </p>
                             </div>
@@ -407,13 +407,13 @@ export function MinimalScanningView({
               {viewModel.steps.map((s, index) => (
                 <div key={s.id} className="flex items-center gap-2">
                    <div className={cn(
-                     "flex h-4 w-4 items-center justify-center rounded-full text-[9px] font-black",
+                     "flex h-4 w-4 items-center justify-center rounded-full text-[11px] font-black",
                      s.state === "done" ? "bg-success text-white" : s.state === "active" ? "bg-primary text-white" : s.state === "aborted" ? "bg-warning text-white" : "bg-on-surface/10 text-ui-muted"
                    )}>
                       {s.state === "done" ? "✓" : index + 1}
                    </div>
                    <span className={cn(
-                     "text-[10px] font-bold uppercase tracking-wider",
+                     "text-[11px] font-bold uppercase tracking-wider",
                      s.state === "done" || s.state === "active" ? "text-on-surface/60" : "text-ui-muted/30"
                    )}>{s.title}</span>
                    {index < viewModel.steps.length - 1 && <div className="ml-4 h-px w-8 bg-on-surface/5" />}

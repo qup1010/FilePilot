@@ -88,7 +88,7 @@ export function SourceStep({
             </div>
             <div className="min-w-0 flex-1">
               <div className="text-[12px] font-black tracking-tight text-on-surface">整理前安全建议</div>
-              <p className="mt-1 text-[11.5px] font-medium leading-5 text-ui-muted">
+              <p className="mt-1 text-[12px] font-medium leading-5 text-ui-muted">
                 推荐从下载、桌面、照片、个人文档等明确资料夹开始。避免直接选择磁盘根目录、系统目录、软件安装目录或正在开发的代码工程。
               </p>
             </div>
@@ -127,7 +127,7 @@ export function SourceStep({
             }}
             transition={{ repeat: Infinity, duration: 1.5, ease: "easeInOut" }}
             className={cn(
-              "mb-3 flex h-12 w-12 items-center justify-center rounded-[10px] transition-all duration-300",
+              "mb-3 flex h-12 w-12 items-center justify-center rounded-[8px] transition-all duration-300",
               isDropActive ? "bg-primary text-white" : "bg-on-surface/5 text-on-surface/40"
             )}
           >
@@ -147,7 +147,7 @@ export function SourceStep({
                     type="button"
                     disabled={loading}
                     onClick={onImportDirectoryEntries}
-                    className="h-11 px-6 text-[14.5px] font-black text-white hover:bg-white/10 active:bg-white/15 transition-colors flex items-center gap-2"
+                    className="h-11 px-6 text-[14px] font-black text-white hover:bg-white/10 active:bg-white/15 transition-colors flex items-center gap-2"
                   >
                     <span>整理文件夹内容</span>
                     <Layers3 className="h-4 w-4 opacity-80" />
@@ -166,7 +166,7 @@ export function SourceStep({
                 {isSourceDropdownOpen && (
                   <>
                     <div className="fixed inset-0 z-40" onClick={() => onSetSourceDropdownOpen(false)} />
-                    <div className="absolute top-12 left-1/2 -translate-x-1/2 z-50 min-w-[200px] rounded-[10px] border border-on-surface/8 bg-surface p-1 shadow-lg animate-in fade-in slide-in-from-top-2 duration-200">
+                    <div className="absolute top-12 left-1/2 -translate-x-1/2 z-50 min-w-[200px] rounded-[8px] border border-on-surface/8 bg-surface p-1 shadow-lg animate-in fade-in slide-in-from-top-2 duration-200">
                       <button
                         type="button"
                         onClick={() => {
@@ -176,7 +176,7 @@ export function SourceStep({
                         className="w-full text-left px-4 py-2.5 rounded-[6px] text-[12px] font-bold text-on-surface hover:bg-on-surface/[0.04] transition-colors flex items-center justify-between"
                       >
                         <span>移动整个文件夹</span>
-                        <span className="text-[10px] text-ui-muted opacity-50 font-normal">保留外壳</span>
+                        <span className="text-[11px] text-ui-muted opacity-50 font-normal">保留外壳</span>
                       </button>
                       <button
                         type="button"
@@ -187,7 +187,7 @@ export function SourceStep({
                         className="w-full text-left px-4 py-2.5 rounded-[6px] text-[12px] font-bold text-on-surface hover:bg-on-surface/[0.04] transition-colors flex items-center justify-between"
                       >
                         <span>添加单个文件</span>
-                        <span className="text-[10px] text-ui-muted opacity-50 font-normal">单个导入</span>
+                        <span className="text-[11px] text-ui-muted opacity-50 font-normal">单个导入</span>
                       </button>
                     </div>
                   </>
@@ -198,7 +198,8 @@ export function SourceStep({
                 <Button
                   variant="secondary"
                   onClick={onChooseDirectories}
-                  disabled={loading}
+                  disabled={loading || !isDesktopEnvironment}
+                  title={!isDesktopEnvironment ? "桌面端功能，网页模式请使用手动输入路径" : undefined}
                   className="h-9 rounded-[6px] border border-on-surface/8 bg-surface px-5 text-[12px] font-bold text-on-surface/70 hover:bg-on-surface/[0.04] hover:text-on-surface active:scale-95 transition-all"
                 >
                   移动整个文件夹
@@ -206,7 +207,8 @@ export function SourceStep({
                 <Button
                   variant="secondary"
                   onClick={onChooseFiles}
-                  disabled={loading}
+                  disabled={loading || !isDesktopEnvironment}
+                  title={!isDesktopEnvironment ? "桌面端功能，网页模式请使用手动输入路径" : undefined}
                   className="h-9 rounded-[6px] border border-on-surface/8 bg-surface px-5 text-[12px] font-bold text-on-surface/70 hover:bg-on-surface/[0.04] hover:text-on-surface active:scale-95 transition-all"
                 >
                   添加单个文件
@@ -219,7 +221,7 @@ export function SourceStep({
                 : "“移动整个文件夹”会保留文件夹结构本身，“添加单个文件”仅整理选中的文件。"}
             </p>
             {isDesktopEnvironment && (
-              <div className="rounded-[6px] border border-on-surface/6 bg-on-surface/[0.015] px-4 py-2 text-[10px] font-mono leading-relaxed text-ui-muted/50 max-w-md text-center mt-1">
+              <div className="rounded-[6px] border border-on-surface/6 bg-on-surface/[0.015] px-4 py-2 text-[11px] font-mono leading-relaxed text-ui-muted/50 max-w-md text-center mt-1">
                 * Windows 原生限制：如需单次混选文件与文件夹，请直接拖拽至上方区域 *
               </div>
             )}
@@ -231,7 +233,7 @@ export function SourceStep({
               <div className="animate-in fade-in slide-in-from-bottom-2 duration-700 flex flex-col items-center">
                 <div className="mb-3 flex items-center gap-3">
                   <div className="h-px w-6 bg-on-surface/5" />
-                  <span className="text-[10px] font-black uppercase tracking-[0.2em] text-ui-muted/30">快捷入口</span>
+                  <span className="text-[11px] font-black uppercase tracking-[0.2em] text-ui-muted/30">快捷入口</span>
                   <div className="h-px w-6 bg-on-surface/5" />
                 </div>
                 <div className="flex flex-wrap justify-center gap-2 max-w-2xl px-4">
@@ -239,9 +241,10 @@ export function SourceStep({
                     <button
                       key={item.path}
                       type="button"
-                      disabled={loading}
+                      disabled={loading || !isDesktopEnvironment}
+                      title={!isDesktopEnvironment ? "桌面端功能，网页模式请使用手动输入路径" : undefined}
                       onClick={() => onImportCommonDir(item.path)}
-                      className="group flex items-center gap-2 rounded-full border border-on-surface/6 bg-on-surface/[0.015] px-3 py-1 text-[11px] font-bold text-on-surface/45 transition-all hover:border-primary/20 hover:bg-primary/[0.02] hover:text-primary active:scale-[0.98]"
+                      className="group flex items-center gap-2 rounded-full border border-on-surface/6 bg-on-surface/[0.015] px-3 py-1 text-[11px] font-bold text-on-surface/45 transition-all hover:border-primary/20 hover:bg-primary/[0.02] hover:text-primary active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                       <FolderOpen className="h-3 w-3 opacity-40 group-hover:opacity-100" />
                       <span className="truncate max-w-[100px]">{item.label || item.path.split(/[\\/]/).pop()}</span>
@@ -286,12 +289,12 @@ export function SourceStep({
                 className="inset-0 rounded-[8px]"
                 panelClassName="flex-row gap-2 py-0"
                 iconWrapClassName="h-6 w-6 rounded-[6px]"
-                titleClassName="text-[11.5px] font-black tracking-normal"
+                titleClassName="text-[12px] font-black tracking-normal"
               />
             )}
             <div className="flex items-center gap-2 min-w-0">
               <Plus className={cn("h-4 w-4 shrink-0 transition-colors", isDropActive ? "text-primary animate-pulse" : "text-ui-muted/40 group-hover/add-more:text-primary/70")} />
-              <span className={cn("text-[11.5px] font-bold truncate", isDropActive ? "text-primary" : "text-ui-muted opacity-55")}>
+              <span className={cn("text-[12px] font-bold truncate", isDropActive ? "text-primary" : "text-ui-muted opacity-55")}>
                 {isDropActive ? "松手即可继续加入" : "拖入文件或文件夹以追加来源"}
               </span>
             </div>
@@ -311,18 +314,20 @@ export function SourceStep({
               )}
               <button
                 type="button"
-                disabled={loading}
+                disabled={loading || !isDesktopEnvironment}
+                title={!isDesktopEnvironment ? "桌面端功能，网页模式请使用手动输入路径" : undefined}
                 onClick={onChooseDirectories}
-                className="rounded px-2 py-1 hover:bg-on-surface/[0.04] hover:text-on-surface transition-colors disabled:opacity-40"
+                className="rounded px-2 py-1 hover:bg-on-surface/[0.04] hover:text-on-surface transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 移动文件夹
               </button>
               <span className="text-on-surface/10 font-normal select-none">|</span>
               <button
                 type="button"
-                disabled={loading}
+                disabled={loading || !isDesktopEnvironment}
+                title={!isDesktopEnvironment ? "桌面端功能，网页模式请使用手动输入路径" : undefined}
                 onClick={onChooseFiles}
-                className="rounded px-2 py-1 hover:bg-on-surface/[0.04] hover:text-on-surface transition-colors disabled:opacity-40"
+                className="rounded px-2 py-1 hover:bg-on-surface/[0.04] hover:text-on-surface transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 单个文件
               </button>

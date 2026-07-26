@@ -150,7 +150,7 @@ export function TextTab({
               开启后，模型可在必要时查看图片内容；关闭时只按文件名判断。
             </p>
           </div>
-          <div className="flex items-center gap-2 rounded-[10px] border border-on-surface/8 bg-surface-container-low px-3 py-2">
+          <div className="flex items-center gap-2 rounded-[8px] border border-on-surface/8 bg-surface-container-low px-3 py-2">
             <span className="text-[12px] font-medium text-on-surface-variant/70">启用</span>
             <ToggleSwitch
               checked={visionEnabled}
@@ -182,13 +182,13 @@ export function TextTab({
                   type="button"
                   onClick={() => onUpdateGlobal("IMAGE_ANALYSIS_SOURCE_MODE", item.id)}
                   className={cn(
-                    "rounded-[10px] border px-3 py-3 text-left transition-colors",
+                    "rounded-[8px] border px-3 py-3 text-left transition-colors",
                     active
                       ? "border-primary/35 bg-primary/[0.06]"
                       : "border-on-surface/8 bg-surface-container-lowest hover:border-on-surface/16",
                   )}
                 >
-                  <div className="text-[12.5px] font-bold text-on-surface">{item.label}</div>
+                  <div className="text-[13px] font-bold text-on-surface">{item.label}</div>
                   <div className="mt-1 text-[11px] leading-relaxed text-ui-muted">{item.description}</div>
                 </button>
               );
@@ -198,18 +198,18 @@ export function TextTab({
 
         {visionUsesSharedText ? (
           <div className="mt-4 space-y-4">
-            <div className="rounded-[10px] border border-on-surface/8 bg-surface-container-lowest px-4 py-3">
+            <div className="rounded-[8px] border border-on-surface/8 bg-surface-container-lowest px-4 py-3">
               <div className="flex items-center gap-2">
                 <Layers3 className="h-4 w-4 text-primary/70" />
-                <p className="text-[12.5px] font-bold text-on-surface">当前复用文本模型</p>
+                <p className="text-[13px] font-bold text-on-surface">当前复用文本模型</p>
               </div>
               <div className="mt-3 grid gap-3 xl:grid-cols-2">
                 <div className="rounded-[8px] border border-on-surface/6 bg-surface px-3 py-2">
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-ui-muted">模型 ID</p>
+                  <p className="text-[11px] font-bold uppercase tracking-wider text-ui-muted">模型 ID</p>
                   <p className="mt-1 text-[12px] font-semibold text-on-surface">{textDraft.OPENAI_MODEL || "未填写"}</p>
                 </div>
                 <div className="rounded-[8px] border border-on-surface/6 bg-surface px-3 py-2">
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-ui-muted">接口地址</p>
+                  <p className="text-[11px] font-bold uppercase tracking-wider text-ui-muted">接口地址</p>
                   <p className="mt-1 break-all font-mono text-[11px] font-medium text-on-surface">{textDraft.OPENAI_BASE_URL || "未填写"}</p>
                 </div>
               </div>

@@ -317,7 +317,7 @@ export function ConversationPanel({
               <h3 className="text-[1.25rem] font-black tracking-tight text-on-surface">
                 {isBusy ? "正在准备任务" : "开始读取目录"}
               </h3>
-              <p className="text-[13.5px] font-medium leading-relaxed text-ui-muted opacity-70">
+              <p className="text-[13px] font-medium leading-relaxed text-ui-muted opacity-70">
                 {isBusy
                   ? "正在读取你选择的文件和文件夹，完成后会生成整理建议。"
                   : "先只读扫描目录，确认本次要整理的项目，再决定怎么移动。"}
@@ -355,7 +355,7 @@ export function ConversationPanel({
               </div>
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2 mb-2">
-                   <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-widest text-primary">
+                   <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[11px] font-black uppercase tracking-widest text-primary">
                      {scanningView.stageLabel}
                    </span>
                    <span className="text-[11px] font-bold text-on-surface/60">{scanningView.title}</span>
@@ -368,7 +368,7 @@ export function ConversationPanel({
                   />
                 </div>
                 <div className="mt-2 flex items-center justify-between">
-                   <span className="text-[10px] font-black uppercase tracking-widest text-ui-muted opacity-40">实时同步中</span>
+                   <span className="text-[11px] font-black uppercase tracking-widest text-ui-muted opacity-40">实时同步中</span>
                    <span className="font-mono text-[11px] font-black text-primary">{Math.round(scanningView.progressPercent)}%</span>
                 </div>
               </div>
@@ -392,7 +392,7 @@ export function ConversationPanel({
               return (
                 <div key={message.id} className="ml-11 py-2 flex items-center gap-3">
                   <div className="h-px w-6 bg-on-surface/10" />
-                  <span className="text-[10px] font-black tracking-widest text-ui-muted opacity-40">任务记录已更新</span>
+                  <span className="text-[11px] font-black tracking-widest text-ui-muted opacity-40">任务记录已更新</span>
                 </div>
               );
             }

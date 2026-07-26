@@ -35,7 +35,7 @@ export function EmptyState({
           </div>
         ) : null}
         <div className="max-w-[320px] space-y-2">
-          <h3 className="text-[17px] font-black tracking-tight text-on-surface">{title}</h3>
+          <h3 className="text-[16px] font-black tracking-tight text-on-surface">{title}</h3>
           <p className="text-[13px] font-medium leading-relaxed text-ui-muted opacity-60">{description}</p>
         </div>
 

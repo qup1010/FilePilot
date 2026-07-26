@@ -87,7 +87,7 @@ export function ProviderCapabilitySummary({
 
   return (
     <div
-      className="xl:col-span-2 flex flex-wrap items-center gap-2 rounded-[6px] border border-on-surface/6 bg-surface-container-lowest/70 px-3 py-2 text-[11.5px]"
+      className="xl:col-span-2 flex flex-wrap items-center gap-2 rounded-[6px] border border-on-surface/6 bg-surface-container-lowest/70 px-3 py-2 text-[12px]"
       title={hint}
     >
       <div className="flex min-w-0 items-center gap-2 pr-1">
@@ -97,7 +97,7 @@ export function ProviderCapabilitySummary({
           {serviceLabel} · {formatLabel}
         </span>
       </div>
-      <span className="rounded-[5px] border border-on-surface/8 bg-surface px-1.5 py-0.5 text-[10.5px] font-semibold text-on-surface-variant/55">
+      <span className="rounded-[6px] border border-on-surface/8 bg-surface px-1.5 py-0.5 text-[11px] font-semibold text-on-surface-variant/55">
         保存后可测试
       </span>
     </div>
@@ -126,7 +126,7 @@ export function ConnectionTestResult({ family, result, isTesting }: ConnectionTe
           <p className="text-[13px] font-bold tracking-tight text-on-surface">
             {isVision ? "正在验证图片理解能力..." : "正在进行连接测试..."}
           </p>
-          <p className="mt-0.5 text-[10px] font-bold tracking-widest text-primary/60">
+          <p className="mt-0.5 text-[11px] font-bold tracking-widest text-primary/60">
             {isVision ? "图片能力验证" : "连接探测"}
           </p>
         </div>
@@ -164,7 +164,7 @@ export function ConnectionTestResult({ family, result, isTesting }: ConnectionTe
             {isVision ? (isOk ? "图片能力已验证" : "图片能力验证失败") : isOk ? "服务已成功对齐" : "连接测试失败"}
           </h4>
           {isOk && (
-            <div className="flex items-center gap-1.5 rounded-[4px] bg-success/10 px-2 py-0.5 text-[9px] font-black uppercase tracking-widest text-success-dim">
+            <div className="flex items-center gap-1.5 rounded-[4px] bg-success/10 px-2 py-0.5 text-[11px] font-black uppercase tracking-widest text-success-dim">
               <div className="h-1 w-1 rounded-full bg-success animate-pulse" />
               可用
             </div>
@@ -172,7 +172,7 @@ export function ConnectionTestResult({ family, result, isTesting }: ConnectionTe
         </div>
         <p className="text-[12px] leading-relaxed text-on-surface/70">{result.message}</p>
         {!isOk && issueHint ? (
-          <p className="rounded-[6px] border border-error/10 bg-error/[0.04] px-3 py-2 text-[11.5px] font-medium leading-relaxed text-error-dim">
+          <p className="rounded-[6px] border border-error/10 bg-error/[0.04] px-3 py-2 text-[12px] font-medium leading-relaxed text-error-dim">
             {issueHint}
           </p>
         ) : null}
@@ -182,7 +182,7 @@ export function ConnectionTestResult({ family, result, isTesting }: ConnectionTe
             <p>实际返回：{result.details.actual?.trim() ? result.details.actual : "空响应"}</p>
           </div>
         ) : null}
-        {!isOk && <p className="text-[10px] font-mono opacity-50">Code: {result.code}</p>}
+        {!isOk && <p className="text-[11px] font-mono opacity-50">Code: {result.code}</p>}
       </div>
     </motion.div>
   );
@@ -210,11 +210,11 @@ export function ConnectionTestPanel({
   onTest,
 }: ConnectionTestPanelProps) {
   return (
-    <div className="rounded-[10px] border border-on-surface/8 bg-surface-container-lowest px-4 py-3">
+    <div className="rounded-[8px] border border-on-surface/8 bg-surface-container-lowest px-4 py-3">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h3 className="text-[12.5px] font-black text-on-surface">{title || "连接测试"}</h3>
-          <p className="mt-1 text-[11.5px] font-medium text-ui-muted/65">{description || "验证当前配置的连通性与可用性。"}</p>
+          <h3 className="text-[13px] font-black text-on-surface">{title || "连接测试"}</h3>
+          <p className="mt-1 text-[12px] font-medium text-ui-muted/65">{description || "验证当前配置的连通性与可用性。"}</p>
         </div>
         <Button
           variant="secondary"
@@ -270,7 +270,7 @@ export function ModelIdField({
           type="button"
           onClick={onFetchModels}
           disabled={isLoadingModels}
-          className="inline-flex h-7 shrink-0 items-center gap-1.5 rounded-[5px] border border-on-surface/8 bg-surface px-2.5 text-[11px] font-bold text-on-surface/70 transition-colors hover:border-primary/20 hover:text-primary disabled:opacity-55"
+          className="inline-flex h-7 shrink-0 items-center gap-1.5 rounded-[6px] border border-on-surface/8 bg-surface px-2.5 text-[11px] font-bold text-on-surface/70 transition-colors hover:border-primary/20 hover:text-primary disabled:opacity-55"
         >
           {isLoadingModels ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
           获取
@@ -294,7 +294,7 @@ export function ModelIdField({
                     type="button"
                     onClick={() => onChange(model.id)}
                     className={cn(
-                      "max-w-full truncate rounded-[5px] border px-2 py-1 text-[11px] font-semibold transition-colors",
+                      "max-w-full truncate rounded-[6px] border px-2 py-1 text-[11px] font-semibold transition-colors",
                       model.id === value
                         ? "border-primary/25 bg-primary/10 text-primary"
                         : "border-on-surface/8 bg-surface text-on-surface/70 hover:border-primary/18 hover:text-primary",
@@ -305,16 +305,16 @@ export function ModelIdField({
                   </button>
                 ))}
                 {models.length > 8 ? (
-                  <span className="rounded-[5px] border border-on-surface/8 bg-surface px-2 py-1 text-[11px] font-semibold text-ui-muted">
+                  <span className="rounded-[6px] border border-on-surface/8 bg-surface px-2 py-1 text-[11px] font-semibold text-ui-muted">
                     +{models.length - 8}
                   </span>
                 ) : null}
               </div>
             ) : (
-              <p className="text-[11.5px] font-medium text-ui-muted">端点已响应，但没有返回可选模型。</p>
+              <p className="text-[12px] font-medium text-ui-muted">端点已响应，但没有返回可选模型。</p>
             )
           ) : (
-            <p className="text-[11.5px] font-medium leading-relaxed text-error-dim">
+            <p className="text-[12px] font-medium leading-relaxed text-error-dim">
               {lookupResult.message || "获取模型列表失败，请检查端点和密钥。"}
             </p>
           )}
@@ -416,8 +416,8 @@ export function SecretField({ label, state, secret, setSecret, family }: SecretF
 
 export function SettingsMinPath({ items }: { items: string[] }) {
   return (
-    <div className="rounded-[10px] border border-on-surface/8 bg-surface-container-lowest px-4 py-3">
-      <p className="text-[10px] font-black uppercase tracking-[0.16em] text-primary/55">最小配置路径</p>
+    <div className="rounded-[8px] border border-on-surface/8 bg-surface-container-lowest px-4 py-3">
+      <p className="text-[11px] font-black uppercase tracking-[0.16em] text-primary/55">最小配置路径</p>
       <ul className="mt-2 space-y-1.5">
         {items.map((item) => (
           <li key={item} className="flex gap-2 text-[12px] leading-5 text-on-surface/70">

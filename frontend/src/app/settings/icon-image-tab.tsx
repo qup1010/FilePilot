@@ -93,8 +93,8 @@ export function IconImageTab({
           "尺寸、并发、保存方式为高级选项，可按需展开",
         ]}
       />
-      <div className="rounded-[10px] border border-on-surface/8 bg-surface-container-lowest px-4 py-3">
-        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-primary/55">双模型依赖</p>
+      <div className="rounded-[8px] border border-on-surface/8 bg-surface-container-lowest px-4 py-3">
+        <p className="text-[11px] font-black uppercase tracking-[0.16em] text-primary/55">双模型依赖</p>
         <div className="mt-3 grid gap-2 sm:grid-cols-2">
           <div className={cn(
             "rounded-[8px] border px-3 py-2",
@@ -102,7 +102,7 @@ export function IconImageTab({
           )}>
             <div className="flex items-center justify-between gap-2">
               <span className="text-[12px] font-bold text-on-surface">文本模型（分析）</span>
-              <span className={cn("text-[10px] font-black", textConfigured ? "text-success-dim" : "text-on-surface/40")}>
+              <span className={cn("text-[11px] font-black", textConfigured ? "text-success-dim" : "text-on-surface/40")}>
                 {textConfigured ? "已配置" : "未配置"}
               </span>
             </div>
@@ -123,7 +123,7 @@ export function IconImageTab({
           )}>
             <div className="flex items-center justify-between gap-2">
               <span className="text-[12px] font-bold text-on-surface">生图模型（预览）</span>
-              <span className={cn("text-[10px] font-black", iconImageConfigured ? "text-success-dim" : "text-on-surface/40")}>
+              <span className={cn("text-[11px] font-black", iconImageConfigured ? "text-success-dim" : "text-on-surface/40")}>
                 {iconImageConfigured ? "已配置" : "未配置"}
               </span>
             </div>
@@ -183,10 +183,10 @@ export function IconImageTab({
           <button
             type="button"
             onClick={onToggleAdvanced}
-            className="flex w-full items-center justify-between rounded-[10px] border border-on-surface/8 bg-surface-container-lowest px-4 py-3 text-left transition-colors hover:border-primary/20"
+            className="flex w-full items-center justify-between rounded-[8px] border border-on-surface/8 bg-surface-container-lowest px-4 py-3 text-left transition-colors hover:border-primary/20"
           >
             <div>
-              <p className="text-[12.5px] font-bold text-on-surface">高级选项</p>
+              <p className="text-[13px] font-bold text-on-surface">高级选项</p>
               <p className="mt-0.5 text-[11px] text-ui-muted">图片尺寸、分析/生图并发、保存方式</p>
             </div>
             {advancedOpen ? <ChevronDown className="h-4 w-4 text-ui-muted" /> : <ChevronRight className="h-4 w-4 text-ui-muted" />}

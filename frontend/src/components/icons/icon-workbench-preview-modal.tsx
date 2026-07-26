@@ -113,7 +113,7 @@ export function IconWorkbenchPreviewModal({
         <DialogPrimitive.Overlay className="fixed inset-0 z-[100] bg-black/85 backdrop-blur-md transition-opacity duration-200 ease-out starting:opacity-0" />
         <DialogPrimitive.Content
           aria-describedby={undefined}
-          className="fixed left-1/2 top-1/2 z-[100] flex h-[calc(100vh-2rem)] max-h-[860px] w-[calc(100vw-2rem)] max-w-[1240px] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-[24px] border border-white/10 bg-[#0c0c0c] outline-none transition-[opacity,scale] duration-200 ease-out starting:scale-95 starting:opacity-0 lg:h-[calc(100vh-4rem)] lg:w-[calc(100vw-4rem)] lg:flex-row"
+          className="fixed left-1/2 top-1/2 z-[100] flex h-[calc(100vh-2rem)] max-h-[860px] w-[calc(100vw-2rem)] max-w-[1240px] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-[20px] border border-white/10 bg-[#0c0c0c] outline-none transition-[opacity,scale] duration-200 ease-out starting:scale-95 starting:opacity-0 lg:h-[calc(100vh-4rem)] lg:w-[calc(100vw-4rem)] lg:flex-row"
         >
         {/* Mobile Header */}
         <div className="flex shrink-0 items-center justify-between border-b border-white/5 px-6 py-4 lg:hidden">
@@ -206,7 +206,7 @@ export function IconWorkbenchPreviewModal({
                                 />
                                 <div className="absolute -inset-3 ring-[1.5px] ring-primary/60 bg-primary/10 rounded-[6px] opacity-100" />
                              </div>
-                             <div className="z-10 rounded-[3px] bg-primary px-3 py-1 text-[11px] font-black text-white">
+                             <div className="z-10 rounded-[4px] bg-primary px-3 py-1 text-[11px] font-black text-white">
                                 {folderName || "扫描与报告"}
                              </div>
                           </div>
@@ -220,7 +220,7 @@ export function IconWorkbenchPreviewModal({
                        </div>
                     </div>
 
-                    <div className="h-7 border-t border-white/5 bg-[#252525] px-4 flex items-center justify-between text-[10px] text-white/20">
+                    <div className="h-7 border-t border-white/5 bg-[#252525] px-4 flex items-center justify-between text-[11px] text-white/20">
                        <span>已选择 1 个项目</span>
                        <div className="h-2 w-12 rounded-full bg-white/5" />
                     </div>
@@ -265,7 +265,7 @@ export function IconWorkbenchPreviewModal({
             <div className="flex items-center justify-between">
                <div className="flex items-center gap-2 text-primary">
                   <Sparkles className="h-4 w-4" />
-                  <span className="text-[11px] font-black uppercase tracking-[0.2em]">Studio Preview</span>
+                  <span className="text-[11px] font-black">效果预览</span>
                </div>
                <button onClick={onClose} className="text-white/30 hover:text-white">
                  <X className="h-5 w-5" />
@@ -286,18 +286,18 @@ export function IconWorkbenchPreviewModal({
                    </p>
                    <div className="grid grid-cols-2 gap-2">
                       <div className="rounded-[12px] border border-white/5 bg-white/5 p-3">
-                         <p className="text-[10px] font-bold text-white/30 uppercase">分辨率</p>
+                         <p className="text-[11px] font-bold text-white/30 uppercase">分辨率</p>
                          <p className="mt-1 text-[13px] font-black text-white/80">1024 × 1024</p>
                       </div>
                       <div className="rounded-[12px] border border-white/5 bg-white/5 p-3">
-                         <p className="text-[10px] font-bold text-white/30 uppercase">状态</p>
+                         <p className="text-[11px] font-bold text-white/30 uppercase">状态</p>
                          <p className={cn(
                            "mt-1 text-[13px] font-black",
                            isApplied ? "text-success-dim" : "text-success-dim/60"
                          )}>
                             {isApplied ? "已应用" : "未应用"}
                          </p>
-                         <p className="mt-1 text-[10px] font-bold leading-4 text-white/35">
+                         <p className="mt-1 text-[11px] font-bold leading-4 text-white/35">
                            {isCurrentVersion ? "这是当前版本，但当前版本不等于已应用。" : "可先设为当前版本，再决定是否应用。"}
                          </p>
                       </div>
@@ -318,7 +318,7 @@ export function IconWorkbenchPreviewModal({
 
           <div className="mt-auto space-y-3 border-t border-white/5 p-6 lg:p-8">
              {downloadError && (
-               <div className="rounded-[10px] border border-warning/25 bg-warning/10 px-3 py-2 text-[11px] font-bold leading-5 text-warning">
+               <div className="rounded-[8px] border border-warning/25 bg-warning/10 px-3 py-2 text-[11px] font-bold leading-5 text-warning">
                  {downloadError}
                </div>
              )}
@@ -350,7 +350,7 @@ export function IconWorkbenchPreviewModal({
                   variant="secondary"
                   onClick={onRegenerate}
                   disabled={regenerateDisabled}
-                  className="h-11 rounded-[10px] border-white/10 bg-white/5 text-[12px] font-black text-white hover:bg-white/10 disabled:opacity-40"
+                  className="h-11 rounded-[8px] border-white/10 bg-white/5 text-[12px] font-black text-white hover:bg-white/10 disabled:opacity-40"
                 >
                   <RefreshCw className="mr-2 h-3.5 w-3.5" />
                   重新生成
@@ -359,7 +359,7 @@ export function IconWorkbenchPreviewModal({
                   variant="secondary"
                   onClick={handleDownload}
                   disabled={isDownloading}
-                  className="h-11 rounded-[10px] border-white/10 bg-white/5 text-[12px] font-black text-white hover:bg-white/10"
+                  className="h-11 rounded-[8px] border-white/10 bg-white/5 text-[12px] font-black text-white hover:bg-white/10"
                 >
                    {isDownloading ? <LoaderCircle className="mr-2 h-3.5 w-3.5 animate-spin" /> : <Download className="mr-2 h-3.5 w-3.5" />}
                    下载 PNG

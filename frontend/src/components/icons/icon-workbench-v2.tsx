@@ -769,9 +769,9 @@ export default function IconWorkbenchV2() {
         <div className={cn("flex h-7 items-center justify-between border-b px-5 bg-on-surface/[0.02]")}>
           <div className="flex items-center gap-2">
             <div className={cn("h-1 w-1 rounded-full", streamStatus === "reconnecting" ? "animate-pulse bg-warning" : "bg-on-surface/20")} />
-            <p className="text-[10px] font-medium text-on-surface/40 uppercase tracking-tight">{streamStatus === "connecting" ? "连接中" : streamStatus === "reconnecting" ? "重连中" : "离线模式"}</p>
+            <p className="text-[11px] font-medium text-on-surface/40 uppercase tracking-tight">{streamStatus === "connecting" ? "连接中" : streamStatus === "reconnecting" ? "重连中" : "离线模式"}</p>
           </div>
-          <button onClick={retryEventStream} className="text-[9px] font-black uppercase tracking-widest text-primary/60">重新连接</button>
+          <button onClick={retryEventStream} className="text-[11px] font-black uppercase tracking-widest text-primary/60">重新连接</button>
         </div>
       )}
       {shouldShowNotice && (
@@ -784,7 +784,7 @@ export default function IconWorkbenchV2() {
           {desktopReady && notice?.actionPath ? (
             <button
               onClick={() => openDirectoryWithTauri(notice.actionPath || "")}
-              className="flex h-5 shrink-0 items-center gap-1 rounded bg-primary/10 px-2 text-[9px] font-black uppercase text-primary hover:bg-primary/20"
+              className="flex h-5 shrink-0 items-center gap-1 rounded bg-primary/10 px-2 text-[11px] font-black uppercase text-primary hover:bg-primary/20"
             >
               <FolderOpen className="h-3 w-3" />
               打开查看
@@ -802,18 +802,18 @@ export default function IconWorkbenchV2() {
         <div className="flex min-w-0 flex-1 items-center gap-3">
           <LoaderCircle className="h-3 w-3 animate-spin text-primary" />
           <div className="min-w-0 flex-1 flex items-center gap-2">
-            <span className="text-[9px] font-black uppercase tracking-widest text-primary/40 shrink-0">正在生成</span>
-            <p className="truncate text-[11.5px] font-black text-on-surface/80">{generatePresentation.title}</p>
-            <span className="text-[10px] font-medium text-ui-muted/40 truncate shrink-0">{generatePresentation.detail}</span>
+            <span className="text-[11px] font-black uppercase tracking-widest text-primary/40 shrink-0">正在生成</span>
+            <p className="truncate text-[12px] font-black text-on-surface/80">{generatePresentation.title}</p>
+            <span className="text-[11px] font-medium text-ui-muted/40 truncate shrink-0">{generatePresentation.detail}</span>
             {generatePresentation.steps.map((step) => (
-              <span key={step.key} className="text-[9px] font-bold text-ui-muted/35">
+              <span key={step.key} className="text-[11px] font-bold text-ui-muted/35">
                 {step.label}
               </span>
             ))}
           </div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          <span className="text-[9.5px] font-bold tabular-nums text-primary/60">{generatePresentation.counter}</span>
+          <span className="text-[11px] font-bold tabular-nums text-primary/60">{generatePresentation.counter}</span>
           <div className="h-1 w-16 overflow-hidden rounded-full bg-primary/10">
             <div className="h-full bg-primary transition-all duration-700 ease-out" style={{ width: `${generatePresentation.percent}%` }} />
           </div>
@@ -823,7 +823,7 @@ export default function IconWorkbenchV2() {
   ) : actionLabel ? (
     <div className="flex h-7 items-center gap-2 bg-primary/[0.04] border-b border-primary/8 px-5">
       <LoaderCircle className="h-2.5 w-2.5 animate-spin text-primary" />
-      <span className="text-[9px] font-black uppercase tracking-[0.2em] text-primary/70">{actionLabel}</span>
+      <span className="text-[11px] font-black uppercase tracking-[0.2em] text-primary/70">{actionLabel}</span>
     </div>
   ) : null;
   const isLoading = (!templatesInitialized && templatesLoading) || restoringSession;

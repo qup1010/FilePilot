@@ -58,20 +58,20 @@ const SourceRow = memo(function SourceRow({
         </div>
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <span className={cn("truncate font-black tracking-tight text-on-surface", nested ? "text-[12.5px]" : "text-[13.5px]")}>
+            <span className={cn("truncate font-black tracking-tight text-on-surface", nested ? "text-[13px]" : "text-[13px]")}>
               {item.path.split(/[\\/]/).pop() || item.path}
             </span>
-            <span className="shrink-0 rounded bg-on-surface/5 px-1 py-0.2 text-[8px] font-black uppercase tracking-wider text-ui-muted opacity-80 scale-90 origin-left">
+            <span className="shrink-0 rounded bg-on-surface/5 px-1 py-0.2 text-[11px] font-black uppercase tracking-wider text-ui-muted opacity-80 scale-90 origin-left">
               {getSourceBehaviorLabel(item)}
             </span>
           </div>
           <div className="flex items-center gap-1.5 mt-0.5 leading-none">
-            <span className="truncate font-mono text-[9.5px] font-medium text-ui-muted opacity-40 uppercase tracking-tighter max-w-[280px] sm:max-w-[400px]" title={item.path}>
+            <span className="truncate font-mono text-[11px] font-medium text-ui-muted opacity-40 uppercase tracking-tighter max-w-[280px] sm:max-w-[400px]" title={item.path}>
               {item.path}
             </span>
             {isDirectory && (
               <>
-                <span className="text-[9px] text-ui-muted opacity-25 select-none">·</span>
+                <span className="text-[11px] text-ui-muted opacity-25 select-none">·</span>
                 <button
                   type="button"
                   disabled={loading}
@@ -82,7 +82,7 @@ const SourceRow = memo(function SourceRow({
                       onSetAtomicMode(item.path);
                     }
                   }}
-                  className="shrink-0 text-[9.5px] font-bold text-primary hover:underline transition-colors leading-none"
+                  className="shrink-0 text-[11px] font-bold text-primary hover:underline transition-colors leading-none"
                 >
                   {isAtomic ? "导入内部项" : "改为整体移动"}
                 </button>
@@ -139,7 +139,7 @@ const SourceGroupHeader = memo(function SourceGroupHeader({
               已从 {sourcePath.split(/[\\/]/).pop()} 导入 {itemCount} 项
             </p>
           </div>
-          <p className="mt-1 truncate font-mono text-[10px] font-bold text-ui-muted opacity-40 uppercase tracking-widest">
+          <p className="mt-1 truncate font-mono text-[11px] font-bold text-ui-muted opacity-40 uppercase tracking-widest">
             批量导入 · {sourcePath}
           </p>
         </div>
@@ -152,7 +152,7 @@ const SourceGroupHeader = memo(function SourceGroupHeader({
             e.stopPropagation();
             onRemoveGroup(groupId);
           }}
-          className="rounded-[6px] px-2.5 py-1.5 text-[10.5px] font-bold text-ui-muted/55 transition-colors hover:bg-error/10 hover:text-error"
+          className="rounded-[6px] px-2.5 py-1.5 text-[11px] font-bold text-ui-muted/55 transition-colors hover:bg-error/10 hover:text-error"
         >
           移除整组
         </button>
@@ -196,7 +196,7 @@ export function SourceListPanel({
   });
 
   return (
-    <div className="overflow-hidden rounded-[10px] border border-on-surface/8 bg-surface-container-lowest">
+    <div className="overflow-hidden rounded-[8px] border border-on-surface/8 bg-surface-container-lowest">
       <div className="flex items-center justify-between border-b border-on-surface/6 px-3 py-2 bg-on-surface/[0.015]">
         <div className="flex items-center gap-2">
           <span className="flex h-6 w-6 items-center justify-center rounded-[6px] bg-on-surface/5 text-primary">
@@ -204,11 +204,11 @@ export function SourceListPanel({
           </span>
           <span className="text-[11px] font-black tracking-widest text-ui-muted flex items-center gap-1.5">
             <span>已加入来源</span>
-            <span className="text-[10px] font-medium text-ui-muted opacity-50 tracking-normal font-sans">（文件夹已优先置顶显示）</span>
+            <span className="text-[11px] font-medium text-ui-muted opacity-50 tracking-normal font-sans">（文件夹已优先置顶显示）</span>
           </span>
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-[10.5px] font-bold text-ui-muted/55">
+          <span className="text-[11px] font-bold text-ui-muted/55">
             文件夹 {stats.directoryCount} · 文件 {stats.fileCount}
           </span>
           <button
@@ -216,7 +216,7 @@ export function SourceListPanel({
             onClick={onClearSources}
             disabled={loading || stats.total === 0}
             className={cn(
-              "inline-flex items-center gap-1 rounded-[6px] border px-2.5 py-1 text-[10.5px] font-bold transition-all disabled:opacity-40",
+              "inline-flex items-center gap-1 rounded-[6px] border px-2.5 py-1 text-[11px] font-bold transition-all disabled:opacity-40",
               showClearConfirm
                 ? "border-error/30 bg-error/10 text-error animate-pulse"
                 : "border-on-surface/8 bg-surface text-on-surface/55 hover:border-error/20 hover:bg-error/5 hover:text-error"

@@ -80,18 +80,18 @@ export function ConfirmDialog({
                 <DialogPrimitive.Title className="text-[1.1rem] font-black tracking-tight text-on-surface">
                   {title}
                 </DialogPrimitive.Title>
-                <DialogPrimitive.Description className="text-[13.5px] leading-6 text-ui-subtle">
+                <DialogPrimitive.Description className="text-[13px] leading-6 text-ui-subtle">
                   {description}
                 </DialogPrimitive.Description>
                 {children ? <div className="pt-2">{children}</div> : null}
                 {verificationText ? (
                   <div className="mt-4 space-y-1.5 rounded-lg border border-warning/15 bg-warning/[0.02] p-3 text-left">
-                    <p className="text-[11.5px] font-black leading-relaxed text-warning-dim">
+                    <p className="text-[12px] font-black leading-relaxed text-warning-dim">
                       为确保操作安全，请在下方输入大写 <span className="font-mono bg-warning/10 px-1 py-0.5 rounded border border-warning/15 text-warning">{verificationText}</span> 确认：
                     </p>
                     <input
                       type="text"
-                      className="w-full rounded-md border border-on-surface/10 bg-surface px-3 py-1.5 text-[12.5px] font-mono outline-none focus:border-primary/40 focus:ring-1 focus:ring-primary/20 placeholder:text-on-surface-variant/30 text-on-surface"
+                      className="w-full rounded-md border border-on-surface/10 bg-surface px-3 py-1.5 text-[13px] font-mono outline-none focus:border-primary/40 focus:ring-1 focus:ring-primary/20 placeholder:text-on-surface-variant/30 text-on-surface"
                       placeholder={verificationPlaceholder || `请输入 ${verificationText}`}
                       value={verificationInput}
                       disabled={loading}

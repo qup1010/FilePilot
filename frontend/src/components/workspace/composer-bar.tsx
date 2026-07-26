@@ -127,16 +127,16 @@ export function ComposerBar({
             transition={{ duration: 0.2 }}
             className="overflow-hidden"
           >
-            <div className="mb-2 mt-3 rounded-[10px] border border-primary/12 bg-primary/[0.035] px-3 py-2">
+            <div className="mb-2 mt-3 rounded-[8px] border border-primary/12 bg-primary/[0.035] px-3 py-2">
               <div className="flex min-w-0 items-center gap-2.5">
                 <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-primary" />
                 <span className="shrink-0 text-[12px] font-black text-primary">{plannerStatus.label}</span>
-                {plannerAttemptLabel ? <span className="shrink-0 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary">{plannerAttemptLabel}</span> : null}
-                {plannerStatus.elapsedLabel ? <span className="shrink-0 font-mono text-[10px] font-bold text-primary/45">{plannerStatus.elapsedLabel}</span> : null}
+                {plannerAttemptLabel ? <span className="shrink-0 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-bold text-primary">{plannerAttemptLabel}</span> : null}
+                {plannerStatus.elapsedLabel ? <span className="shrink-0 font-mono text-[11px] font-bold text-primary/45">{plannerStatus.elapsedLabel}</span> : null}
                 {plannerStatus.detail ? <span className="min-w-0 truncate text-[11px] font-medium text-on-surface-variant/60">{plannerStatus.detail}</span> : null}
               </div>
               {plannerStatus.reassureText ? (
-                <p className="mt-1 truncate text-[10.5px] font-medium text-on-surface-variant/45">{plannerStatus.reassureText}</p>
+                <p className="mt-1 truncate text-[11px] font-medium text-on-surface-variant/45">{plannerStatus.reassureText}</p>
               ) : null}
             </div>
           </motion.div>
@@ -200,7 +200,7 @@ export function ComposerBar({
               ref={inputRef}
               rows={1}
               className={cn(
-                "min-h-[40px] flex-1 resize-none bg-transparent px-2 py-1.5 text-[13.5px] font-medium leading-relaxed text-on-surface outline-none placeholder:text-on-surface-variant/40 transition-[height] duration-150 ease-out",
+                "min-h-[40px] flex-1 resize-none bg-transparent px-2 py-1.5 text-[13px] font-medium leading-relaxed text-on-surface outline-none placeholder:text-on-surface-variant/40 transition-[height] duration-150 ease-out",
                 isComposerLocked && "cursor-not-allowed text-on-surface/35 placeholder:text-on-surface-variant/35",
               )}
               placeholder={inputPlaceholder}
@@ -236,7 +236,7 @@ export function ComposerBar({
           </div>
         </div>
       ) : (
-        <div className="rounded-[10px] border border-on-surface/8 bg-surface-container-lowest px-5 py-4 text-[13px] text-on-surface-variant">
+        <div className="rounded-[8px] border border-on-surface/8 bg-surface-container-lowest px-5 py-4 text-[13px] text-on-surface-variant">
           当前阶段暂时不需要输入，等方案生成后就可以在这里继续调整。
         </div>
       )}

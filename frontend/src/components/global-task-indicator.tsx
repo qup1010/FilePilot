@@ -163,7 +163,7 @@ export function GlobalTaskIndicator() {
                <span className="truncate text-[12px] font-black tracking-tight text-on-surface leading-none">
                  {taskState.label}
                </span>
-               <span className="mt-1 text-[10px] font-bold uppercase tracking-widest text-primary/60 leading-none">
+               <span className="mt-1 text-[11px] font-bold uppercase tracking-widest text-primary/60 leading-none">
                  后台任务
                </span>
              </div>

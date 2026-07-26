@@ -404,12 +404,12 @@ export default function HistoryPage() {
         </div>
       </div>
 
-      <div className="rounded-[9px] border border-primary/12 bg-surface-container-lowest px-4 py-3">
+      <div className="rounded-[8px] border border-primary/12 bg-surface-container-lowest px-4 py-3">
         <div className="flex items-start gap-3">
           <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-primary/70" />
           <div>
             <p className="text-[13px] font-black text-on-surface">推荐下一步</p>
-            <p className="mt-1 text-[12.5px] leading-5 text-ui-muted/75">{sessionRecoveryCopy.description}</p>
+            <p className="mt-1 text-[13px] leading-5 text-ui-muted/75">{sessionRecoveryCopy.description}</p>
           </div>
         </div>
       </div>
@@ -417,10 +417,10 @@ export default function HistoryPage() {
       <div className="grid gap-4 lg:grid-cols-1">
         <div className="rounded-xl border border-on-surface/8 bg-on-surface/[0.02] p-5">
            <div className="mb-2 flex items-center gap-2">
-              <span className="text-[10px] font-black uppercase tracking-[0.2em] text-ui-muted opacity-40">会话摘要</span>
+              <span className="text-[11px] font-black uppercase tracking-[0.2em] text-ui-muted opacity-40">会话摘要</span>
               <div className="h-px flex-1 bg-on-surface/5" />
            </div>
-           <p className="text-[13.5px] font-medium leading-relaxed text-on-surface/80">
+           <p className="text-[13px] font-medium leading-relaxed text-on-surface/80">
              {sessionDetail?.summary || "这是一条未完成的整理记录，你可以继续之前的操作。"}
            </p>
         </div>
@@ -454,7 +454,7 @@ export default function HistoryPage() {
                   ? "回退完成"
                   : "回退已执行"}
             </h3>
-            <p className="text-[11.5px] font-medium text-ui-muted opacity-70">
+            <p className="text-[12px] font-medium text-ui-muted opacity-70">
               {rollbackResult.successCount !== null
                 ? `成功恢复 ${rollbackResult.successCount} 项`
                 : rollbackResult.attemptedCount !== null
@@ -468,17 +468,17 @@ export default function HistoryPage() {
 
       <div className="flex flex-wrap items-center gap-6 px-1 py-1">
         <div className="flex items-baseline gap-2">
-          <span className="text-[11.5px] font-bold text-ui-muted/65">已整理项</span>
-          <span className="text-[19px] font-black tabular-nums text-on-surface/90">{journal?.item_count || 0}</span>
+          <span className="text-[12px] font-bold text-ui-muted/65">已整理项</span>
+          <span className="text-[18px] font-black tabular-nums text-on-surface/90">{journal?.item_count || 0}</span>
         </div>
         <div className="flex items-baseline gap-2">
-          <span className="text-[11.5px] font-bold text-ui-muted/65">成功</span>
-          <span className="text-[19px] font-black tabular-nums text-success-dim">{journal?.success_count || 0}</span>
+          <span className="text-[12px] font-bold text-ui-muted/65">成功</span>
+          <span className="text-[18px] font-black tabular-nums text-success-dim">{journal?.success_count || 0}</span>
         </div>
         {Boolean(journal?.failure_count) && (
           <div className="flex items-baseline gap-2">
-            <span className="text-[11.5px] font-bold text-ui-muted/65 text-error/80">失败</span>
-            <span className="text-[19px] font-black tabular-nums text-error">{journal?.failure_count}</span>
+            <span className="text-[12px] font-bold text-ui-muted/65 text-error/80">失败</span>
+            <span className="text-[18px] font-black tabular-nums text-error">{journal?.failure_count}</span>
           </div>
         )}
       </div>
@@ -496,7 +496,7 @@ export default function HistoryPage() {
               onClick={() => void handleRollback(false)}
               disabled={actionLoading}
               loading={actionLoading}
-              className="h-7.5 rounded-md px-4 text-[10.5px] font-black"
+              className="h-7.5 rounded-md px-4 text-[11px] font-black"
             >
               <Undo2 className="h-3 w-3" />
               回退执行
@@ -547,7 +547,7 @@ export default function HistoryPage() {
                           isRolledBack ? "bg-ui-muted/30" : "bg-primary/45"
                         )} />
                         <span className={cn(
-                          "text-[12.5px] font-black truncate",
+                          "text-[13px] font-black truncate",
                           isRolledBack ? "text-ui-muted/80 line-through" : "text-on-surface/90"
                         )} title={item.display_name}>
                           {item.display_name}
@@ -557,25 +557,17 @@ export default function HistoryPage() {
                     
                     <div className="mt-1 pl-3.5 flex items-center justify-between gap-4 text-[11px]">
                       <div className="flex-1 min-w-0 truncate" title={item.source || ""}>
-                        <span className={cn(
-                          "text-[9.5px] font-bold uppercase tracking-wider mr-1.5",
-                          isRolledBack ? "text-ui-muted/30" : "text-ui-muted/45"
-                        )}>FROM:</span>
                         <span className="font-mono text-ui-muted/70">{formatMovePath(item.source, journal?.target_dir || "")}</span>
                       </div>
                       
                       <div className="flex flex-col items-center shrink-0 text-ui-muted/30 px-2 min-w-[75px]">
                         <ArrowRight className="h-3 w-3 transition-transform group-hover:translate-x-0.5 group-hover:text-primary/40" />
                         {isRolledBack && (
-                          <span className="mt-0.5 text-[8.5px] font-black text-ui-muted/40 whitespace-nowrap scale-90 select-none">[已撤销复原]</span>
+                          <span className="mt-0.5 text-[11px] font-black text-ui-muted/40 whitespace-nowrap scale-90 select-none">[已撤销复原]</span>
                         )}
                       </div>
 
                       <div className="flex-1 min-w-0 truncate" title={item.target || ""}>
-                        <span className={cn(
-                          "text-[9.5px] font-bold uppercase tracking-wider mr-1.5",
-                          isRolledBack ? "text-ui-muted/30" : "text-primary/40"
-                        )}>TO:</span>
                         <span className={cn(
                           "font-mono font-bold",
                           isRolledBack ? "text-ui-muted/60" : "text-primary/75"
@@ -614,9 +606,6 @@ export default function HistoryPage() {
           <div className="px-5 py-5">
             <div className="space-y-4">
               <div className="space-y-1.5 px-1">
-                <div className="text-ui-label">
-                  工作区
-                </div>
                 <h1 className="text-ui-h2 tracking-tight text-on-surface">
                   整理历史记录
                 </h1>
@@ -628,16 +617,16 @@ export default function HistoryPage() {
                     key={item.id}
                     onClick={() => setFilter(item.id)}
                     className={cn(
-                      "flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[12px] border transition-all duration-200 outline-none select-none active:scale-[0.96]",
+                      "flex cursor-pointer items-center gap-1.5 rounded-md px-2.5 py-1 text-[12px] border transition-all duration-200 outline-none select-none active:scale-[0.96]",
                       filter === item.id
-                        ? "bg-primary/[0.09] border-primary/35 text-primary shadow-[inset_0_1px_2px_rgba(var(--primary-rgb),0.05),0_2px_6px_rgba(var(--primary-rgb),0.06)]"
-                        : "bg-on-surface/[0.01] border-on-surface/5 hover:bg-on-surface/[0.04] hover:border-on-surface/12 hover:text-on-surface hover:scale-[1.01] text-ui-muted"
+                        ? "bg-primary/10 border-primary text-primary shadow-[inset_0_1px_2px_rgba(var(--primary-rgb),0.05),0_2px_6px_rgba(var(--primary-rgb),0.06)]"
+                        : "bg-on-surface/[0.01] border-on-surface/5 hover:bg-on-surface/[0.04] hover:border-primary/40 hover:text-on-surface hover:scale-[1.01] text-ui-muted"
                     )}
                   >
                     <div className={cn("text-[12px] font-black tabular-nums leading-none", item.color)}>
                       {item.value}
                     </div>
-                    <div className="text-[12px] font-bold text-ui-muted/55">
+                    <div className={cn("text-[12px] font-bold", filter === item.id ? "text-primary/75" : "text-ui-muted/55")}>
                       {item.label}
                     </div>
                   </button>
@@ -654,7 +643,7 @@ export default function HistoryPage() {
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
                   placeholder="搜索时间、路径或记录 ID..."
-                  className="w-full rounded-[6px] border border-on-surface/10 bg-on-surface/[0.02] py-2 pl-[2.25rem] pr-4 text-[12.5px] font-medium text-on-surface outline-none transition-all placeholder:text-ui-muted/50 focus:bg-surface focus:ring-2 focus:ring-primary/5"
+                  className="w-full rounded-[6px] border border-on-surface/10 bg-on-surface/[0.02] py-2 pl-[2.25rem] pr-4 text-[13px] font-medium text-on-surface outline-none transition-all placeholder:text-ui-muted/50 focus:bg-surface focus:ring-2 focus:ring-primary/5"
                 />
               </div>
             </div>
@@ -721,7 +710,7 @@ export default function HistoryPage() {
                             sessionLike ? "bg-primary" : isRolledBack ? "bg-on-surface/20" : isPartialFailure ? "bg-warning" : "bg-success",
                           )} />
                           <h3 className={cn(
-                            "truncate text-[12.5px] font-black tracking-tight",
+                            "truncate text-[13px] font-black tracking-tight",
                             active ? "text-primary" : "text-on-surface/85",
                             isRolledBack && "text-ui-muted line-through opacity-70"
                           )}>
@@ -730,7 +719,7 @@ export default function HistoryPage() {
                         </div>
                         <div className="flex items-center gap-1.5 shrink-0 transition-all duration-300 ease-out group-hover:opacity-0 group-hover:-translate-x-3 group-hover:scale-95 group-hover:pointer-events-none">
                           <span className={cn(
-                            "rounded-[4px] border px-1.5 py-0.5 text-[10.5px] font-bold",
+                            "rounded-[4px] border px-1.5 py-0.5 text-[11px] font-bold",
                             active
                               ? "bg-primary/10 border-primary/20 text-primary/80"
                               : isPartialFailure
@@ -748,7 +737,7 @@ export default function HistoryPage() {
                         <p className="truncate text-[11px] font-medium text-ui-muted/55 flex-1" title={entry.target_dir}>
                           {formatPath(entry.target_dir)}
                         </p>
-                        <span className="shrink-0 font-mono text-[10.5px] font-medium text-ui-muted/45 transition-all duration-300 ease-out group-hover:opacity-0 group-hover:-translate-x-3 group-hover:pointer-events-none">
+                        <span className="shrink-0 font-mono text-[11px] font-medium text-ui-muted/45 transition-all duration-300 ease-out group-hover:opacity-0 group-hover:-translate-x-3 group-hover:pointer-events-none">
                           {formatDisplayDate(entry.created_at)}
                         </span>
                       </div>
@@ -840,7 +829,7 @@ export default function HistoryPage() {
                           : false;
                         return (
                           <div className={cn(
-                            "hidden items-center gap-2 rounded-[5px] border px-2 py-1 text-[12px] font-bold sm:flex",
+                            "hidden items-center gap-2 rounded-[6px] border px-2 py-1 text-[12px] font-bold sm:flex",
                             isSelectedSession
                               ? "border-primary/25 bg-primary/5 text-primary"
                               : entryIsRolledBack
@@ -859,7 +848,7 @@ export default function HistoryPage() {
                       })()}
  
                       {!isSelectedSession && (journal?.status === "completed" || journal?.status === "partial_failure") && (
-                        <div className="flex items-center gap-1.5 rounded-[5px] border border-warning/30 bg-warning/5 px-2 py-1 text-[12px] font-bold text-warning">
+                        <div className="flex items-center gap-1.5 rounded-[6px] border border-warning/30 bg-warning/5 px-2 py-1 text-[12px] font-bold text-warning">
                           <ShieldCheck className="h-3 w-3" />
                           <span className="hidden lg:inline">支持回退</span>
                         </div>

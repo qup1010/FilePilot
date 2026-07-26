@@ -127,7 +127,7 @@ export function BgRemovalTab({
                   custom: { ...current.custom, payload_template: event.target.value },
                 }))
               }
-              className="min-h-32 w-full resize-y rounded-[10px] border border-on-surface/8 bg-surface-container-lowest px-4 py-3 font-mono text-[13px] leading-6 text-on-surface outline-none transition-all placeholder:text-on-surface-variant/35 focus:border-primary focus:ring-4 focus:ring-primary/5"
+              className="min-h-32 w-full resize-y rounded-[8px] border border-on-surface/8 bg-surface-container-lowest px-4 py-3 font-mono text-[13px] leading-6 text-on-surface outline-none transition-all placeholder:text-on-surface-variant/35 focus:border-primary focus:ring-4 focus:ring-primary/5"
               placeholder='{"data":[{"path":"{{uploaded_path}}","meta":{"_type":"gradio.FileData"}}],"fn_index":0}'
             />
           </FieldGroup>

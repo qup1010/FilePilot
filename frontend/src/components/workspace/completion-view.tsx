@@ -105,10 +105,10 @@ export function CompletionView({
       <div className="mx-auto max-w-[1360px] animate-pulse space-y-4 py-5">
         <div className="h-24 rounded-lg bg-surface-container-low" />
         <div className="grid gap-3 md:grid-cols-4">
-          <div className="h-20 rounded-[10px] bg-surface-container-low" />
-          <div className="h-20 rounded-[10px] bg-surface-container-low" />
-          <div className="h-20 rounded-[10px] bg-surface-container-low" />
-          <div className="h-20 rounded-[10px] bg-surface-container-low" />
+          <div className="h-20 rounded-[8px] bg-surface-container-low" />
+          <div className="h-20 rounded-[8px] bg-surface-container-low" />
+          <div className="h-20 rounded-[8px] bg-surface-container-low" />
+          <div className="h-20 rounded-[8px] bg-surface-container-low" />
         </div>
         <div className="h-[420px] rounded-lg bg-surface-container-low" />
       </div>
@@ -220,20 +220,14 @@ export function CompletionView({
                 {isPartial ? <AlertTriangle className="h-4 w-4" /> : <ShieldCheck className="h-4 w-4" />}
             </div>
             <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-1.5 leading-none">
-                    <span className="text-[9px] font-black uppercase tracking-[0.2em] opacity-40">整理结果</span>
-                    <span className="h-0.5 w-0.5 rounded-full bg-current opacity-20" />
-                    <span className="text-[9px] font-black uppercase tracking-[0.2em] opacity-40">{isPartial ? "部分完成" : "已完成"}</span>
-                </div>
-                <h2 className="text-[14px] font-black tracking-tight text-on-surface mt-1 uppercase leading-none">
+                <h2 className="text-[14px] font-black tracking-tight text-on-surface uppercase leading-none">
                     {isPartial ? "整理已完成，但有部分项目需要处理" : "文件整理已完成"}
                 </h2>
             </div>
             <div className="hidden shrink-0 flex-col items-end gap-1 sm:flex">
-                <span className="text-[8px] font-black text-ui-muted uppercase tracking-[0.2em] opacity-30">目标路径</span>
                 <div className="flex items-center gap-2 rounded bg-on-surface/[0.04] px-2 py-0.5 border border-on-surface/5">
                     <Folder className="h-2.5 w-2.5 opacity-30 text-primary" />
-                    <span className="max-w-[200px] truncate font-mono text-[10px] font-bold text-on-surface/60" title={targetDir}>{targetDir}</span>
+                    <span className="max-w-[200px] truncate font-mono text-[11px] font-bold text-on-surface/60" title={targetDir}>{targetDir}</span>
                 </div>
             </div>
         </div>
@@ -255,11 +249,11 @@ export function CompletionView({
                 >
                     <div className="flex items-center justify-between">
                         <stat.icon className={cn("h-3 w-3 opacity-40", stat.color)} />
-                        <div className={cn("text-[17px] font-black tabular-nums leading-none tracking-tighter", stat.color)}>
+                        <div className={cn("text-[16px] font-black tabular-nums leading-none tracking-tighter", stat.color)}>
                             {stat.count}
                         </div>
                     </div>
-                    <div className="text-[9px] font-black uppercase tracking-widest text-ui-muted opacity-40">
+                    <div className="text-[11px] font-black uppercase tracking-widest text-ui-muted opacity-40">
                         {stat.label}
                     </div>
                 </motion.div>
@@ -331,11 +325,7 @@ export function CompletionView({
         {/* Structure Visualization */}
         <section className="flex flex-col space-y-2">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-                <span className="text-[9px] font-black uppercase tracking-[0.2em] text-ui-muted opacity-40">整理结果对照</span>
-                <span className="h-0.5 w-0.5 rounded-full bg-on-surface/10" />
-                <h3 className="text-[12px] font-black text-on-surface uppercase tracking-tight">整理前后变化</h3>
-            </div>
+            <h3 className="text-[12px] font-black text-on-surface uppercase tracking-tight">整理前后变化</h3>
             <div className="flex items-center gap-0.5 rounded-md border border-on-surface/8 bg-on-surface/[0.02] p-0.5">
               {[
                 { id: "all", label: "全部" },
@@ -346,7 +336,7 @@ export function CompletionView({
                   key={btn.id}
                   onClick={() => setFilter(btn.id as DirectoryTreeFilter)}
                   className={cn(
-                    "rounded-[3px] px-2.5 py-1 text-[10px] font-black uppercase tracking-widest transition-all active:scale-95",
+                    "rounded-[4px] px-2.5 py-1 text-[11px] font-black uppercase tracking-widest transition-all active:scale-95",
                     filter === btn.id
                       ? "bg-on-surface text-surface"
                       : "text-ui-muted hover:text-on-surface hover:bg-on-surface/5",
@@ -373,7 +363,7 @@ export function CompletionView({
                         <AlertTriangle className="h-3 w-3 text-error" />
                         <h3 className="text-[11px] font-black uppercase tracking-[0.2em] text-error">失败项</h3>
                     </div>
-                    <span className="font-mono text-[9px] font-bold text-error/60">{failedItems.length} 项</span>
+                    <span className="font-mono text-[11px] font-bold text-error/60">{failedItems.length} 项</span>
                   </div>
                   <div className="p-1 max-h-[280px] overflow-y-auto scrollbar-thin">
                     <div className="flex flex-col">
@@ -381,13 +371,13 @@ export function CompletionView({
                         <div key={idx} className="group flex flex-col gap-1 p-2 transition-colors hover:bg-error/5 border-b border-error/5 last:border-0 text-[11px]">
                           <p className="truncate font-mono font-black text-on-surface/90" title={item.display_name}>{item.display_name}</p>
                           <div className="flex items-center gap-2 opacity-50">
-                             <span className="text-[8px] font-black uppercase text-error/60">目标</span>
-                             <p className="truncate font-mono text-[9px] text-error/70" title={item.target || ""}>{item.target}</p>
+                             <span className="text-[11px] font-black uppercase text-error/60">目标</span>
+                             <p className="truncate font-mono text-[11px] text-error/70" title={item.target || ""}>{item.target}</p>
                           </div>
                           {item.message ? (
                             <div className="flex items-start gap-2">
-                              <span className="shrink-0 text-[8px] font-black uppercase text-error/60">原因</span>
-                              <p className="text-[10px] font-medium leading-snug text-error/80" title={item.message}>{item.message}</p>
+                              <span className="shrink-0 text-[11px] font-black uppercase text-error/60">原因</span>
+                              <p className="text-[11px] font-medium leading-snug text-error/80" title={item.message}>{item.message}</p>
                             </div>
                           ) : null}
                         </div>
@@ -404,7 +394,7 @@ export function CompletionView({
                         <Info className="h-3 w-3 text-warning-dim" />
                         <h3 className="text-[11px] font-black uppercase tracking-[0.2em] text-warning-dim">待确认区</h3>
                     </div>
-                    <span className="font-mono text-[9px] font-bold text-warning-dim/60">{reviewItems.length} 项</span>
+                    <span className="font-mono text-[11px] font-bold text-warning-dim/60">{reviewItems.length} 项</span>
                   </div>
                   <div className="p-1 max-h-[280px] overflow-y-auto scrollbar-thin">
                     <div className="flex flex-col font-mono">
@@ -412,8 +402,8 @@ export function CompletionView({
                         <div key={idx} className="group flex flex-col gap-1 p-2 transition-colors hover:bg-warning/5 border-b border-warning/5 last:border-0 text-[11px]">
                           <p className="truncate font-black text-on-surface/90" title={item.display_name}>{item.display_name}</p>
                           <div className="flex items-center gap-2 opacity-60">
-                             <span className="text-[8px] font-black uppercase text-warning-dim/70">目标</span>
-                             <p className="truncate text-[9px] text-warning-dim/80" title={item.target || ""}>{item.target}</p>
+                             <span className="text-[11px] font-black uppercase text-warning-dim/70">目标</span>
+                             <p className="truncate text-[11px] text-warning-dim/80" title={item.target || ""}>{item.target}</p>
                           </div>
                         </div>
                       ))}
@@ -434,7 +424,7 @@ export function CompletionView({
               type="button"
               onClick={onGoHome}
               disabled={isBusy}
-              className="group flex h-8.5 items-center justify-center gap-2 rounded-lg border border-on-surface/10 bg-surface px-3.5 text-[11.5px] font-black text-on-surface/60 transition-all hover:bg-on-surface/5 active:scale-95 disabled:opacity-50"
+              className="group flex h-8.5 items-center justify-center gap-2 rounded-lg border border-on-surface/10 bg-surface px-3.5 text-[12px] font-black text-on-surface/60 transition-all hover:bg-on-surface/5 active:scale-95 disabled:opacity-50"
             >
               <ArrowLeft className="h-3.5 w-3.5 transition-transform group-hover:-translate-x-0.5" />
               返回首页
@@ -444,7 +434,7 @@ export function CompletionView({
               type="button"
               onClick={() => onOpenExplorer(targetDir)}
               disabled={isBusy}
-              className="flex h-8.5 items-center justify-center gap-2 rounded-lg bg-on-surface px-4 text-[11.5px] font-black text-surface transition-all hover:bg-on-surface/90 active:scale-95 disabled:opacity-50"
+              className="flex h-8.5 items-center justify-center gap-2 rounded-lg bg-primary px-4 text-[12px] font-black text-white transition-all hover:bg-primary-dim active:scale-95 disabled:opacity-50"
             >
               <Folder className="h-3.5 w-3.5" />
               打开整理目录
@@ -458,7 +448,7 @@ export function CompletionView({
                 onClick={() => setCleanupConfirmOpen(true)}
                 disabled={isBusy || isCleaning || cleanupCandidateCount <= 0}
                 className={cn(
-                  "flex h-8.5 items-center justify-center gap-2 rounded-lg border border-on-surface/10 bg-surface px-3.5 text-[11.5px] font-black transition-all active:scale-95 disabled:opacity-40",
+                  "flex h-8.5 items-center justify-center gap-2 rounded-lg border border-on-surface/10 bg-surface px-3.5 text-[12px] font-black transition-all active:scale-95 disabled:opacity-40",
                   cleanupCandidateCount > 0 && !isCleaning
                     ? "text-on-surface/75 border-on-surface/15 hover:bg-on-surface/5 hover:text-on-surface hover:border-on-surface/25"
                     : "text-on-surface/40"
@@ -476,7 +466,7 @@ export function CompletionView({
                 type="button"
                 onClick={onRollback}
                 disabled={isBusy || rollbackPreparing}
-                className="flex h-8.5 items-center justify-center gap-2 rounded-lg border border-error/20 bg-error/5 px-3.5 text-[11.5px] font-black text-error/70 transition-all hover:bg-error/10 active:scale-95 disabled:opacity-50"
+                className="flex h-8.5 items-center justify-center gap-2 rounded-lg border border-error/20 bg-error/5 px-3.5 text-[12px] font-black text-error/70 transition-all hover:bg-error/10 active:scale-95 disabled:opacity-50"
               >
                 {rollbackPreparing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RotateCcw className="h-3.5 w-3.5" />}
                 {rollbackPreparing ? "正在预检..." : "回退整理"}

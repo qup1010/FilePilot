@@ -295,7 +295,7 @@ function DirectoryTreePanel({
           <span 
             title={node.name}
             className={cn(
-            "min-w-0 flex-1 truncate font-mono text-[12.5px] font-bold tracking-tight transition-colors",
+            "min-w-0 flex-1 truncate font-mono text-[13px] font-bold tracking-tight transition-colors",
             isReviewFile ? "text-warning font-black" : 
             isAdded ? "text-success-dim/80 font-bold" :
             isFailed ? "text-error/70 font-bold" :
@@ -317,7 +317,7 @@ function DirectoryTreePanel({
             </button>
           )}
           {badge && (
-            <span className={cn("shrink-0 rounded-[3px] border px-1.5 py-0.5 text-[9px] font-black uppercase tracking-widest whitespace-nowrap opacity-80", badge.className)}>
+            <span className={cn("shrink-0 rounded-[4px] border px-1.5 py-0.5 text-[11px] font-black uppercase tracking-widest whitespace-nowrap opacity-80", badge.className)}>
               {badge.label}
             </span>
           )}
@@ -355,8 +355,8 @@ function DirectoryTreePanel({
           ) : (
             <Folder className="h-3.5 w-3.5 shrink-0 text-primary/70" />
           )}
-          <span title={displayPathSegment(node.name)} className="min-w-0 flex-1 truncate font-mono text-[12.5px] font-black tracking-tight text-on-surface/80">{displayPathSegment(node.name)}</span>
-          <span className="shrink-0 font-mono text-[10px] font-bold text-ui-muted opacity-40">
+          <span title={displayPathSegment(node.name)} className="min-w-0 flex-1 truncate font-mono text-[13px] font-black tracking-tight text-on-surface/80">{displayPathSegment(node.name)}</span>
+          <span className="shrink-0 font-mono text-[11px] font-bold text-ui-muted opacity-40">
             {node.descendantFileCount}
           </span>
           {onOpenExplorer && column.basePath && (
@@ -372,7 +372,7 @@ function DirectoryTreePanel({
             </span>
           )}
           {isReviewDirectory ? (
-            <span className="shrink-0 rounded-full border border-warning/20 bg-warning/10 px-2 py-0.5 text-[9px] font-black uppercase tracking-widest text-warning-dim/80">
+            <span className="shrink-0 rounded-full border border-warning/20 bg-warning/10 px-2 py-0.5 text-[11px] font-black uppercase tracking-widest text-warning-dim/80">
               待确认
             </span>
           ) : null}
@@ -398,7 +398,7 @@ function DirectoryTreePanel({
   return (
     <div className="flex-1 flex flex-col min-w-0">
       <div className="border-b border-on-surface/8 bg-on-surface/[0.015] px-4 py-1.5">
-        <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-on-surface/50 truncate">
+        <h3 className="text-[11px] font-black uppercase tracking-[0.2em] text-on-surface/50 truncate">
           {column.title === "整理前目录树" ? "整理前" : "整理后"} · {column.title}
         </h3>
       </div>

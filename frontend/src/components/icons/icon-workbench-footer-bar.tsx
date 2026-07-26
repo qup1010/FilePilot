@@ -59,7 +59,7 @@ export function IconWorkbenchFooterBar({
            <div className="flex items-center gap-2">
               <span className="text-[12px] font-black text-on-surface/80">{targetCount} 个目标</span>
               <div className="h-3 w-[1px] bg-on-surface/10 mx-1" />
-              <span className="text-[10px] font-black uppercase tracking-widest text-ui-muted opacity-40 truncate max-w-[200px]">
+              <span className="text-[11px] font-black uppercase tracking-widest text-ui-muted opacity-40 truncate max-w-[200px]">
                 {selectedTemplateName || "等待风格配置"}
               </span>
            </div>
@@ -85,14 +85,14 @@ export function IconWorkbenchFooterBar({
               <button
                 onClick={(e) => { e.stopPropagation(); onRemoveBgBatch(); }}
                 disabled={!canRemoveBgBatch || isBusy}
-                className="h-7 rounded px-3 text-[10px] font-black uppercase text-on-surface/60 hover:bg-on-surface/10 disabled:opacity-20 transition-all"
+                className="h-7 rounded px-3 text-[11px] font-black uppercase text-on-surface/60 hover:bg-on-surface/10 disabled:opacity-20 transition-all"
               >
                 批量去背景
               </button>
               <button
                 onClick={(e) => { e.stopPropagation(); onApplyBatch(); }}
                 disabled={!canApplyBatch || isBusy}
-                className="h-7 rounded px-3 text-[10px] font-black uppercase text-on-surface/60 hover:bg-on-surface/10 disabled:opacity-20 transition-all"
+                className="h-7 rounded px-3 text-[11px] font-black uppercase text-on-surface/60 hover:bg-on-surface/10 disabled:opacity-20 transition-all"
               >
                 全部应用
               </button>

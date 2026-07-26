@@ -66,7 +66,7 @@ export function RollbackPreviewDialog({
             <div className="divide-y divide-on-surface/5">
               {/* Actions List */}
               <div className="p-4 space-y-2 bg-on-surface/[0.01]">
-                <h4 className="px-2 text-[10px] font-black uppercase tracking-widest text-ui-muted/40 mb-3">待撤销的变更项 ({actions.length})</h4>
+                <h4 className="px-2 text-[11px] font-black uppercase tracking-widest text-ui-muted/40 mb-3">待撤销的变更项 ({actions.length})</h4>
                 {actions.map((action, idx) => (
                   <motion.div 
                     initial={{ opacity: 0, y: 5 }}
@@ -77,7 +77,7 @@ export function RollbackPreviewDialog({
                   >
                     <div className="flex items-center justify-between gap-3">
                       <span className="truncate text-[12px] font-black text-on-surface/80">{action.display_name}</span>
-                      <span className="shrink-0 rounded-[4px] bg-primary/10 px-1.5 py-0.5 text-[9px] font-black tracking-wider text-primary">
+                      <span className="shrink-0 rounded-[4px] bg-primary/10 px-1.5 py-0.5 text-[11px] font-black tracking-wider text-primary">
                         {action.restore_kind === "from_review" ? "从待确认区恢复" : action.type}
                       </span>
                     </div>

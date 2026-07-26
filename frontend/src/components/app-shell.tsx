@@ -152,23 +152,30 @@ function getWorkspaceRoute(pathname: string, searchParams: URLSearchParams) {
 
 function ThemeToggle() {
   const { mode, setMode } = useTheme();
+  // 主题模式来自 localStorage 懒初始化，SSR 首帧与客户端可能不同；挂载后再渲染具体状态避免水合不一致。
+  const [mounted, setMounted] = React.useState(false);
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const cycle = () => {
     const next = mode === "light" ? "dark" : mode === "dark" ? "system" : "light";
     setMode(next);
   };
 
-  const Icon = mode === "light" ? Sun : mode === "dark" ? Moon : Monitor;
-  const label = mode === "light" ? "浅色" : mode === "dark" ? "深色" : "跟随系统";
+  const Icon = !mounted ? Monitor : mode === "light" ? Sun : mode === "dark" ? Moon : Monitor;
+  const label = !mounted ? "主题" : mode === "light" ? "浅色" : mode === "dark" ? "深色" : "跟随系统";
 
   return (
     <button
       type="button"
       onClick={cycle}
       title={`当前：${label}，点击切换`}
-      className="flex h-7 w-7 items-center justify-center rounded-[4px] text-on-surface-variant/50 transition-colors hover:bg-on-surface/5 hover:text-on-surface active:scale-90"
+      suppressHydrationWarning
+      className="flex h-7 items-center gap-1.5 rounded-[4px] px-2 text-[11px] font-bold text-on-surface-variant/60 transition-colors hover:bg-on-surface/5 hover:text-on-surface active:scale-95"
     >
       <Icon className="h-3.5 w-3.5" />
+      <span className="hidden lg:inline" suppressHydrationWarning>{label}</span>
     </button>
   );
 }
@@ -179,7 +186,7 @@ function ModuleStatusBadge({ detail }: { detail: string }) {
   return (
     <span
       className={cn(
-        "inline-flex h-5 max-w-[160px] shrink-0 items-center gap-1.5 rounded-[5px] px-2 text-[10.5px] font-black leading-none",
+        "inline-flex h-5 max-w-[160px] shrink-0 items-center gap-1.5 rounded-[6px] px-2 text-[11px] font-black leading-none",
         isSuccess
           ? "bg-emerald-500/8 text-emerald-700 ring-1 ring-emerald-500/15 dark:text-emerald-300"
           : "bg-on-surface/[0.04] text-on-surface/45 ring-1 ring-on-surface/[0.05]",
@@ -262,8 +269,8 @@ export function AppShell({ children }: { children: ReactNode }) {
           <div className="flex shrink-0 items-center gap-2.5">
             <img src="/app-icon.png" alt="FilePilot" className="h-5 w-5 object-contain active:scale-95 transition-transform" />
             <div className="flex items-baseline tracking-[-0.04em] pointer-events-none select-none">
-              <span className="text-[14.5px] font-black text-on-surface">File</span>
-              <span className="ml-0.5 text-[15.5px] font-black text-primary">Pilot</span>
+              <span className="text-[14px] font-black text-on-surface">File</span>
+              <span className="ml-0.5 text-[15px] font-black text-primary">Pilot</span>
               <span className="ml-0.5 h-1 w-1 rounded-full bg-primary" />
             </div>
 
@@ -278,7 +285,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
         </div>
 
-        <nav className="flex items-center justify-center rounded-[10px] bg-on-surface/[0.035] p-1 relative">
+        <nav className="flex items-center justify-center rounded-[8px] bg-on-surface/[0.035] p-1 relative">
           {navItems.map((item) => {
             const isActive = isNavActive(item.href);
             return (
@@ -286,7 +293,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                 key={item.href}
                 href={item.href}
                 className={cn(
-                  "relative inline-flex h-7.5 items-center gap-2 rounded-[7px] px-3 text-[11.5px] font-black tracking-tight transition-colors duration-200 z-10 select-none",
+                  "relative inline-flex h-7.5 items-center gap-2 rounded-[8px] px-3 text-[12px] font-black tracking-tight transition-colors duration-200 z-10 select-none",
                   isActive
                     ? "text-primary font-black"
                     : "text-on-surface/40 hover:text-on-surface/80",
@@ -295,7 +302,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                 {isActive && (
                   <motion.span
                     layoutId="app-shell-active-pill"
-                    className="absolute inset-0 rounded-[7px] bg-surface-container-lowest shadow-[0_1px_3px_rgba(0,0,0,0.06)] -z-10"
+                    className="absolute inset-0 rounded-[8px] bg-surface-container-lowest shadow-[0_1px_3px_rgba(0,0,0,0.06)] -z-10"
                     transition={{ type: "spring", stiffness: 380, damping: 30 }}
                   />
                 )}

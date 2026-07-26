@@ -84,11 +84,11 @@ export function SystemTab({
             <div>
               <div className="flex items-center gap-2">
                 <h3 className="text-[14px] font-bold text-on-surface">FilePilot</h3>
-                <span className="rounded-[6px] bg-primary/10 px-2 py-0.5 text-[10.5px] font-black text-primary uppercase">
+                <span className="rounded-[6px] bg-primary/10 px-2 py-0.5 text-[11px] font-black text-primary uppercase">
                   {appVersion}
                 </span>
               </div>
-              <p className="mt-1 text-[11.5px] leading-5 text-on-surface-variant/65">
+              <p className="mt-1 text-[12px] leading-5 text-on-surface-variant/65">
                 本地智能文件整理与归档工作台
               </p>
               <div className="mt-2 flex items-center gap-2">
@@ -97,7 +97,7 @@ export function SystemTab({
                   target="_blank"
                   rel="noopener noreferrer"
                   onClick={(e) => onOpenLink("https://github.com/qup1010/FilePilot", e)}
-                  className="inline-flex items-center gap-1.5 text-[11.5px] font-bold text-primary transition-colors hover:text-primary-dim hover:underline"
+                  className="inline-flex items-center gap-1.5 text-[12px] font-bold text-primary transition-colors hover:text-primary-dim hover:underline"
                 >
                   <Github className="h-3.5 w-3.5" />
                   GitHub 仓库
@@ -140,8 +140,8 @@ export function SystemTab({
         {updateResult && (
           <div className="mt-4 pt-4 border-t border-on-surface/6">
             {updateResult.hasUpdate ? (
-              <div className="rounded-[10px] border border-primary/25 bg-primary/[0.02] p-3">
-                <div className="flex items-center gap-2 text-[12.5px] font-bold text-primary">
+              <div className="rounded-[8px] border border-primary/25 bg-primary/[0.02] p-3">
+                <div className="flex items-center gap-2 text-[13px] font-bold text-primary">
                   <CheckCircle2 className="h-4 w-4 text-primary shrink-0" />
                   发现新版本 {updateResult.version}！
                 </div>
@@ -157,7 +157,7 @@ export function SystemTab({
                     target="_blank"
                     rel="noopener noreferrer"
                     onClick={(e) => onOpenLink(updateResult.url || "https://github.com/qup1010/FilePilot/releases", e)}
-                    className="inline-flex items-center gap-1 rounded-[6px] border border-primary/20 bg-primary/8 px-3 py-1.5 text-[11.5px] font-bold text-primary transition-colors hover:bg-primary/14"
+                    className="inline-flex items-center gap-1 rounded-[6px] border border-primary/20 bg-primary/8 px-3 py-1.5 text-[12px] font-bold text-primary transition-colors hover:bg-primary/14"
                   >
                     <Globe className="h-3.5 w-3.5" />
                     前往 GitHub 下载更新
@@ -165,7 +165,7 @@ export function SystemTab({
                 </div>
               </div>
             ) : (
-              <div className="flex items-center gap-2 rounded-[10px] border border-on-surface/8 bg-surface-container-lowest px-3 py-2.5 text-[12px] font-semibold text-on-surface-variant/80">
+              <div className="flex items-center gap-2 rounded-[8px] border border-on-surface/8 bg-surface-container-lowest px-3 py-2.5 text-[12px] font-semibold text-on-surface-variant/80">
                 <CheckCircle2 className="h-4 w-4 text-green-500 shrink-0" />
                 当前已是最新版本 ({updateResult.version})，无需更新。
               </div>
@@ -176,12 +176,12 @@ export function SystemTab({
         {/* 异常警示展开项 */}
         {updateError && (
           <div className="mt-4 pt-4 border-t border-on-surface/6">
-            <div className="rounded-[10px] border border-yellow-500/20 bg-yellow-500/[0.02] p-3 text-[12px] leading-relaxed text-on-surface-variant">
+            <div className="rounded-[8px] border border-yellow-500/20 bg-yellow-500/[0.02] p-3 text-[12px] leading-relaxed text-on-surface-variant">
               <div className="flex items-center gap-2 font-bold text-yellow-600 dark:text-yellow-500 mb-1">
                 <AlertCircle className="h-4 w-4 shrink-0" />
                 检查更新失败
               </div>
-              <p className="text-[11.5px] text-on-surface-variant/80">
+              <p className="text-[12px] text-on-surface-variant/80">
                 {updateError}
               </p>
               <div className="mt-2.5 flex justify-end">
@@ -207,7 +207,7 @@ export function SystemTab({
         <div className="flex items-start justify-between gap-4 pb-4 border-b border-on-surface/6">
           <div>
             <h3 className="text-[13px] font-semibold text-on-surface">调试模式（详细日志）</h3>
-            <p className="mt-1 text-[11.5px] leading-5 text-on-surface-variant/65">
+            <p className="mt-1 text-[12px] leading-5 text-on-surface-variant/65">
               关闭时仅保留基础运行状态；开启后会额外输出详细的 API 调用与调试日志，帮助追踪问题。
             </p>
           </div>
@@ -222,7 +222,7 @@ export function SystemTab({
         <div className="pt-4">
           <div className="mb-3">
             <h3 className="text-[13px] font-semibold text-on-surface">系统日志路径</h3>
-            <p className="mt-1 text-[11.5px] leading-5 text-on-surface-variant/65">
+            <p className="mt-1 text-[12px] leading-5 text-on-surface-variant/65">
               运行日志保存在以下本地路径中，需要排错时可快速复制查看：
             </p>
           </div>
@@ -237,7 +237,7 @@ export function SystemTab({
                 path: debugLogPath,
               },
             ].map((item) => (
-              <div key={item.label} className="rounded-[10px] border border-on-surface/8 bg-surface-container-lowest px-4 py-3">
+              <div key={item.label} className="rounded-[8px] border border-on-surface/8 bg-surface-container-lowest px-4 py-3">
                 <div className="flex items-center justify-between gap-3">
                   <span className="text-[11px] font-black uppercase tracking-[0.15em] text-ui-muted">{item.label}</span>
                   <button

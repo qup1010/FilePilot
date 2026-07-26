@@ -63,13 +63,9 @@ export function IconWorkbenchToolbar({
         <div className="flex items-center gap-3 overflow-hidden">
           <div className="h-3 w-px bg-on-surface/10" />
           <div className="min-w-0">
-             <div className="flex items-center gap-2.5">
-                <span className="text-[10px] font-black uppercase tracking-[0.25em] text-ui-muted/30">ICON WORKBENCH</span>
-                <span className="h-1 w-1 rounded-full bg-on-surface/10" />
-                <p className="truncate text-[12px] font-bold text-on-surface/60 leading-none" title={targetSummary}>
-                  {targetSummary}
-                </p>
-             </div>
+             <p className="truncate text-[12px] font-bold text-on-surface/60 leading-none" title={targetSummary}>
+               {targetSummary}
+             </p>
           </div>
         </div>
       </div>
@@ -93,8 +89,8 @@ export function IconWorkbenchToolbar({
             <Sparkles className="h-3 w-3" />
           </div>
           <div className="flex flex-col items-start text-left">
-            <span className="text-[8px] font-black uppercase tracking-[0.2em] text-ui-muted/40 leading-tight">Template</span>
-            <span className="max-w-[120px] truncate text-[11.5px] font-black tracking-tight text-on-surface/80 leading-none">
+            <span className="text-[11px] font-black text-ui-muted/40 leading-tight">风格模板</span>
+            <span className="max-w-[120px] truncate text-[12px] font-black tracking-tight text-on-surface/80 leading-none">
               {selectedTemplateName}
             </span>
           </div>

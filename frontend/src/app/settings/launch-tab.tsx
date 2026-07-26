@@ -152,7 +152,7 @@ export function LaunchTab({
               >
                 <section.icon className="h-4 w-4 shrink-0" />
                 <div className="min-w-0">
-                  <p className="text-[12.5px] font-black">{section.label}</p>
+                  <p className="text-[13px] font-black">{section.label}</p>
                   <p className="mt-1 truncate text-[11px] font-medium text-ui-muted">{section.description}</p>
                 </div>
               </button>
@@ -244,7 +244,7 @@ export function LaunchTab({
             <textarea
               value={globalConfig.LAUNCH_DEFAULT_NOTE ?? ""}
               onChange={(event) => onUpdateGlobal("LAUNCH_DEFAULT_NOTE", event.target.value.slice(0, 200))}
-              className="min-h-24 w-full resize-none rounded-[10px] border border-on-surface/8 bg-surface-container-lowest px-4 py-3 text-[13px] leading-6 text-on-surface outline-none transition-all placeholder:text-on-surface-variant/35 focus:border-primary focus:ring-4 focus:ring-primary/5"
+              className="min-h-24 w-full resize-none rounded-[8px] border border-on-surface/8 bg-surface-container-lowest px-4 py-3 text-[13px] leading-6 text-on-surface outline-none transition-all placeholder:text-on-surface-variant/35 focus:border-primary focus:ring-4 focus:ring-primary/5"
               placeholder="例如：拿不准的先放待确认区，课程资料尽量按学期整理。"
             />
           </FieldGroup>

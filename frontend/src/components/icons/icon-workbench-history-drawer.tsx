@@ -60,12 +60,12 @@ export function IconWorkbenchHistoryDrawer({
         <DialogPrimitive.Content className="fixed right-0 top-0 z-[76] flex h-full w-full max-w-[520px] flex-col border-l-2 border-on-surface/12 bg-surface-container-lowest shadow-2xl outline-none transition-transform duration-300 ease-out starting:translate-x-full">
           <header className="flex items-center justify-between border-b border-on-surface/6 px-5 py-4">
             <div className="flex min-w-0 items-center gap-3">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] bg-primary/10 text-primary">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[8px] bg-primary/10 text-primary">
                 <Clock className="h-4 w-4" />
               </div>
               <div className="min-w-0">
                 <DialogPrimitive.Title asChild>
-                  <h2 className="truncate text-[17px] font-black tracking-tight text-on-surface">历史工作区</h2>
+                  <h2 className="truncate text-[16px] font-black tracking-tight text-on-surface">历史工作区</h2>
                 </DialogPrimitive.Title>
                 <DialogPrimitive.Description asChild>
                   <p className="mt-0.5 text-[11px] text-ui-muted">按上次修改时间显示最近 20 条记录</p>
@@ -75,14 +75,14 @@ export function IconWorkbenchHistoryDrawer({
             <div className="flex items-center gap-1">
               <button
                 onClick={onReload}
-                className="flex h-9 w-9 items-center justify-center rounded-[10px] text-ui-muted transition-colors hover:bg-on-surface/4 hover:text-on-surface"
+                className="flex h-9 w-9 items-center justify-center rounded-[8px] text-ui-muted transition-colors hover:bg-on-surface/4 hover:text-on-surface"
                 title="刷新历史工作区"
               >
                 <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
               </button>
               <button
                 onClick={onClose}
-                className="flex h-9 w-9 items-center justify-center rounded-[10px] text-ui-muted transition-colors hover:bg-on-surface/4 hover:text-on-surface"
+                className="flex h-9 w-9 items-center justify-center rounded-[8px] text-ui-muted transition-colors hover:bg-on-surface/4 hover:text-on-surface"
                 title="关闭"
               >
                 <X className="h-4 w-4" />
@@ -92,7 +92,7 @@ export function IconWorkbenchHistoryDrawer({
 
           <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 scrollbar-thin">
             {error ? (
-              <div className="mb-3 rounded-[10px] border border-error/15 bg-error/5 px-3 py-2 text-[12px] font-bold text-error">
+              <div className="mb-3 rounded-[8px] border border-error/15 bg-error/5 px-3 py-2 text-[12px] font-bold text-error">
                 {error}
               </div>
             ) : null}
@@ -118,7 +118,7 @@ export function IconWorkbenchHistoryDrawer({
                     <div
                       key={item.session_id}
                       className={cn(
-                        "rounded-[10px] border px-3 py-3 transition-colors",
+                        "rounded-[8px] border px-3 py-3 transition-colors",
                         isActive
                           ? "border-primary/20 bg-primary/5"
                           : "border-on-surface/6 bg-surface-container-low hover:border-on-surface/12",
@@ -131,7 +131,7 @@ export function IconWorkbenchHistoryDrawer({
                               上次修改 {formatUpdatedAt(item.updated_at)}
                             </p>
                             {isActive ? (
-                              <span className="shrink-0 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-black text-primary">
+                              <span className="shrink-0 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-black text-primary">
                                 当前
                               </span>
                             ) : null}
@@ -139,12 +139,12 @@ export function IconWorkbenchHistoryDrawer({
                           <p className="mt-1 truncate text-[11px] font-medium text-ui-muted" title={targetPreview}>
                             {targetPreview}
                           </p>
-                          <p className="mt-2 text-[10.5px] font-bold text-ui-muted/80">
+                          <p className="mt-2 text-[11px] font-bold text-ui-muted/80">
                             {countSummary(item)}
                             {item.error_count > 0 ? ` · ${item.error_count} 异常` : ""}
                           </p>
                           {item.last_action_message ? (
-                            <p className="mt-1 truncate text-[10.5px] text-ui-muted/70" title={item.last_action_message}>
+                            <p className="mt-1 truncate text-[11px] text-ui-muted/70" title={item.last_action_message}>
                               {item.last_action_message}
                             </p>
                           ) : null}

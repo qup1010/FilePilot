@@ -61,17 +61,17 @@ export function IncrementalSelectionView({
       <div className="border-b border-on-surface/8 bg-on-surface/[0.02] px-6 py-4">
         <div className="flex items-start justify-between gap-4">
           <div className="space-y-1">
-            <div className="inline-flex items-center gap-1.5 rounded-full border border-primary/20 bg-primary/5 px-2 py-0.5 text-[10px] font-black uppercase tracking-widest text-primary">
+            <div className="inline-flex items-center gap-1.5 rounded-full border border-primary/20 bg-primary/5 px-2 py-0.5 text-[11px] font-black uppercase tracking-widest text-primary">
               <Layers3 className="h-3.5 w-3.5" />
               归入已有目录
             </div>
-            <h2 className="text-[17px] font-black tracking-tight text-on-surface">选择目标目录池</h2>
-            <p className="max-w-[600px] text-[12.5px] font-medium leading-relaxed text-ui-muted opacity-70">
+            <h2 className="text-[16px] font-black tracking-tight text-on-surface">选择目标目录池</h2>
+            <p className="max-w-[600px] text-[13px] font-medium leading-relaxed text-ui-muted opacity-70">
               勾选那些已经整理好的根目录作为“目标”。未勾选的项将被视为本轮待处理文件。
             </p>
           </div>
           <div className="rounded-xl border border-on-surface/8 bg-surface-container-lowest px-4 py-2.5 text-right ring-1 ring-black/[0.02]">
-            <div className="text-[10px] font-black uppercase tracking-widest text-ui-muted opacity-40">已选目标</div>
+            <div className="text-[11px] font-black uppercase tracking-widest text-ui-muted opacity-40">已选目标</div>
             <div className="mt-0.5 text-[20px] font-black text-on-surface tabular-nums leading-none">{selected.length}</div>
           </div>
         </div>
@@ -135,8 +135,8 @@ export function IncrementalSelectionView({
                       <span className="truncate font-mono text-[13px] font-bold text-on-surface">{path}</span>
                     </div>
                     <div className="mt-2 flex items-center justify-between">
-                       <span className="rounded-[4px] bg-on-surface/[0.05] px-1.5 py-0.5 text-[9px] font-black uppercase text-ui-muted">目标目录</span>
-                       <span className="text-[10px] font-bold text-ui-muted/50 font-mono">顶层项 {itemCount}</span>
+                       <span className="rounded-[4px] bg-on-surface/[0.05] px-1.5 py-0.5 text-[11px] font-black uppercase text-ui-muted">目标目录</span>
+                       <span className="text-[11px] font-bold text-ui-muted/50 font-mono">顶层项 {itemCount}</span>
                     </div>
                   </div>
                 </label>
@@ -165,7 +165,7 @@ export function IncrementalSelectionView({
               <ArrowRightLeft className="h-3.5 w-3.5 text-primary" />
               逻辑策略
             </div>
-            <div className="mt-3 space-y-2 text-[11.5px] font-medium leading-relaxed text-ui-muted opacity-70">
+            <div className="mt-3 space-y-2 text-[12px] font-medium leading-relaxed text-ui-muted opacity-70">
               <p>· 已选目录将被视为“目标池”</p>
               <p>· 未选中的项将进入待整理范围</p>
             </div>
@@ -173,7 +173,7 @@ export function IncrementalSelectionView({
               type="button"
               onClick={() => onConfirm(selected)}
               disabled={loading || selected.length === 0}
-              className="mt-5 flex w-full items-center justify-center rounded-lg bg-on-surface py-2.5 text-[12.5px] font-black text-surface transition-all hover:bg-on-surface/90 active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed"
+              className="mt-5 flex w-full items-center justify-center rounded-lg bg-primary py-2.5 text-[13px] font-black text-white transition-all hover:bg-primary-dim active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed"
             >
               {loading ? "正在扫描待整理项..." : "确认并继续"}
             </button>
@@ -185,7 +185,7 @@ export function IncrementalSelectionView({
                     <ScanSearch className="h-3.5 w-3.5 text-primary" />
                     待整理范围
                 </div>
-                <span className="font-mono text-[10px] font-bold text-ui-muted/40">{pendingEntries.length} 项</span>
+                <span className="font-mono text-[11px] font-bold text-ui-muted/40">{pendingEntries.length} 项</span>
             </div>
             <div className="max-h-[480px] overflow-y-auto scrollbar-thin">
               <div className="flex flex-col divide-y divide-on-surface/[0.03]">
@@ -207,7 +207,7 @@ export function IncrementalSelectionView({
                           {isDirectory ? <FolderTree className="h-3.5 w-3.5" /> : <Inbox className="h-3.5 w-3.5" />}
                         </div>
                         <div className="min-w-0 flex-1">
-                          <span className="truncate font-mono text-[11.5px] font-black text-on-surface/70 group-hover:text-on-surface transition-colors">{entry.display_name}</span>
+                          <span className="truncate font-mono text-[12px] font-black text-on-surface/70 group-hover:text-on-surface transition-colors">{entry.display_name}</span>
                           <div className="mt-0.5 truncate font-mono text-[11px] text-ui-muted opacity-40 uppercase tracking-tighter">{relpath}</div>
                         </div>
                       </motion.div>

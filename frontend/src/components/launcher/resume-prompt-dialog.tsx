@@ -71,7 +71,7 @@ export function ResumePromptDialog({
             <em>{getFriendlyStage(resumePrompt.snapshot.stage)}</em>）。
           </p>
 
-          <div className="mb-6 rounded-[10px] border border-on-surface/8 bg-surface px-5 py-5">
+          <div className="mb-6 rounded-[8px] border border-on-surface/8 bg-surface px-5 py-5">
             <p className="text-ui-section font-semibold text-ui-muted">上一次使用的设置</p>
             <StrategySummaryChips strategy={resumeStrategy} />
           </div>
@@ -84,7 +84,7 @@ export function ResumePromptDialog({
             >
               {primaryLabel}
             </Button>
-            <div className="rounded-[10px] border border-on-surface/8 bg-surface px-5 py-4 text-ui-section font-medium leading-relaxed text-ui-muted">
+            <div className="rounded-[8px] border border-on-surface/8 bg-surface px-5 py-4 text-ui-section font-medium leading-relaxed text-ui-muted">
               {isCompletedResume
                 ? "重新开始会按当前来源和设置重新读取目录。"
                 : isStaleResume

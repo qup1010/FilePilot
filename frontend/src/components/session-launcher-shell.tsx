@@ -1505,29 +1505,15 @@ export function SessionLauncherShell() {
     <section className="rounded-lg border border-on-surface/8 bg-surface-container-lowest px-5 py-4">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-on-surface/6 pb-3">
         <div className="min-w-0">
-          <span className="text-[9px] font-black uppercase tracking-[0.2em] text-ui-muted opacity-40">主控制台</span>
-          <h2 className="mt-0.5 text-[16px] font-black tracking-tight text-on-surface">
+          <h2 className="text-[16px] font-black tracking-tight text-on-surface">
             继续手头任务，或开始一次新的整理
           </h2>
         </div>
         <div className="flex items-center gap-2">
-          <span
-            className={cn(
-              "inline-flex items-center gap-1.5 rounded-[6px] border px-2.5 py-1 text-[11px] font-black uppercase tracking-wider",
-              backendUnavailable
-                ? "border-error/18 bg-error/[0.06] text-error"
-                : textModelConfigured
-                  ? "border-success/16 bg-success/[0.05] text-success-dim"
-                  : "border-warning/18 bg-warning/8 text-warning",
-            )}
-          >
-            {backendUnavailable ? <AlertCircle className="h-3.5 w-3.5" /> : textModelConfigured ? <CheckCircle2 className="h-3.5 w-3.5" /> : <AlertCircle className="h-3.5 w-3.5" />}
-            {backendUnavailable ? "服务未连接" : textModelConfigured ? "文本模型可用" : "文本模型待配置"}
-          </span>
           <Button
             variant="secondary"
             onClick={() => router.push("/settings?tab=text")}
-            className="h-8 rounded-[7px] px-3 text-[11px] font-black uppercase tracking-wider"
+            className="h-8 rounded-[8px] px-3 text-[11px] font-black uppercase tracking-wider"
           >
             模型设置
           </Button>
@@ -1544,7 +1530,7 @@ export function SessionLauncherShell() {
                 </span>
                 <div className="min-w-0">
                   <p className="text-[13px] font-black text-on-surface">无法连接本地服务</p>
-                  <p className="mt-0.5 text-[11.5px] font-medium text-ui-muted/70">
+                  <p className="mt-0.5 text-[12px] font-medium text-ui-muted/70">
                     最近记录、快捷目录等数据暂时读取不到。请确认应用已正常启动（{apiBaseUrl}），然后重试。
                   </p>
                 </div>
@@ -1552,7 +1538,7 @@ export function SessionLauncherShell() {
               <button
                 type="button"
                 onClick={() => setBackendReloadNonce((nonce) => nonce + 1)}
-                className="shrink-0 rounded-[7px] border border-error/20 bg-surface px-3 py-1.5 text-[11px] font-bold text-error transition-colors hover:bg-error/5"
+                className="shrink-0 rounded-[8px] border border-error/20 bg-surface px-3 py-1.5 text-[11px] font-bold text-error transition-colors hover:bg-error/5"
               >
                 重新连接
               </button>
@@ -1569,7 +1555,7 @@ export function SessionLauncherShell() {
               </span>
               <div className="min-w-0">
                 <p className="text-[13px] font-black text-on-surface">返回挂起中的任务</p>
-                <p className="mt-0.5 block max-w-full truncate text-[11.5px] font-medium text-ui-muted/60" title={activeWorkspaceTask.route}>
+                <p className="mt-0.5 block max-w-full truncate text-[12px] font-medium text-ui-muted/60" title={activeWorkspaceTask.route}>
                   {describeWorkspaceTask(activeWorkspaceTask)}
                 </p>
               </div>
@@ -1585,7 +1571,7 @@ export function SessionLauncherShell() {
               </span>
               <div>
                 <p className="text-[13px] font-black text-on-surface/80">当前没有挂起的会话</p>
-                <p className="mt-0.5 text-[11.5px] font-medium text-ui-muted/50">主工作台处于闲置状态，添加整理来源即可唤起新任务。</p>
+                <p className="mt-0.5 text-[12px] font-medium text-ui-muted/50">主工作台处于闲置状态，添加整理来源即可唤起新任务。</p>
               </div>
             </div>
           )}
@@ -1604,7 +1590,7 @@ export function SessionLauncherShell() {
                 <Plus className="h-4.5 w-4.5" />
               </div>
               <p className="mt-3 text-[13px] font-black text-on-surface tracking-tight">新建整理</p>
-              <p className="mt-1 text-[11.5px] font-medium leading-relaxed text-ui-muted/60">拖入或混选本地文件与文件夹，由 AI 自动推导分类目录结构。</p>
+              <p className="mt-1 text-[12px] font-medium leading-relaxed text-ui-muted/60">拖入或混选本地文件与文件夹，由 AI 自动推导分类目录结构。</p>
             </button>
             <button
               type="button"
@@ -1615,7 +1601,7 @@ export function SessionLauncherShell() {
                 <History className="h-4.5 w-4.5" />
               </div>
               <p className="mt-3 text-[13px] font-black text-on-surface tracking-tight">整理历史</p>
-              <p className="mt-1 text-[11.5px] font-medium leading-relaxed text-ui-muted/60">检索以往的历史整理方案与操作归档，并可在此一键安全回退。</p>
+              <p className="mt-1 text-[12px] font-medium leading-relaxed text-ui-muted/60">检索以往的历史整理方案与操作归档，并可在此一键安全回退。</p>
             </button>
             <button
               type="button"
@@ -1626,7 +1612,7 @@ export function SessionLauncherShell() {
                 <Sparkles className="h-4.5 w-4.5" />
               </div>
               <p className="mt-3 text-[13px] font-black text-on-surface tracking-tight">图标工坊</p>
-              <p className="mt-1 text-[11.5px] font-medium leading-relaxed text-ui-muted/60">为新建的文件夹匹配并应用图标，提升视觉辨识度。</p>
+              <p className="mt-1 text-[12px] font-medium leading-relaxed text-ui-muted/60">为新建的文件夹匹配并应用图标，提升视觉辨识度。</p>
             </button>
           </div>
         </div>
@@ -1658,7 +1644,7 @@ export function SessionLauncherShell() {
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.25 }}
-              className="mx-auto flex w-full max-w-[860px] flex-col gap-3 py-6"
+              className="mx-auto flex w-full max-w-[1080px] flex-col gap-3 py-6"
             >
 
 
@@ -1701,10 +1687,10 @@ export function SessionLauncherShell() {
                       )}
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="text-[12.5px] font-black leading-tight text-on-surface">
+                      <p className="text-[13px] font-black leading-tight text-on-surface">
                         {sourceFeedback.tone === "success" ? "来源已更新" : "导入提示"}
                       </p>
-                      <p className="mt-1.5 text-[11.5px] font-medium leading-relaxed text-ui-muted opacity-80">{sourceFeedback.message}</p>
+                      <p className="mt-1.5 text-[12px] font-medium leading-relaxed text-ui-muted opacity-80">{sourceFeedback.message}</p>
                     </div>
                     <button
                       type="button"
@@ -1760,7 +1746,7 @@ export function SessionLauncherShell() {
                             )}
                           >
                             <div className={cn(
-                              "flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-black transition-all",
+                              "flex h-5 w-5 items-center justify-center rounded-full text-[11px] font-black transition-all",
                               active
                                 ? "bg-primary text-white"
                                 : completed
@@ -1875,13 +1861,13 @@ export function SessionLauncherShell() {
                                     {option.method === "assign_into_existing_categories" ? (
                                       <>
                                         <FileText className="h-3 w-3 shrink-0" />
-                                        <span className="text-[9px] font-bold opacity-40">→</span>
+                                        <span className="text-[11px] font-bold opacity-40">→</span>
                                         <FolderOpen className={cn("h-3 w-3 shrink-0", active ? "text-primary" : "text-on-surface-variant/50")} />
                                       </>
                                     ) : (
                                       <>
                                         <FolderOpen className="h-3 w-3 shrink-0" />
-                                        <span className="text-[9px] font-bold opacity-40">→</span>
+                                        <span className="text-[11px] font-bold opacity-40">→</span>
                                         <ListTree className={cn("h-3 w-3 shrink-0", active ? "text-primary" : "text-on-surface-variant/50")} />
                                       </>
                                     )}
@@ -1917,18 +1903,18 @@ export function SessionLauncherShell() {
                                   onChange={(event) => setNewDirectoryRoot(event.target.value)}
                                   disabled={loading}
                                   placeholder={placementConfig.defaultNewDirectoryRoot || (isFullCategorize ? "新目录生成路径" : "当前任务工作区")}
-                                  className="h-9 flex-1 rounded-[6px] border border-transparent bg-on-surface/[0.03] px-2.5 text-[12.5px] font-medium text-on-surface outline-none transition-all placeholder:text-on-surface-variant/35 focus:border-primary/30 focus:bg-surface focus:ring-2 focus:ring-primary/5"
+                                  className="h-9 flex-1 rounded-[6px] border border-transparent bg-on-surface/[0.03] px-2.5 text-[13px] font-medium text-on-surface outline-none transition-all placeholder:text-on-surface-variant/35 focus:border-primary/30 focus:bg-surface focus:ring-2 focus:ring-primary/5"
                                 />
                                 <button
                                   type="button"
                                   onClick={() => void handleSelectPlacementRoot("new")}
                                   disabled={loading}
-                                  className="h-9 rounded-[6px] border border-on-surface/8 bg-surface px-3 text-[11.5px] font-bold text-on-surface transition-colors hover:border-primary/20 hover:text-primary disabled:opacity-50"
+                                  className="h-9 rounded-[6px] border border-on-surface/8 bg-surface px-3 text-[12px] font-bold text-on-surface transition-colors hover:border-primary/20 hover:text-primary disabled:opacity-50"
                                 >
                                   选择目录
                                 </button>
                               </div>
-                              <p className="mt-2 text-[10.5px] font-medium leading-relaxed text-ui-muted opacity-80">
+                              <p className="mt-2 text-[11px] font-medium leading-relaxed text-ui-muted opacity-80">
                                 {isAssignExisting
                                   ? "用于存放未匹配的条目。留空时使用系统默认放置规则。"
                                   : "留空时使用系统默认放置规则（任务启动根目录）。"}
@@ -1948,7 +1934,7 @@ export function SessionLauncherShell() {
                                     });
                                   }}
                                   className={[
-                                    "rounded-full border px-2.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.1em] transition-colors",
+                                    "rounded-full border px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-[0.1em] transition-colors",
                                     reviewFollowsNewRoot
                                       ? "border-primary/20 bg-primary/10 text-primary"
                                       : "border-on-surface/8 bg-surface text-ui-muted",
@@ -1966,18 +1952,18 @@ export function SessionLauncherShell() {
                                   }}
                                   disabled={loading || reviewFollowsNewRoot}
                                   placeholder={reviewFollowsNewRoot ? derivedReviewRoot || "跟随新目录路径自动生成" : placementConfig.globalReviewRoot || derivedReviewRoot || "独立指定待确认区路径"}
-                                  className="h-9 flex-1 rounded-[6px] border border-transparent bg-on-surface/[0.03] px-2.5 text-[12.5px] font-medium text-on-surface outline-none transition-all placeholder:text-on-surface-variant/35 focus:border-primary/30 focus:bg-surface focus:ring-2 focus:ring-primary/5 disabled:opacity-60"
+                                  className="h-9 flex-1 rounded-[6px] border border-transparent bg-on-surface/[0.03] px-2.5 text-[13px] font-medium text-on-surface outline-none transition-all placeholder:text-on-surface-variant/35 focus:border-primary/30 focus:bg-surface focus:ring-2 focus:ring-primary/5 disabled:opacity-60"
                                 />
                                 <button
                                   type="button"
                                   onClick={() => void handleSelectPlacementRoot("review")}
                                   disabled={loading || reviewFollowsNewRoot}
-                                  className="h-9 rounded-[6px] border border-on-surface/8 bg-surface px-3 text-[11.5px] font-bold text-on-surface transition-colors hover:border-primary/20 hover:text-primary disabled:opacity-50"
+                                  className="h-9 rounded-[6px] border border-on-surface/8 bg-surface px-3 text-[12px] font-bold text-on-surface transition-colors hover:border-primary/20 hover:text-primary disabled:opacity-50"
                                 >
                                   选择目录
                                 </button>
                               </div>
-                              <p className="mt-2 text-[10.5px] font-medium leading-relaxed text-ui-muted opacity-80">
+                              <p className="mt-2 text-[11px] font-medium leading-relaxed text-ui-muted opacity-80">
                                 默认跟随新目录根路径生成 Review 子目录，不再创建更深层级的目录结构。
                               </p>
                             </div>
@@ -2019,7 +2005,7 @@ export function SessionLauncherShell() {
                             </div>
 
                             {isAssignExisting && effectiveTargetDirectories.length === 0 && !selectedTargetProfileId.trim() && (
-                              <div className="mb-4 rounded-[8px] border border-primary/15 bg-primary/[0.02] p-3 text-[11.5px] font-medium leading-relaxed text-on-surface-variant flex items-start gap-2 animate-in fade-in slide-in-from-top-1 duration-200">
+                              <div className="mb-4 rounded-[8px] border border-primary/15 bg-primary/[0.02] p-3 text-[12px] font-medium leading-relaxed text-on-surface-variant flex items-start gap-2 animate-in fade-in slide-in-from-top-1 duration-200">
                                 <Info className="h-4 w-4 shrink-0 text-primary mt-0.5" />
                                 <div>
                                   <span className="font-bold text-on-surface">需要目标目录：</span>
@@ -2029,7 +2015,7 @@ export function SessionLauncherShell() {
                             )}
 
                             <div className="mb-4">
-                              <div className="mb-2 text-[10px] font-bold uppercase tracking-[0.15em] text-ui-muted">已有目录配置</div>
+                              <div className="mb-2 text-[11px] font-bold uppercase tracking-[0.15em] text-ui-muted">已有目录配置</div>
                               <select
                                 value={selectedTargetProfileId}
                                 onChange={(event) => setSelectedTargetProfileId(event.target.value)}
@@ -2046,7 +2032,7 @@ export function SessionLauncherShell() {
                             </div>
 
                             <div className="space-y-2">
-                              <div className="text-[10px] font-bold uppercase tracking-[0.15em] text-ui-muted">补充目标目录</div>
+                              <div className="text-[11px] font-bold uppercase tracking-[0.15em] text-ui-muted">补充目标目录</div>
 
                               {effectiveTargetDirectories.length > 0 && (
                                 <div className="grid gap-2">
@@ -2068,11 +2054,11 @@ export function SessionLauncherShell() {
                                             <div className="min-w-0">
                                               <div className="flex items-center gap-2">
                                                 <span className="truncate text-[14px] font-black tracking-tight text-on-surface">{item.label || item.path.split(/[\\/]/).pop() || item.path}</span>
-                                                {isFromProfile && <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[9px] font-black uppercase text-primary tracking-widest leading-none">已保存</span>}
+                                                {isFromProfile && <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[11px] font-black uppercase text-primary tracking-widest leading-none">已保存</span>}
                                               </div>
-                                              <div className="truncate font-mono text-[10.5px] font-medium text-ui-muted opacity-40 uppercase tracking-tighter" title={item.path}>{item.path}</div>
+                                              <div className="truncate font-mono text-[11px] font-medium text-ui-muted opacity-40 uppercase tracking-tighter" title={item.path}>{item.path}</div>
                                               {item.label ? (
-                                                <div className="mt-1 inline-flex rounded-[5px] bg-primary/[0.06] px-2 py-0.5 text-[10px] font-bold text-primary">
+                                                <div className="mt-1 inline-flex rounded-[6px] bg-primary/[0.06] px-2 py-0.5 text-[11px] font-bold text-primary">
                                                   标签：{item.label}
                                                 </div>
                                               ) : null}
@@ -2141,7 +2127,7 @@ export function SessionLauncherShell() {
 
 
 
-                                className="flex flex-col items-center justify-center rounded-[10px] border border-dashed border-on-surface/10 bg-surface-container-lowest px-4 py-6 transition-all duration-300 sm:flex-row sm:justify-between sm:py-2.5 hover:border-on-surface/20"
+                                className="flex flex-col items-center justify-center rounded-[8px] border border-dashed border-on-surface/10 bg-surface-container-lowest px-4 py-6 transition-all duration-300 sm:flex-row sm:justify-between sm:py-2.5 hover:border-on-surface/20"
 
 
 
@@ -2238,13 +2224,13 @@ export function SessionLauncherShell() {
                     ) : null}
 
                     {/* Desktop Action Bar */}
-                    <div className="sticky bottom-0 z-20 mt-3 flex items-center justify-between border-t border-on-surface/10 bg-surface/90 pt-4 pb-6 backdrop-blur-md">
+                    <div className="pointer-events-none sticky bottom-0 z-20 mt-3 flex items-center justify-between border-t border-on-surface/10 bg-surface/90 pt-4 pb-6 backdrop-blur-md">
                       {step > 1 ? (
                         <Button
                           variant="secondary"
                           onClick={() => setStep((current) => (Math.max(1, current - 1) as 1 | 2 | 3))}
                           disabled={loading}
-                          className="h-10 px-6 font-bold"
+                          className="pointer-events-auto h-10 px-6 font-bold"
                         >
                           返回上一步
                         </Button>
@@ -2257,7 +2243,7 @@ export function SessionLauncherShell() {
                           variant="primary"
                           onClick={skipStrategyPrompt ? () => void launchCurrentRequest(true, { directStart: true }) : goToStepTwo}
                           disabled={loading || sources.length === 0}
-                          className="h-10 px-8 font-bold border border-primary/20 bg-primary"
+                          className="pointer-events-auto h-10 px-8 font-bold border border-primary/20 bg-primary"
                         >
                           {loading ? "正在启动..." : skipStrategyPrompt ? fastStartLabel : "下一步：选择整理方式"}
                         </Button>
@@ -2266,7 +2252,7 @@ export function SessionLauncherShell() {
                           variant="primary"
                           onClick={goToStepThree}
                           disabled={loading}
-                          className="h-10 px-8 font-bold border border-primary/20 bg-primary"
+                          className="pointer-events-auto h-10 px-8 font-bold border border-primary/20 bg-primary"
                         >
                           下一步：填写必要信息
                         </Button>
@@ -2276,7 +2262,7 @@ export function SessionLauncherShell() {
                           onClick={() => void launchCurrentRequest(true)}
                           disabled={loading || !textModelConfigured}
                           loading={loading}
-                          className="h-10 min-w-[200px] px-8 font-bold border border-primary/20 bg-primary"
+                          className="pointer-events-auto h-10 min-w-[200px] px-8 font-bold border border-primary/20 bg-primary"
                         >
                           {loading ? "正在启动..." : primaryLaunchLabel}
                         </Button>
@@ -2307,7 +2293,7 @@ export function SessionLauncherShell() {
         <DialogContent className="max-w-[440px] p-5">
           <DialogHeader className="mb-2">
             <DialogTitle className="text-[15px] font-black text-on-surface">高级设置</DialogTitle>
-            <DialogDescription className="text-[11.5px] text-ui-muted/80">
+            <DialogDescription className="text-[12px] text-ui-muted/80">
               在此微调分类粒度、归档策略及附加规则说明。
             </DialogDescription>
           </DialogHeader>
@@ -2315,7 +2301,7 @@ export function SessionLauncherShell() {
           <div className="space-y-4">
             {!isAssignExisting ? (
               <div className="space-y-1.5 rounded-[8px] border border-on-surface/6 bg-surface-container-lowest p-3.5">
-                <div className="text-[11.5px] font-bold text-on-surface flex items-center gap-1.5 mb-1.5">
+                <div className="text-[12px] font-bold text-on-surface flex items-center gap-1.5 mb-1.5">
                   <ListTree className="h-3.5 w-3.5 text-primary" />
                   分类粒度
                 </div>
@@ -2339,7 +2325,7 @@ export function SessionLauncherShell() {
                     );
                   })}
                 </div>
-                <p className="mt-1.5 text-[10.5px] leading-relaxed text-ui-muted opacity-80">
+                <p className="mt-1.5 text-[11px] leading-relaxed text-ui-muted opacity-80">
                   {strategy.density === "minimal"
                     ? "生成极简的核心目录结构，避免过度细分目录。"
                     : "按标准格式与逻辑生成细分的多层级目录。"}
@@ -2349,7 +2335,7 @@ export function SessionLauncherShell() {
 
             {/* 归档倾向 */}
             <div className="space-y-1.5 rounded-[8px] border border-on-surface/6 bg-surface-container-lowest p-3.5">
-              <div className="text-[11.5px] font-bold text-on-surface flex items-center gap-1.5 mb-2">
+              <div className="text-[12px] font-bold text-on-surface flex items-center gap-1.5 mb-2">
                 <Activity className="h-3.5 w-3.5 text-primary" />
                 分类归档策略
               </div>
@@ -2370,7 +2356,7 @@ export function SessionLauncherShell() {
                     >
                       <div>{option.label}</div>
                       <div className={cn(
-                        "mt-0.5 text-[9.5px] font-medium leading-tight",
+                        "mt-0.5 text-[11px] font-medium leading-tight",
                         active ? "text-primary/70" : "text-ui-muted/70"
                       )}>
                         {option.description}
@@ -2383,7 +2369,7 @@ export function SessionLauncherShell() {
 
             {/* 补充说明 */}
             <div className="space-y-1.5 rounded-[8px] border border-on-surface/6 bg-surface-container-lowest p-3.5">
-              <div className="text-[11.5px] font-bold text-on-surface flex items-center gap-1.5 mb-1">
+              <div className="text-[12px] font-bold text-on-surface flex items-center gap-1.5 mb-1">
                 <FileText className="h-3.5 w-3.5 text-primary" />
                 附加说明
               </div>
@@ -2392,7 +2378,7 @@ export function SessionLauncherShell() {
                 disabled={loading}
                 onChange={(event) => updateStrategy((previous) => ({ ...previous, note: event.target.value.slice(0, 200) }))}
                 placeholder={isAssignExisting ? "例如：拿不准的先放待确认区；优先归入现有项目目录。" : "例如：课程资料按学期整理；图片素材按用途分层。"}
-                className="h-[72px] w-full resize-none rounded-[6px] border border-on-surface/8 bg-surface px-2.5 py-1.5 text-[11.5px] leading-relaxed text-on-surface outline-none transition-all placeholder:text-on-surface-variant/35 focus:border-primary/30"
+                className="h-[72px] w-full resize-none rounded-[6px] border border-on-surface/8 bg-surface px-2.5 py-1.5 text-[12px] leading-relaxed text-on-surface outline-none transition-all placeholder:text-on-surface-variant/35 focus:border-primary/30"
               />
             </div>
           </div>

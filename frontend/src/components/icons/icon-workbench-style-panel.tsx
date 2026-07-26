@@ -50,7 +50,7 @@ export function IconWorkbenchStylePanel({
                 <h2 className="text-[20px] font-black tracking-tight text-on-surface leading-tight">选择风格模板</h2>
               </DialogPrimitive.Title>
               <div className="mt-1 flex items-center gap-2">
-                <span className="text-[10px] font-black uppercase tracking-[0.15em] text-primary/70">视觉定义</span>
+                <span className="text-[11px] font-black uppercase tracking-[0.15em] text-primary/70">视觉定义</span>
                 <span className="h-1 w-1 rounded-full bg-on-surface/20" />
                 <DialogPrimitive.Description asChild>
                   <p className="text-[12px] font-bold text-ui-muted opacity-60">选中后将作为当前图标生成的视觉基准</p>
@@ -120,7 +120,7 @@ export function IconWorkbenchStylePanel({
                   {/* 底部标记 */}
                   <div className="mt-4 flex w-full items-center justify-between border-t border-on-surface/5 pt-3 px-0.5">
                     <span className={cn(
-                      "rounded-md px-1.5 py-0.5 text-[8.5px] font-black uppercase tracking-widest border",
+                      "rounded-md px-1.5 py-0.5 text-[11px] font-black uppercase tracking-widest border",
                       template.is_builtin ? "bg-on-surface/5 border-on-surface/10 text-ui-muted/60" : "bg-primary/5 border-primary/20 text-primary"
                     )}>
                       {template.is_builtin ? "系统内置" : "自定义"}
@@ -132,12 +132,12 @@ export function IconWorkbenchStylePanel({
                           onRequestManageTemplate(template.template_id);
                           onClose();
                         }}
-                        className="text-[10px] font-black text-primary hover:text-primary-dim transition-colors"
+                        className="text-[11px] font-black text-primary hover:text-primary-dim transition-colors"
                       >
                         编辑
                       </button>
                     ) : (
-                      <span className="text-[10px] font-black text-primary opacity-0 transition-all translate-x-2 group-hover:opacity-100 group-hover:translate-x-0">
+                      <span className="text-[11px] font-black text-primary opacity-0 transition-all translate-x-2 group-hover:opacity-100 group-hover:translate-x-0">
                         应用
                       </span>
                     )}

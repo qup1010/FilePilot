@@ -65,7 +65,7 @@ export function SettingsSection({
         <div className="flex min-w-0 items-center gap-2.5">
           <Icon className={cn("h-4 w-4 shrink-0", disabled ? "text-on-surface-variant/30" : "text-primary/70")} />
           <div className="min-w-0 space-y-0.5">
-            <h2 className="text-[13.5px] font-black tracking-tight text-on-surface leading-none">{title}</h2>
+            <h2 className="text-[13px] font-black tracking-tight text-on-surface leading-none">{title}</h2>
             <p className="text-[11px] font-medium text-on-surface-variant/50">{description}</p>
           </div>
         </div>
@@ -119,7 +119,7 @@ export function FieldGroup({ label, hint, className, children }: FieldGroupProps
         <span className={FIELD_LABEL_CLASS}>{label}</span>
       )}
       <FieldControlIdContext.Provider value={controlId}>{content}</FieldControlIdContext.Provider>
-      {hint ? <p className="px-1 text-[11.5px] font-medium text-on-surface-variant/40 leading-relaxed">{hint}</p> : null}
+      {hint ? <p className="px-1 text-[12px] font-medium text-on-surface-variant/40 leading-relaxed">{hint}</p> : null}
     </div>
   );
 }
@@ -327,7 +327,7 @@ export function PresetSelector({
             )}
           >
             <div className="min-w-0">
-              <p className="truncate text-[13.5px] font-bold tracking-tight text-on-surface">
+              <p className="truncate text-[13px] font-bold tracking-tight text-on-surface">
                 {activePreset?.name || "选择预设..."}
               </p>
               <p className="mt-0.5 text-[11px] font-medium text-on-surface-variant/60">
@@ -394,7 +394,7 @@ export function PresetSelector({
                   </span>
                   <div className="min-w-0">
                     <p className={cn("truncate text-[13px] font-bold tracking-tight", active ? "text-primary" : "text-on-surface")}>{preset.name}</p>
-                    <p className="mt-0.5 text-[10.5px] font-mono text-on-surface-variant/60">{preset.id}</p>
+                    <p className="mt-0.5 text-[11px] font-mono text-on-surface-variant/60">{preset.id}</p>
                   </div>
                 </button>
                 <button

@@ -24,11 +24,7 @@ export function LauncherHistoryPanel({
   return (
     <div className="rounded-lg border border-on-surface/8 bg-surface p-4">
       <div className="mb-3 flex items-center justify-between gap-2">
-        <div className="flex items-center gap-1.5">
-          <span className="text-[9px] font-black uppercase tracking-[0.2em] text-ui-muted opacity-40">历史轨迹</span>
-          <span className="h-0.5 w-0.5 rounded-full bg-on-surface/10" />
-          <h3 className="text-[12px] font-black text-on-surface uppercase tracking-tight">最近记录</h3>
-        </div>
+        <h3 className="text-[12px] font-black text-on-surface uppercase tracking-tight">最近记录</h3>
         <button
           type="button"
           onClick={onOpenHistoryPage}
@@ -39,7 +35,7 @@ export function LauncherHistoryPanel({
       </div>
       <div className="grid gap-2 lg:grid-cols-2">
         {loading ? (
-          <div className="col-span-full flex items-center gap-2 py-5 text-[11.5px] font-black text-ui-muted/60">
+          <div className="col-span-full flex items-center gap-2 py-5 text-[12px] font-black text-ui-muted/60">
             <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
             正在读取最近记录
           </div>
@@ -57,13 +53,13 @@ export function LauncherHistoryPanel({
                   isHistorySessionEntry(entry) ? "bg-primary animate-pulse" : entry.status === "partial_failure" ? "bg-warning" : "bg-success-dim",
                 )} />
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-[12.5px] font-black text-on-surface/85 group-hover:text-on-surface transition-colors">{getPathBasename(entry.target_dir, "未命名任务")}</p>
+                  <p className="truncate text-[13px] font-black text-on-surface/85 group-hover:text-on-surface transition-colors">{getPathBasename(entry.target_dir, "未命名任务")}</p>
                   <p className="mt-0.5 truncate text-[11px] font-medium text-ui-muted/50">
                     {getHistoryEntrySummary(entry)} · {formatDisplayDate(entry.created_at)}
                   </p>
                 </div>
               </div>
-              <span className="shrink-0 flex items-center justify-center rounded px-2 py-1 text-[10px] font-black text-primary bg-primary/5 opacity-0 translate-x-2 transition-all duration-200 group-hover:opacity-100 group-hover:translate-x-0 uppercase tracking-widest">
+              <span className="shrink-0 flex items-center justify-center rounded px-2 py-1 text-[11px] font-black text-primary bg-primary/5 opacity-0 translate-x-2 transition-all duration-200 group-hover:opacity-100 group-hover:translate-x-0 uppercase tracking-widest">
                 {getHistoryActionLabel(entry)}
               </span>
             </button>

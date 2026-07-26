@@ -31,7 +31,7 @@ export function DropZoneOverlay({
   return (
     <div
       className={cn(
-        "absolute inset-2 z-50 flex items-center justify-center rounded-[10px] backdrop-blur-[2px] pointer-events-none animate-in fade-in duration-200 overflow-hidden",
+        "absolute inset-2 z-50 flex items-center justify-center rounded-[8px] backdrop-blur-[2px] pointer-events-none animate-in fade-in duration-200 overflow-hidden",
         isSuccess ? "bg-success/[0.035]" : "bg-primary/[0.035]",
         className,
       )}

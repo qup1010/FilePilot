@@ -173,7 +173,7 @@ export function StrategyStep({
                         </div>
 
                         {/* 模拟文件行 */}
-                        <div className="flex items-center gap-1.5 text-[10.5px] text-ui-muted opacity-55" style={{ paddingLeft: "24px" }}>
+                        <div className="flex items-center gap-1.5 text-[11px] text-ui-muted opacity-55" style={{ paddingLeft: "24px" }}>
                           <span className="text-on-surface/20 font-bold font-sans shrink-0">{isLastDir ? "    └─" : "│   └─"}</span>
                           <FileText className="h-3 w-3 shrink-0" />
                           <span className="truncate">{mockFile}</span>
@@ -184,7 +184,7 @@ export function StrategyStep({
                 </div>
               </div>
             </div>
-            <p className="mt-2 text-[10.5px] font-medium leading-relaxed text-ui-muted truncate" title={templateDescription}>
+            <p className="mt-2 text-[11px] font-medium leading-relaxed text-ui-muted truncate" title={templateDescription}>
               {templateDescription}
             </p>
           </div>
@@ -200,7 +200,7 @@ export function StrategyStep({
               </h2>
 
               <div className="space-y-1.5">
-                <div className="text-[10px] font-bold uppercase tracking-wider text-ui-muted">分类归档策略</div>
+                <div className="text-[11px] font-bold uppercase tracking-wider text-ui-muted">分类归档策略</div>
                 <div className="grid grid-cols-2 gap-2">
                   {CAUTION_LEVEL_OPTIONS.map((option) => {
                     const active = strategy.caution_level === option.id;
