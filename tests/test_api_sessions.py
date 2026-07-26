@@ -927,6 +927,15 @@ class SessionApiTests(unittest.TestCase):
         self.assertEqual(matched["status"], "interrupted")
         self.assertTrue(matched["is_session"])
 
+    def test_history_search_endpoint_delegates_to_service(self):
+        with mock.patch.object(self.service, "search_file_history") as search_mock:
+            search_mock.return_value = {"query": "invoice", "total": 1, "matches": [{"display_name": "invoice.pdf"}]}
+            response = self.client.get("/api/history/search", params={"q": "invoice", "limit": 10})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["total"], 1)
+        search_mock.assert_called_once_with("invoice", limit=10)
+
     def test_cleanup_endpoint_returns_session_snapshot_and_count(self):
         created = self.client.post(
             "/api/sessions",

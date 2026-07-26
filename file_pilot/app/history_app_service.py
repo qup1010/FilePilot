@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -57,6 +58,80 @@ class HistoryAppService:
         history = list(history_map.values())
         history.sort(key=lambda x: str(x.get("created_at") or ""), reverse=True)
         return history
+
+    def search_file_history(self, query: str, limit: int = 50) -> dict:
+        """文件粒度检索：输入文件名片段 → 它现在在哪、哪次整理动的。
+
+        一键整理最大的风险不是「移错」而是「找不到」，这个入口是安全论证的
+        组成部分。当前实现全量扫描 journal 目录，几百次执行内无感；再往上
+        需要倒排索引，字段已备齐。
+        """
+        import json
+
+        from file_pilot.shared import config
+
+        needle = str(query or "").strip().lower()
+        result_limit = max(1, min(int(limit or 50), 200))
+        if not needle:
+            return {"query": query, "total": 0, "matches": []}
+
+        def _norm(path_text: str | None) -> str:
+            return os.path.normcase(str(path_text or "").replace("\\", "/")).rstrip("/")
+
+        matches: list[dict] = []
+        executions_dir = config.EXECUTION_LOG_DIR
+        journal_paths = list(executions_dir.glob("*.json")) if executions_dir.exists() else []
+        for path in journal_paths:
+            try:
+                data = json.loads(path.read_text(encoding="utf-8"))
+                execution_id = data["execution_id"]
+            except (json.JSONDecodeError, KeyError, OSError):
+                continue
+
+            rolled_back_sources = {
+                _norm(item.get("source"))
+                for attempt in data.get("rollback_attempts", [])
+                for item in attempt.get("results", [])
+                if item.get("action_type") == "MOVE" and item.get("status") == "success"
+            }
+
+            for item in data.get("items", []):
+                if item.get("action_type") != "MOVE":
+                    continue
+                source = str(item.get("source_before") or "")
+                target = str(item.get("target_after") or "")
+                display_name = str(item.get("display_name") or Path(source or target or "unknown").name)
+                haystack = {display_name.lower(), Path(source).name.lower(), Path(target).name.lower()}
+                if not any(needle in text for text in haystack if text):
+                    continue
+
+                item_status = str(item.get("status") or "")
+                if item_status == "success":
+                    if target and _norm(target) in rolled_back_sources:
+                        current_path, status = source, "rolled_back"
+                    else:
+                        current_path, status = target, "success"
+                else:
+                    # skipped / failed / pending：文件没有离开原地（pending 需对账确认）
+                    current_path, status = source, item_status or "unknown"
+
+                matches.append(
+                    {
+                        "display_name": display_name,
+                        "source_path": source or None,
+                        "current_path": current_path or None,
+                        "current_path_exists": bool(current_path) and Path(current_path).exists(),
+                        "status": status,
+                        "message": str(item.get("message") or ""),
+                        "decision_basis": item.get("decision_basis"),
+                        "execution_id": execution_id,
+                        "moved_at": str(data.get("created_at") or ""),
+                        "target_dir": str(data.get("target_dir") or ""),
+                    }
+                )
+
+        matches.sort(key=lambda entry: entry["moved_at"], reverse=True)
+        return {"query": query, "total": len(matches), "matches": matches[:result_limit]}
 
     def delete_history_entry(self, entry_id: str) -> dict:
         session = self.helpers.store.load(entry_id)

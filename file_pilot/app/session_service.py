@@ -1993,6 +1993,9 @@ class OrganizerSessionService:
     def delete_history_entry(self, entry_id: str) -> dict:
         return self.history_app.delete_history_entry(entry_id)
 
+    def search_file_history(self, query: str, limit: int = 50) -> dict:
+        return self.history_app.search_file_history(query, limit=limit)
+
     def get_journal_summary(self, session_id: str) -> dict:
         return self.history_app.get_journal_summary(session_id)
 

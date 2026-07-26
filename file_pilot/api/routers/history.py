@@ -12,6 +12,11 @@ def list_history(request: Request):
     return request.app.state.service.list_history()
 
 
+@router.get("/search")
+def search_file_history(request: Request, q: str = "", limit: int = 50):
+    return request.app.state.service.search_file_history(q, limit=limit)
+
+
 @router.delete("/{entry_id}")
 def delete_history(entry_id: str, request: Request):
     try:
