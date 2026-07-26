@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import {
   Activity,
@@ -16,16 +16,12 @@ import {
   Loader2,
   Sparkles,
   Trash2,
-  Upload,
   FolderPlus,
-  ChevronDown,
   ChevronLeft,
-  ShieldAlert,
   X,
   Info,
 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
-import { useVirtualizer } from "@tanstack/react-virtual";
 
 import { createApiClient } from "@/lib/api";
 import {
@@ -51,29 +47,51 @@ import {
   listenToTauriDragDrop,
 } from "@/lib/tauri-drag-drop";
 import { getSessionStageView } from "@/lib/session-view-model";
+import { subscribeAppContext } from "@/lib/app-context-store";
+import { isHistorySessionEntry } from "@/lib/use-history-list";
+import { deriveWorkspaceRoot } from "@/lib/path-normalization";
+import { buildWorkspaceRoute, getWorkspaceRouteForSnapshot } from "@/lib/workspace-routes";
 import {
-  ACTIVE_WORKSPACE_ROUTE_KEY,
-  readActiveWorkspaceRoute,
-  rememberActiveWorkspaceRoute,
-  subscribeAppContext,
-} from "@/lib/app-context-store";
-import { getHistoryEntrySummary, isHistorySessionEntry } from "@/lib/use-history-list";
-import { deriveWorkspaceRoot, getPathBasename } from "@/lib/path-normalization";
-import { buildWorkspaceRoute, getWorkspaceRouteForHistoryEntry, getWorkspaceRouteForSnapshot } from "@/lib/workspace-routes";
+  clearLauncherDraft,
+  persistLauncherDraft,
+  readLauncherDraft,
+  sanitizeLauncherDraft,
+  type LauncherDraftState,
+} from "@/lib/launcher-draft";
+import {
+  createDirectorySource,
+  createImportGroupId,
+  dedupeSources,
+  dedupeTargetDirectories,
+  extractDroppedSources,
+  inferSourceSelectionsFromPaths,
+  mapDirectoryEntryToSource,
+  pathKey,
+  sortSourcesForDisplay,
+  sourceSelectionFromDraft,
+  sourceSelectionKey,
+  targetDirectoryEditorKey,
+  type SourceDraftType,
+  type SourceImportGroup,
+  type TargetDirectoryDraft,
+} from "@/lib/launcher-sources";
+import {
+  describeWorkspaceTask,
+  getHistoryRoute,
+  readActiveWorkspaceTask,
+  rememberWorkspaceRoute,
+  type LaunchWorkbenchTask,
+} from "@/lib/launcher-task-helpers";
 import {
   buildStrategySummary,
   CAUTION_LEVEL_OPTIONS,
   DEFAULT_STRATEGY_SELECTION,
   DENSITY_OPTIONS,
   getLaunchStrategyFromConfig,
-  getSuggestedSelection,
   getTemplateMeta,
-  LANGUAGE_OPTIONS,
-  PREFIX_STYLE_OPTIONS,
   shouldSkipLaunchStrategyPrompt,
-  STRATEGY_TEMPLATES,
 } from "@/lib/strategy-templates";
-import { cn, formatDisplayDate } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import type {
   DirectorySourceMode,
   LaunchStrategyConfig,
@@ -97,31 +115,15 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { LaunchTransitionOverlay } from "./launcher/launch-transition-overlay";
+import { LauncherHistoryPanel } from "./launcher/launcher-history-panel";
 import { ResumePromptDialog } from "./launcher/resume-prompt-dialog";
-
-type SourceDraftType = "directory" | "file";
-
-type TargetDirectoryDraft = {
-  path: string;
-  label: string;
-  description: string;
-};
-
-type SourceImportGroup = {
-  group_id: string;
-  source_path: string;
-  item_keys: string[];
-  expanded: boolean;
-};
+import { type LauncherSourceListItem } from "./launcher/source-list";
+import { SourceStep } from "./launcher/source-step";
+import { StrategyStep } from "./launcher/strategy-step";
 
 type SourceFeedback = {
   tone: "success" | "info";
   message: string;
-};
-
-type LaunchWorkbenchTask = {
-  route: string;
-  sessionId: string | null;
 };
 
 const LAUNCH_TRANSITION_TIMEOUT_MS = 20000;
@@ -140,256 +142,6 @@ type LaunchRequestState = {
   display_path: string;
 };
 
-type LauncherDraftState = {
-  version: 1;
-  step?: 1 | 2 | 3;
-  strategy?: SessionStrategySelection;
-  sources?: SessionSourceSelection[];
-  sourceImportGroups?: SourceImportGroup[];
-  sourceDraftType?: SourceDraftType;
-  sourceDraftPath?: string;
-  newDirectoryRoot?: string;
-  reviewRoot?: string;
-  reviewFollowsNewRoot?: boolean;
-  showPlacementOverrides?: boolean;
-  manualTargetDirectories?: TargetDirectoryDraft[];
-  targetDirectoryDraft?: string;
-  selectedTargetProfileId?: string;
-  showManualInput?: boolean;
-  showManualTargetInput?: boolean;
-};
-
-const LAUNCHER_DRAFT_KEY = "file_pilot_launcher_draft";
-
-function createImportGroupId(): string {
-  return `import-group:${Date.now()}:${Math.random().toString(36).slice(2, 8)}`;
-}
-
-function normalizeDirectoryMode(item: Pick<SessionSourceSelection, "source_type" | "directory_mode">): DirectorySourceMode {
-  if (item.source_type !== "directory") {
-    return "atomic";
-  }
-  return item.directory_mode === "atomic" ? "atomic" : "contents";
-}
-
-function createDirectorySource(path: string, directoryMode: DirectorySourceMode = "atomic"): SessionSourceSelection {
-  return {
-    source_type: "directory",
-    path,
-    directory_mode: directoryMode,
-  };
-}
-
-function pathKey(path: string): string {
-  let normalized = String(path || "").trim().replace(/\\/g, "/");
-  normalized = normalized.replace(/\/+/g, "/");
-  while (normalized.length > 1 && normalized.endsWith("/") && !/^[a-z]:\/$/i.test(normalized)) {
-    normalized = normalized.slice(0, -1);
-  }
-  return normalized.toLowerCase();
-}
-
-function targetDirectoryEditorKey(path: string): string {
-  return `target:${pathKey(path)}`;
-}
-
-function sourceSelectionKey(item: Pick<SessionSourceSelection, "source_type" | "path">): string {
-  return `${item.source_type}:${pathKey(item.path)}`;
-}
-
-function normalizeSourceSelection(item: SessionSourceSelection): SessionSourceSelection | null {
-  const path = item.path.trim();
-  if (!path) {
-    return null;
-  }
-  if (item.source_type === "directory") {
-    return createDirectorySource(path, normalizeDirectoryMode(item));
-  }
-  if (item.source_type === "file") {
-    return { source_type: "file", path };
-  }
-  return null;
-}
-
-function dedupeSources(items: SessionSourceSelection[]): SessionSourceSelection[] {
-  const seen = new Map<string, SessionSourceSelection>();
-  for (const item of items) {
-    const normalized = normalizeSourceSelection(item);
-    if (!normalized) continue;
-    const key = sourceSelectionKey(normalized);
-    if (seen.has(key)) {
-      seen.delete(key);
-    }
-    seen.set(key, normalized);
-  }
-  return Array.from(seen.values());
-}
-
-function compareSourceForDisplay(a: SessionSourceSelection, b: SessionSourceSelection): number {
-  if (a.source_type !== b.source_type) {
-    return a.source_type === "directory" ? -1 : 1;
-  }
-  return getPathBasename(a.path, a.path).localeCompare(getPathBasename(b.path, b.path), "zh-Hans-CN", {
-    numeric: true,
-    sensitivity: "base",
-  });
-}
-
-function sortSourcesForDisplay(items: SessionSourceSelection[]): SessionSourceSelection[] {
-  return [...items].sort(compareSourceForDisplay);
-}
-
-function readLauncherDraft(): LauncherDraftState | null {
-  if (typeof window === "undefined") {
-    return null;
-  }
-  const raw = window.localStorage.getItem(LAUNCHER_DRAFT_KEY);
-  if (!raw) {
-    return null;
-  }
-  try {
-    const parsed = JSON.parse(raw) as LauncherDraftState;
-    return parsed?.version === 1 ? parsed : null;
-  } catch {
-    return null;
-  }
-}
-
-function sanitizeLauncherDraft(draft: LauncherDraftState | null): LauncherDraftState | null {
-  if (!draft) {
-    return null;
-  }
-  const sources = dedupeSources(draft.sources || []);
-  const sourceKeys = new Set(sources.map((item) => sourceSelectionKey(item)));
-  return {
-    ...draft,
-    step: draft.step === 2 || draft.step === 3 ? draft.step : 1,
-    sources,
-    sourceImportGroups: (draft.sourceImportGroups || [])
-      .map((group) => ({
-        ...group,
-        item_keys: group.item_keys.filter((key) => sourceKeys.has(key)),
-        expanded: Boolean(group.expanded),
-      }))
-      .filter((group) => group.item_keys.length > 0),
-    sourceDraftType: draft.sourceDraftType === "file" ? "file" : "directory",
-    sourceDraftPath: draft.sourceDraftPath || "",
-    manualTargetDirectories: (draft.manualTargetDirectories || []).filter((item) => item.path.trim()),
-    targetDirectoryDraft: draft.targetDirectoryDraft || "",
-    selectedTargetProfileId: draft.selectedTargetProfileId || "",
-    showManualInput: Boolean(draft.showManualInput),
-    showManualTargetInput: Boolean(draft.showManualTargetInput),
-    showPlacementOverrides: Boolean(draft.showPlacementOverrides),
-  };
-}
-
-function clearLauncherDraft() {
-  if (typeof window === "undefined") {
-    return;
-  }
-  window.localStorage.removeItem(LAUNCHER_DRAFT_KEY);
-}
-
-function rememberWorkspaceRoute(route: string) {
-  if (typeof window === "undefined") {
-    return;
-  }
-  const [pathname, search = ""] = route.split("?");
-  const params = new URLSearchParams(search);
-  params.delete("auto_scan");
-  const normalizedRoute = params.toString() ? `${pathname}?${params.toString()}` : pathname;
-  rememberActiveWorkspaceRoute(normalizedRoute);
-}
-
-function readActiveWorkspaceTask(): LaunchWorkbenchTask | null {
-  if (typeof window === "undefined") {
-    return null;
-  }
-  const route = readActiveWorkspaceRoute();
-  if (!route?.startsWith("/workspace")) {
-    return null;
-  }
-  const [pathname, search = ""] = route.split("?");
-  const params = new URLSearchParams(search);
-  const isReadOnly = params.get("readonly") === "1";
-  const isResultView = pathname.includes("/workspace/result") || pathname.includes("/result");
-  const sessionId = params.get("session_id");
-
-  if (isReadOnly || isResultView) {
-    window.localStorage.removeItem(ACTIVE_WORKSPACE_ROUTE_KEY);
-    return null;
-  }
-
-  return {
-    route,
-    sessionId,
-  };
-}
-
-function describeWorkspaceTask(task: LaunchWorkbenchTask): string {
-  try {
-    const [pathname, search = ""] = task.route.split("?");
-    const params = new URLSearchParams(search);
-    const stageLabel = pathname.includes("/review")
-      ? "安全检查"
-      : pathname.includes("/plan")
-        ? "方案调整"
-        : pathname.includes("/recovery")
-          ? "等待恢复"
-          : "整理进行中";
-    const dir = params.get("dir");
-    if (dir) {
-      const name = dir.replace(/[\\/]+$/, "").split(/[\\/]/).pop() || dir;
-      return `${name} · ${stageLabel}`;
-    }
-    return stageLabel;
-  } catch {
-    return "整理任务进行中";
-  }
-}
-
-function getHistoryRoute(entry: HistoryItem, options?: { readonly?: boolean }) {
-  return getWorkspaceRouteForHistoryEntry({
-    sessionId: entry.execution_id,
-    targetDir: entry.target_dir,
-    status: entry.status,
-    itemCount: entry.item_count,
-    readonly: options?.readonly,
-  });
-}
-
-function getHistoryActionLabel(entry: HistoryItem): string {
-  if (isHistorySessionEntry(entry)) {
-    const status = String(entry.status || "").toLowerCase();
-    if (status === "draft" || status === "idle") {
-      return "继续并扫描";
-    }
-    if (status === "interrupted" || status === "stale") {
-      return "恢复处理";
-    }
-    return "继续任务";
-  }
-  return "查看记录";
-}
-
-function dedupeTargetDirectories(items: TargetProfileDirectory[]): TargetProfileDirectory[] {
-  const seen = new Map<string, TargetProfileDirectory>();
-  for (const item of items) {
-    const path = item.path.trim();
-    if (!path) continue;
-    const key = pathKey(path);
-    if (seen.has(key)) {
-      seen.delete(key);
-    }
-    seen.set(key, {
-      path,
-      label: item.label?.trim() || "",
-      description: item.description?.trim() || "",
-    });
-  }
-  return Array.from(seen.values());
-}
-
 function strategyForMethod(previous: SessionStrategySelection, organizeMethod: OrganizeMethod): SessionStrategySelection {
   if (organizeMethod === "assign_into_existing_categories") {
     return {
@@ -406,234 +158,6 @@ function strategyForMethod(previous: SessionStrategySelection, organizeMethod: O
     organize_method: organizeMethod,
   };
 }
-
-function inferDropSourceType(path: string, entry: { isDirectory?: boolean; isFile?: boolean } | null): SourceDraftType {
-  if (entry?.isDirectory) return "directory";
-  if (entry?.isFile) return "file";
-  return /\.[^./\\]+$/.test(path) ? "file" : "directory";
-}
-
-function extractDroppedSources(dataTransfer: DataTransfer): SessionSourceSelection[] {
-  const result: SessionSourceSelection[] = [];
-  const items = Array.from(dataTransfer.items || []);
-  const fallbackFiles = Array.from(dataTransfer.files || []);
-
-  for (const item of items) {
-    if (item.kind !== "file") continue;
-    const file = item.getAsFile();
-    const entry = (item as DataTransferItem & { webkitGetAsEntry?: () => { isDirectory?: boolean; isFile?: boolean } | null }).webkitGetAsEntry?.() || null;
-    const path = String((file as File & { path?: string }).path || "");
-    if (!path) continue;
-    result.push({
-      ...(inferDropSourceType(path, entry) === "file"
-        ? ({ source_type: "file", path } as SessionSourceSelection)
-        : createDirectorySource(path, "atomic")),
-    });
-  }
-
-  if (!result.length) {
-    for (const file of fallbackFiles) {
-      const path = String((file as File & { path?: string }).path || "");
-      if (!path) continue;
-      result.push(
-        /\.[^./\\]+$/.test(path)
-          ? { source_type: "file", path }
-          : createDirectorySource(path, "atomic"),
-      );
-    }
-  }
-
-  return dedupeSources(result);
-}
-
-function inferSourceSelectionsFromPaths(paths: string[]): SessionSourceSelection[] {
-  return dedupeSources(
-    paths.map((path) => (
-      /\.[^./\\]+$/.test(path)
-        ? ({ source_type: "file", path } as SessionSourceSelection)
-        : createDirectorySource(path, "atomic")
-    )),
-  );
-}
-
-function sourceSelectionFromDraft(path: string, draftType: SourceDraftType): SessionSourceSelection {
-  if (draftType === "file") {
-    return { source_type: "file", path };
-  }
-  return createDirectorySource(path, "atomic");
-}
-
-function getSourceBehaviorLabel(item: SessionSourceSelection): string {
-  if (item.source_type === "file") {
-    return "单个文件";
-  }
-  return normalizeDirectoryMode(item) === "atomic" ? "整体移动" : "整理里面内容";
-}
-
-function mapDirectoryEntryToSource(entry: { path: string; is_dir: boolean; is_file: boolean }): SessionSourceSelection | null {
-  const path = String(entry.path || "").trim();
-  if (!path) return null;
-  if (entry.is_dir) {
-    return createDirectorySource(path, "atomic");
-  }
-  if (entry.is_file) {
-    return { source_type: "file", path };
-  }
-  return null;
-}
-
-type SourceImportGroupView = SourceImportGroup & { items: SessionSourceSelection[] };
-
-// 扁平化后的虚拟列表行：普通来源行 / 导入组头 / 导入组内嵌行。
-type LauncherSourceListItem =
-  | { kind: "source"; key: string; source: SessionSourceSelection }
-  | { kind: "group-header"; key: string; group: SourceImportGroupView }
-  | { kind: "group-source"; key: string; source: SessionSourceSelection; isFirst: boolean; isLast: boolean };
-
-interface SourceRowProps {
-  item: SessionSourceSelection;
-  nested?: boolean;
-  loading: boolean;
-  onRemove: (path: string, sourceType: SessionSourceSelection["source_type"]) => void;
-  onImportInternal: (item: SessionSourceSelection) => void;
-  onSetAtomicMode: (path: string) => void;
-}
-
-const SourceRow = memo(function SourceRow({
-  item,
-  nested = false,
-  loading,
-  onRemove,
-  onImportInternal,
-  onSetAtomicMode,
-}: SourceRowProps) {
-  const isDirectory = item.source_type === "directory";
-  const isAtomic = normalizeDirectoryMode(item) === "atomic";
-
-  return (
-    <div
-      className={cn(
-        "group flex items-center justify-between gap-3 transition-all active:scale-[0.995]",
-        nested
-          ? "rounded-md border border-on-surface/6 bg-surface px-2.5 py-1.5 hover:border-on-surface/16"
-          : "rounded-lg border border-on-surface/8 bg-surface-container-lowest px-3 py-2 hover:border-on-surface/20",
-      )}
-    >
-      <div className="flex min-w-0 items-center gap-2.5">
-        <div className={cn(
-          "flex shrink-0 items-center justify-center rounded bg-primary/10 text-primary",
-          nested ? "h-7.5 w-7.5" : "h-8.5 w-8.5",
-        )}>
-          {isDirectory ? (
-            <FolderOpen className={cn("text-primary", nested ? "h-3.5 w-3.5" : "h-4 w-4")} />
-          ) : (
-            <FileText className={cn("text-primary", nested ? "h-3.5 w-3.5" : "h-4 w-4")} />
-          )}
-        </div>
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <span className={cn("truncate font-black tracking-tight text-on-surface", nested ? "text-[12.5px]" : "text-[13.5px]")}>
-              {item.path.split(/[\\/]/).pop() || item.path}
-            </span>
-            <span className="shrink-0 rounded bg-on-surface/5 px-1 py-0.2 text-[8px] font-black uppercase tracking-wider text-ui-muted opacity-80 scale-90 origin-left">
-              {getSourceBehaviorLabel(item)}
-            </span>
-          </div>
-          <div className="flex items-center gap-1.5 mt-0.5 leading-none">
-            <span className="truncate font-mono text-[9.5px] font-medium text-ui-muted opacity-40 uppercase tracking-tighter max-w-[280px] sm:max-w-[400px]" title={item.path}>
-              {item.path}
-            </span>
-            {isDirectory && (
-              <>
-                <span className="text-[9px] text-ui-muted opacity-25 select-none">·</span>
-                <button
-                  type="button"
-                  disabled={loading}
-                  onClick={() => {
-                    if (isAtomic) {
-                      onImportInternal(item);
-                    } else {
-                      onSetAtomicMode(item.path);
-                    }
-                  }}
-                  className="shrink-0 text-[9.5px] font-bold text-primary hover:underline transition-colors leading-none"
-                >
-                  {isAtomic ? "导入内部项" : "改为整体移动"}
-                </button>
-              </>
-            )}
-          </div>
-        </div>
-      </div>
-      <button
-        type="button"
-        onClick={() => onRemove(item.path, item.source_type)}
-        disabled={loading}
-        className="shrink-0 rounded-[4px] p-1.5 text-on-surface-variant/40 transition-colors hover:bg-error/10 hover:text-error opacity-0 group-hover:opacity-100 focus:opacity-100"
-        title="移除"
-      >
-        <Trash2 className="h-4 w-4" />
-      </button>
-    </div>
-  );
-});
-
-interface SourceGroupHeaderProps {
-  groupId: string;
-  sourcePath: string;
-  expanded: boolean;
-  itemCount: number;
-  loading: boolean;
-  onToggleExpanded: (groupId: string) => void;
-  onRemoveGroup: (groupId: string) => void;
-}
-
-const SourceGroupHeader = memo(function SourceGroupHeader({
-  groupId,
-  sourcePath,
-  expanded,
-  itemCount,
-  loading,
-  onToggleExpanded,
-  onRemoveGroup,
-}: SourceGroupHeaderProps) {
-  return (
-    <div
-      onClick={() => onToggleExpanded(groupId)}
-      className="flex items-start justify-between gap-3 cursor-pointer hover:bg-primary/[0.03] -m-2 p-2 rounded-lg transition-colors select-none"
-    >
-      <div className="min-w-0 flex items-start gap-2">
-        <div className="mt-1 shrink-0 flex items-center justify-center">
-          <ChevronDown className={cn("h-4 w-4 text-primary/70 transition-transform duration-200", !expanded && "-rotate-90")} />
-        </div>
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <Layers3 className="h-4 w-4 text-primary/70 shrink-0" />
-            <p className="text-[13px] font-black tracking-tight text-on-surface">
-              已从 {sourcePath.split(/[\\/]/).pop()} 导入 {itemCount} 项
-            </p>
-          </div>
-          <p className="mt-1 truncate font-mono text-[10px] font-bold text-ui-muted opacity-40 uppercase tracking-widest">
-            批量导入 · {sourcePath}
-          </p>
-        </div>
-      </div>
-      <div className="flex shrink-0 items-center gap-1.5">
-        <button
-          type="button"
-          disabled={loading}
-          onClick={(e) => {
-            e.stopPropagation();
-            onRemoveGroup(groupId);
-          }}
-          className="rounded-[6px] px-2.5 py-1.5 text-[10.5px] font-bold text-ui-muted/55 transition-colors hover:bg-error/10 hover:text-error"
-        >
-          移除整组
-        </button>
-      </div>
-    </div>
-  );
-});
 
 function placementDefaults(
   config: LaunchStrategyConfig | null,
@@ -916,15 +440,6 @@ export function SessionLauncherShell() {
     return items;
   }, [displaySources, sourceImportGroupByKey, sourceKeyMap]);
 
-  const sourceListScrollRef = useRef<HTMLDivElement | null>(null);
-  const sourceListVirtualizer = useVirtualizer({
-    count: sourceListItems.length,
-    getScrollElement: () => sourceListScrollRef.current,
-    estimateSize: (index) => (sourceListItems[index]?.kind === "group-header" ? 84 : 62),
-    getItemKey: (index) => sourceListItems[index]?.key ?? index,
-    overscan: 8,
-  });
-
   const currentSummary = useMemo(
     () =>
       buildStrategySummary({
@@ -1068,7 +583,7 @@ export function SessionLauncherShell() {
         showManualInput,
         showManualTargetInput,
       };
-      window.localStorage.setItem(LAUNCHER_DRAFT_KEY, JSON.stringify(draft));
+      persistLauncherDraft(draft);
     }, 400);
     return () => window.clearTimeout(timer);
   }, [
@@ -2116,59 +1631,15 @@ export function SessionLauncherShell() {
           </div>
         </div>
 
-        <div className="rounded-lg border border-on-surface/8 bg-surface p-4">
-          <div className="mb-3 flex items-center justify-between gap-2">
-            <div className="flex items-center gap-1.5">
-              <span className="text-[9px] font-black uppercase tracking-[0.2em] text-ui-muted opacity-40">历史轨迹</span>
-              <span className="h-0.5 w-0.5 rounded-full bg-on-surface/10" />
-              <h3 className="text-[12px] font-black text-on-surface uppercase tracking-tight">最近记录</h3>
-            </div>
-            <button
-              type="button"
-              onClick={() => router.push("/history")}
-              className="rounded-md px-2.5 py-1 text-[11px] font-black text-primary hover:bg-primary/8 uppercase tracking-wider transition-colors"
-            >
-              全部记录
-            </button>
-          </div>
-          <div className="grid gap-2 lg:grid-cols-2">
-            {historyLoading ? (
-              <div className="col-span-full flex items-center gap-2 py-5 text-[11.5px] font-black text-ui-muted/60">
-                <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
-                正在读取最近记录
-              </div>
-            ) : recentHistory.length ? (
-              recentHistory.map((entry) => (
-                <button
-                  key={entry.execution_id}
-                  type="button"
-                  onClick={() => router.push(isHistorySessionEntry(entry) ? getHistoryRoute(entry) : `/history?entry_id=${entry.execution_id}`)}
-                  className="group flex w-full items-center justify-between gap-3 rounded-lg border border-on-surface/[0.04] bg-on-surface/[0.005] px-3 py-2.5 text-left transition-all hover:border-primary/10 hover:bg-on-surface/[0.02]"
-                >
-                  <div className="min-w-0 flex-1 flex items-start gap-2.5">
-                    <span className={cn(
-                      "mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full",
-                      isHistorySessionEntry(entry) ? "bg-primary animate-pulse" : entry.status === "partial_failure" ? "bg-warning" : "bg-success-dim",
-                    )} />
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-[12.5px] font-black text-on-surface/85 group-hover:text-on-surface transition-colors">{getPathBasename(entry.target_dir, "未命名任务")}</p>
-                      <p className="mt-0.5 truncate text-[11px] font-medium text-ui-muted/50">
-                        {getHistoryEntrySummary(entry)} · {formatDisplayDate(entry.created_at)}
-                      </p>
-                    </div>
-                  </div>
-                  <span className="shrink-0 flex items-center justify-center rounded px-2 py-1 text-[10px] font-black text-primary bg-primary/5 opacity-0 translate-x-2 transition-all duration-200 group-hover:opacity-100 group-hover:translate-x-0 uppercase tracking-widest">
-                    {getHistoryActionLabel(entry)}
-                  </span>
-                </button>
-              ))
-            ) : (
-              <div className="col-span-full py-5 text-[12px] font-medium text-ui-muted/60">
-                {backendUnavailable ? "连接本地服务失败，暂时读取不到整理记录。" : "还没有整理记录。"}
-              </div>
-            )}
-          </div>
-        </div>
+        <LauncherHistoryPanel
+          entries={recentHistory}
+          loading={historyLoading}
+          backendUnavailable={backendUnavailable}
+          onOpenHistoryPage={() => router.push("/history")}
+          onOpenEntry={(entry) =>
+            router.push(isHistorySessionEntry(entry) ? getHistoryRoute(entry) : `/history?entry_id=${entry.execution_id}`)
+          }
+        />
       </div>
     </section>
   );
@@ -2324,424 +1795,36 @@ export function SessionLauncherShell() {
                 <div className="flex-1 space-y-4">
                   <div className="space-y-4">
                     {step === 1 ? (
-                      <div className="space-y-4">
-                        <div className="mb-1 flex items-center gap-2">
-                          <div className="flex h-6 w-6 items-center justify-center rounded-[4px] bg-primary/10 text-primary">
-                            <Upload className="h-3.5 w-3.5" />
-                          </div>
-                          <h2 className="text-[14px] font-bold text-on-surface">本次整理对象</h2>
-                        </div>
-                        {sources.length === 0 && (
-                          <div className="rounded-[8px] border border-warning/15 bg-warning/[0.035] px-4 py-3 text-warning">
-                            <div className="flex items-start gap-3">
-                              <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-[6px] bg-warning/10">
-                                <ShieldAlert className="h-4 w-4" />
-                              </div>
-                              <div className="min-w-0 flex-1">
-                                <div className="text-[12px] font-black tracking-tight text-on-surface">整理前安全建议</div>
-                                <p className="mt-1 text-[11.5px] font-medium leading-5 text-ui-muted">
-                                  推荐从下载、桌面、照片、个人文档等明确资料夹开始。避免直接选择磁盘根目录、系统目录、软件安装目录或正在开发的代码工程。
-                                </p>
-                              </div>
-                            </div>
-                          </div>
-                        )}
-                        {sources.length === 0 ? (
-                          <motion.div
-                            ref={sourceDropZoneRef}
-                            animate={{
-                              scale: isDropActive ? 1.01 : 1,
-                            }}
-                            className={cn(
-                              getDropZoneSurfaceClassName({
-                                isActive: isDropActive,
-                                isDraggingGlobal,
-                                idleClassName: "border-on-surface/10 bg-on-surface/[0.015] hover:bg-on-surface/[0.03]",
-                                draggingClassName: "border-primary/30 bg-primary/[0.015]",
-                                activeClassName: "border-primary/45 bg-primary/8 text-primary ring-1 ring-primary/15",
-                                className: "group mt-1 flex flex-col items-center justify-center rounded-[8px] px-6 py-8 text-center transition-all duration-300 relative overflow-hidden",
-                              }),
-                              isDropActive && "shadow-lg shadow-primary/10 ring-2 ring-primary/20 border-primary/30 bg-primary/[0.01]"
-                            )}
-                          >
-                            {isDropActive && (
-                              <DropZoneOverlay
-                                icon={Upload}
-                                title="松手即可添加为整理来源"
-                                detail="支持拖入文件夹或单个文件"
-                                className="inset-0 rounded-[8px]"
-                              />
-                            )}
-                            <motion.div
-                              animate={{
-                                y: isDropActive ? [-2, 0, -2] : 0,
-                              }}
-                              transition={{ repeat: Infinity, duration: 1.5, ease: "easeInOut" }}
-                              className={cn(
-                                "mb-3 flex h-12 w-12 items-center justify-center rounded-[10px] transition-all duration-300",
-                                isDropActive ? "bg-primary text-white" : "bg-on-surface/5 text-on-surface/40"
-                              )}
-                            >
-                              <Upload className="h-5 w-5" />
-                            </motion.div>
-                            <h3 className={cn(
-                              "text-[16px] font-black tracking-tight transition-colors duration-300",
-                              isDropActive ? "text-primary" : "text-on-surface"
-                            )}>
-                              {isDropActive ? "松手即可加入这次整理" : "请将想要整理的文件或文件夹拖放到此"}
-                            </h3>
-                            <div className={cn("mt-6 flex flex-col items-center gap-3.5 transition-opacity", isDropActive ? "opacity-20 pointer-events-none" : "opacity-100")}>
-                              {isDesktopEnvironment ? (
-                                <div className="relative flex flex-col items-center">
-                                  <div className="flex items-stretch rounded-[8px] overflow-hidden bg-primary border border-primary/20 shadow-sm transition-all hover:shadow active:scale-[0.99]">
-                                    <button
-                                      type="button"
-                                      disabled={loading}
-                                      onClick={() => void handleImportDirectoryEntries()}
-                                      className="h-11 px-6 text-[14.5px] font-black text-white hover:bg-white/10 active:bg-white/15 transition-colors flex items-center gap-2"
-                                    >
-                                      <span>整理文件夹内容</span>
-                                      <Layers3 className="h-4 w-4 opacity-80" />
-                                    </button>
-                                    <div className="w-[1px] bg-white/20 my-2" />
-                                    <button
-                                      type="button"
-                                      disabled={loading}
-                                      onClick={() => setIsSourceDropdownOpen(!isSourceDropdownOpen)}
-                                      className="px-3 hover:bg-white/10 active:bg-white/15 transition-colors flex items-center justify-center text-white"
-                                    >
-                                      <ChevronDown className={cn("h-4 w-4 transition-transform duration-200", isSourceDropdownOpen && "rotate-180")} />
-                                    </button>
-                                  </div>
-
-                                  {isSourceDropdownOpen && (
-                                    <>
-                                      <div className="fixed inset-0 z-40" onClick={() => setIsSourceDropdownOpen(false)} />
-                                      <div className="absolute top-12 left-1/2 -translate-x-1/2 z-50 min-w-[200px] rounded-[10px] border border-on-surface/8 bg-surface p-1 shadow-lg animate-in fade-in slide-in-from-top-2 duration-200">
-                                        <button
-                                          type="button"
-                                          onClick={() => {
-                                            setIsSourceDropdownOpen(false);
-                                            void handleChooseDirectories();
-                                          }}
-                                          className="w-full text-left px-4 py-2.5 rounded-[6px] text-[12px] font-bold text-on-surface hover:bg-on-surface/[0.04] transition-colors flex items-center justify-between"
-                                        >
-                                          <span>移动整个文件夹</span>
-                                          <span className="text-[10px] text-ui-muted opacity-50 font-normal">保留外壳</span>
-                                        </button>
-                                        <button
-                                          type="button"
-                                          onClick={() => {
-                                            setIsSourceDropdownOpen(false);
-                                            void handleChooseFiles();
-                                          }}
-                                          className="w-full text-left px-4 py-2.5 rounded-[6px] text-[12px] font-bold text-on-surface hover:bg-on-surface/[0.04] transition-colors flex items-center justify-between"
-                                        >
-                                          <span>添加单个文件</span>
-                                          <span className="text-[10px] text-ui-muted opacity-50 font-normal">单个导入</span>
-                                        </button>
-                                      </div>
-                                    </>
-                                  )}
-                                </div>
-                              ) : (
-                                <div className="flex flex-wrap justify-center gap-3">
-                                  <Button
-                                    variant="secondary"
-                                    onClick={() => void handleChooseDirectories()}
-                                    disabled={loading}
-                                    className="h-9 rounded-[6px] border border-on-surface/8 bg-surface px-5 text-[12px] font-bold text-on-surface/70 hover:bg-on-surface/[0.04] hover:text-on-surface active:scale-95 transition-all"
-                                  >
-                                    移动整个文件夹
-                                  </Button>
-                                  <Button
-                                    variant="secondary"
-                                    onClick={() => void handleChooseFiles()}
-                                    disabled={loading}
-                                    className="h-9 rounded-[6px] border border-on-surface/8 bg-surface px-5 text-[12px] font-bold text-on-surface/70 hover:bg-on-surface/[0.04] hover:text-on-surface active:scale-95 transition-all"
-                                  >
-                                    添加单个文件
-                                  </Button>
-                                </div>
-                              )}
-                              <p className="max-w-lg text-[11px] font-medium leading-relaxed text-ui-muted/55 text-center px-4">
-                                {isDesktopEnvironment
-                                  ? "“整理文件夹内容”会分析并提取其中的文件；您也可以点击右侧下拉菜单，选择移动整个文件夹或添加单个文件。"
-                                  : "“移动整个文件夹”会保留文件夹结构本身，“添加单个文件”仅整理选中的文件。"}
-                              </p>
-                              {isDesktopEnvironment && (
-                                <div className="rounded-[6px] border border-on-surface/6 bg-on-surface/[0.015] px-4 py-2 text-[10px] font-mono leading-relaxed text-ui-muted/50 max-w-md text-center mt-1">
-                                  * Windows 原生限制：如需单次混选文件与文件夹，请直接拖拽至上方区域 *
-                                </div>
-                              )}
-                            </div>
-
-
-                            <div className={cn("mt-auto pt-10 flex flex-col items-center gap-5 transition-opacity", isDropActive ? "opacity-10 pointer-events-none" : "opacity-100")}>
-                              {commonDirs.length ? (
-                                <div className="animate-in fade-in slide-in-from-bottom-2 duration-700 flex flex-col items-center">
-                                  <div className="mb-3 flex items-center gap-3">
-                                    <div className="h-px w-6 bg-on-surface/5" />
-                                    <span className="text-[10px] font-black uppercase tracking-[0.2em] text-ui-muted/30">快捷入口</span>
-                                    <div className="h-px w-6 bg-on-surface/5" />
-                                  </div>
-                                  <div className="flex flex-wrap justify-center gap-2 max-w-2xl px-4">
-                                    {commonDirs.slice(0, 5).map((item) => (
-                                      <button
-                                        key={item.path}
-                                        type="button"
-                                        disabled={loading}
-                                        onClick={() => void importDirectoryEntries(item.path)}
-                                        className="group flex items-center gap-2 rounded-full border border-on-surface/6 bg-on-surface/[0.015] px-3 py-1 text-[11px] font-bold text-on-surface/45 transition-all hover:border-primary/20 hover:bg-primary/[0.02] hover:text-primary active:scale-[0.98]"
-                                      >
-                                        <FolderOpen className="h-3 w-3 opacity-40 group-hover:opacity-100" />
-                                        <span className="truncate max-w-[100px]">{item.label || item.path.split(/[\\/]/).pop()}</span>
-                                      </button>
-                                    ))}
-                                  </div>
-                                </div>
-                              ) : null}
-
-                              <button
-                                type="button"
-                                onClick={() => setShowManualInput(!showManualInput)}
-                                className="text-[11px] font-bold text-ui-muted opacity-25 hover:text-primary hover:opacity-100 transition-all uppercase tracking-wider"
-                              >
-                                {showManualInput ? "[ 收起手动输入 ]" : "[ 手动输入路径 ]"}
-                              </button>
-                            </div>
-                          </motion.div>
-                        ) : (
-                          <div ref={sourceDropZoneRef} className="mt-2 space-y-3">
-                            <motion.div
-                              animate={{
-                                scale: isDropActive ? 1.005 : 1,
-                              }}
-                              className={cn(
-                                getDropZoneSurfaceClassName({
-                                  isActive: isDropActive,
-                                  isDraggingGlobal,
-                                  idleClassName: "border-on-surface/8 bg-on-surface/[0.01] hover:bg-on-surface/[0.02] border-dashed",
-                                  draggingClassName: "border-primary/25 bg-primary/[0.01]",
-                                  activeClassName: "border-primary/45 bg-primary/8 text-primary ring-1 ring-primary/15",
-                                  className: "group/add-more flex flex-wrap items-center justify-between gap-3 rounded-[8px] px-3 py-1.5 text-on-surface transition-all duration-300 relative overflow-hidden",
-                                }),
-                                isDropActive && "shadow-lg shadow-primary/5 ring-1 ring-primary/10 border-primary/20 bg-primary/[0.01]"
-                              )}
-                            >
-                              {isDropActive && (
-                                <DropZoneOverlay
-                                  icon={Plus}
-                                  title="松手以追加整理来源"
-                                  detail=""
-                                  className="inset-0 rounded-[8px]"
-                                  panelClassName="flex-row gap-2 py-0"
-                                  iconWrapClassName="h-6 w-6 rounded-[6px]"
-                                  titleClassName="text-[11.5px] font-black tracking-normal"
-                                />
-                              )}
-                              <div className="flex items-center gap-2 min-w-0">
-                                <Plus className={cn("h-4 w-4 shrink-0 transition-colors", isDropActive ? "text-primary animate-pulse" : "text-ui-muted/40 group-hover/add-more:text-primary/70")} />
-                                <span className={cn("text-[11.5px] font-bold truncate", isDropActive ? "text-primary" : "text-ui-muted opacity-55")}>
-                                  {isDropActive ? "松手即可继续加入" : "拖入文件或文件夹以追加来源"}
-                                </span>
-                              </div>
-                              <div className="flex items-center gap-1 text-[11px] font-bold text-on-surface/50">
-                                {isDesktopEnvironment && (
-                                  <>
-                                    <button
-                                      type="button"
-                                      onClick={() => void handleImportDirectoryEntries()}
-                                      disabled={loading}
-                                      className="rounded px-2 py-1 text-primary hover:bg-primary/8 transition-colors disabled:opacity-40"
-                                    >
-                                      整理文件夹内容
-                                    </button>
-                                    <span className="text-on-surface/10 font-normal select-none">|</span>
-                                  </>
-                                )}
-                                <button
-                                  type="button"
-                                  disabled={loading}
-                                  onClick={() => void handleChooseDirectories()}
-                                  className="rounded px-2 py-1 hover:bg-on-surface/[0.04] hover:text-on-surface transition-colors disabled:opacity-40"
-                                >
-                                  移动文件夹
-                                </button>
-                                <span className="text-on-surface/10 font-normal select-none">|</span>
-                                <button
-                                  type="button"
-                                  disabled={loading}
-                                  onClick={() => void handleChooseFiles()}
-                                  className="rounded px-2 py-1 hover:bg-on-surface/[0.04] hover:text-on-surface transition-colors disabled:opacity-40"
-                                >
-                                  单个文件
-                                </button>
-                                <span className="text-on-surface/10 font-normal select-none">|</span>
-                                <button
-                                  type="button"
-                                  onClick={() => setShowManualInput(!showManualInput)}
-                                  className={cn("rounded px-2 py-1 transition-colors", showManualInput ? "text-primary bg-primary/5" : "hover:bg-on-surface/[0.04] hover:text-on-surface")}
-                                >
-                                  手填路径
-                                </button>
-                              </div>
-                            </motion.div>
-
-                            <div className="overflow-hidden rounded-[10px] border border-on-surface/8 bg-surface-container-lowest">
-                              <div className="flex items-center justify-between border-b border-on-surface/6 px-3 py-2 bg-on-surface/[0.015]">
-                                <div className="flex items-center gap-2">
-                                  <span className="flex h-6 w-6 items-center justify-center rounded-[6px] bg-on-surface/5 text-primary">
-                                    <ListTree className="h-3.5 w-3.5" />
-                                  </span>
-                                  <span className="text-[11px] font-black tracking-widest text-ui-muted flex items-center gap-1.5">
-                                    <span>已加入来源</span>
-                                    <span className="text-[10px] font-medium text-ui-muted opacity-50 tracking-normal font-sans">（文件夹已优先置顶显示）</span>
-                                  </span>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                  <span className="text-[10.5px] font-bold text-ui-muted/55">
-                                    文件夹 {sourceStats.directoryCount} · 文件 {sourceStats.fileCount}
-                                  </span>
-                                  <button
-                                    type="button"
-                                    onClick={handleClearSourcesWithConfirm}
-                                    disabled={loading || sources.length === 0}
-                                    className={cn(
-                                      "inline-flex items-center gap-1 rounded-[6px] border px-2.5 py-1 text-[10.5px] font-bold transition-all disabled:opacity-40",
-                                      showClearConfirm
-                                        ? "border-error/30 bg-error/10 text-error animate-pulse"
-                                        : "border-on-surface/8 bg-surface text-on-surface/55 hover:border-error/20 hover:bg-error/5 hover:text-error"
-                                    )}
-                                    title={showClearConfirm ? "再次点击以确认清空" : "一键清空当前来源列表"}
-                                  >
-                                    <Trash2 className="h-3.5 w-3.5" />
-                                    {showClearConfirm ? "确认清空？" : "清空来源"}
-                                  </button>
-                                </div>
-                              </div>
-                              <div ref={sourceListScrollRef} className="max-h-[42vh] min-h-[180px] overflow-y-auto p-2 scrollbar-thin">
-                                <div className="relative w-full" style={{ height: `${sourceListVirtualizer.getTotalSize()}px` }}>
-                                  {sourceListVirtualizer.getVirtualItems().map((virtualRow) => {
-                                    const listItem = sourceListItems[virtualRow.index];
-                                    if (!listItem) {
-                                      return null;
-                                    }
-                                    const isLastOverall = virtualRow.index === sourceListItems.length - 1;
-                                    // 行间距：普通行/组头之间保持原 gap-2；展开的组头与组内行、组内行之间保持连续卡片外观。
-                                    const spacingClass =
-                                      isLastOverall
-                                        || (listItem.kind === "group-header" && listItem.group.expanded)
-                                        || (listItem.kind === "group-source" && !listItem.isLast)
-                                        ? ""
-                                        : "pb-2";
-                                    return (
-                                      <div
-                                        key={listItem.key}
-                                        ref={sourceListVirtualizer.measureElement}
-                                        data-index={virtualRow.index}
-                                        className={cn("absolute left-0 top-0 w-full", spacingClass)}
-                                        style={{ transform: `translateY(${virtualRow.start}px)` }}
-                                      >
-                                        {listItem.kind === "source" ? (
-                                          <SourceRow
-                                            item={listItem.source}
-                                            loading={loading}
-                                            onRemove={removeSource}
-                                            onImportInternal={handleImportInternal}
-                                            onSetAtomicMode={setSourceAtomicMode}
-                                          />
-                                        ) : listItem.kind === "group-header" ? (
-                                          <div
-                                            className={cn(
-                                              "border-primary/20 bg-primary/[0.04] text-on-surface/80",
-                                              listItem.group.expanded ? "rounded-t-xl border-x border-t px-3 pt-3" : "rounded-xl border p-3",
-                                            )}
-                                          >
-                                            <SourceGroupHeader
-                                              groupId={listItem.group.group_id}
-                                              sourcePath={listItem.group.source_path}
-                                              expanded={listItem.group.expanded}
-                                              itemCount={listItem.group.items.length}
-                                              loading={loading}
-                                              onToggleExpanded={toggleImportGroupExpanded}
-                                              onRemoveGroup={removeImportGroup}
-                                            />
-                                          </div>
-                                        ) : (
-                                          <div
-                                            className={cn(
-                                              "border-x border-primary/20 bg-primary/[0.04] px-3",
-                                              listItem.isFirst && "pt-3",
-                                              listItem.isLast && "rounded-b-xl border-b pb-3",
-                                            )}
-                                          >
-                                            <div className={cn(listItem.isFirst ? "border-t border-primary/10 pt-3" : "pt-2")}>
-                                              <SourceRow
-                                                item={listItem.source}
-                                                nested
-                                                loading={loading}
-                                                onRemove={removeSource}
-                                                onImportInternal={handleImportInternal}
-                                                onSetAtomicMode={setSourceAtomicMode}
-                                              />
-                                            </div>
-                                          </div>
-                                        )}
-                                      </div>
-                                    );
-                                  })}
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        )}
-
-                        {showManualInput && (
-                          <div className="mt-4 animate-in fade-in slide-in-from-top-2 duration-200">
-                            <div className="flex items-center gap-2 rounded-[8px] border border-on-surface/12 bg-surface-container-lowest p-1">
-                              <div className="flex shrink-0 rounded-[6px] border border-on-surface/5 bg-surface p-1">
-                                {([
-                                  ["directory", "文件夹"],
-                                  ["file", "文件"],
-                                ] as const).map(([value, label]) => (
-                                  <button
-                                    key={value}
-                                    type="button"
-                                    onClick={() => setSourceDraftType(value)}
-                                    className={[
-                                      "rounded-[4px] px-3 py-1.5 text-[12px] font-bold transition-colors",
-                                      sourceDraftType === value ? "bg-primary/10 text-primary" : "text-on-surface-variant/60 hover:text-on-surface",
-                                    ].join(" ")}
-                                  >
-                                    {label}
-                                  </button>
-                                ))}
-                              </div>
-                              <div className="relative flex-1">
-                                <input
-                                  value={sourceDraftPath}
-                                  onChange={(event) => setSourceDraftPath(event.target.value)}
-                                  disabled={loading}
-                                  placeholder="输入完整绝对路径..."
-                                  className="w-full bg-transparent px-3 py-2 text-[13px] font-medium text-on-surface outline-none placeholder:text-on-surface-variant/40 focus:ring-0"
-                                  onKeyDown={(e) => {
-                                    if (e.key === 'Enter') addManualSource();
-                                  }}
-                                />
-                              </div>
-                              <button
-                                type="button"
-                                onClick={addManualSource}
-                                disabled={loading || !sourceDraftPath.trim()}
-                                className="shrink-0 rounded-[6px] bg-on-surface/5 px-4 py-2 text-[12px] font-bold text-on-surface transition-colors hover:bg-primary/10 hover:text-primary disabled:opacity-50"
-                              >
-                                添加
-                              </button>
-                            </div>
-                          </div>
-                        )}
-                      </div>
+                      <SourceStep
+                        sourceDropZoneRef={sourceDropZoneRef}
+                        loading={loading}
+                        isDropActive={isDropActive}
+                        isDraggingGlobal={isDraggingGlobal}
+                        isDesktopEnvironment={isDesktopEnvironment}
+                        isSourceDropdownOpen={isSourceDropdownOpen}
+                        onSetSourceDropdownOpen={setIsSourceDropdownOpen}
+                        showManualInput={showManualInput}
+                        onSetShowManualInput={setShowManualInput}
+                        commonDirs={commonDirs}
+                        sourceDraftType={sourceDraftType}
+                        onSetSourceDraftType={setSourceDraftType}
+                        sourceDraftPath={sourceDraftPath}
+                        onSetSourceDraftPath={setSourceDraftPath}
+                        onAddManualSource={addManualSource}
+                        onImportDirectoryEntries={() => void handleImportDirectoryEntries()}
+                        onChooseDirectories={() => void handleChooseDirectories()}
+                        onChooseFiles={() => void handleChooseFiles()}
+                        onImportCommonDir={(path) => void importDirectoryEntries(path)}
+                        listItems={sourceListItems}
+                        sourceStats={sourceStats}
+                        showClearConfirm={showClearConfirm}
+                        onClearSources={handleClearSourcesWithConfirm}
+                        onRemoveSource={removeSource}
+                        onImportInternal={handleImportInternal}
+                        onSetAtomicMode={setSourceAtomicMode}
+                        onToggleGroupExpanded={toggleImportGroupExpanded}
+                        onRemoveGroup={removeImportGroup}
+                      />
                     ) : null}
 
                     {step === 2 ? (
@@ -3141,214 +2224,16 @@ export function SessionLauncherShell() {
                           </div>
                         ) : null}
 
-                        <div className="grid gap-4 md:grid-cols-2">
-                          {isFullCategorize ? (
-                            <>
-                              {/* 分类控制参数 */}
-                              <div className="rounded-[8px] bg-surface-container-lowest p-4 flex flex-col justify-between min-h-[160px] border border-on-surface/5">
-                                <div className="space-y-3.5">
-                                  <div className="flex items-center justify-between">
-                                    <h2 className="text-[13px] font-bold text-on-surface flex items-center gap-1.5">
-                                      <Sparkles className="h-3.5 w-3.5 text-primary" />
-                                      分类控制参数
-                                    </h2>
-                                  </div>
-
-                                  <div className="grid grid-cols-2 gap-3">
-                                    {/* 分类模板 */}
-                                    <div className="space-y-1">
-                                      <div className="text-[11px] font-bold text-on-surface/60">分类模板</div>
-                                      <select
-                                        value={strategy.template_id}
-                                        onChange={(event) => {
-                                          const tid = event.target.value as any;
-                                          updateStrategy((previous) => ({
-                                            ...previous,
-                                            template_id: tid,
-                                            ...getSuggestedSelection(tid),
-                                          }));
-                                        }}
-                                        disabled={loading}
-                                        className="h-8.5 w-full rounded-[6px] border border-on-surface/8 bg-surface px-2 text-[12px] font-medium text-on-surface outline-none transition-all focus:border-primary/45 focus:ring-2 focus:ring-primary/5"
-                                      >
-                                        {STRATEGY_TEMPLATES.map((template) => (
-                                          <option key={template.id} value={template.id}>
-                                            {template.label}
-                                          </option>
-                                        ))}
-                                      </select>
-                                    </div>
-
-                                    {/* 目录语言 */}
-                                    <div className="space-y-1">
-                                      <div className="text-[11px] font-bold text-on-surface/60">目录语言</div>
-                                      <div className="flex h-8.5 rounded-[6px] border border-on-surface/8 bg-surface p-0.5 items-center">
-                                        {LANGUAGE_OPTIONS.map((option) => {
-                                          const active = strategy.language === option.id;
-                                          return (
-                                            <button
-                                              key={option.id}
-                                              type="button"
-                                              onClick={() => updateStrategy((prev) => ({ ...prev, language: option.id }))}
-                                              className={cn(
-                                                "flex-1 rounded-[4px] h-full text-[12px] transition-all",
-                                                active
-                                                  ? "bg-primary/10 text-primary font-semibold"
-                                                  : "text-on-surface/60 font-medium hover:text-on-surface"
-                                              )}
-                                            >
-                                              {option.label.replace("目录", "")}
-                                            </button>
-                                          );
-                                        })}
-                                      </div>
-                                    </div>
-                                  </div>
-
-                                  {/* 前缀样式 */}
-                                  <div className="space-y-1">
-                                    <div className="text-[11px] font-bold text-on-surface/60">前缀样式</div>
-                                    <select
-                                      value={strategy.prefix_style}
-                                      onChange={(event) => updateStrategy((prev) => ({ ...prev, prefix_style: event.target.value as any }))}
-                                      className="h-8.5 w-full rounded-[6px] border border-on-surface/8 bg-surface px-2.5 text-[12px] font-medium text-on-surface outline-none transition-all focus:border-primary/45 focus:ring-2 focus:ring-primary/5"
-                                    >
-                                      {PREFIX_STYLE_OPTIONS.map((option) => (
-                                        <option key={option.id} value={option.id}>
-                                          {option.label}
-                                        </option>
-                                      ))}
-                                    </select>
-                                  </div>
-                                </div>
-
-                                <div className="mt-3.5 flex justify-between items-center border-t border-on-surface/5 pt-2">
-                                  <span className="text-[11px] text-on-surface/40 font-medium">微调更多细节？</span>
-                                  <button
-                                    type="button"
-                                    onClick={() => setAdvancedSettingsDialogOpen(true)}
-                                    className="text-[11px] font-bold text-primary hover:underline underline-offset-2"
-                                  >
-                                    更多高级参数...
-                                  </button>
-                                </div>
-                              </div>
-
-                              {/* 分类样式示例 */}
-                              <div className="rounded-[8px] bg-surface-container-lowest p-4 flex flex-col justify-between min-h-[220px] border border-on-surface/5">
-                                <div className="space-y-3">
-                                  <div className="text-[13px] font-black text-on-surface">分类样式示例</div>
-
-                                  {/* 极简模拟树状图面板 */}
-                                  <div className="rounded-[6px] border border-on-surface/8 bg-surface p-3 font-mono text-[11px] text-on-surface/80 max-h-[140px] overflow-y-auto scrollbar-thin space-y-2">
-                                    {/* 根目录节点 */}
-                                    <div className="flex items-center gap-1.5 text-on-surface-variant/70 font-semibold truncate border-b border-on-surface/5 pb-2">
-                                      <FolderOpen className="h-3.5 w-3.5 text-primary/60 shrink-0" />
-                                      <span className="truncate" title={newDirectoryRoot || "D:/Desktop/毕业/毕业答辩PPT"}>
-                                        {newDirectoryRoot || "D:/Desktop/毕业/毕业答辩PPT"}
-                                      </span>
-                                    </div>
-
-                                    {/* 子树节点 */}
-                                    <div className="pl-1.5 space-y-2 pt-0.5">
-                                      {currentSummary.preview_directories?.map((directory, idx, arr) => {
-                                        const isLastDir = idx === arr.length - 1;
-
-                                        // 智能模拟子文件类型
-                                        let mockFile = "相关文档.docx";
-                                        if (directory.includes("票") || directory.includes("账") || directory.includes("财")) {
-                                          mockFile = "账单发票.xlsx";
-                                        } else if (directory.includes("资料") || directory.includes("学习")) {
-                                          mockFile = "复习课件.pptx";
-                                        } else if (directory.includes("归") || directory.includes("史") || directory.includes("备份")) {
-                                          mockFile = "备份归档.zip";
-                                        } else if (directory.includes("图") || directory.includes("照") || directory.includes("影")) {
-                                          mockFile = "素材照片.png";
-                                        }
-
-                                        return (
-                                          <div key={directory} className="space-y-1">
-                                            {/* 文件夹行 */}
-                                            <div className="flex items-center gap-1.5">
-                                              <span className="text-on-surface/20 font-bold font-sans shrink-0">{isLastDir ? "└─" : "├─"}</span>
-                                              <span className="inline-flex items-center gap-1 rounded-[4px] border border-primary/10 bg-primary/[0.04] px-2 py-0.5 text-[11px] font-bold text-primary max-w-[85%] truncate">
-                                                <FolderOpen className="h-3 w-3 shrink-0 text-primary/60" />
-                                                <span className="truncate">{directory}</span>
-                                              </span>
-                                            </div>
-
-                                            {/* 模拟文件行 */}
-                                            <div className="flex items-center gap-1.5 text-[10.5px] text-ui-muted opacity-55" style={{ paddingLeft: "24px" }}>
-                                              <span className="text-on-surface/20 font-bold font-sans shrink-0">{isLastDir ? "    └─" : "│   └─"}</span>
-                                              <FileText className="h-3 w-3 shrink-0" />
-                                              <span className="truncate">{mockFile}</span>
-                                            </div>
-                                          </div>
-                                        );
-                                      })}
-                                    </div>
-                                  </div>
-                                </div>
-                                <p className="mt-2 text-[10.5px] font-medium leading-relaxed text-ui-muted truncate" title={currentTemplate.description}>
-                                  {currentTemplate.description}
-                                </p>
-                              </div>
-                            </>
-                          ) : (
-                            <>
-                              {/* 归归档倾向配置 */}
-                              <div className="rounded-[8px] bg-surface-container-lowest p-4 flex flex-col justify-between min-h-[160px] border border-on-surface/5">
-                                <div className="space-y-3.5">
-                                  <h2 className="text-[13px] font-black text-on-surface flex items-center gap-1.5">
-                                    <Activity className="h-3.5 w-3.5 text-primary" />
-                                    归档倾向配置
-                                  </h2>
-
-                                  <div className="space-y-1.5">
-                                    <div className="text-[10px] font-bold uppercase tracking-wider text-ui-muted">分类归档策略</div>
-                                    <div className="grid grid-cols-2 gap-2">
-                                      {CAUTION_LEVEL_OPTIONS.map((option) => {
-                                        const active = strategy.caution_level === option.id;
-                                        return (
-                                          <button
-                                            key={option.id}
-                                            type="button"
-                                            onClick={() => updateStrategy((prev) => ({ ...prev, caution_level: option.id }))}
-                                            className={cn(
-                                              "rounded-[6px] border px-2.5 py-1.5 text-left transition-all text-[11px] font-bold",
-                                              active
-                                                ? "border-primary/25 bg-primary/10 text-primary"
-                                                : "border-on-surface/8 bg-surface text-on-surface hover:bg-surface-container-low"
-                                            )}
-                                          >
-                                            <div>{option.label}</div>
-                                          </button>
-                                        );
-                                      })}
-                                    </div>
-                                  </div>
-                                </div>
-                              </div>
-
-                              {/* 任务补充说明 */}
-                              <div className="rounded-[8px] bg-surface-container-lowest p-4 flex flex-col justify-between min-h-[160px] border border-on-surface/5">
-                                <div className="space-y-2 flex-1 flex flex-col">
-                                  <div className="text-[11px] font-black text-on-surface flex items-center gap-1.5">
-                                    <FileText className="h-3.5 w-3.5 text-primary" />
-                                    补充说明 (可选)
-                                  </div>
-                                  <textarea
-                                    value={strategy.note}
-                                    disabled={loading}
-                                    onChange={(event) => updateStrategy((previous) => ({ ...previous, note: event.target.value.slice(0, 200) }))}
-                                    placeholder="例如：拿不准的先放待确认区；优先归入现有项目目录。"
-                                    className="w-full flex-1 min-h-[80px] resize-none rounded-[6px] border border-on-surface/8 bg-surface px-3 py-2 text-[12px] leading-relaxed text-on-surface outline-none transition-all placeholder:text-on-surface-variant/35 focus:border-primary/30"
-                                  />
-                                </div>
-                              </div>
-                            </>
-                          )}
-                        </div>
+                        <StrategyStep
+                          strategy={strategy}
+                          loading={loading}
+                          isFullCategorize={isFullCategorize}
+                          newDirectoryRoot={newDirectoryRoot}
+                          previewDirectories={currentSummary.preview_directories}
+                          templateDescription={currentTemplate.description}
+                          onUpdateStrategy={updateStrategy}
+                          onOpenAdvancedSettings={() => setAdvancedSettingsDialogOpen(true)}
+                        />
                       </div>
                     ) : null}
 
