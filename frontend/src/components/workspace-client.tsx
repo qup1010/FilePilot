@@ -1247,11 +1247,31 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
     );
   };
 
+  const renderIncrementalSelection = () => (
+    <IncrementalSelectionView
+      rootDirectoryOptions={incrementalSelection?.root_directory_options || []}
+      sourceTreeEntries={snapshot?.source_tree_entries || []}
+      loading={loading}
+      onConfirm={(selectedTargetDirs) => {
+        if (!isReadOnly) {
+          void requestWorkspaceNotificationPermission();
+          void confirmTargetDirectories(selectedTargetDirs);
+        }
+      }}
+      onExit={handleExitWorkbench}
+    />
+  );
+
   const renderPreviewContent = () => (
     <ErrorBoundary fallbackTitle="预览区加载失败">
         <div className="h-full w-full">
           {(() => {
             if (view === "progress") {
+              // 目标选择阶段被路由映射到 progress 视图；不优先处理会落入扫描进度分支，
+              // 用户会永远停留在"正在分析"而看不到目录选择界面。
+              if (stageView.isTargetSelection) {
+                return renderIncrementalSelection();
+              }
               if (stageView.isDraftLike) {
                 return (
                   <EmptyState
@@ -1436,20 +1456,7 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
             }
 
             if (stageView.isTargetSelection) {
-              return (
-                <IncrementalSelectionView
-                  rootDirectoryOptions={incrementalSelection?.root_directory_options || []}
-                  sourceTreeEntries={snapshot?.source_tree_entries || []}
-                  loading={loading}
-                  onConfirm={(selectedTargetDirs) => {
-                    if (!isReadOnly) {
-                      void requestWorkspaceNotificationPermission();
-                      void confirmTargetDirectories(selectedTargetDirs);
-                    }
-                  }}
-                  onExit={handleExitWorkbench}
-                />
-              );
+              return renderIncrementalSelection();
             }
 
             return (
