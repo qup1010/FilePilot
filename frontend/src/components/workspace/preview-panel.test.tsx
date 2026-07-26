@@ -433,7 +433,7 @@ describe("PreviewPanel", () => {
     expect(screen.getAllByText("第四版").length).toBeGreaterThan(0);
     expect(screen.queryByText("client")).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getAllByRole("button", { name: "PLAN 建议" })[0]);
+    fireEvent.click(screen.getAllByRole("button", { name: "建议 PLAN" })[0]);
 
     expect(screen.getAllByText("第四版").length).toBeGreaterThan(0);
     expect(screen.queryByText("client")).not.toBeInTheDocument();
@@ -511,7 +511,7 @@ describe("PreviewPanel", () => {
       />,
     );
 
-    fireEvent.click(screen.getAllByRole("button", { name: "PLAN 建议" })[0]);
+    fireEvent.click(screen.getAllByRole("button", { name: "建议 PLAN" })[0]);
 
     expect(screen.getByText("整理后结构尚在生成")).toBeInTheDocument();
     expect(screen.getByText("先切回“前”查看原始目录，方案稳定后这里会自动出现整理后结构。")).toBeInTheDocument();
@@ -560,7 +560,7 @@ describe("PreviewPanel", () => {
       />,
     );
 
-    fireEvent.click(screen.getAllByRole("button", { name: "PLAN 建议" })[0]);
+    fireEvent.click(screen.getAllByRole("button", { name: "建议 PLAN" })[0]);
 
     expect(screen.getAllByText("待确认区").length).toBeGreaterThan(0);
     expect(screen.queryByText("D:")).not.toBeInTheDocument();
@@ -634,7 +634,7 @@ describe("PreviewPanel", () => {
       />,
     );
 
-    fireEvent.click(screen.getAllByRole("button", { name: "PLAN 建议" })[0]);
+    fireEvent.click(screen.getAllByRole("button", { name: "建议 PLAN" })[0]);
 
     expect(screen.getAllByText("待确认区").length).toBeGreaterThan(0);
     expect(screen.queryByText("Inbox")).not.toBeInTheDocument();

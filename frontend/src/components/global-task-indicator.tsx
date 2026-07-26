@@ -1,9 +1,9 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence } from "motion/react";
 import { createApiClient } from "@/lib/api";
 import { getApiBaseUrl, getApiToken } from "@/lib/runtime";
 import { cn } from "@/lib/utils";
@@ -47,8 +47,9 @@ export function GlobalTaskIndicator() {
   }, []);
 
   // 有当前任务时，定时读取后端快照。
+  // 工作区页面本身已通过 SSE 持有完整快照，此时轮询只是重复开销，直接停掉。
   useEffect(() => {
-    if (!activeSessionId) {
+    if (!activeSessionId || pathname.startsWith("/workspace")) {
       setSnapshot(null);
       setIsVisible(false);
       return;
@@ -80,7 +81,7 @@ export function GlobalTaskIndicator() {
     timer = window.setInterval(update, 3000);
 
     return () => window.clearInterval(timer);
-  }, [activeSessionId]);
+  }, [activeSessionId, pathname]);
 
   const taskState = useMemo(() => {
     if (!snapshot) return null;

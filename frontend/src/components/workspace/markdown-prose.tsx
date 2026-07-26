@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import ReactMarkdown from "react-markdown";
+import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Check, Copy, ExternalLink } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -57,13 +57,12 @@ function CompactCodeBlock({ children }: { children: React.ReactNode }) {
   );
 }
 
-export function MarkdownProse({ content, density = "default" }: { content: string; density?: MarkdownDensity }) {
-  const compact = density === "compact";
+const REMARK_PLUGINS = [remarkGfm];
 
-  return (
-    <ReactMarkdown
-      remarkPlugins={[remarkGfm]}
-      components={{
+// memo + useMemo：流式输出时对话列表整体重渲染，未变化的历史消息不应重新解析 markdown。
+export const MarkdownProse = React.memo(function MarkdownProse({ content, density = "default" }: { content: string; density?: MarkdownDensity }) {
+  const compact = density === "compact";
+  const components = React.useMemo<Components>(() => ({
         p: ({ node, ...props }) => <div className={cn("mb-1 last:mb-0 text-[13px] text-on-surface/85", compact ? "leading-5" : "leading-6")} {...props} />,
         strong: ({ node, ...props }) => <strong className="font-black text-on-surface tracking-tight" {...props} />,
         em: ({ node, ...props }) => <em className="italic text-on-surface/60 font-medium" {...props} />,
@@ -124,9 +123,11 @@ export function MarkdownProse({ content, density = "default" }: { content: strin
           }
           return <input {...props} />;
         },
-      }}
-    >
+  }), [compact]);
+
+  return (
+    <ReactMarkdown remarkPlugins={REMARK_PLUGINS} components={components}>
       {content}
     </ReactMarkdown>
   );
-}
+});

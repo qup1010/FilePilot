@@ -1,11 +1,11 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
-import { ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, File, FileWarning, Folder, FolderOpen, Layers } from "lucide-react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, Folder, FolderOpen, Layers } from "lucide-react";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
-import { getFileIcon } from "./preview/preview-utils";
-import { AnimatePresence, motion } from "framer-motion";
+import { getFileIcon, zhCollator } from "./preview/preview-utils";
+import { AnimatePresence, motion } from "motion/react";
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -80,13 +80,16 @@ function buildTree(column: DirectoryTreeColumnData, filter: DirectoryTreeFilter 
     descendantFileCount: 0,
   };
   const baseRootParts = column.baseLabel ? [column.baseLabel] : [];
+  const directoryIndex = new Map<string, DirectoryTreeNode>();
+  directoryIndex.set("", root);
+  const fileIndex = new Map<string, DirectoryTreeNode>();
 
   const ensureDirectory = (parts: string[]) => {
     let current = root;
     let currentPath = "";
     for (const part of parts) {
       currentPath = currentPath ? `${currentPath}/${part}` : part;
-      let child = current.children.find((node) => node.kind === "directory" && node.name === part);
+      let child = directoryIndex.get(currentPath);
       if (!child) {
         child = {
           name: part,
@@ -95,6 +98,7 @@ function buildTree(column: DirectoryTreeColumnData, filter: DirectoryTreeFilter 
           children: [],
           descendantFileCount: 0,
         };
+        directoryIndex.set(currentPath, child);
         current.children.push(child);
       }
       current = child;
@@ -132,7 +136,7 @@ function buildTree(column: DirectoryTreeColumnData, filter: DirectoryTreeFilter 
     }
     const parent = ensureDirectory(parts);
     const filePath = parts.length ? `${parts.join("/")}/${filename}` : filename;
-    let fileNode = parent.children.find((node) => node.kind === "file" && node.name === filename);
+    let fileNode = fileIndex.get(filePath);
     if (!fileNode) {
       fileNode = {
         name: filename,
@@ -142,6 +146,7 @@ function buildTree(column: DirectoryTreeColumnData, filter: DirectoryTreeFilter 
         status: entry.status || "pending",
         descendantFileCount: 1,
       };
+      fileIndex.set(filePath, fileNode);
       parent.children.push(fileNode);
     } else {
       fileNode.status = entry.status || fileNode.status;
@@ -153,7 +158,7 @@ function buildTree(column: DirectoryTreeColumnData, filter: DirectoryTreeFilter 
       if (a.kind !== b.kind) {
         return a.kind === "directory" ? -1 : 1;
       }
-      return a.name.localeCompare(b.name, "zh-CN");
+      return zhCollator.compare(a.name, b.name);
     });
     for (const node of nodes) {
       if (node.kind === "directory") {
@@ -232,13 +237,15 @@ function DirectoryTreePanel({
 }) {
   useEffect(() => {
     setExpanded((prev) => {
+      let changed = false;
       const next = { ...prev };
       for (const node of tree) {
         if (!(node.path in next)) {
           next[node.path] = true;
+          changed = true;
         }
       }
-      return next;
+      return changed ? next : prev;
     });
   }, [tree, setExpanded]);
 
@@ -459,19 +466,24 @@ export function DirectoryTreeDiff({ before, after, filter = "all", onOpenExplore
     setExpandedAfter(nextAfter);
   };
 
+  const treeShortcutsRef = useRef({ expandAll: handleExpandAll, collapseAll: handleCollapseAll });
+  useEffect(() => {
+    treeShortcutsRef.current = { expandAll: handleExpandAll, collapseAll: handleCollapseAll };
+  });
+
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if ((event.ctrlKey || event.metaKey) && event.altKey && event.key.toLowerCase() === "e") {
         event.preventDefault();
-        handleExpandAll();
+        treeShortcutsRef.current.expandAll();
       } else if ((event.ctrlKey || event.metaKey) && event.altKey && event.key.toLowerCase() === "c") {
         event.preventDefault();
-        handleCollapseAll();
+        treeShortcutsRef.current.collapseAll();
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [beforeTree, afterTree]);
+  }, []);
 
   return (
     <div className="space-y-4">

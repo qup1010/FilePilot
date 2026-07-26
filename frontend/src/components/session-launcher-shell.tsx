@@ -18,15 +18,13 @@ import {
   Trash2,
   Upload,
   FolderPlus,
-  FilePlus,
-  LogOut,
   ChevronDown,
   ChevronLeft,
   ShieldAlert,
   X,
   Info,
 } from "lucide-react";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion } from "motion/react";
 
 import { createApiClient } from "@/lib/api";
 import {
@@ -75,7 +73,6 @@ import type {
   SessionSnapshot,
   SessionSourceSelection,
   SessionStrategySelection,
-  SessionStrategySummary,
   TargetProfile,
   TargetProfileDirectory,
   HistoryItem,
@@ -154,7 +151,7 @@ type LauncherDraftState = {
   showManualTargetInput?: boolean;
 };
 
-const IMPORT_GROUP_PREVIEW_LIMIT = 5;
+const _IMPORT_GROUP_PREVIEW_LIMIT = 5;
 const LAUNCHER_DRAFT_KEY = "file_pilot_launcher_draft";
 const ACTIVE_WORKSPACE_ROUTE_KEY = "workspace_active_route";
 const APP_CONTEXT_EVENT = "file-pilot-context-change";
@@ -330,6 +327,28 @@ function readActiveWorkspaceTask(): LaunchWorkbenchTask | null {
   };
 }
 
+function describeWorkspaceTask(task: LaunchWorkbenchTask): string {
+  try {
+    const [pathname, search = ""] = task.route.split("?");
+    const params = new URLSearchParams(search);
+    const stageLabel = pathname.includes("/review")
+      ? "安全检查"
+      : pathname.includes("/plan")
+        ? "方案调整"
+        : pathname.includes("/recovery")
+          ? "等待恢复"
+          : "整理进行中";
+    const dir = params.get("dir");
+    if (dir) {
+      const name = dir.replace(/[\\/]+$/, "").split(/[\\/]/).pop() || dir;
+      return `${name} · ${stageLabel}`;
+    }
+    return stageLabel;
+  } catch {
+    return "整理任务进行中";
+  }
+}
+
 function getHistoryRoute(entry: HistoryItem, options?: { readonly?: boolean }) {
   return getWorkspaceRouteForHistoryEntry({
     sessionId: entry.execution_id,
@@ -464,7 +483,7 @@ function getSourceBehaviorLabel(item: SessionSourceSelection): string {
   return normalizeDirectoryMode(item) === "atomic" ? "整体移动" : "整理里面内容";
 }
 
-function getSourceBehaviorHint(item: SessionSourceSelection): string {
+function _getSourceBehaviorHint(item: SessionSourceSelection): string {
   if (item.source_type === "file") {
     return "按单个文件处理。";
   }
@@ -808,7 +827,7 @@ export function SessionLauncherShell() {
     targetProfilesLoading,
   ]);
 
-  const stepThreeValidationMessage = step === 3 ? getLaunchValidationMessage("default") : null;
+  const _stepThreeValidationMessage = step === 3 ? getLaunchValidationMessage("default") : null;
   const fastStartValidationMessage = step === 1 && skipStrategyPrompt && sources.length > 0
     ? getLaunchValidationMessage("direct")
     : null;
@@ -849,25 +868,29 @@ export function SessionLauncherShell() {
     if (!draftHydrated || typeof window === "undefined") {
       return;
     }
-    const draft: LauncherDraftState = {
-      version: 1,
-      step,
-      strategy,
-      sources,
-      sourceImportGroups: pruneImportGroups(sourceImportGroups, sources),
-      sourceDraftType,
-      sourceDraftPath,
-      newDirectoryRoot,
-      reviewRoot,
-      reviewFollowsNewRoot,
-      showPlacementOverrides,
-      manualTargetDirectories,
-      targetDirectoryDraft,
-      selectedTargetProfileId,
-      showManualInput,
-      showManualTargetInput,
-    };
-    window.localStorage.setItem(LAUNCHER_DRAFT_KEY, JSON.stringify(draft));
+    // 防抖：sources 可能包含数千条导入项，序列化 + 同步写盘不能跟着每次按键跑。
+    const timer = window.setTimeout(() => {
+      const draft: LauncherDraftState = {
+        version: 1,
+        step,
+        strategy,
+        sources,
+        sourceImportGroups: pruneImportGroups(sourceImportGroups, sources),
+        sourceDraftType,
+        sourceDraftPath,
+        newDirectoryRoot,
+        reviewRoot,
+        reviewFollowsNewRoot,
+        showPlacementOverrides,
+        manualTargetDirectories,
+        targetDirectoryDraft,
+        selectedTargetProfileId,
+        showManualInput,
+        showManualTargetInput,
+      };
+      window.localStorage.setItem(LAUNCHER_DRAFT_KEY, JSON.stringify(draft));
+    }, 400);
+    return () => window.clearTimeout(timer);
   }, [
     draftHydrated,
     manualTargetDirectories,
@@ -1749,7 +1772,7 @@ export function SessionLauncherShell() {
     setLoading(false);
   }
 
-  function handleDrop(event: React.DragEvent<HTMLDivElement>) {
+  function _handleDrop(event: React.DragEvent<HTMLDivElement>) {
     event.preventDefault();
     setIsDropActive(false);
     const droppedSources = extractDroppedSources(event.dataTransfer);
@@ -1761,12 +1784,12 @@ export function SessionLauncherShell() {
     setError(null);
   }
 
-  function handleDragOver(event: React.DragEvent<HTMLDivElement>) {
+  function _handleDragOver(event: React.DragEvent<HTMLDivElement>) {
     event.preventDefault();
     setIsDropActive(true);
   }
 
-  function handleDragLeave(event: React.DragEvent<HTMLDivElement>) {
+  function _handleDragLeave(event: React.DragEvent<HTMLDivElement>) {
     event.preventDefault();
     setIsDropActive(false);
   }
@@ -1873,8 +1896,8 @@ export function SessionLauncherShell() {
               </span>
               <div className="min-w-0">
                 <p className="text-[13px] font-black text-on-surface">返回挂起中的任务</p>
-                <p className="mt-0.5 block max-w-full truncate font-mono text-[11.5px] font-medium text-ui-muted/60">
-                  {activeWorkspaceTask.route}
+                <p className="mt-0.5 block max-w-full truncate text-[11.5px] font-medium text-ui-muted/60" title={activeWorkspaceTask.route}>
+                  {describeWorkspaceTask(activeWorkspaceTask)}
                 </p>
               </div>
               <span className="shrink-0 flex items-center justify-center h-7 rounded-md bg-primary px-3 text-[11px] font-black text-white uppercase tracking-wider transition-transform group-hover:translate-x-0.5">

@@ -1,25 +1,47 @@
 "use client";
 
-import React, { useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, ArrowRight, CheckCircle2, ChevronDown, ChevronRight, ChevronUp, FileText, Folder, FolderOpen, Layers, Search, Sparkles, Edit2, Info, ChevronsDownUp, ChevronsUpDown, FileImage, FileVideo, FileAudio, FileSpreadsheet, FileCode, FileArchive, FileSymlink, RotateCcw } from "lucide-react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { AlertTriangle, ArrowRight, CheckCircle2, ChevronDown, ChevronRight, FileText, Folder, FolderOpen, Layers, Search, Sparkles, Edit2, Info, ChevronsDownUp, ChevronsUpDown, RotateCcw } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { MarkdownProse } from "./markdown-prose";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogClose } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, } from "@/components/ui/dialog";
 
 import { getSessionStageView } from "@/lib/session-view-model";
 import { cn } from "@/lib/utils";
 import { canRunPrecheck as deriveCanRunPrecheck } from "@/lib/workspace-precheck";
 import type { IncrementalSelectionSnapshot, OrganizeMode, PlacementConfig, PlanItem, PlanSnapshot, PlanTargetSlot, PrecheckSummary, SessionStage, SourceTreeEntry } from "@/types/session";
 import { QueueCard, QueuePanel } from "./preview/queue-manager";
-import { isReviewDirectory, isReviewPlanItem, isReviewTargetSlot, REVIEW_DIRECTORY, REVIEW_LABEL } from "./preview/preview-utils";
+import {
+  type AvailableTargetOption,
+  type PreviewFilter,
+  type PreviewFocusRequest,
+  type TargetSlotLookup,
+  type TreeNode,
+  buildPlanTree,
+  buildSourceTree,
+  displayDirectoryLabel,
+  escapesRelativeRoot,
+  fileExtension,
+  getFileIcon,
+  groupItemsByTargetSlot,
+  isAbsolutePath,
+  isItemChanged,
+  isReviewDirectory,
+  isReviewTargetSlot,
+  itemStatusMeta,
+  mappingStatusLabel,
+  matchesFilter,
+  normalizePath,
+  resolveItemDirectory,
+  resolveItemTargetPath,
+  REVIEW_DIRECTORY,
+  REVIEW_LABEL,
+  statusMeta,
+  useDebouncedValue,
+  zhCollator,
+} from "./preview/preview-utils";
 
-export type PreviewFilter = "all" | "changed" | "unresolved" | "review" | "invalidated";
-
-export interface PreviewFocusRequest {
-  token: number;
-  itemIds: string[];
-  filter?: PreviewFilter;
-}
+export type { PreviewFilter, PreviewFocusRequest } from "./preview/preview-utils";
 
 interface PreviewPanelProps {
   plan: PlanSnapshot;
@@ -44,38 +66,13 @@ interface PreviewPanelProps {
   onPendingReviewCountChange?: (count: number) => void;
 }
 
-interface TreeNode {
-  name: string;
-  path: string;
-  kind: "directory" | "file";
-  item?: PlanItem;
-  sourceEntry?: SourceTreeEntry;
-  children: TreeNode[];
-}
+const EMPTY_PLACEMENT: PlacementConfig = { new_directory_root: "", review_root: "" };
 
 function treeNodeKey(node: TreeNode): string {
   if (node.kind === "file") {
     return `${node.path}::${node.item?.item_id || node.sourceEntry?.source_relpath || node.path}`;
   }
   return node.path;
-}
-
-interface AvailableTargetOption {
-  key: string;
-  label: string;
-  directory: string;
-  targetSlotId?: string;
-}
-
-type TargetSlotLookup = Map<string, PlanTargetSlot>;
-
-function normalizePath(path: string | null | undefined): string {
-  return String(path || "").replace(/\\/g, "/").replace(/\/+/g, "/").replace(/^\/+|\/+$/g, "").trim();
-}
-
-function isAbsolutePath(path: string | null | undefined): boolean {
-  const value = String(path || "").trim();
-  return /^[a-zA-Z]:/.test(value) || value.startsWith("/");
 }
 
 export function canonicalDisplayPath(path: string | null | undefined): string {
@@ -119,264 +116,7 @@ export function optionIdentityForTarget(path: string, placement: PlacementConfig
     : `rel:${canonicalDisplayPath(normalized)}`;
 }
 
-function escapesRelativeRoot(path: string | null | undefined): boolean {
-  const parts = normalizePath(path).split("/").filter(Boolean);
-  let depth = 0;
-  for (const part of parts) {
-    if (part === ".") continue;
-    if (part === "..") {
-      if (depth === 0) return true;
-      depth -= 1;
-      continue;
-    }
-    depth += 1;
-  }
-  return false;
-}
-
-function normalizeEntryKind(entryType: string | null | undefined): "directory" | "file" {
-  return ["dir", "directory", "folder"].includes(String(entryType || "").toLowerCase()) ? "directory" : "file";
-}
-
-const getFileIcon = (filename: string, entryType?: string) => {
-  if (entryType === "dir" || entryType === "directory" || entryType === "folder") {
-    return Folder;
-  }
-  const ext = filename.split(".").pop()?.toLowerCase() || "";
-  if (["jpg", "jpeg", "png", "gif", "svg", "webp", "bmp", "ico", "heic"].includes(ext)) return FileImage;
-  if (["mp4", "mkv", "avi", "mov", "flv", "wmv", "webm"].includes(ext)) return FileVideo;
-  if (["mp3", "wav", "flac", "aac", "ogg", "m4a", "wma"].includes(ext)) return FileAudio;
-  if (["xls", "xlsx", "csv", "ods"].includes(ext)) return FileSpreadsheet;
-  if (["html", "css", "js", "jsx", "ts", "tsx", "json", "py", "java", "cpp", "c", "cs", "go", "rs", "php", "rb", "sh", "bat", "cmd", "yaml", "yml", "xml", "ini"].includes(ext)) return FileCode;
-  if (["zip", "rar", "7z", "tar", "gz", "bz2", "xz", "iso"].includes(ext)) return FileArchive;
-  if (["lnk", "url"].includes(ext)) return FileSymlink;
-  return FileText;
-};
-
-function fileExtension(item: Pick<PlanItem | SourceTreeEntry, "display_name" | "source_relpath" | "entry_type">): string {
-  if (normalizeEntryKind(item.entry_type) === "directory") return "目录";
-  const source = item.display_name || item.source_relpath;
-  const ext = source.split(".").pop()?.toLowerCase();
-  return ext && ext !== source.toLowerCase() ? ext : "无后缀";
-}
-
-function statusMeta(status: PlanItem["status"]) {
-  if (status === "unresolved") return { label: "待决策", tone: "bg-warning/10 text-warning border-warning/20" };
-  if (status === "review") return { label: "待核对", tone: "bg-primary/10 text-primary border-primary/20" };
-  if (status === "invalidated") return { label: "需重确认", tone: "bg-error/10 text-error border-error/20" };
-  return { label: "已就绪", tone: "text-success-dim/40 border-transparent" };
-}
-
-function acceptedReviewStatusMeta() {
-  return { label: "已保留", tone: "border-success/20 bg-success/10 text-success-dim" };
-}
-
-function itemStatusMeta(item: PlanItem, acceptedReviewItemIds: string[]) {
-  if (item.status === "review" && acceptedReviewItemIds.includes(item.item_id)) {
-    return acceptedReviewStatusMeta();
-  }
-  return statusMeta(item.status);
-}
-
-function resolveItemDirectory(item: PlanItem, targetSlotById: TargetSlotLookup, placement: PlacementConfig): string {
-  if (isReviewPlanItem(item, targetSlotById)) return REVIEW_DIRECTORY;
-  if (item.target_slot_id) {
-    const slot = targetSlotById.get(item.target_slot_id);
-    if (slot?.relpath) return slot.relpath;
-  }
-  return "当前目录";
-}
-
-function displayDirectoryLabel(directory: string): string {
-  return directory === REVIEW_DIRECTORY ? REVIEW_LABEL : directory;
-}
-
-function resolveItemTargetPath(item: PlanItem, targetSlotById: TargetSlotLookup, placement: PlacementConfig): string {
-  const directoryLabel = resolveItemDirectory(item, targetSlotById, placement);
-  const filename = item.display_name || item.source_relpath.split("/").pop() || item.source_relpath;
-  return directoryLabel && directoryLabel !== "当前目录" ? `${displayDirectoryLabel(directoryLabel)}/${filename}` : filename;
-}
-
-function isItemChanged(item: PlanItem, targetSlotById: TargetSlotLookup, placement: PlacementConfig) {
-  return normalizePath(item.source_relpath) !== normalizePath(resolveItemTargetPath(item, targetSlotById, placement));
-}
-
-function groupItemsByTargetSlot(items: PlanItem[], targetSlotById: TargetSlotLookup, placement: PlacementConfig) {
-  const groups = new Map<string, PlanItem[]>();
-  items.forEach((item) => {
-    const directory = resolveItemDirectory(item, targetSlotById, placement);
-    if (!directory || directory === "当前目录") return;
-    const existing = groups.get(directory) || [];
-    existing.push(item);
-    groups.set(directory, existing);
-  });
-  return groups;
-}
-
-function matchesFilter(item: PlanItem, filter: PreviewFilter, targetSlotById: TargetSlotLookup, placement: PlacementConfig) {
-  if (filter === "all") return true;
-  if (filter === "changed") return isItemChanged(item, targetSlotById, placement);
-  if (filter === "unresolved") return item.status === "unresolved";
-  if (filter === "review") return isReviewPlanItem(item, targetSlotById);
-  return item.status === "invalidated";
-}
-
-function sortTree(root: TreeNode) {
-  const sortNode = (node: TreeNode) => {
-    node.children.sort((left, right) => {
-      if (left.kind !== right.kind) return left.kind === "directory" ? -1 : 1;
-      return left.name.localeCompare(right.name, "zh-CN");
-    });
-    node.children.forEach(sortNode);
-  };
-  sortNode(root);
-  return root.children;
-}
-
-function atomicRootPaths(sourceEntries: SourceTreeEntry[]): string[] {
-  return sourceEntries
-    .filter((entry) => String(entry.source_mode || "").toLowerCase() === "atomic")
-    .map((entry) => normalizePath(entry.source_relpath))
-    .filter(Boolean);
-}
-
-function hasNestedEntry(sourcePath: string, entries: SourceTreeEntry[]): boolean {
-  const normalizedPath = normalizePath(sourcePath);
-  if (!normalizedPath) return false;
-  const prefix = `${normalizedPath}/`;
-  return entries.some((entry) => normalizePath(entry.source_relpath).startsWith(prefix));
-}
-
-function findAtomicRoot(sourcePath: string, atomicRoots: string[]): string | null {
-  const normalizedPath = normalizePath(sourcePath);
-  if (!normalizedPath) return null;
-  for (const root of atomicRoots) {
-    if (normalizedPath === root || normalizedPath.startsWith(`${root}/`)) {
-      return root;
-    }
-  }
-  return null;
-}
-
-function buildPlanTree(
-  items: PlanItem[],
-  mkdirPreview: string[],
-  resolveItemPath: (item: PlanItem) => string,
-  sourceEntries: SourceTreeEntry[],
-): TreeNode[] {
-  const atomicRoots = atomicRootPaths(sourceEntries);
-  const root: TreeNode = { name: "", path: "", kind: "directory", children: [] };
-  const ensureDir = (parts: string[]) => {
-    let current = root;
-    let currentPath = "";
-    for (const part of parts) {
-      currentPath = currentPath ? `${currentPath}/${part}` : part;
-      let next = current.children.find((child) => child.kind === "directory" && child.name === part);
-      if (!next) {
-        next = { name: part, path: currentPath, kind: "directory", children: [] };
-        current.children.push(next);
-      }
-      current = next;
-    }
-    return current;
-  };
-  mkdirPreview.forEach((dir) => {
-    const parts = normalizePath(dir).split("/").filter(Boolean);
-    if (parts.length) ensureDir(parts);
-  });
-  items.forEach((item) => {
-    const atomicRoot = findAtomicRoot(item.source_relpath, atomicRoots);
-    if (atomicRoot && normalizePath(item.source_relpath) !== atomicRoot) {
-      return;
-    }
-    const rawPath = resolveItemPath(item) || item.source_relpath;
-    const parts = normalizePath(rawPath).split("/").filter(Boolean);
-    if (parts.length === 0) return;
-    const filename = parts.pop();
-    if (!filename) return;
-    const parent = ensureDir(parts);
-    parent.children.push({ name: filename, path: normalizePath(rawPath), kind: "file", item, children: [] });
-  });
-  return sortTree(root);
-}
-
-function buildSourceTree(entries: SourceTreeEntry[], itemBySource: Map<string, PlanItem>): TreeNode[] {
-  const atomicRoots = atomicRootPaths(entries);
-  const root: TreeNode = { name: "", path: "", kind: "directory", children: [] };
-  const ensureDir = (parts: string[]) => {
-    let current = root;
-    let currentPath = "";
-    for (const part of parts) {
-      currentPath = currentPath ? `${currentPath}/${part}` : part;
-      let next = current.children.find((child) => child.kind === "directory" && child.name === part);
-      if (!next) {
-        next = { name: part, path: currentPath, kind: "directory", children: [] };
-        current.children.push(next);
-      }
-      current = next;
-    }
-    return current;
-  };
-
-  entries.forEach((entry) => {
-    const entryPath = normalizePath(entry.source_relpath);
-    const atomicRoot = findAtomicRoot(entryPath, atomicRoots);
-    if (atomicRoot && entryPath !== atomicRoot) {
-      return;
-    }
-    const parts = entryPath.split("/").filter(Boolean);
-    if (parts.length === 0) return;
-    const linkedItem = itemBySource.get(entryPath);
-    const isAtomicDirectoryEntry =
-      normalizeEntryKind(entry.entry_type) === "directory" &&
-      (
-        atomicRoot === entryPath ||
-        (!!linkedItem && !hasNestedEntry(entryPath, entries))
-      );
-    if (normalizeEntryKind(entry.entry_type) === "directory" && !isAtomicDirectoryEntry) {
-      const directoryNode = ensureDir(parts);
-      directoryNode.sourceEntry = directoryNode.sourceEntry || entry;
-      directoryNode.item = directoryNode.item || linkedItem;
-      return;
-    }
-    const filename = parts.pop();
-    if (!filename) return;
-    const parent = ensureDir(parts);
-    parent.children.push({
-      name: filename,
-      path: entryPath,
-      kind: "file",
-      item: linkedItem,
-      sourceEntry: entry,
-      children: [],
-    });
-  });
-
-  return sortTree(root);
-}
-
-function mappingStatusLabel(status: string | undefined, item?: PlanItem, acceptedReviewItemIds: string[] = []): string {
-  if (item && item.status === "review" && acceptedReviewItemIds.includes(item.item_id)) return "已保留";
-  if (status === "review") return "待核对";
-  if (status === "unresolved") return "待决策";
-  if (status === "assigned") return "已分配";
-  if (status === "skipped") return "保留原位";
-  return "已规划";
-}
-
-function TreeBranch({
-  node,
-  depth,
-  expanded,
-  selectedItemId,
-  onToggle,
-  onSelectItem,
-  onEditItem,
-  acceptedReviewItemIds,
-  viewMode,
-  targetSlotById,
-  placement,
-}: {
+interface TreeBranchProps {
   node: TreeNode;
   depth: number;
   expanded: Record<string, boolean>;
@@ -388,7 +128,21 @@ function TreeBranch({
   viewMode: "before" | "after";
   targetSlotById: TargetSlotLookup;
   placement: PlacementConfig;
-}) {
+}
+
+function TreeBranchInner({
+  node,
+  depth,
+  expanded,
+  selectedItemId,
+  onToggle,
+  onSelectItem,
+  onEditItem,
+  acceptedReviewItemIds,
+  viewMode,
+  targetSlotById,
+  placement,
+}: TreeBranchProps) {
   const [isHovered, setIsHovered] = useState(false);
 
   if (node.kind === "file") {
@@ -571,7 +325,9 @@ function TreeBranch({
   );
 }
 
-function IncrementalMappingPanel({
+const TreeBranch = memo(TreeBranchInner);
+
+function IncrementalMappingPanelInner({
   items,
   selectedItemId,
   onSelectItem,
@@ -608,7 +364,7 @@ function IncrementalMappingPanel({
 
       <div className="mt-4 flex flex-wrap gap-1.5">
         {Array.from(assignmentCounts.entries())
-          .sort((a, b) => a[0].localeCompare(b[0], "zh-CN"))
+          .sort((a, b) => zhCollator.compare(a[0], b[0]))
           .slice(0, 8)
           .map(([label, count]) => (
             <span key={label} className="rounded-md border border-primary/15 bg-primary/[0.03] px-2 py-0.5 text-[10px] font-black text-primary/80 transition-colors hover:bg-primary/[0.06]">
@@ -682,6 +438,8 @@ function IncrementalMappingPanel({
     </section>
   );
 }
+
+const IncrementalMappingPanel = memo(IncrementalMappingPanelInner);
 
 function syncExpandedStates(
   fromTree: TreeNode[],
@@ -768,6 +526,7 @@ export function PreviewPanel(props: PreviewPanelProps) {
   const [viewMode, setViewMode] = useState<"before" | "after">(isPlanningRun ? "before" : "after");
   const [filter, setFilter] = useState<PreviewFilter>("all");
   const [search, setSearch] = useState("");
+  const debouncedSearch = useDebouncedValue(search, 200);
   const [extensionFilter, setExtensionFilter] = useState("all");
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
@@ -812,12 +571,15 @@ export function PreviewPanel(props: PreviewPanelProps) {
   const extensionOptions = useMemo(
     () => [
       "all",
-      ...Array.from(new Set([...allItems, ...sourceTreeEntries].map((item) => fileExtension(item)))).sort((a, b) => a.localeCompare(b, "zh-CN")),
+      ...Array.from(new Set([...allItems, ...sourceTreeEntries].map((item) => fileExtension(item)))).sort((a, b) => zhCollator.compare(a, b)),
     ],
     [allItems, sourceTreeEntries],
   );
-  const placement = plan.placement || { new_directory_root: "", review_root: "" };
-  const resolveTargetLabel = (item: PlanItem) => displayDirectoryLabel(resolveItemDirectory(item, targetSlotById, placement));
+  const placement = plan.placement || EMPTY_PLACEMENT;
+  const resolveTargetLabel = useCallback(
+    (item: PlanItem) => displayDirectoryLabel(resolveItemDirectory(item, targetSlotById, placement)),
+    [placement, targetSlotById],
+  );
   const resolveTargetMeta = (item: PlanItem) => {
     const directoryLabel = resolveTargetLabel(item);
     const fullTargetPath = resolveItemTargetPath(item, targetSlotById, placement);
@@ -829,7 +591,7 @@ export function PreviewPanel(props: PreviewPanelProps) {
     [placement, targetSlotById, unresolvedItems],
   );
   const filteredItems = useMemo(() => {
-    const keyword = search.trim().toLowerCase();
+    const keyword = debouncedSearch.trim().toLowerCase();
     return allItems.filter((item) => {
       if (!matchesFilter(item, filter, targetSlotById, placement)) return false;
       if (extensionFilter !== "all" && fileExtension(item) !== extensionFilter) return false;
@@ -837,9 +599,9 @@ export function PreviewPanel(props: PreviewPanelProps) {
       return [item.display_name, item.source_relpath, resolveItemTargetPath(item, targetSlotById, placement), resolveTargetLabel(item), item.suggested_purpose || "", item.content_summary || ""]
         .some((value) => value.toLowerCase().includes(keyword));
     });
-  }, [allItems, extensionFilter, filter, placement, search, targetSlotById]);
+  }, [allItems, extensionFilter, filter, placement, debouncedSearch, resolveTargetLabel, targetSlotById]);
   const filteredSourceEntries = useMemo(() => {
-    const keyword = search.trim().toLowerCase();
+    const keyword = debouncedSearch.trim().toLowerCase();
     return sourceTreeEntries.filter((entry) => {
       const linkedItem = itemBySource.get(normalizePath(entry.source_relpath));
       if (filter !== "all" && (!linkedItem || !matchesFilter(linkedItem, filter, targetSlotById, placement))) return false;
@@ -853,7 +615,7 @@ export function PreviewPanel(props: PreviewPanelProps) {
         linkedItem?.content_summary || "",
       ].some((value) => value.toLowerCase().includes(keyword));
     });
-  }, [extensionFilter, filter, itemBySource, placement, search, sourceTreeEntries, targetSlotById]);
+  }, [extensionFilter, filter, itemBySource, placement, debouncedSearch, resolveTargetLabel, sourceTreeEntries, targetSlotById]);
   const selectedItem = useMemo(() => allItems.find((item) => item.item_id === selectedItemId) || null, [allItems, selectedItemId]);
   const mkdirPreview = precheckSummary?.mkdir_preview || [];
   const beforeTree = useMemo(() => buildSourceTree(filteredSourceEntries, itemBySource), [filteredSourceEntries, itemBySource]);
@@ -863,9 +625,9 @@ export function PreviewPanel(props: PreviewPanelProps) {
   );
   const currentTree = viewMode === "before" ? beforeTree : afterTree;
 
-  const handleCollapseAll = () => {
+  const handleCollapseAll = useCallback(() => {
     const next: Record<string, boolean> = {};
-    const traverse = (nodes: any[]) => {
+    const traverse = (nodes: TreeNode[]) => {
       nodes.forEach((n) => {
         if (n.kind === "directory") {
           next[n.path] = false;
@@ -875,11 +637,11 @@ export function PreviewPanel(props: PreviewPanelProps) {
     };
     traverse(currentTree);
     setExpanded(next);
-  };
+  }, [currentTree]);
 
-  const handleExpandAll = () => {
+  const handleExpandAll = useCallback(() => {
     const next: Record<string, boolean> = {};
-    const traverse = (nodes: any[]) => {
+    const traverse = (nodes: TreeNode[]) => {
       nodes.forEach((n) => {
         if (n.kind === "directory") {
           next[n.path] = true;
@@ -889,7 +651,11 @@ export function PreviewPanel(props: PreviewPanelProps) {
     };
     traverse(currentTree);
     setExpanded(next);
-  };
+  }, [currentTree]);
+
+  const handleToggleNode = useCallback((path: string) => {
+    setExpanded((prev) => ({ ...prev, [path]: !(prev[path] ?? true) }));
+  }, []);
 
   const handleSwitchView = (nextMode: "before" | "after") => {
     if (nextMode === viewMode) return;
@@ -899,6 +665,11 @@ export function PreviewPanel(props: PreviewPanelProps) {
     setViewMode(nextMode);
   };
 
+  const treeShortcutsRef = useRef({ expandAll: handleExpandAll, collapseAll: handleCollapseAll });
+  useEffect(() => {
+    treeShortcutsRef.current = { expandAll: handleExpandAll, collapseAll: handleCollapseAll };
+  }, [handleCollapseAll, handleExpandAll]);
+
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if ((event.ctrlKey || event.metaKey) && event.key === "k") {
@@ -906,15 +677,15 @@ export function PreviewPanel(props: PreviewPanelProps) {
         searchInputRef.current?.focus();
       } else if ((event.ctrlKey || event.metaKey) && event.altKey && event.key.toLowerCase() === "e") {
         event.preventDefault();
-        handleExpandAll();
+        treeShortcutsRef.current.expandAll();
       } else if ((event.ctrlKey || event.metaKey) && event.altKey && event.key.toLowerCase() === "c") {
         event.preventDefault();
-        handleCollapseAll();
+        treeShortcutsRef.current.collapseAll();
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [currentTree]);
+  }, []);
 
   const groupedByTargetSlot = useMemo(() => groupItemsByTargetSlot(allItems, targetSlotById, placement), [allItems, placement, targetSlotById]);
   const availableTargetOptions = useMemo<AvailableTargetOption[]>(() => {
@@ -947,7 +718,7 @@ export function PreviewPanel(props: PreviewPanelProps) {
           });
         }
       });
-      return Array.from(options.values()).sort((a, b) => a.directory.localeCompare(b.directory, "zh-CN"));
+      return Array.from(options.values()).sort((a, b) => zhCollator.compare(a.directory, b.directory));
     }
     plan.groups.forEach((group) => {
       const normalized = normalizePath(group.directory);
@@ -965,7 +736,7 @@ export function PreviewPanel(props: PreviewPanelProps) {
         options.set(identity, { key: `dir:${identity}`, label: dir, directory: dir });
       }
     });
-    return Array.from(options.values()).sort((a, b) => a.directory.localeCompare(b.directory, "zh-CN"));
+    return Array.from(options.values()).sort((a, b) => zhCollator.compare(a.directory, b.directory));
   }, [groupedByTargetSlot, incrementalSelection?.target_directories, organizeMode, placement, plan.groups, plan.target_slots, targetSlotById]);
   const availableDirectories = useMemo(() => availableTargetOptions.map((item) => item.directory), [availableTargetOptions]);
   const manualTargetTrimmed = manualTarget.trim();
@@ -1040,7 +811,7 @@ export function PreviewPanel(props: PreviewPanelProps) {
     }
   };
 
-  const isAcceptedReviewItem = (item: PlanItem) => item.status === "review" && acceptedReviewItemIds.includes(item.item_id);
+  const _isAcceptedReviewItem = (item: PlanItem) => item.status === "review" && acceptedReviewItemIds.includes(item.item_id);
   const acceptAllReviewItems = async () => {
     const reviewCandidateIds = [
       ...reviewItemsPendingAcceptance.map((item) => item.item_id),
@@ -1067,10 +838,10 @@ export function PreviewPanel(props: PreviewPanelProps) {
   };
 
   const currentExt = editingItem ? fileExtension(editingItem) : null;
-  const extMatchedItems = currentExt ? allItems.filter((item) => fileExtension(item) === currentExt) : [];
-  const sameSuggestedDirItems = editingItem ? unresolvedItems.filter((item) => resolveTargetLabel(item) === resolveTargetLabel(editingItem) && resolveTargetLabel(item) !== "当前目录") : [];
+  const _extMatchedItems = currentExt ? allItems.filter((item) => fileExtension(item) === currentExt) : [];
+  const _sameSuggestedDirItems = editingItem ? unresolvedItems.filter((item) => resolveTargetLabel(item) === resolveTargetLabel(editingItem) && resolveTargetLabel(item) !== "当前目录") : [];
   const editingTargetMeta = editingItem ? resolveTargetMeta(editingItem) : null;
-  const blockingQueueCount = invalidatedItems.length + unresolvedItems.length;
+  const _blockingQueueCount = invalidatedItems.length + unresolvedItems.length;
   const pendingQueueCount = invalidatedItems.length + unresolvedItems.length + activeReviewItems.length;
   const reviewQueueCount = activeReviewItems.length;
   const targetConflictSuggestionCount = useMemo(
@@ -1093,7 +864,7 @@ export function PreviewPanel(props: PreviewPanelProps) {
   const visibleCount = viewMode === "before" ? filteredSourceEntries.length : filteredItems.length;
   const totalCount = viewMode === "before" ? sourceTreeEntries.length : allItems.length;
   const hasAfterPlanData = allItems.length > 0 || mkdirPreview.length > 0;
-  const queueSummaryText = invalidatedItems.length > 0
+  const _queueSummaryText = invalidatedItems.length > 0
     ? `需重新确认 ${invalidatedItems.length}`
     : unresolvedItems.length > 0
       ? `待决策 ${unresolvedItems.length}`
@@ -1207,8 +978,8 @@ export function PreviewPanel(props: PreviewPanelProps) {
                         transition={{ type: "spring", stiffness: 380, damping: 30 }}
                       />
                     )}
-                    <span className={cn("opacity-40", viewMode === "before" && "opacity-60")}>RAW</span>
-                    <span className="hidden @sm:inline">原始</span>
+                    <span>原始</span>
+                    <span className={cn("hidden opacity-40 @sm:inline", viewMode === "before" && "opacity-60")}>RAW</span>
                   </button>
                   <button
                     type="button"
@@ -1225,8 +996,8 @@ export function PreviewPanel(props: PreviewPanelProps) {
                         transition={{ type: "spring", stiffness: 380, damping: 30 }}
                       />
                     )}
-                    <span className={cn("opacity-40", viewMode === "after" && "opacity-60")}>PLAN</span>
-                    <span className="hidden @sm:inline">建议</span>
+                    <span>建议</span>
+                    <span className={cn("hidden opacity-40 @sm:inline", viewMode === "after" && "opacity-60")}>PLAN</span>
                   </button>
                 </div>
 
@@ -1334,7 +1105,7 @@ export function PreviewPanel(props: PreviewPanelProps) {
                       depth={0}
                       expanded={expanded}
                       selectedItemId={selectedItemId}
-                      onToggle={(path) => setExpanded((prev) => ({ ...prev, [path]: !(prev[path] ?? true) }))}
+                      onToggle={handleToggleNode}
                       onSelectItem={setSelectedItemId}
                       onEditItem={setEditingItemId}
                       acceptedReviewItemIds={acceptedReviewItemIds}
