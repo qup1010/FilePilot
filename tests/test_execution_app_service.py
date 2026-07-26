@@ -328,7 +328,6 @@ class ExecutionAppServiceTests(unittest.TestCase):
                     "ext": ".txt",
                 }
             ],
-            "targets": [],
             "targets": [
                 {
                     "slot_id": "D003",

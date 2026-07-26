@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 import logging
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -264,11 +265,14 @@ class SessionOrchestrator:
         normalized_sources = self.helpers._normalize_source_collection(sources)
         if not normalized_sources:
             raise ValueError("SOURCES_REQUIRED")
-        unsafe_reasons = [
-            unsafe_source_path_reason(item.path, source_type=item.source_type)
-            for item in normalized_sources
-        ]
-        first_unsafe_reason = next((reason for reason in unsafe_reasons if reason), None)
+        first_unsafe_reason = next(
+            (
+                reason
+                for item in normalized_sources
+                if (reason := unsafe_source_path_reason(item.path, source_type=item.source_type))
+            ),
+            None,
+        )
         if first_unsafe_reason:
             raise ValueError(first_unsafe_reason)
         requested_target_directories = (

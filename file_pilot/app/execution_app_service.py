@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from file_pilot.app.models import SessionMutationResult
-from file_pilot.app.safety import risky_move_reason
+from file_pilot.app.safety import RISKY_MOVE_REASON_COPY, risky_move_reason
 from file_pilot.app.session_constants import (
     REVIEW_DISPLAY_NAME,
     REVIEW_SLOT_ID,
@@ -143,7 +143,6 @@ class ExecutionAppService:
         source_by_id = {item.ref_id: item for item in task.sources}
         target_by_id = {item.slot_id: item for item in task.targets}
         planner_by_source = self.helpers._planner_items_by_source(session)
-        mapping_by_source_id = {mapping.source_ref_id: mapping for mapping in task.mappings}
         plan_target_name_by_source = {
             str(move.source or "").replace("\\", "/").strip(): Path(str(move.target or "")).name
             for move in (final_plan.moves or [])
@@ -216,7 +215,9 @@ class ExecutionAppService:
             )
 
         mkdir_actions.sort(key=lambda action: action.target_path.as_posix())
-        move_actions.sort(key=lambda action: action.item_id)
+        # 与 execution_service.sort_move_actions 保持一致：深度降序，避免祖先目录
+        # 先于其内部条目被移走。预览里的编号顺序即真实执行顺序。
+        move_actions.sort(key=lambda action: execution_service.move_execution_order_key(action.source_path, action.item_id))
         return MappedExecutionPlan(
             base_dir=base_dir,
             mkdir_actions=mkdir_actions,
@@ -233,7 +234,6 @@ class ExecutionAppService:
         task, registry = self.helpers._build_organize_task(session, final_plan)
         planner_by_source = self.helpers._planner_items_by_source(session)
         source_by_id = {item.ref_id: item for item in task.sources}
-        source_id_by_relpath = {item.relpath: item.ref_id for item in task.sources}
         target_by_id = {item.slot_id: item for item in task.targets}
         missing_target_errors = []
         for mapping in task.mappings:
@@ -280,10 +280,13 @@ class ExecutionAppService:
                 continue
             source_label = self._display_path(action.source_path, mapped_plan.base_dir)
             target_label = self._display_path(action.target_path, mapped_plan.base_dir)
-            reason = risky_move_reason(source_label, target_label)
-            if reason:
+            reason_code = risky_move_reason(source_label, target_label)
+            if reason_code:
+                reason_text = RISKY_MOVE_REASON_COPY.get(reason_code, reason_code)
                 display_name = action.display_name or action.item_id or self._display_path(action.source_path, mapped_plan.base_dir)
-                safety_warnings.append(f"高影响移动：{display_name}（{reason}，来源：{source_label}）")
+                # 注意：「高影响移动」前缀与「来源：{source_label}」后缀是前端匹配契约，
+                # 见 precheck-view.tsx 与 _related_item_ids_for_message，勿改格式。
+                safety_warnings.append(f"高影响移动：{display_name}（{reason_text}，来源：{source_label}）")
         if missing_target_errors:
             precheck.can_execute = False
             precheck.blocking_errors = list(precheck.blocking_errors) + missing_target_errors
