@@ -358,6 +358,19 @@ def cleanup_empty_dirs(session_id: str, request: Request):
         return error_response(service, session_id, "SESSION_STAGE_CONFLICT", 409)
 
 
+@router.post("/{session_id}/rule-drafts")
+def generate_rules_from_session(session_id: str, request: Request):
+    service = _service(request)
+    try:
+        return service.generate_rules_from_completed_session(session_id)
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="SESSION_NOT_FOUND")
+    except RuntimeError:
+        return error_response(service, session_id, "SESSION_STAGE_CONFLICT", 409)
+    except ValueError as exc:
+        raise HTTPException(status_code=502, detail=str(exc))
+
+
 @router.get("/{session_id}/journal")
 def journal(session_id: str, request: Request):
     try:

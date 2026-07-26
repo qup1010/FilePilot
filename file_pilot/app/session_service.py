@@ -56,6 +56,7 @@ from file_pilot.app.session_constants import (
     TASK_PHASE_PLANNING,
     TASK_PHASE_REVIEWING,
     TASK_PHASE_SETUP,
+    ensure_stage,
     is_locked_stage,
     is_planning_mutable_stage,
     is_recovery_stage,
@@ -1833,6 +1834,60 @@ class OrganizerSessionService:
 
     def delete_target_profile(self, profile_id: str) -> bool:
         return self.target_profiles.delete(profile_id)
+
+    def generate_rules_from_completed_session(self, session_id: str, *, client=None, model: str | None = None) -> dict:
+        """大扫除完成后反推规则初稿：整理产物本身就是用户分类意图的最好证据。
+
+        读取 journal 中实际移动的目标目录（此刻已装着归好类的文件），
+        生成每目录规则初稿。用户校订后可存为 target profile，
+        从此这个目录结构就能一键整理。
+        """
+        from file_pilot.execution import service as execution_service
+        from file_pilot.organize import rule_advisor
+
+        session = self._load_or_raise(session_id)
+        ensure_stage(session.stage, STAGE_COMPLETED)
+
+        journal_id = session.last_journal_id or self._latest_execution_id(Path(session.target_dir))
+        journal = execution_service.load_execution_journal(journal_id) if journal_id else None
+        if journal is None:
+            raise FileNotFoundError("execution_journal_not_found")
+
+        target_dirs: list[Path] = []
+        seen: set[str] = set()
+        for item in journal.items:
+            if item.action_type != "MOVE" or item.status != "success" or not item.target_after:
+                continue
+            parent = Path(item.target_after).parent
+            key = str(parent).lower()
+            if key not in seen:
+                seen.add(key)
+                target_dirs.append(parent)
+
+        profiles = [rule_advisor.collect_directory_content_profile(directory) for directory in target_dirs]
+        drafts = rule_advisor.generate_rule_drafts(profiles, client=client, model=model)
+        drafts_by_path = {draft.path: draft for draft in drafts}
+        return {
+            "session_id": session.session_id,
+            "journal_id": journal.execution_id,
+            "suggested_profile_name": f"{Path(session.target_dir).name} 的目录规则",
+            "items": [
+                {
+                    "path": content_profile.path,
+                    "draft_description": (
+                        drafts_by_path[content_profile.path].draft_description
+                        if content_profile.path in drafts_by_path
+                        else None
+                    ),
+                    "basis": (
+                        drafts_by_path[content_profile.path].basis if content_profile.path in drafts_by_path else None
+                    ),
+                    "total_entries": content_profile.total_entries,
+                    "readable": content_profile.readable,
+                }
+                for content_profile in profiles
+            ],
+        }
 
     def generate_target_profile_rule_drafts(self, profile_id: str, *, client=None, model: str | None = None) -> dict:
         """为 profile 的每个目录生成规则描述初稿（只返回，不落库；采纳由用户校订决定）。"""

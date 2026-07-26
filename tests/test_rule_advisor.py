@@ -159,3 +159,88 @@ class GenerateProfileRuleDraftsServiceTests(unittest.TestCase):
     def test_generate_rule_drafts_unknown_profile(self):
         with self.assertRaises(FileNotFoundError):
             self.service.generate_target_profile_rule_drafts("missing", client=_fake_client("{}"))
+
+
+class GenerateRulesFromCompletedSessionTests(unittest.TestCase):
+    def setUp(self):
+        self.root = Path("test_temp_session_rule_drafts")
+        if self.root.exists():
+            shutil.rmtree(self.root)
+        self.root.mkdir()
+        self.target_dir = self.root / "Inbox"
+        self.target_dir.mkdir()
+        self.store = SessionStore(self.root / "sessions")
+        self.service = OrganizerSessionService(self.store)
+
+    def tearDown(self):
+        if self.root.exists():
+            shutil.rmtree(self.root)
+
+    def test_generates_drafts_from_journal_target_dirs(self):
+        from file_pilot.execution.models import ExecutionJournal, ExecutionJournalItem
+        from file_pilot.execution.service import save_execution_journal
+
+        docs = self.target_dir / "Docs"
+        docs.mkdir()
+        (docs / "manual.pdf").write_text("m", encoding="utf-8")
+
+        created = self.service.create_session(str(self.target_dir), resume_if_exists=False)
+        session = created.session
+        assert session is not None
+        journal = ExecutionJournal(
+            execution_id="exec-rules-1",
+            target_dir=str(self.target_dir.resolve()),
+            created_at="2026-07-26T00:00:00+00:00",
+            status="completed",
+            items=[
+                ExecutionJournalItem(
+                    action_type="MOVE",
+                    status="success",
+                    message="移动成功",
+                    source_before=str((self.target_dir / "manual.pdf").resolve()),
+                    target_after=str((docs / "manual.pdf").resolve()),
+                ),
+                ExecutionJournalItem(
+                    action_type="MOVE",
+                    status="skipped",
+                    message="目标已有同名文件，跳过并留在原地",
+                    source_before=str((self.target_dir / "dup.pdf").resolve()),
+                    target_after=str((docs / "dup.pdf").resolve()),
+                ),
+            ],
+        )
+        save_execution_journal(journal)
+        try:
+            session.stage = "completed"
+            session.last_journal_id = journal.execution_id
+            self.store.save(session)
+
+            docs_path = str(docs.resolve())
+            client = _fake_client(
+                json.dumps(
+                    {
+                        "drafts": [
+                            {"path": docs_path, "draft_description": "PDF 手册", "basis": "现有 1 个 PDF"}
+                        ]
+                    }
+                )
+            )
+
+            result = self.service.generate_rules_from_completed_session(session.session_id, client=client, model="m")
+
+            self.assertEqual(result["journal_id"], "exec-rules-1")
+            self.assertEqual(len(result["items"]), 1)
+            self.assertEqual(result["items"][0]["path"], docs_path)
+            self.assertEqual(result["items"][0]["draft_description"], "PDF 手册")
+            self.assertIn("inbox", result["suggested_profile_name"].lower())
+        finally:
+            from file_pilot.execution.service import delete_execution_journal
+
+            delete_execution_journal(journal.execution_id)
+
+    def test_requires_completed_stage(self):
+        created = self.service.create_session(str(self.target_dir), resume_if_exists=False)
+        session = created.session
+        assert session is not None
+        with self.assertRaises(RuntimeError):
+            self.service.generate_rules_from_completed_session(session.session_id, client=_fake_client("{}"))
