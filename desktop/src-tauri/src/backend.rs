@@ -175,9 +175,19 @@ pub fn resolve_backend_runtime_config(backend_executable: Option<&Path>) -> Resu
     }
 
     if backend_executable.is_none() {
-        let port = DEFAULT_API_PORT
+        let preferred = DEFAULT_API_PORT
             .parse::<u16>()
             .expect("default backend port should be numeric");
+        // 默认端口可能被其他软件占用（例如 AnkiConnect 同样监听 8765）。
+        // 开发模式优先保持默认端口以便固定调试地址，占用时顺延到空闲端口，
+        // 实际地址通过 backend.json 传给桌面壳与前端，不影响链路。
+        let port = match TcpListener::bind((host.as_str(), preferred)) {
+            Ok(listener) => {
+                drop(listener);
+                preferred
+            }
+            Err(_) => reserve_ephemeral_port(&host)?,
+        };
         return Ok(BackendRuntimeConfig {
             host: host.clone(),
             port,
@@ -185,19 +195,24 @@ pub fn resolve_backend_runtime_config(backend_executable: Option<&Path>) -> Resu
         });
     }
 
-    let listener = TcpListener::bind((host.as_str(), 0))
-        .map_err(|error| format!("failed to reserve backend port for {host}: {error}"))?;
-    let port = listener
-        .local_addr()
-        .map_err(|error| format!("failed to resolve reserved backend port for {host}: {error}"))?
-        .port();
-    drop(listener);
+    let port = reserve_ephemeral_port(&host)?;
 
     Ok(BackendRuntimeConfig {
         host: host.clone(),
         port,
         base_url: format!("http://{host}:{port}"),
     })
+}
+
+fn reserve_ephemeral_port(host: &str) -> Result<u16, String> {
+    let listener = TcpListener::bind((host, 0))
+        .map_err(|error| format!("failed to reserve backend port for {host}: {error}"))?;
+    let port = listener
+        .local_addr()
+        .map_err(|error| format!("failed to resolve reserved backend port for {host}: {error}"))?
+        .port();
+    drop(listener);
+    Ok(port)
 }
 
 pub fn build_backend_command(
@@ -272,9 +287,27 @@ mod tests {
     };
     use std::io::{BufRead, BufReader};
     use std::env;
+    use std::net::TcpListener;
     use std::path::Path;
     use std::process::{Command, Stdio};
+    use std::sync::{Mutex, MutexGuard, OnceLock};
     use std::time::Duration;
+
+    /// FILE_PILOT_API_* 是进程级环境变量，读写它们的测试必须串行，
+    /// 否则并行执行时会互相看到对方的临时值。
+    fn env_lock() -> MutexGuard<'static, ()> {
+        static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+        LOCK.get_or_init(|| Mutex::new(()))
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+    }
+
+    fn restore_env(key: &str, previous: Option<String>) {
+        match previous {
+            Some(value) => env::set_var(key, value),
+            None => env::remove_var(key),
+        }
+    }
 
     #[cfg(target_os = "windows")]
     fn process_is_running(pid: u32) -> bool {
@@ -291,23 +324,66 @@ mod tests {
 
     #[test]
     fn backend_command_uses_python_module_entrypoint() {
+        let _guard = env_lock();
+        let previous_port = env::var("FILE_PILOT_API_PORT").ok();
+        env::remove_var("FILE_PILOT_API_PORT");
+
         let command = build_backend_command(Path::new("D:/repo"), "test-token", None);
         let args = command.get_args().map(|value| value.to_string_lossy().to_string()).collect::<Vec<_>>();
 
         assert_eq!(args, vec!["-m".to_string(), "file_pilot.api".to_string()]);
+
+        restore_env("FILE_PILOT_API_PORT", previous_port);
     }
 
     #[test]
-    fn backend_runtime_config_keeps_default_port_in_dev_mode() {
+    fn backend_runtime_config_prefers_default_port_in_dev_mode() {
+        let _guard = env_lock();
         let previous_port = env::var("FILE_PILOT_API_PORT").ok();
         let previous_base_url = env::var("FILE_PILOT_API_BASE_URL").ok();
         env::remove_var("FILE_PILOT_API_PORT");
         env::remove_var("FILE_PILOT_API_BASE_URL");
 
+        // 默认端口空闲时使用 8765；被其他软件（如 AnkiConnect）占用时顺延到空闲端口。
+        let default_port_free = TcpListener::bind(("127.0.0.1", 8765)).is_ok();
         let config = resolve_backend_runtime_config(None).expect("runtime config");
 
-        assert_eq!(config.port, 8765);
-        assert_eq!(config.base_url, "http://127.0.0.1:8765");
+        if default_port_free {
+            assert_eq!(config.port, 8765);
+        } else {
+            assert_ne!(config.port, 8765);
+            assert!(config.port > 0);
+        }
+        assert_eq!(config.base_url, format!("http://127.0.0.1:{}", config.port));
+
+        if let Some(value) = previous_port {
+            env::set_var("FILE_PILOT_API_PORT", value);
+        } else {
+            env::remove_var("FILE_PILOT_API_PORT");
+        }
+        if let Some(value) = previous_base_url {
+            env::set_var("FILE_PILOT_API_BASE_URL", value);
+        } else {
+            env::remove_var("FILE_PILOT_API_BASE_URL");
+        }
+    }
+
+    #[test]
+    fn backend_runtime_config_falls_back_when_default_port_is_taken() {
+        let _guard = env_lock();
+        let previous_port = env::var("FILE_PILOT_API_PORT").ok();
+        let previous_base_url = env::var("FILE_PILOT_API_BASE_URL").ok();
+        env::remove_var("FILE_PILOT_API_PORT");
+        env::remove_var("FILE_PILOT_API_BASE_URL");
+
+        // 只有默认端口当前空闲时才能可靠地模拟"被占用"场景。
+        let blocker = TcpListener::bind(("127.0.0.1", 8765)).ok();
+        if blocker.is_some() {
+            let config = resolve_backend_runtime_config(None).expect("runtime config");
+            assert_ne!(config.port, 8765, "occupied default port should fall back");
+            assert_eq!(config.base_url, format!("http://127.0.0.1:{}", config.port));
+        }
+        drop(blocker);
 
         if let Some(value) = previous_port {
             env::set_var("FILE_PILOT_API_PORT", value);
@@ -323,6 +399,7 @@ mod tests {
 
     #[test]
     fn backend_runtime_config_picks_ephemeral_port_for_bundled_mode() {
+        let _guard = env_lock();
         let previous_port = env::var("FILE_PILOT_API_PORT").ok();
         let previous_base_url = env::var("FILE_PILOT_API_BASE_URL").ok();
         env::remove_var("FILE_PILOT_API_PORT");
@@ -349,6 +426,12 @@ mod tests {
 
     #[test]
     fn backend_command_runs_from_project_root_and_sets_runtime_env() {
+        let _guard = env_lock();
+        let previous_port = env::var("FILE_PILOT_API_PORT").ok();
+        let previous_base_url = env::var("FILE_PILOT_API_BASE_URL").ok();
+        env::remove_var("FILE_PILOT_API_PORT");
+        env::remove_var("FILE_PILOT_API_BASE_URL");
+
         let command = build_backend_command(Path::new("D:/repo"), "test-token", None);
         let envs = command
             .get_envs()
@@ -362,13 +445,21 @@ mod tests {
 
         assert_eq!(command.get_current_dir(), Some(Path::new("D:/repo")));
         assert!(envs.iter().any(|(key, value)| key == "FILE_PILOT_API_HOST" && value.as_deref() == Some("127.0.0.1")));
-        assert!(envs.iter().any(|(key, value)| key == "FILE_PILOT_API_PORT" && value.as_deref() == Some("8765")));
         assert!(envs.iter().any(|(key, value)| key == "FILE_PILOT_API_RELOAD" && value.as_deref() == Some("false")));
         assert!(envs.iter().any(|(key, value)| key == "FILE_PILOT_PROJECT_ROOT" && value.as_deref() == Some("D:/repo")));
-        assert!(envs.iter().any(|(key, value)| {
-            key == "FILE_PILOT_API_BASE_URL" && value.as_deref() == Some("http://127.0.0.1:8765")
-        }));
         assert!(envs.iter().any(|(key, value)| key == "FILE_PILOT_API_TOKEN" && value.as_deref() == Some("test-token")));
+
+        // 端口取决于默认端口是否空闲（可能被 AnkiConnect 等占用），因此只校验 base_url 与之一致。
+        let port = envs
+            .iter()
+            .find_map(|(key, value)| (key == "FILE_PILOT_API_PORT").then(|| value.clone()).flatten())
+            .expect("port env should be set");
+        assert!(envs.iter().any(|(key, value)| {
+            key == "FILE_PILOT_API_BASE_URL" && value.as_deref() == Some(&format!("http://127.0.0.1:{port}"))
+        }));
+
+        restore_env("FILE_PILOT_API_PORT", previous_port);
+        restore_env("FILE_PILOT_API_BASE_URL", previous_base_url);
     }
 
     #[test]
@@ -411,17 +502,14 @@ mod tests {
 
     #[test]
     fn validate_backend_port_rejects_non_numeric_values() {
+        let _guard = env_lock();
         let previous = env::var("FILE_PILOT_API_PORT").ok();
         env::set_var("FILE_PILOT_API_PORT", "not-a-port");
 
         let error = validate_backend_port().expect_err("invalid port should fail");
         assert!(error.contains("invalid FILE_PILOT_API_PORT"));
 
-        if let Some(value) = previous {
-            env::set_var("FILE_PILOT_API_PORT", value);
-        } else {
-            env::remove_var("FILE_PILOT_API_PORT");
-        }
+        restore_env("FILE_PILOT_API_PORT", previous);
     }
 
     #[cfg(target_os = "windows")]
