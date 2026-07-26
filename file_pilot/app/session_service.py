@@ -5,16 +5,37 @@ import json
 import logging
 import threading
 import uuid
-from dataclasses import asdict, replace
+from dataclasses import replace
 from datetime import datetime, timezone
-from queue import Queue
 from pathlib import Path
+from queue import Queue
 
 from file_pilot.analysis import service as analysis_service
+from file_pilot.app import source_payloads
 from file_pilot.app.async_scanner import AsyncScanner
-from file_pilot.app.id_registry import IdRegistry
 from file_pilot.app.execution_app_service import ExecutionAppService
 from file_pilot.app.history_app_service import HistoryAppService
+from file_pilot.app.id_registry import IdRegistry
+from file_pilot.app.models import (
+    AIPendingBaseline,
+    ConversationState,
+    CreateSessionResult,
+    ExecutionState,
+    OrganizerSession,
+    PendingPlanPayload,
+    PlacementPayload,
+    PlanMappingPayload,
+    PlanSnapshotItem,
+    PlanSnapshotPayload,
+    PlanTargetSlotPayload,
+    SessionMutationResult,
+    SourceCollectionItem,
+    TargetProfileDirectory,
+    TaskState,
+    utc_now_iso,
+)
+from file_pilot.app.planning_conversation_service import PlanningConversationService
+from file_pilot.app.scan_workflow_service import ScanWorkflowService
 from file_pilot.app.session_constants import (
     REVIEW_SLOT_ID,
     SESSION_STAGE_CONFLICT,
@@ -41,55 +62,29 @@ from file_pilot.app.session_constants import (
     is_stage,
     is_terminal_stage,
 )
-from file_pilot.app.models import (
-    AIPendingBaseline,
-    ConversationState,
-    CreateSessionResult,
-    ExecutionState,
-    OrganizerSession,
-    PendingPlanPayload,
-    PlacementPayload,
-    PlanGroupPayload,
-    PlanMappingPayload,
-    PlanSnapshotItem,
-    PlanSnapshotPayload,
-    PlanTargetSlotPayload,
-    SessionMutationResult,
-    SourceCollectionItem,
-    TaskState,
-    TargetProfile,
-    TargetProfileDirectory,
-    utc_now_iso,
-)
-from file_pilot.app.planning_conversation_service import PlanningConversationService
 from file_pilot.app.session_lifecycle_service import SessionLifecycleService
 from file_pilot.app.session_orchestrator import SessionOrchestrator
-from file_pilot.app.scan_workflow_service import ScanWorkflowService
+from file_pilot.app.session_store import SessionStore
 from file_pilot.app.snapshot_builder import SnapshotBuilder
 from file_pilot.app.source_manager import SourceManager
-from file_pilot.app.session_store import SessionStore
-from file_pilot.app.target_profile_store import TargetProfileStore
 from file_pilot.app.target_manager import TargetManager
+from file_pilot.app.target_profile_store import TargetProfileStore
 from file_pilot.app.target_resolver import TargetResolver
 from file_pilot.app.target_slot_registry import TargetSlotRegistry
 from file_pilot.app.task_planner_adapter import TaskPlannerAdapter
 from file_pilot.domain.models import MappingEntry, OrganizeTask, SourceRef, TargetSlot
-from file_pilot.execution import service as execution_service
 from file_pilot.organize import service as organize_service
 from file_pilot.organize.models import FinalPlan, PendingPlan, PlanMove
 from file_pilot.organize.strategy_templates import (
     build_strategy_prompt_fragment,
-    organize_method_for_organize_mode,
-    organize_mode_for_organize_method,
     normalize_strategy_selection,
-    task_type_for_organize_mode,
+    organize_method_for_organize_mode,
     task_type_for_organize_method,
 )
 from file_pilot.rollback import service as rollback_service
 from file_pilot.shared.config import get_text_stream_max_seconds
 from file_pilot.shared.logging_utils import append_debug_event
 from file_pilot.shared.path_utils import canonical_target_dir
-
 
 logger = logging.getLogger(__name__)
 CURRENT_PLANNING_SCHEMA_VERSION = 5
@@ -154,17 +149,10 @@ class OrganizerSessionService:
             return False
         return stage is None or active_stage == str(stage).strip()
 
-    @staticmethod
-    def _planner_id_number(planner_id: str) -> int:
-        text = str(planner_id or "").strip()
-        if len(text) >= 2 and text[0].upper() == "F" and text[1:].isdigit():
-            return int(text[1:])
-        return 0
+    # 与 source_payloads 中的实现保持单一来源，这里仅作方法别名
+    _planner_id_number = staticmethod(source_payloads.planner_id_number)
 
-    @staticmethod
-    def _entry_extension(entry_path: str) -> str:
-        suffix = Path(entry_path or "").suffix.lower().lstrip(".")
-        return suffix or "item"
+    _entry_extension = staticmethod(source_payloads.entry_extension)
 
     @staticmethod
     def _detect_entry_type(target_dir: Path, entry_name: str) -> str:
@@ -222,9 +210,7 @@ class OrganizerSessionService:
             return ""
         return normalized.rsplit("/", 1)[0]
 
-    @staticmethod
-    def _normalize_relpath(value: str | None) -> str:
-        return str(value or "").replace("\\", "/").strip().strip("/")
+    _normalize_relpath = staticmethod(source_payloads.normalize_relpath)
 
     @staticmethod
     def _normalize_organize_mode(value: str | None) -> str:
@@ -1944,21 +1930,6 @@ class OrganizerSessionService:
         )
         self._ensure_message_ids(session.messages)
 
-    def _run_planner_cycle_for_session(
-        self,
-        session: OrganizerSession,
-        *,
-        source: str,
-        pending_plan: PendingPlan | None = None,
-        preserving_previous_plan: bool | None = None,
-    ) -> None:
-        self.orchestrator.run_planner_cycle_for_session(
-            session,
-            source=source,
-            pending_plan=pending_plan,
-            preserving_previous_plan=preserving_previous_plan,
-        )
-
     def _normalized_target_directory(
         self,
         session: OrganizerSession,
@@ -1975,75 +1946,6 @@ class OrganizerSessionService:
             target_slot=target_slot,
             move_to_review=move_to_review,
         ).normalized_dir
-
-    @staticmethod
-    def _target_relpath_for_source(source_relpath: str, destination_dir: str) -> str:
-        normalized_source = str(source_relpath or "").replace("\\", "/").strip()
-        filename = Path(normalized_source).name
-        normalized_dir = str(destination_dir or "").replace("\\", "/").strip().strip("/")
-        return f"{normalized_dir}/{filename}" if normalized_dir else filename
-
-    def _ensure_pending_move_for_source(
-        self,
-        pending: PendingPlan,
-        source_relpath: str,
-        *,
-        default_target_dir: str = REVIEW_SLOT_ID,
-    ) -> PlanMove:
-        normalized_source = self._normalize_relpath(source_relpath)
-        for move in pending.moves:
-            if self._normalize_relpath(move.source) == normalized_source:
-                return move
-        move = PlanMove(
-            source=normalized_source,
-            target=self._target_relpath_for_source(normalized_source, default_target_dir),
-            raw="",
-        )
-        pending.moves.append(move)
-        return move
-
-    def _apply_pending_item_destination(
-        self,
-        session: OrganizerSession,
-        pending: PendingPlan,
-        source_relpath: str,
-        *,
-        target_dir: str | None = None,
-        target_slot: str | None = None,
-        move_to_review: bool = False,
-        create_if_missing: bool = False,
-        clear_unresolved: bool = True,
-    ) -> dict:
-        normalized_source = self._normalize_relpath(source_relpath)
-        move: PlanMove | None = None
-        for candidate in pending.moves:
-            if self._normalize_relpath(candidate.source) == normalized_source:
-                move = candidate
-                break
-        if move is None and create_if_missing:
-            move = self._ensure_pending_move_for_source(pending, normalized_source)
-        if move is None:
-            raise RuntimeError("ITEM_NOT_FOUND")
-
-        destination_dir = self._normalized_target_directory(
-            session,
-            pending,
-            target_dir=target_dir,
-            target_slot=target_slot,
-            move_to_review=move_to_review,
-        )
-        move.target = self._target_relpath_for_source(normalized_source, destination_dir)
-        if clear_unresolved:
-            pending.unresolved_items = [
-                value for value in pending.unresolved_items if self._normalize_relpath(value) != normalized_source
-            ]
-        pending.directories = self._directories_from_moves(pending.moves)
-        return {
-            "source_relpath": normalized_source,
-            "target_dir": destination_dir,
-            "target_relpath": move.target,
-        }
-
 
     def submit_user_intent(self, session_id: str, content: str) -> SessionMutationResult:
         return self.planning_conversation.submit_user_intent(session_id, content)

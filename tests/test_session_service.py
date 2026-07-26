@@ -1,11 +1,17 @@
+import json
 import shutil
 import time
 import unittest
-import json
 from pathlib import Path
 from unittest import mock
 
-from file_pilot.app.models import OrganizerSession, PendingPlanPayload, PlanSnapshotPayload, SourceCollectionItem, TaskState
+from file_pilot.app.models import (
+    OrganizerSession,
+    PendingPlanPayload,
+    PlanSnapshotPayload,
+    SourceCollectionItem,
+    TaskState,
+)
 from file_pilot.app.session_service import OrganizerSessionService
 from file_pilot.app.session_store import SessionStore
 from file_pilot.organize.models import PendingPlan, PlanMove
