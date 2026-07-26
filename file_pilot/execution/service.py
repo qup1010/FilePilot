@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import shutil
 import uuid
@@ -24,6 +25,27 @@ from file_pilot.shared.path_utils import relative_display
 
 JOURNAL_CHECKPOINT_INTERVAL = 10
 _CROSS_VOLUME_WARNING_TEMPLATE = "检测到可能跨磁盘分区移动: {source} -> {target}（可能耗时较久）"
+_NESTED_SOURCE_WARNING_TEMPLATE = "来源 {child} 位于同批移动的 {parent} 内部，两者将被分别移动"
+
+logger = logging.getLogger(__name__)
+
+
+def move_execution_order_key(source_path: Path | None, item_id: str) -> tuple[int, str]:
+    """移动动作的执行排序键：来源路径深的优先。
+
+    若祖先目录先于其内部条目被移走，内部条目的来源路径就会失效，该条目必然失败。
+    预检的 ``source.exists()`` 在任何移动发生前求值，拦不住这种情况，因此顺序必须
+    在构建计划时就定好。深度降序同时让回退（按日志逆序回放）天然正确：祖先先被
+    还原，其内部条目才能放回去。
+
+    同深度时按 ``item_id`` 稳定排序，保证同一份方案的执行顺序可复现。
+    """
+    depth = len(source_path.parts) if source_path is not None else 0
+    return (-depth, item_id)
+
+
+def sort_move_actions(actions: list[ExecutionAction]) -> list[ExecutionAction]:
+    return sorted(actions, key=lambda action: move_execution_order_key(action.source, action.item_id))
 
 
 def _utc_now_iso() -> str:
@@ -99,30 +121,28 @@ def build_execution_plan(parsed_commands, base_dir: Path) -> ExecutionPlan:
     final_plan = _coerce_final_plan(parsed_commands)
     mkdir_actions: list[ExecutionAction] = []
     move_actions: list[ExecutionAction] = []
-    all_actions: list[ExecutionAction] = []
 
     for directory in final_plan.directories:
         raw = f'MKDIR "{directory}"'
-        action = ExecutionAction(type="MKDIR", target=base_dir / directory, raw=raw)
-        mkdir_actions.append(action)
-        all_actions.append(action)
+        mkdir_actions.append(ExecutionAction(type="MKDIR", target=base_dir / directory, raw=raw))
 
     for move in final_plan.moves:
         raw = move.to_move_command()
-        action = ExecutionAction(
-            type="MOVE",
-            source=base_dir / move.source,
-            target=base_dir / move.target,
-            raw=raw,
+        move_actions.append(
+            ExecutionAction(
+                type="MOVE",
+                source=base_dir / move.source,
+                target=base_dir / move.target,
+                raw=raw,
+            )
         )
-        move_actions.append(action)
-        all_actions.append(action)
 
+    move_actions = sort_move_actions(move_actions)
     return ExecutionPlan(
         base_dir=base_dir,
         mkdir_actions=mkdir_actions,
         move_actions=move_actions,
-        all_actions=all_actions,
+        all_actions=[*mkdir_actions, *move_actions],
     )
 
 
@@ -153,6 +173,7 @@ def build_execution_plan_from_mapped(mapped_plan: MappedExecutionPlan) -> Execut
         )
         for action in mapped_plan.move_actions
     ]
+    move_actions = sort_move_actions(move_actions)
     return ExecutionPlan(
         base_dir=base_dir,
         mkdir_actions=mkdir_actions,
@@ -177,6 +198,8 @@ def validate_execution_preconditions(plan: ExecutionPlan) -> PrecheckResult:
             continue
         target = actions[0].target
         blocking_errors.append(f"计划内多个项目指向同一目标: {relative_display(target, plan.base_dir)}")
+
+    warnings.extend(_nested_source_warnings(plan))
 
     for action in plan.move_actions:
         assert action.source is not None
@@ -226,6 +249,35 @@ def validate_execution_preconditions(plan: ExecutionPlan) -> PrecheckResult:
 
 def _path_key(path: Path) -> str:
     return os.path.normcase(str(path.resolve(strict=False))).rstrip("\\/")
+
+
+def _nested_source_warnings(plan: ExecutionPlan) -> list[str]:
+    """标记「祖先目录与其内部条目在同一批被移动」的情况。
+
+    执行顺序已按深度降序排好，这种方案能正确落地（内部条目先走，祖先随后带着剩余
+    内容移动），但结果和用户的直觉未必一致，所以在预览里提示而不是阻断。
+    """
+    source_by_key: dict[str, Path] = {}
+    for action in plan.move_actions:
+        if action.source is not None:
+            source_by_key[_path_key(action.source)] = action.source
+
+    warnings: list[str] = []
+    for action in plan.move_actions:
+        if action.source is None:
+            continue
+        for ancestor in action.source.resolve(strict=False).parents:
+            parent = source_by_key.get(_path_key(ancestor))
+            if parent is None:
+                continue
+            warnings.append(
+                _NESTED_SOURCE_WARNING_TEMPLATE.format(
+                    child=relative_display(action.source, plan.base_dir),
+                    parent=relative_display(parent, plan.base_dir),
+                )
+            )
+            break
+    return warnings
 
 
 def _existing_ancestor(path: Path) -> Path:
@@ -314,7 +366,7 @@ def get_empty_source_dirs(plan: ExecutionPlan) -> list[Path]:
         while parent != plan.base_dir and plan.base_dir in parent.parents:
             source_dirs.add(parent)
             parent = parent.parent
-            
+
     empty_dirs = []
     # 从最深层目录开始检查，以便准确判断
     for d in sorted(source_dirs, key=lambda p: len(p.parts), reverse=True):
@@ -322,8 +374,8 @@ def get_empty_source_dirs(plan: ExecutionPlan) -> list[Path]:
             try:
                 if not any(d.iterdir()):
                     empty_dirs.append(d)
-            except PermissionError:
-                pass
+            except OSError:
+                logger.warning("execution.empty_dir_probe_failed path=%s", d, exc_info=True)
     return empty_dirs
 
 
@@ -334,8 +386,10 @@ def cleanup_empty_dirs(dirs: list[Path]) -> list[Path]:
             if d.exists() and d.is_dir() and not any(d.iterdir()):
                 d.rmdir()
                 cleaned.append(d)
-        except Exception:
-            pass
+        except OSError:
+            # 目录在探测后被重新写入、被占用或权限不足都会走到这里。
+            # 清理空目录是尽力而为的收尾动作，不应中断流程，但必须留下痕迹。
+            logger.warning("execution.empty_dir_cleanup_failed path=%s", d, exc_info=True)
     return cleaned
 
 def _build_running_journal(plan: ExecutionPlan) -> ExecutionJournal:
@@ -413,6 +467,12 @@ def execute_plan(plan: ExecutionPlan) -> ExecutionReport:
             )
         except Exception as exc:  # pragma: no cover - defensive branch
             message = str(exc)
+            logger.warning(
+                "execution.mkdir_failed execution_id=%s target=%s error=%s",
+                journal.execution_id,
+                action.target,
+                message,
+            )
             results.append(ExecutionItemResult(action=action, status="failed", message=message))
             failure_count += 1
             _append_journal_item(
@@ -450,6 +510,13 @@ def execute_plan(plan: ExecutionPlan) -> ExecutionReport:
             )
         except Exception as exc:
             message = str(exc)
+            logger.warning(
+                "execution.move_failed execution_id=%s source=%s target=%s error=%s",
+                journal.execution_id,
+                action.source,
+                action.target,
+                message,
+            )
             results.append(ExecutionItemResult(action=action, status="failed", message=message))
             failure_count += 1
             _append_journal_item(
@@ -468,6 +535,14 @@ def execute_plan(plan: ExecutionPlan) -> ExecutionReport:
             )
 
     journal.status = "completed" if failure_count == 0 else "partial_failure"
+    if failure_count:
+        logger.error(
+            "execution.partial_failure execution_id=%s target_dir=%s success=%s failed=%s",
+            journal.execution_id,
+            journal.target_dir,
+            success_count,
+            failure_count,
+        )
     save_execution_journal(journal)
     update_latest_execution_pointer(plan.base_dir, journal.execution_id)
 

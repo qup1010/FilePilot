@@ -167,6 +167,79 @@ class ExecutionServiceTests(unittest.TestCase):
         self.assertFalse(source_dir.exists())
         self.assertTrue((self.base_dir / "Projects" / "demo-folder" / "nested.txt").exists())
 
+    def test_build_execution_plan_orders_nested_sources_deepest_first(self):
+        parsed = organizer_service.parse_commands_block(
+            '<COMMANDS>\n'
+            'MKDIR "Archive"\n'
+            'MKDIR "Docs"\n'
+            'MOVE "workspace" "Archive/workspace"\n'
+            'MOVE "workspace/report.pdf" "Docs/report.pdf"\n'
+            '</COMMANDS>'
+        )
+
+        plan = execution_service.build_execution_plan(parsed, self.base_dir)
+
+        ordered = [action.source.name for action in plan.move_actions]
+        self.assertEqual(ordered, ["report.pdf", "workspace"])
+
+    def test_execute_plan_moves_nested_source_before_its_ancestor(self):
+        workspace = self.base_dir / "workspace"
+        workspace.mkdir()
+        (workspace / "report.pdf").write_text("report", encoding="utf-8")
+        (workspace / "keep.txt").write_text("keep", encoding="utf-8")
+        parsed = organizer_service.parse_commands_block(
+            '<COMMANDS>\n'
+            'MKDIR "Archive"\n'
+            'MKDIR "Docs"\n'
+            'MOVE "workspace" "Archive/workspace"\n'
+            'MOVE "workspace/report.pdf" "Docs/report.pdf"\n'
+            '</COMMANDS>'
+        )
+        plan = execution_service.build_execution_plan(parsed, self.base_dir)
+
+        report = execution_service.execute_plan(plan)
+
+        self.assertEqual(report.failure_count, 0)
+        self.assertTrue((self.base_dir / "Docs" / "report.pdf").exists())
+        self.assertTrue((self.base_dir / "Archive" / "workspace" / "keep.txt").exists())
+        self.assertFalse((self.base_dir / "Archive" / "workspace" / "report.pdf").exists())
+        self.assertFalse(workspace.exists())
+
+    def test_validate_execution_preconditions_warns_on_nested_sources(self):
+        workspace = self.base_dir / "workspace"
+        workspace.mkdir()
+        (workspace / "report.pdf").write_text("report", encoding="utf-8")
+        parsed = organizer_service.parse_commands_block(
+            '<COMMANDS>\n'
+            'MKDIR "Archive"\n'
+            'MKDIR "Docs"\n'
+            'MOVE "workspace" "Archive/workspace"\n'
+            'MOVE "workspace/report.pdf" "Docs/report.pdf"\n'
+            '</COMMANDS>'
+        )
+        plan = execution_service.build_execution_plan(parsed, self.base_dir)
+
+        precheck = execution_service.validate_execution_preconditions(plan)
+
+        self.assertTrue(precheck.can_execute)
+        self.assertTrue(any("位于同批移动的" in item for item in precheck.warnings))
+
+    def test_validate_execution_preconditions_ignores_unrelated_sources(self):
+        (self.base_dir / "alpha.txt").write_text("alpha", encoding="utf-8")
+        (self.base_dir / "beta.txt").write_text("beta", encoding="utf-8")
+        parsed = organizer_service.parse_commands_block(
+            '<COMMANDS>\n'
+            'MKDIR "Docs"\n'
+            'MOVE "alpha.txt" "Docs/alpha.txt"\n'
+            'MOVE "beta.txt" "Docs/beta.txt"\n'
+            '</COMMANDS>'
+        )
+        plan = execution_service.build_execution_plan(parsed, self.base_dir)
+
+        precheck = execution_service.validate_execution_preconditions(plan)
+
+        self.assertFalse(any("位于同批移动的" in item for item in precheck.warnings))
+
     def test_execute_plan_continues_after_single_move_failure(self):
         (self.base_dir / "broken.txt").write_text("broken", encoding="utf-8")
         (self.base_dir / "ok.txt").write_text("ok", encoding="utf-8")
