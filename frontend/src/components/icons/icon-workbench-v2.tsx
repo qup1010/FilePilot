@@ -1,13 +1,13 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
 import { AlertCircle, FolderOpen, LoaderCircle, Sparkles, X } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { ModelConfigBanner } from "@/components/ui/model-config-banner";
 import { createApiClient } from "@/lib/api";
+import { notifyAppContextChange } from "@/lib/app-context-store";
 import { createIconWorkbenchApiClient } from "@/lib/icon-workbench-api";
 import { createIconWorkbenchEventStream, type IconWorkbenchEventStream } from "@/lib/icon-workbench-sse";
 import { getApiBaseUrl, getApiToken, invokeTauriCommand, isTauriDesktop, openDirectoryWithTauri, pickDirectoriesWithTauri } from "@/lib/runtime";
@@ -47,7 +47,6 @@ import {
 import { useBackgroundRemoval } from "./use-background-removal";
 import { useIconTemplates } from "./use-icon-templates";
 
-const APP_CONTEXT_EVENT = "file-pilot-context-change";
 const ICONS_CONTEXT_KEY = "icons_header_context";
 const ICONS_WORKSPACE_STATE_KEY = "icons_workspace_state";
 type IconWorkbenchStreamStatus = "connecting" | "connected" | "reconnecting" | "offline";
@@ -130,10 +129,6 @@ export default function IconWorkbenchV2() {
   const [isTargetDropActive, setIsTargetDropActive] = useState(false);
   const [_isDraggingGlobal, setIsDraggingGlobal] = useState(false);
   const targetDropZoneRef = useRef<HTMLDivElement | null>(null);
-  const _handledImportPathsRef = useRef<string | null>(null);
-
-  const _searchParams = useSearchParams();
-  const _router = useRouter();
 
   const clearNoticeTimers = useCallback(() => {
     if (noticeFadeTimerRef.current !== null) {
@@ -262,7 +257,7 @@ export default function IconWorkbenchV2() {
     if (typeof window === "undefined") return;
     const detail = hasTargets ? `工作区 · ${targetCount} 个目标` : "准备就绪";
     window.localStorage.setItem(ICONS_CONTEXT_KEY, JSON.stringify({ detail }));
-    window.dispatchEvent(new Event(APP_CONTEXT_EVENT));
+    notifyAppContextChange();
   }, [hasTargets, targetCount]);
 
   const hasSelectedStyle = Boolean(selectedTemplate);

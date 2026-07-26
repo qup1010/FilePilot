@@ -43,6 +43,7 @@ import {
 } from "@/components/settings/settings-primitives";
 import { buildFamilySavePayload, isEditablePreset } from "@/app/settings/preset-flow";
 import { createApiClient } from "@/lib/api";
+import { notifyAppContextChange } from "@/lib/app-context-store";
 import { getApiBaseUrl, getApiToken, invokeTauriCommand, isTauriDesktop, pickDirectoryWithTauri, openUrlWithTauri } from "@/lib/runtime";
 import { findDropZoneForPosition, listenToTauriDragDrop } from "@/lib/tauri-drag-drop";
 import {
@@ -120,7 +121,6 @@ type LaunchSection = "strategy" | "placement" | "targets";
 type ProviderSummaryKind = "text" | "vision" | "icon_image";
 const SETTINGS_TAB_IDS = ["text", "icon_image", "bg_removal", "launch", "system"] as const;
 
-const APP_CONTEXT_EVENT = "file-pilot-context-change";
 const SETTINGS_CONTEXT_KEY = "settings_header_context";
 const IMAGE_SIZE_OPTIONS = ["1024x1024", "512x512", "256x256"] as const;
 
@@ -136,13 +136,6 @@ const formatApiFormatLabel = (value?: string) => {
     return "聊天补全接口";
   }
   return value?.trim() || "聊天补全接口";
-};
-
-const _formatToolModeLabel = (value?: string) => {
-  if (value === "native") {
-    return "支持工具调用";
-  }
-  return value?.trim() || "支持工具调用";
 };
 
 function ProviderCapabilitySummary({
@@ -879,7 +872,7 @@ export default function SettingsPage() {
         detail: "模型与工具配置",
       }),
     );
-    window.dispatchEvent(new Event(APP_CONTEXT_EVENT));
+    notifyAppContextChange();
   }, []);
 
   useEffect(() => {

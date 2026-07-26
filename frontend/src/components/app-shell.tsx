@@ -13,38 +13,15 @@ import { GlobalTaskIndicator } from "./global-task-indicator";
 import { useTheme } from "@/lib/theme";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
+import { getPathBasename } from "@/lib/path-normalization";
+import { APP_CONTEXT_EVENT, WORKSPACE_CONTEXT_KEY, readActiveWorkspaceRoute } from "@/lib/app-context-store";
 
-const WORKSPACE_CONTEXT_KEY = "workspace_header_context";
 const SETTINGS_CONTEXT_KEY = "settings_header_context";
 const HISTORY_CONTEXT_KEY = "history_header_context";
 const ICONS_CONTEXT_KEY = "icons_header_context";
-const APP_CONTEXT_EVENT = "file-pilot-context-change";
-const ACTIVE_WORKSPACE_ROUTE_KEY = "workspace_active_route";
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
-}
-
-function formatDirName(path: string | null | undefined): string {
-  const trimmed = String(path || "").trim();
-  if (!trimmed) {
-    return "当前任务";
-  }
-  try {
-    const decoded = decodeURIComponent(trimmed);
-    if (/^[a-zA-Z]:[\\/]?$/.test(decoded)) {
-      const letter = decoded[0].toUpperCase();
-      return `${letter}:\\`;
-    }
-    if (decoded === "/" || decoded === "\\") {
-      return "/";
-    }
-    const normalized = decoded.replace(/[\\/]$/, "");
-    return normalized.split(/[\\/]/).pop() || "当前任务";
-  } catch {
-    const normalized = trimmed.replace(/[\\/]$/, "");
-    return normalized.split(/[\\/]/).pop() || "当前任务";
-  }
 }
 
 function readStoredContext(key: string) {
@@ -101,9 +78,7 @@ function getBaseModuleLabel(pathname: string, searchParams: URLSearchParams) {
     if (sessionId && !dirParam) {
       return getWorkspaceLoadingLabel();
     }
-    const dirName = formatDirName(dirParam); /*
-      ? decodeURIComponent(dirParam).replace(/[\\/]$/, "").split(/[\\/]/).pop() || "当前任务"
-      : "当前任务"; */
+    const dirName = getPathBasename(dirParam, "当前任务");
     return {
       title: dirName,
       detail: "当前整理任务",
@@ -139,7 +114,7 @@ function getStoredModuleLabel(pathname: string, searchParams: URLSearchParams) {
     const dirParam = searchParams.get("dir");
     const sessionId = searchParams.get("session_id");
     if (dirParam) {
-      const dirName = formatDirName(dirParam);
+      const dirName = getPathBasename(dirParam, "当前任务");
       return {
         title: dirName,
         detail: stored?.stage || "当前整理任务",
@@ -172,7 +147,7 @@ function getWorkspaceRoute(pathname: string, searchParams: URLSearchParams) {
   if (typeof window === "undefined") {
     return "/";
   }
-  return window.localStorage.getItem(ACTIVE_WORKSPACE_ROUTE_KEY) || "/";
+  return readActiveWorkspaceRoute() || "/";
 }
 
 function ThemeToggle() {

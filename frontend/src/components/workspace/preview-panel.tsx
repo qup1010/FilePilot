@@ -811,7 +811,6 @@ export function PreviewPanel(props: PreviewPanelProps) {
     }
   };
 
-  const _isAcceptedReviewItem = (item: PlanItem) => item.status === "review" && acceptedReviewItemIds.includes(item.item_id);
   const acceptAllReviewItems = async () => {
     const reviewCandidateIds = [
       ...reviewItemsPendingAcceptance.map((item) => item.item_id),
@@ -837,11 +836,7 @@ export function PreviewPanel(props: PreviewPanelProps) {
     queuePanelRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" });
   };
 
-  const currentExt = editingItem ? fileExtension(editingItem) : null;
-  const _extMatchedItems = currentExt ? allItems.filter((item) => fileExtension(item) === currentExt) : [];
-  const _sameSuggestedDirItems = editingItem ? unresolvedItems.filter((item) => resolveTargetLabel(item) === resolveTargetLabel(editingItem) && resolveTargetLabel(item) !== "当前目录") : [];
   const editingTargetMeta = editingItem ? resolveTargetMeta(editingItem) : null;
-  const _blockingQueueCount = invalidatedItems.length + unresolvedItems.length;
   const pendingQueueCount = invalidatedItems.length + unresolvedItems.length + activeReviewItems.length;
   const reviewQueueCount = activeReviewItems.length;
   const targetConflictSuggestionCount = useMemo(
@@ -864,13 +859,6 @@ export function PreviewPanel(props: PreviewPanelProps) {
   const visibleCount = viewMode === "before" ? filteredSourceEntries.length : filteredItems.length;
   const totalCount = viewMode === "before" ? sourceTreeEntries.length : allItems.length;
   const hasAfterPlanData = allItems.length > 0 || mkdirPreview.length > 0;
-  const _queueSummaryText = invalidatedItems.length > 0
-    ? `需重新确认 ${invalidatedItems.length}`
-    : unresolvedItems.length > 0
-      ? `待决策 ${unresolvedItems.length}`
-      : reviewQueueCount > 0
-        ? `待核对 ${reviewQueueCount}`
-        : "";
 
   useEffect(() => {
     const currentRunKey = isPlanningRun ? plannerRunKey || "__planning__" : null;

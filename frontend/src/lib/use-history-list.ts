@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { createApiClient } from "@/lib/api";
 import { getApiBaseUrl, getApiToken } from "@/lib/runtime";
+import { getPathBasename } from "@/lib/path-normalization";
 import { localizeUserFacingError } from "@/lib/user-facing-copy";
 import { getFriendlyStage, getFriendlyStatus } from "@/lib/utils";
 import { getWorkspaceRouteForHistoryEntry } from "@/lib/workspace-routes";
@@ -11,8 +12,8 @@ import type { HistoryItem } from "@/types/session";
 
 export type HistoryFilter = "all" | "active" | "completed" | "partial_failure" | "rolled_back" | "rollback_partial_failure";
 
-const APP_CONTEXT_EVENT = "file-pilot-context-change";
-const ACTIVE_WORKSPACE_ROUTE_KEY = "workspace_active_route";
+export { clearActiveWorkspaceRouteForSession, getSessionIdFromWorkspaceRoute } from "@/lib/app-context-store";
+
 const SUCCESS_EXECUTION_STATUSES = new Set(["success", "completed"]);
 const FAILED_EXECUTION_STATUSES = new Set(["partial_failure"]);
 const ROLLED_BACK_EXECUTION_STATUSES = new Set(["rolled_back"]);
@@ -90,27 +91,6 @@ export function getHistoryEntryReadonlyHref(entry: HistoryItem): string {
   });
 }
 
-export function getSessionIdFromWorkspaceRoute(route: string | null): string | null {
-  if (!route?.startsWith("/workspace")) {
-    return null;
-  }
-  const query = route.split("?")[1] || "";
-  return new URLSearchParams(query).get("session_id");
-}
-
-export function clearActiveWorkspaceRouteForSession(sessionId: string): boolean {
-  if (typeof window === "undefined") {
-    return false;
-  }
-  const storedRoute = window.localStorage.getItem(ACTIVE_WORKSPACE_ROUTE_KEY);
-  if (getSessionIdFromWorkspaceRoute(storedRoute) !== sessionId) {
-    return false;
-  }
-  window.localStorage.removeItem(ACTIVE_WORKSPACE_ROUTE_KEY);
-  window.dispatchEvent(new Event(APP_CONTEXT_EVENT));
-  return true;
-}
-
 export function getHistoryDeletePrompt(entry: HistoryItem | null): { title: string; description: string } {
   if (entry && isHistorySessionEntry(entry)) {
     return {
@@ -124,14 +104,10 @@ export function getHistoryDeletePrompt(entry: HistoryItem | null): { title: stri
   };
 }
 
-function getHistoryEntryFallbackName(entry: HistoryItem): string {
-  return entry.target_dir.replace(/[\\/]$/, "").split(/[\\/]/).pop() || "未命名记录";
-}
-
 export function getHistoryEntryName(entry: HistoryItem): string {
   const date = new Date(entry.created_at);
   if (Number.isNaN(date.getTime())) {
-    return getHistoryEntryFallbackName(entry);
+    return getPathBasename(entry.target_dir, "未命名记录");
   }
   return historyDateFormatter.format(date);
 }

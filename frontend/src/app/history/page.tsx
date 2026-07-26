@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { cn, formatDisplayDate, } from "@/lib/utils";
+import { getPathBasename } from "@/lib/path-normalization";
 import { localizeSessionLastError, localizeUserFacingError } from "@/lib/user-facing-copy";
 import { useRouter, useSearchParams } from "next/navigation";
 
@@ -25,6 +26,7 @@ import { RollbackPreviewDialog } from "@/components/workspace/rollback-preview-d
 import { Button } from "@/components/ui/button";
 import { ErrorAlert } from "@/components/ui/error-alert";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { notifyAppContextChange } from "@/lib/app-context-store";
 import {
   clearActiveWorkspaceRouteForSession,
   getHistoryEntryName,
@@ -60,13 +62,6 @@ function formatMovePath(path: string | null, baseDir: string) {
     return relative || ".";
   }
   return formatPath(normalizedPath);
-}
-
-function getDirectoryShortName(path: string | null) {
-  if (!path) return "未指定目录";
-  const segments = path.replace(/[\\/]$/, "").split(/[\\/]/);
-  const last = segments[segments.length - 1];
-  return last || path;
 }
 
 function getSessionRecoveryCopy(entry: HistoryItem | null, detail: SessionSnapshot | null) {
@@ -128,7 +123,6 @@ function getSessionRecoveryCopy(entry: HistoryItem | null, detail: SessionSnapsh
 }
 
 export default function HistoryPage() {
-  const APP_CONTEXT_EVENT = "file-pilot-context-change";
   const HISTORY_CONTEXT_KEY = "history_header_context";
   const searchParams = useSearchParams();
   const requestedEntryId = searchParams.get("entry_id");
@@ -269,7 +263,7 @@ export default function HistoryPage() {
         HISTORY_CONTEXT_KEY,
         JSON.stringify({ detail: "会话与执行档案" }),
       );
-      window.dispatchEvent(new Event(APP_CONTEXT_EVENT));
+      notifyAppContextChange();
       return;
     }
     window.localStorage.setItem(
@@ -278,8 +272,8 @@ export default function HistoryPage() {
           detail: `${getHistoryEntryName(selectedEntry)} · ${getHistoryEntrySummary(selectedEntry)}`,
         }),
       );
-    window.dispatchEvent(new Event(APP_CONTEXT_EVENT));
-  }, [APP_CONTEXT_EVENT, HISTORY_CONTEXT_KEY, selectedEntry]);
+    notifyAppContextChange();
+  }, [HISTORY_CONTEXT_KEY, selectedEntry]);
 
   const handleRollback = async (isConfirm: boolean = false) => {
     if (!journal || !selectedSessionId) return;
@@ -661,7 +655,7 @@ export default function HistoryPage() {
                   const isRolledBack = isHistoryRolledBackEntry(entry);
                   const isPartialFailure = isHistoryPartialFailureEntry(entry) || isHistoryRollbackPartialFailureEntry(entry);
                   const statusSummary = getHistoryEntrySummary(entry);
-                  const dirShortName = getDirectoryShortName(entry.target_dir);
+                  const dirShortName = getPathBasename(entry.target_dir, entry.target_dir || "未指定目录");
 
                   return (
                     <motion.div
@@ -794,7 +788,7 @@ export default function HistoryPage() {
                          "truncate text-[15px] font-black tracking-tight text-on-surface",
                          selectedEntry && isHistoryRolledBackEntry(selectedEntry) && "line-through text-ui-muted/60"
                        )}>
-                         {getDirectoryShortName(selectedEntry.target_dir)}
+                         {getPathBasename(selectedEntry.target_dir, selectedEntry.target_dir || "未指定目录")}
                        </h2>
                        <div className="h-4 w-px bg-on-surface/10 shrink-0" />
                        <div className="flex min-w-0 items-center gap-2">

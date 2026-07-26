@@ -50,7 +50,14 @@ import {
   listenToTauriDragDrop,
 } from "@/lib/tauri-drag-drop";
 import { getSessionStageView } from "@/lib/session-view-model";
-import { deriveWorkspaceRoot } from "@/lib/path-normalization";
+import {
+  ACTIVE_WORKSPACE_ROUTE_KEY,
+  readActiveWorkspaceRoute,
+  rememberActiveWorkspaceRoute,
+  subscribeAppContext,
+} from "@/lib/app-context-store";
+import { getHistoryEntrySummary, isHistorySessionEntry } from "@/lib/use-history-list";
+import { deriveWorkspaceRoot, getPathBasename } from "@/lib/path-normalization";
 import { buildWorkspaceRoute, getWorkspaceRouteForHistoryEntry, getWorkspaceRouteForSnapshot } from "@/lib/workspace-routes";
 import {
   buildStrategySummary,
@@ -65,7 +72,7 @@ import {
   shouldSkipLaunchStrategyPrompt,
   STRATEGY_TEMPLATES,
 } from "@/lib/strategy-templates";
-import { cn, formatDisplayDate, getFriendlyStage, getFriendlyStatus } from "@/lib/utils";
+import { cn, formatDisplayDate } from "@/lib/utils";
 import type {
   DirectorySourceMode,
   LaunchStrategyConfig,
@@ -151,11 +158,7 @@ type LauncherDraftState = {
   showManualTargetInput?: boolean;
 };
 
-const _IMPORT_GROUP_PREVIEW_LIMIT = 5;
 const LAUNCHER_DRAFT_KEY = "file_pilot_launcher_draft";
-const ACTIVE_WORKSPACE_ROUTE_KEY = "workspace_active_route";
-const APP_CONTEXT_EVENT = "file-pilot-context-change";
-const FINAL_HISTORY_STATUSES = new Set(["success", "completed", "partial_failure", "rolled_back", "rollback_partial_failure"]);
 
 function createImportGroupId(): string {
   return `import-group:${Date.now()}:${Math.random().toString(36).slice(2, 8)}`;
@@ -221,15 +224,11 @@ function dedupeSources(items: SessionSourceSelection[]): SessionSourceSelection[
   return Array.from(seen.values());
 }
 
-function sourceDisplayName(item: Pick<SessionSourceSelection, "path">): string {
-  return item.path.split(/[\\/]/).pop() || item.path;
-}
-
 function compareSourceForDisplay(a: SessionSourceSelection, b: SessionSourceSelection): number {
   if (a.source_type !== b.source_type) {
     return a.source_type === "directory" ? -1 : 1;
   }
-  return sourceDisplayName(a).localeCompare(sourceDisplayName(b), "zh-Hans-CN", {
+  return getPathBasename(a.path, a.path).localeCompare(getPathBasename(b.path, b.path), "zh-Hans-CN", {
     numeric: true,
     sensitivity: "base",
   });
@@ -298,15 +297,14 @@ function rememberWorkspaceRoute(route: string) {
   const params = new URLSearchParams(search);
   params.delete("auto_scan");
   const normalizedRoute = params.toString() ? `${pathname}?${params.toString()}` : pathname;
-  window.localStorage.setItem(ACTIVE_WORKSPACE_ROUTE_KEY, normalizedRoute);
-  window.dispatchEvent(new Event(APP_CONTEXT_EVENT));
+  rememberActiveWorkspaceRoute(normalizedRoute);
 }
 
 function readActiveWorkspaceTask(): LaunchWorkbenchTask | null {
   if (typeof window === "undefined") {
     return null;
   }
-  const route = window.localStorage.getItem(ACTIVE_WORKSPACE_ROUTE_KEY);
+  const route = readActiveWorkspaceRoute();
   if (!route?.startsWith("/workspace")) {
     return null;
   }
@@ -359,12 +357,8 @@ function getHistoryRoute(entry: HistoryItem, options?: { readonly?: boolean }) {
   });
 }
 
-function isHistorySessionLike(entry: HistoryItem): boolean {
-  return Boolean(entry.is_session) || !FINAL_HISTORY_STATUSES.has(String(entry.status || "").toLowerCase());
-}
-
 function getHistoryActionLabel(entry: HistoryItem): string {
-  if (isHistorySessionLike(entry)) {
+  if (isHistorySessionEntry(entry)) {
     const status = String(entry.status || "").toLowerCase();
     if (status === "draft" || status === "idle") {
       return "继续并扫描";
@@ -375,14 +369,6 @@ function getHistoryActionLabel(entry: HistoryItem): string {
     return "继续任务";
   }
   return "查看记录";
-}
-
-function getHistoryStatusLabel(entry: HistoryItem): string {
-  return isHistorySessionLike(entry) ? getFriendlyStage(entry.status) : getFriendlyStatus(entry.status);
-}
-
-function getHistoryDisplayName(entry: HistoryItem): string {
-  return entry.target_dir.replace(/[\\/]$/, "").split(/[\\/]/).pop() || "未命名任务";
 }
 
 function dedupeTargetDirectories(items: TargetProfileDirectory[]): TargetProfileDirectory[] {
@@ -481,15 +467,6 @@ function getSourceBehaviorLabel(item: SessionSourceSelection): string {
     return "单个文件";
   }
   return normalizeDirectoryMode(item) === "atomic" ? "整体移动" : "整理里面内容";
-}
-
-function _getSourceBehaviorHint(item: SessionSourceSelection): string {
-  if (item.source_type === "file") {
-    return "按单个文件处理。";
-  }
-  return normalizeDirectoryMode(item) === "atomic"
-    ? "将把这个文件夹整体作为一个项目移动。"
-    : "将整理这个文件夹里的内容。";
 }
 
 function mapDirectoryEntryToSource(entry: { path: string; is_dir: boolean; is_file: boolean }): SessionSourceSelection | null {
@@ -833,7 +810,6 @@ export function SessionLauncherShell() {
     targetProfilesLoading,
   ]);
 
-  const _stepThreeValidationMessage = step === 3 ? getLaunchValidationMessage("default") : null;
   const fastStartValidationMessage = step === 1 && skipStrategyPrompt && sources.length > 0
     ? getLaunchValidationMessage("direct")
     : null;
@@ -971,12 +947,7 @@ export function SessionLauncherShell() {
       setActiveWorkspaceTask(readActiveWorkspaceTask());
     };
     syncActiveWorkspace();
-    window.addEventListener("storage", syncActiveWorkspace);
-    window.addEventListener(APP_CONTEXT_EVENT, syncActiveWorkspace);
-    return () => {
-      window.removeEventListener("storage", syncActiveWorkspace);
-      window.removeEventListener(APP_CONTEXT_EVENT, syncActiveWorkspace);
-    };
+    return subscribeAppContext(syncActiveWorkspace);
   }, []);
 
   useEffect(() => {
@@ -1813,28 +1784,6 @@ export function SessionLauncherShell() {
     setLoading(false);
   }
 
-  function _handleDrop(event: React.DragEvent<HTMLDivElement>) {
-    event.preventDefault();
-    setIsDropActive(false);
-    const droppedSources = extractDroppedSources(event.dataTransfer);
-    if (!droppedSources.length) {
-      setError("当前环境暂时无法从拖拽内容里读取本地绝对路径。你可以改用“移动整个文件夹”“添加单个文件”或手动输入路径。");
-      return;
-    }
-    addSources(droppedSources);
-    setError(null);
-  }
-
-  function _handleDragOver(event: React.DragEvent<HTMLDivElement>) {
-    event.preventDefault();
-    setIsDropActive(true);
-  }
-
-  function _handleDragLeave(event: React.DragEvent<HTMLDivElement>) {
-    event.preventDefault();
-    setIsDropActive(false);
-  }
-
   function handleTargetDrop(event: React.DragEvent<HTMLDivElement>) {
     event.preventDefault();
     setIsTargetDropActive(false);
@@ -2049,18 +1998,18 @@ export function SessionLauncherShell() {
                 <button
                   key={entry.execution_id}
                   type="button"
-                  onClick={() => router.push(isHistorySessionLike(entry) ? getHistoryRoute(entry) : `/history?entry_id=${entry.execution_id}`)}
+                  onClick={() => router.push(isHistorySessionEntry(entry) ? getHistoryRoute(entry) : `/history?entry_id=${entry.execution_id}`)}
                   className="group flex w-full items-center justify-between gap-3 rounded-lg border border-on-surface/[0.04] bg-on-surface/[0.005] px-3 py-2.5 text-left transition-all hover:border-primary/10 hover:bg-on-surface/[0.02]"
                 >
                   <div className="min-w-0 flex-1 flex items-start gap-2.5">
                     <span className={cn(
                       "mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full",
-                      isHistorySessionLike(entry) ? "bg-primary animate-pulse" : entry.status === "partial_failure" ? "bg-warning" : "bg-success-dim",
+                      isHistorySessionEntry(entry) ? "bg-primary animate-pulse" : entry.status === "partial_failure" ? "bg-warning" : "bg-success-dim",
                     )} />
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-[12.5px] font-black text-on-surface/85 group-hover:text-on-surface transition-colors">{getHistoryDisplayName(entry)}</p>
+                      <p className="truncate text-[12.5px] font-black text-on-surface/85 group-hover:text-on-surface transition-colors">{getPathBasename(entry.target_dir, "未命名任务")}</p>
                       <p className="mt-0.5 truncate text-[11px] font-medium text-ui-muted/50">
-                        {getHistoryStatusLabel(entry)} · {formatDisplayDate(entry.created_at)}
+                        {getHistoryEntrySummary(entry)} · {formatDisplayDate(entry.created_at)}
                       </p>
                     </div>
                   </div>

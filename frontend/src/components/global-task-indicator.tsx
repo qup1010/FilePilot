@@ -9,14 +9,12 @@ import { getApiBaseUrl, getApiToken } from "@/lib/runtime";
 import { cn } from "@/lib/utils";
 import type { SessionSnapshot } from "@/types/session";
 import { getWorkspaceRouteForSnapshot } from "@/lib/workspace-routes";
-
-const ACTIVE_WORKSPACE_ROUTE_KEY = "workspace_active_route";
-
-function getSessionIdFromRoute(route: string | null): string | null {
-  if (!route?.includes("session_id=")) return null;
-  const match = route.match(/session_id=([^&]+)/);
-  return match ? match[1] : null;
-}
+import {
+  clearActiveWorkspaceRoute,
+  getSessionIdFromWorkspaceRoute,
+  readActiveWorkspaceRoute,
+  subscribeAppContext,
+} from "@/lib/app-context-store";
 
 export function GlobalTaskIndicator() {
   const pathname = usePathname();
@@ -29,21 +27,15 @@ export function GlobalTaskIndicator() {
   // 从本地记录中同步当前任务入口。
   useEffect(() => {
     const checkActive = () => {
-      const route = localStorage.getItem(ACTIVE_WORKSPACE_ROUTE_KEY);
-      const sid = getSessionIdFromRoute(route);
+      const route = readActiveWorkspaceRoute();
+      const sid = getSessionIdFromWorkspaceRoute(route);
       setActiveRoute(route);
       setActiveSessionId(sid);
     };
 
     checkActive();
-    window.addEventListener("storage", checkActive);
-    // storage 只会响应其他标签页，这里补充监听应用内上下文刷新。
-    window.addEventListener("file-pilot-context-change", checkActive);
-    
-    return () => {
-      window.removeEventListener("storage", checkActive);
-      window.removeEventListener("file-pilot-context-change", checkActive);
-    };
+    // storage 只会响应其他标签页，subscribeAppContext 会同时监听应用内上下文刷新事件。
+    return subscribeAppContext(checkActive);
   }, []);
 
   // 有当前任务时，定时读取后端快照。
@@ -65,8 +57,7 @@ export function GlobalTaskIndicator() {
       } catch (err) {
         const status = typeof (err as { status?: unknown })?.status === "number" ? (err as { status: number }).status : null;
         if (status === 404) {
-          localStorage.removeItem(ACTIVE_WORKSPACE_ROUTE_KEY);
-          window.dispatchEvent(new Event("file-pilot-context-change"));
+          clearActiveWorkspaceRoute();
           setActiveRoute(null);
           setActiveSessionId(null);
           setSnapshot(null);

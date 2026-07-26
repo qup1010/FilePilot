@@ -4,6 +4,15 @@ import React, { useMemo, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { AlertCircle, AlertTriangle, ArrowRight, CheckCircle2, Layers, ListChecks, Loader2, LogOut, PanelLeftClose, PanelLeftOpen, RefreshCw, ShieldAlert } from "lucide-react";
 import { getSessionStageView } from "@/lib/session-view-model";
+import { getPathBasename } from "@/lib/path-normalization";
+import {
+  WORKSPACE_CONTEXT_KEY,
+  clearActiveWorkspaceRoute,
+  clearActiveWorkspaceRouteForSession,
+  notifyAppContextChange,
+  readActiveWorkspaceRoute,
+  rememberActiveWorkspaceRoute,
+} from "@/lib/app-context-store";
 import { cn } from "@/lib/utils";
 import { canRunPrecheck as deriveCanRunPrecheck } from "@/lib/workspace-precheck";
 
@@ -31,9 +40,6 @@ import type { RollbackPrecheckSummary } from "@/types/session";
 const DEFAULT_LEFT_WIDTH = 50;
 const SCAN_PREVIEW_GRACE_MS = 1200;
 const COMPACT_WORKSPACE_BREAKPOINT = 1100;
-const APP_CONTEXT_EVENT = "file-pilot-context-change";
-const WORKSPACE_CONTEXT_KEY = "workspace_header_context";
-const ACTIVE_WORKSPACE_ROUTE_KEY = "workspace_active_route";
 type InitialAutoPlanUiState = "idle" | "pending" | "revealing" | "done";
 type WorkspacePipelineStepState = "done" | "active" | "pending" | "blocked";
 
@@ -48,47 +54,12 @@ interface WorkspacePrimaryNotice extends ConversationNotice {
   steps: WorkspacePipelineStep[];
 }
 
-function getSessionIdFromWorkspaceRoute(route: string | null): string | null {
-  if (!route?.startsWith("/workspace")) {
-    return null;
-  }
-  const query = route.split("?")[1] || "";
-  return new URLSearchParams(query).get("session_id");
-}
-
 function summarizeItemNames(names: string[], limit = 3): string {
   const visible = names.filter(Boolean).slice(0, limit);
   if (!visible.length) {
     return "";
   }
   return visible.join("、") + (names.length > limit ? ` 等 ${names.length} 项` : "");
-}
-
-function displayNameFromPath(path: string): string {
-  const normalized = String(path || "").replace(/[\\/]+$/, "");
-  return normalized.split(/[\\/]/).pop() || "未知条目";
-}
-
-function formatDirName(path: string | null | undefined): string {
-  const trimmed = String(path || "").trim();
-  if (!trimmed) {
-    return "当前任务";
-  }
-  try {
-    const decoded = decodeURIComponent(trimmed);
-    if (/^[a-zA-Z]:[\\/]?$/.test(decoded)) {
-      const letter = decoded[0].toUpperCase();
-      return `${letter}:\\`;
-    }
-    if (decoded === "/" || decoded === "\\") {
-      return "/";
-    }
-    const normalized = decoded.replace(/[\\/]$/, "");
-    return normalized.split(/[\\/]/).pop() || "当前任务";
-  } catch {
-    const normalized = trimmed.replace(/[\\/]$/, "");
-    return normalized.split(/[\\/]/).pop() || "当前任务";
-  }
 }
 
 function deriveWorkspacePipeline(stageView: ReturnType<typeof getSessionStageView>, progressPhase: WorkspaceProgressPhase): WorkspacePipelineStep[] {
@@ -281,10 +252,7 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
 
   React.useEffect(() => {
     if (chatErrorCode === "SESSION_NOT_FOUND") {
-      if (typeof window !== "undefined") {
-        window.localStorage.removeItem(ACTIVE_WORKSPACE_ROUTE_KEY);
-        window.dispatchEvent(new Event(APP_CONTEXT_EVENT));
-      }
+      clearActiveWorkspaceRoute();
       router.push("/");
     }
   }, [chatErrorCode, router]);
@@ -409,11 +377,6 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
   const showConversationPane = !isCompactLayout || compactConversationOpen;
   const showPreviewPane = !isCompactLayout || !compactConversationOpen;
   const effectiveComposerMode = isReadOnly ? "hidden" : composerMode;
-  const targetPath = snapshot?.target_dir || dirParam || "";
-  const _targetDirName = useMemo(
-    () => formatDirName(targetPath),
-    [targetPath],
-  );
   const reviewMoveCount = useMemo(
     () => (precheck?.move_preview || []).filter((move) => move.target.split(/[\\/]/).some((part) => part.toLowerCase() === "review")).length,
     [precheck],
@@ -422,7 +385,7 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
   const isInterruptedDuringScan = stageView.isInterrupted && interruptedDuring === "scanning";
   const precheckItemNames = useMemo(() => {
     const itemNameById = new Map((snapshot?.plan_snapshot?.items || []).map((item) => [item.item_id, item.display_name] as const));
-    return (precheck?.move_preview || []).map((move) => itemNameById.get(move.item_id) || displayNameFromPath(move.source));
+    return (precheck?.move_preview || []).map((move) => itemNameById.get(move.item_id) || getPathBasename(move.source, "未知条目"));
   }, [precheck?.move_preview, snapshot?.plan_snapshot?.items]);
   const precheckItemsSummary = useMemo(() => summarizeItemNames(precheckItemNames), [precheckItemNames]);
   const nextStepHint = useMemo(() => {
@@ -467,7 +430,6 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
     }
     return "当前任务正在推进。";
   }, [canRunPrecheck, hasStrandedInitialAutoPlan, isEmptyCompleted, isReadOnly, precheck?.move_preview.length, progressPhase, reviewMoveCount, stageView]);
-  const _isRootTarget = useMemo(() => /^[a-zA-Z]:[\\/]?$/.test((snapshot?.target_dir || "").trim()), [snapshot?.target_dir]);
   const beginScanPreviewHold = React.useCallback(() => {
     if (typeof window === "undefined") {
       return;
@@ -569,12 +531,8 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
     setShowExitMenu(false);
     // 只读或已完成的任务，返回首页是纯导航，无需确认拦截。
     if (isReadOnly || stageView.isCompleted) {
-      if (typeof window !== "undefined" && sessionIdParam) {
-        const storedRoute = window.localStorage.getItem(ACTIVE_WORKSPACE_ROUTE_KEY);
-        if (getSessionIdFromWorkspaceRoute(storedRoute) === sessionIdParam) {
-          window.localStorage.removeItem(ACTIVE_WORKSPACE_ROUTE_KEY);
-          window.dispatchEvent(new Event(APP_CONTEXT_EVENT));
-        }
+      if (sessionIdParam) {
+        clearActiveWorkspaceRouteForSession(sessionIdParam);
       }
       router.push("/");
       return;
@@ -583,10 +541,7 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
   }, [isReadOnly, router, sessionIdParam, stageView.isCompleted]);
 
   const handleConfirmExitWorkbench = async () => {
-    if (typeof window !== "undefined") {
-      window.localStorage.removeItem(ACTIVE_WORKSPACE_ROUTE_KEY);
-      window.dispatchEvent(new Event(APP_CONTEXT_EVENT));
-    }
+    clearActiveWorkspaceRoute();
     setExitConfirmOpen(false);
     router.push("/");
   };
@@ -596,10 +551,7 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
     try {
       const success = await abandonSession();
       if (success) {
-        if (typeof window !== "undefined") {
-          window.localStorage.removeItem(ACTIVE_WORKSPACE_ROUTE_KEY);
-          window.dispatchEvent(new Event(APP_CONTEXT_EVENT));
-        }
+        clearActiveWorkspaceRoute();
         setScanAbortConfirmOpen(false);
         router.push("/");
       }
@@ -665,17 +617,9 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
       const shouldClear = isReadOnly || isCompleted || isInactive;
 
       if (shouldClear) {
-        const storedRoute = window.localStorage.getItem(ACTIVE_WORKSPACE_ROUTE_KEY);
-        if (getSessionIdFromWorkspaceRoute(storedRoute) === sessionIdParam) {
-          window.localStorage.removeItem(ACTIVE_WORKSPACE_ROUTE_KEY);
-          window.dispatchEvent(new Event(APP_CONTEXT_EVENT));
-        }
-      } else {
-        const storedRoute = window.localStorage.getItem(ACTIVE_WORKSPACE_ROUTE_KEY);
-        if (storedRoute !== nextRoute) {
-          window.localStorage.setItem(ACTIVE_WORKSPACE_ROUTE_KEY, nextRoute);
-          window.dispatchEvent(new Event(APP_CONTEXT_EVENT));
-        }
+        clearActiveWorkspaceRouteForSession(sessionIdParam);
+      } else if (readActiveWorkspaceRoute() !== nextRoute) {
+        rememberActiveWorkspaceRoute(nextRoute);
       }
     }
 
@@ -1074,7 +1018,7 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
     }
     const targetPath = snapshot?.target_dir || dirParam || "";
     const hasTargetPath = Boolean(targetPath);
-    const dirName = snapshot?.session_title || formatDirName(targetPath);
+    const dirName = snapshot?.session_title || getPathBasename(targetPath, "当前任务");
     window.localStorage.setItem(
       WORKSPACE_CONTEXT_KEY,
       JSON.stringify({
@@ -1084,7 +1028,7 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
         hasTargetPath,
       }),
     );
-    window.dispatchEvent(new Event(APP_CONTEXT_EVENT));
+    notifyAppContextChange();
   }, [dirParam, sessionIdParam, snapshot?.target_dir, snapshot?.session_title, stage]);
 
   React.useEffect(() => {
@@ -1141,15 +1085,10 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
       const params = new URLSearchParams(window.location.search);
       params.delete("auto_scan");
       const query = params.toString();
-      window.localStorage.setItem(ACTIVE_WORKSPACE_ROUTE_KEY, query ? `/workspace/${view}?${query}` : `/workspace/${view}`);
-      window.dispatchEvent(new Event(APP_CONTEXT_EVENT));
+      rememberActiveWorkspaceRoute(query ? `/workspace/${view}?${query}` : `/workspace/${view}`);
       return;
     }
-    const storedRoute = window.localStorage.getItem(ACTIVE_WORKSPACE_ROUTE_KEY);
-    if (getSessionIdFromWorkspaceRoute(storedRoute) === sessionIdParam) {
-      window.localStorage.removeItem(ACTIVE_WORKSPACE_ROUTE_KEY);
-      window.dispatchEvent(new Event(APP_CONTEXT_EVENT));
-    }
+    clearActiveWorkspaceRouteForSession(sessionIdParam);
   }, [isReadOnly, sessionIdParam, stageView.isCompleted, view]);
 
   const focusPreviewItems = React.useCallback((itemIds: string[], filter?: PreviewFilter) => {
