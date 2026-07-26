@@ -1,11 +1,10 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence } from "motion/react";
 import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import {
   AlertCircle,
-  ArrowLeft,
   CheckCircle2,
   ChevronDown,
   ChevronRight,
@@ -21,16 +20,12 @@ import {
   Key,
   Layers3,
   Loader2,
-  Lock,
-  LogOut,
-  RefreshCcw,
   RefreshCw,
   Scissors,
   Settings as SettingsIcon,
   ShieldCheck,
   SlidersHorizontal,
   Terminal,
-  Trash2,
   type LucideIcon,
 } from "lucide-react";
 
@@ -62,7 +57,6 @@ import {
 } from "@/lib/strategy-templates";
 import { cn } from "@/lib/utils";
 import type {
-  IconImageSettingsPreset,
   SecretAction,
   SecretState,
   SettingsFamily,
@@ -144,7 +138,7 @@ const formatApiFormatLabel = (value?: string) => {
   return value?.trim() || "聊天补全接口";
 };
 
-const formatToolModeLabel = (value?: string) => {
+const _formatToolModeLabel = (value?: string) => {
   if (value === "native") {
     return "支持工具调用";
   }
@@ -629,8 +623,8 @@ export default function SettingsPage() {
   const activeCategory = categories.find((item) => item.id === activeTab) ?? categories[0];
   const selectedTargetProfile = targetProfiles.find((profile) => profile.profile_id === selectedTargetProfileId) ?? targetProfiles[0] ?? null;
   const selectedTargetProfileDraft = selectedTargetProfile ? targetProfileDrafts[selectedTargetProfile.profile_id] : null;
-  const selectedTargetProfileName = selectedTargetProfileDraft?.name || selectedTargetProfile?.name || "选择目标目录配置";
-  const selectedTargetDirectoryCount = selectedTargetProfileDraft?.directories.length ?? selectedTargetProfile?.directories.length ?? 0;
+  const _selectedTargetProfileName = selectedTargetProfileDraft?.name || selectedTargetProfile?.name || "选择目标目录配置";
+  const _selectedTargetDirectoryCount = selectedTargetProfileDraft?.directories.length ?? selectedTargetProfile?.directories.length ?? 0;
 
   const settingsDirty = useMemo(
     () =>
@@ -2096,6 +2090,7 @@ export default function SettingsPage() {
                       <ToggleSwitch
                         checked={Boolean(draft.global_config.IMAGE_ANALYSIS_ENABLED)}
                         onClick={() => updateGlobal("IMAGE_ANALYSIS_ENABLED", !draft.global_config.IMAGE_ANALYSIS_ENABLED)}
+                        ariaLabel="启用图片理解能力"
                       />
                     </div>
                   </div>
@@ -2713,6 +2708,7 @@ export default function SettingsPage() {
                           <ToggleSwitch
                             checked={launchReviewFollowsNewRoot}
                             onClick={() => updateGlobal("LAUNCH_REVIEW_FOLLOWS_NEW_ROOT", !launchReviewFollowsNewRoot)}
+                            ariaLabel="待确认区跟随新目录位置"
                           />
                         </div>
                       </div>
@@ -2723,7 +2719,7 @@ export default function SettingsPage() {
                           <h3 className="text-[13px] font-semibold text-on-surface">直接使用默认值启动</h3>
                           <p className="mt-1 text-[12px] leading-5 text-on-surface-variant/65">开启后，首页点击开始时直接进入任务。</p>
                         </div>
-                        <ToggleSwitch checked={Boolean(draft.global_config.LAUNCH_SKIP_STRATEGY_PROMPT)} onClick={() => updateGlobal("LAUNCH_SKIP_STRATEGY_PROMPT", !draft.global_config.LAUNCH_SKIP_STRATEGY_PROMPT)} />
+                        <ToggleSwitch checked={Boolean(draft.global_config.LAUNCH_SKIP_STRATEGY_PROMPT)} onClick={() => updateGlobal("LAUNCH_SKIP_STRATEGY_PROMPT", !draft.global_config.LAUNCH_SKIP_STRATEGY_PROMPT)} ariaLabel="直接使用默认值启动" />
                       </div>
                     </div>
                   </div>
@@ -3277,6 +3273,7 @@ export default function SettingsPage() {
                     <ToggleSwitch
                       checked={Boolean(draft.global_config.DEBUG_MODE)}
                       onClick={() => updateGlobal("DEBUG_MODE", !draft.global_config.DEBUG_MODE)}
+                      ariaLabel="调试模式（详细日志）"
                     />
                   </div>
 

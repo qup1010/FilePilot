@@ -19,7 +19,7 @@ const updateTargetProfile = vi.fn();
 const deleteTargetProfile = vi.fn();
 let currentSearchParams = new URLSearchParams();
 
-vi.mock("framer-motion", () => ({
+vi.mock("motion/react", () => ({
   AnimatePresence: ({ children }: { children: React.ReactNode }) => <>{children}</>,
   motion: {
     div: ({ children, ...props }: React.ComponentProps<"div">) => <div {...props}>{children}</div>,
