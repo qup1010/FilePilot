@@ -69,14 +69,6 @@ function getDirectoryShortName(path: string | null) {
   return last || path;
 }
 
-function summarizeMoveNames(items: { display_name: string }[], limit = 3) {
-  const names = items.map((item) => item.display_name).filter(Boolean).slice(0, limit);
-  if (!names.length) {
-    return "";
-  }
-  return names.join("、") + (items.length > limit ? ` 等 ${items.length} 项` : "");
-}
-
 function getSessionRecoveryCopy(entry: HistoryItem | null, detail: SessionSnapshot | null) {
   const status = String(detail?.stage || entry?.status || "").toLowerCase();
   if (status === "draft" || status === "idle") {
@@ -145,8 +137,13 @@ export default function HistoryPage() {
   const [sessionDetail, setSessionDetail] = useState<SessionSnapshot | null>(null);
   const [detailQuery, setDetailQuery] = useState("");
   const [journalLoading, setJournalLoading] = useState(false);
+  const [detailError, setDetailError] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
-  const [rollbackResult, setRollbackResult] = useState<{ successCount: number; failureCount: number } | null>(null);
+  const [rollbackResult, setRollbackResult] = useState<{
+    successCount: number | null;
+    attemptedCount: number | null;
+    failureCount: number;
+  } | null>(null);
   const [rollbackConfirmOpen, setRollbackConfirmOpen] = useState(false);
   const [rollbackPrecheck, setRollbackPrecheck] = useState<RollbackPrecheckSummary | null>(null);
   const requestedEntryHandledRef = useRef<string | null>(null);
@@ -172,6 +169,7 @@ export default function HistoryPage() {
 
   async function loadJournal(id: string, options: { preserveRollbackResult?: boolean } = {}) {
     setJournalLoading(true);
+    setDetailError(null);
     if (!options.preserveRollbackResult) {
       setRollbackResult(null);
     }
@@ -181,6 +179,7 @@ export default function HistoryPage() {
     } catch (err) {
       console.error(err);
       setJournal(null);
+      setDetailError(localizeUserFacingError(err, "读取记录详情失败，请稍后再试。"));
     } finally {
       setJournalLoading(false);
     }
@@ -188,6 +187,7 @@ export default function HistoryPage() {
 
   async function loadSessionDetail(id: string) {
     setJournalLoading(true);
+    setDetailError(null);
     setRollbackResult(null);
     try {
       const data = await api.getSession(id);
@@ -195,6 +195,7 @@ export default function HistoryPage() {
     } catch (err) {
       console.error(err);
       setSessionDetail(null);
+      setDetailError(localizeUserFacingError(err, "读取记录详情失败，请稍后再试。"));
     } finally {
       setJournalLoading(false);
     }
@@ -222,6 +223,7 @@ export default function HistoryPage() {
     setJournal(null);
     setSessionDetail(null);
     setDetailQuery("");
+    setDetailError(null);
     if (isSelectedSession) {
       void loadSessionDetail(selectedSessionId);
       return;
@@ -292,12 +294,11 @@ export default function HistoryPage() {
       } else {
         setRollbackConfirmOpen(false);
         setRollbackPrecheck(null);
+        const rollbackReport = response.session_snapshot.rollback_report;
         setRollbackResult({
-          successCount:
-            response.session_snapshot.rollback_report?.success_count
-            ?? rollbackPrecheck?.actions.length
-            ?? journal.item_count,
-          failureCount: response.session_snapshot.rollback_report?.failure_count ?? 0,
+          successCount: rollbackReport?.success_count ?? null,
+          attemptedCount: rollbackPrecheck?.actions.length ?? null,
+          failureCount: rollbackReport?.failure_count ?? 0,
         });
         await loadHistory();
         void loadJournal(selectedSessionId, { preserveRollbackResult: true });
@@ -324,6 +325,17 @@ export default function HistoryPage() {
     }
   };
 
+  const retryDetailLoad = () => {
+    if (!selectedSessionId) {
+      return;
+    }
+    if (isSelectedSession) {
+      void loadSessionDetail(selectedSessionId);
+      return;
+    }
+    void loadJournal(selectedSessionId);
+  };
+
   const handleOpenSession = (readOnly = false) => {
     if (!selectedEntry || !isHistorySessionEntry(selectedEntry) || !selectedSessionId) return;
     router.push(readOnly ? getHistoryEntryReadonlyHref(selectedEntry) : getHistoryEntryHref(selectedEntry));
@@ -332,7 +344,6 @@ export default function HistoryPage() {
   const moveRows = journal?.restore_items?.length
     ? journal.restore_items
     : journal?.items?.filter((it) => it.action_type === "MOVE") ?? [];
-  const _moveRowsSummary = summarizeMoveNames(moveRows);
 
   const filteredMoveRows = moveRows.filter((item) => {
     if (!detailQuery) return true;
@@ -429,10 +440,18 @@ export default function HistoryPage() {
           </div>
           <div className="flex-1">
             <h3 className="text-[13px] font-black text-on-surface">
-              {rollbackResult.failureCount > 0 ? "回退部分完成" : "回退完成"}
+              {rollbackResult.failureCount > 0
+                ? "回退部分完成"
+                : rollbackResult.successCount !== null
+                  ? "回退完成"
+                  : "回退已执行"}
             </h3>
             <p className="text-[11.5px] font-medium text-ui-muted opacity-70">
-              成功恢复 {rollbackResult.successCount} 项
+              {rollbackResult.successCount !== null
+                ? `成功恢复 ${rollbackResult.successCount} 项`
+                : rollbackResult.attemptedCount !== null
+                  ? `已尝试回退 ${rollbackResult.attemptedCount} 项，请在目录中确认结果`
+                  : "已执行回退，请在目录中确认结果"}
               {rollbackResult.failureCount > 0 ? `，仍有 ${rollbackResult.failureCount} 项失败。` : "。"}
             </p>
           </div>
@@ -736,7 +755,30 @@ export default function HistoryPage() {
 
         <section className="relative flex min-h-0 flex-1 flex-col overflow-hidden bg-surface">
           <AnimatePresence mode="wait">
-            {selectedSessionId && selectedEntry && (isSelectedSession ? sessionDetail : journal) ? (
+            {selectedSessionId && selectedEntry && detailError ? (
+              <motion.div
+                key={`${selectedSessionId}-detail-error`}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.15 }}
+                className="flex h-full min-h-[24rem] flex-col items-center justify-center px-8 text-center"
+              >
+                <AlertCircle className="h-10 w-10 text-error/50" />
+                <h3 className="mt-6 text-[15px] font-black text-on-surface">读取记录详情失败</h3>
+                <p className="mt-2 max-w-xs text-[12px] font-medium leading-relaxed text-ui-muted/70">
+                  {detailError}
+                </p>
+                <Button
+                  variant="secondary"
+                  onClick={retryDetailLoad}
+                  disabled={journalLoading}
+                  className="mt-5 h-8.5 rounded-lg px-5 text-[11px] font-black"
+                >
+                  重试
+                </Button>
+              </motion.div>
+            ) : selectedSessionId && selectedEntry && (isSelectedSession ? sessionDetail : journal) ? (
               <motion.div
                 key={selectedSessionId}
                 initial={{ opacity: 0 }}

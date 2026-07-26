@@ -576,8 +576,12 @@ export function SessionLauncherShell() {
   const [isDraggingGlobal, setIsDraggingGlobal] = useState(false);
   const [isDesktopEnvironment, setIsDesktopEnvironment] = useState(false);
   const [isSourceDropdownOpen, setIsSourceDropdownOpen] = useState(false);
+  const [backendUnavailable, setBackendUnavailable] = useState(false);
+  const [backendReloadNonce, setBackendReloadNonce] = useState(0);
   const sourceDropZoneRef = useRef<HTMLDivElement | null>(null);
   const targetDropZoneRef = useRef<HTMLDivElement | null>(null);
+  // 启动请求代次：超时后使在途请求作废，防止迟到的响应突然把用户拽进工作区。
+  const launchAttemptRef = useRef(0);
 
   useEffect(() => {
     if (!launchTransitionOpen) {
@@ -588,9 +592,11 @@ export function SessionLauncherShell() {
       return;
     }
     const timer = window.setTimeout(() => {
+      // 作废在途启动请求：迟到的成功响应只会更新"当前任务"入口，不再触发跳转。
+      launchAttemptRef.current += 1;
       setLaunchTransitionOpen(false);
       setLoading(false);
-      setError("打开工作区等待时间过长。任务可能已经创建成功，你可以从左侧“当前任务”继续进入；如果没有看到当前任务，请重试。");
+      setError("打开工作区等待时间过长。任务可能已经创建成功，稍等片刻后左侧“当前任务”出现即可继续进入；如果没有出现，请重试。");
     }, LAUNCH_TRANSITION_TIMEOUT_MS);
     return () => window.clearTimeout(timer);
   }, [launchTransitionOpen, pathname]);
@@ -930,6 +936,7 @@ export function SessionLauncherShell() {
           setReviewFollowsNewRoot(data.global_config?.LAUNCH_REVIEW_FOLLOWS_NEW_ROOT !== false);
         }
         setTextModelConfigured(Boolean(data.status?.text_configured));
+        setBackendUnavailable(false);
       } catch {
         if (!cancelled) {
           if (!launcherDraft?.strategy) {
@@ -939,7 +946,9 @@ export function SessionLauncherShell() {
           if (launcherDraft?.reviewFollowsNewRoot === undefined) {
             setReviewFollowsNewRoot(true);
           }
+          // 连不上后端时无法判断模型状态，标记连接异常而不是伪装成"可用"。
           setTextModelConfigured(true);
+          setBackendUnavailable(true);
         }
       }
     }
@@ -948,7 +957,7 @@ export function SessionLauncherShell() {
     return () => {
       cancelled = true;
     };
-  }, [apiBaseUrl, draftHydrated, launcherDraft?.reviewFollowsNewRoot, launcherDraft?.strategy]);
+  }, [apiBaseUrl, backendReloadNonce, draftHydrated, launcherDraft?.reviewFollowsNewRoot, launcherDraft?.strategy]);
 
   useEffect(() => {
     setIsDesktopEnvironment(isTauriDesktop());
@@ -978,14 +987,17 @@ export function SessionLauncherShell() {
         const dirs = await api.getCommonDirs();
         if (!cancelled) setCommonDirs(dirs);
       } catch {
-        if (!cancelled) setCommonDirs([]);
+        if (!cancelled) {
+          setCommonDirs([]);
+          setBackendUnavailable(true);
+        }
       }
     }
     void loadCommonDirs();
     return () => {
       cancelled = true;
     };
-  }, [apiBaseUrl]);
+  }, [apiBaseUrl, backendReloadNonce]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1000,6 +1012,7 @@ export function SessionLauncherShell() {
       } catch {
         if (!cancelled) {
           setRecentHistory([]);
+          setBackendUnavailable(true);
         }
       } finally {
         if (!cancelled) {
@@ -1011,7 +1024,7 @@ export function SessionLauncherShell() {
     return () => {
       cancelled = true;
     };
-  }, [apiBaseUrl]);
+  }, [apiBaseUrl, backendReloadNonce]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1022,7 +1035,10 @@ export function SessionLauncherShell() {
         const items = await api.getTargetProfiles();
         if (!cancelled) setTargetProfiles(items);
       } catch {
-        if (!cancelled) setTargetProfiles([]);
+        if (!cancelled) {
+          setTargetProfiles([]);
+          setBackendUnavailable(true);
+        }
       } finally {
         if (!cancelled) setTargetProfilesLoading(false);
       }
@@ -1031,7 +1047,7 @@ export function SessionLauncherShell() {
     return () => {
       cancelled = true;
     };
-  }, [apiBaseUrl]);
+  }, [apiBaseUrl, backendReloadNonce]);
 
   useEffect(() => {
     const defaultProfileId = String(launchConfig?.LAUNCH_DEFAULT_TARGET_PROFILE_ID || "").trim();
@@ -1663,6 +1679,7 @@ export function SessionLauncherShell() {
     if (!validateBeforeLaunch(options?.directStart ? "direct" : "default")) return;
 
     const launchRequest = buildLaunchRequest(resumeIfExists);
+    const attemptId = ++launchAttemptRef.current;
     setLoading(true);
     setLaunchTransitionOpen(true);
     setError(null);
@@ -1670,7 +1687,11 @@ export function SessionLauncherShell() {
     try {
       const api = createApiClient(apiBaseUrl, getApiToken());
       const response = await createLaunchSession(api, launchRequest);
+      const isStaleAttempt = attemptId !== launchAttemptRef.current;
       if (response.mode === "resume_available" && response.restorable_session?.session_id) {
+        if (isStaleAttempt) {
+          return;
+        }
         setLaunchTransitionOpen(false);
         setLoading(false);
         setResumePrompt({
@@ -1681,15 +1702,23 @@ export function SessionLauncherShell() {
         return;
       }
       if (!response.session_id) throw new Error("没有成功创建整理会话，请再试一次。");
-      clearLauncherDraft();
       const workspaceRoute = buildWorkspaceRoute("progress", {
         sessionId: response.session_id,
         dir: launchRequest.display_path || firstSourcePath(launchRequest.sources),
         autoScan: true,
       });
+      if (isStaleAttempt) {
+        // 超时提示已出现：只把会话登记进"当前任务"入口，不再突然跳转打断用户。
+        rememberWorkspaceRoute(workspaceRoute);
+        return;
+      }
+      clearLauncherDraft();
       rememberWorkspaceRoute(workspaceRoute);
       router.push(workspaceRoute);
     } catch (err: any) {
+      if (attemptId !== launchAttemptRef.current) {
+        return;
+      }
       setLaunchTransitionOpen(false);
       if (err.message && err.message.toLowerCase().includes("failed to fetch")) {
         setError(`现在连不上本地服务，请确认它是否已经启动（${apiBaseUrl}）。`);
@@ -1697,12 +1726,15 @@ export function SessionLauncherShell() {
         setError(err instanceof Error ? err.message : "创建会话或启动扫描失败，请再试一次。");
       }
     } finally {
-      setLoading(false);
+      if (attemptId === launchAttemptRef.current) {
+        setLoading(false);
+      }
     }
   }
 
   async function handleStartFresh() {
     if (!resumePrompt) return;
+    const attemptId = ++launchAttemptRef.current;
     setLoading(true);
     setLaunchTransitionOpen(true);
     setError(null);
@@ -1710,17 +1742,24 @@ export function SessionLauncherShell() {
     try {
       const api = createApiClient(apiBaseUrl, getApiToken());
       const response = await startFreshSession(api, resumePrompt.sessionId, resumePrompt.snapshot.stage, resumePrompt.launch);
-      setResumePrompt(null);
       if (!response.session_id) throw new Error("没有成功重新开始，请再试一次。");
-      clearLauncherDraft();
       const workspaceRoute = buildWorkspaceRoute("progress", {
         sessionId: response.session_id,
         dir: resumePrompt.launch.display_path || firstSourcePath(resumePrompt.launch.sources),
         autoScan: true,
       });
+      if (attemptId !== launchAttemptRef.current) {
+        rememberWorkspaceRoute(workspaceRoute);
+        return;
+      }
+      setResumePrompt(null);
+      clearLauncherDraft();
       rememberWorkspaceRoute(workspaceRoute);
       router.push(workspaceRoute);
     } catch (err: any) {
+      if (attemptId !== launchAttemptRef.current) {
+        return;
+      }
       setLaunchTransitionOpen(false);
       if (err.message && err.message.toLowerCase().includes("failed to fetch")) {
         setError(`现在连不上本地服务，请确认它是否已经启动（${apiBaseUrl}）。`);
@@ -1728,7 +1767,9 @@ export function SessionLauncherShell() {
         setError(err instanceof Error ? err.message : "重新开始并启动扫描失败，请再试一次。");
       }
     } finally {
-      setLoading(false);
+      if (attemptId === launchAttemptRef.current) {
+        setLoading(false);
+      }
     }
   }
 
@@ -1865,13 +1906,15 @@ export function SessionLauncherShell() {
           <span
             className={cn(
               "inline-flex items-center gap-1.5 rounded-[6px] border px-2.5 py-1 text-[11px] font-black uppercase tracking-wider",
-              textModelConfigured
-                ? "border-success/16 bg-success/[0.05] text-success-dim"
-                : "border-warning/18 bg-warning/8 text-warning",
+              backendUnavailable
+                ? "border-error/18 bg-error/[0.06] text-error"
+                : textModelConfigured
+                  ? "border-success/16 bg-success/[0.05] text-success-dim"
+                  : "border-warning/18 bg-warning/8 text-warning",
             )}
           >
-            {textModelConfigured ? <CheckCircle2 className="h-3.5 w-3.5" /> : <AlertCircle className="h-3.5 w-3.5" />}
-            {textModelConfigured ? "文本模型可用" : "文本模型待配置"}
+            {backendUnavailable ? <AlertCircle className="h-3.5 w-3.5" /> : textModelConfigured ? <CheckCircle2 className="h-3.5 w-3.5" /> : <AlertCircle className="h-3.5 w-3.5" />}
+            {backendUnavailable ? "服务未连接" : textModelConfigured ? "文本模型可用" : "文本模型待配置"}
           </span>
           <Button
             variant="secondary"
@@ -1885,6 +1928,28 @@ export function SessionLauncherShell() {
 
       <div className="grid gap-4 pt-4">
         <div className="space-y-3">
+          {backendUnavailable ? (
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-error/20 bg-error/[0.03] px-4 py-3">
+              <div className="flex min-w-0 items-center gap-3">
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-error/10 text-error">
+                  <AlertCircle className="h-4 w-4" />
+                </span>
+                <div className="min-w-0">
+                  <p className="text-[13px] font-black text-on-surface">无法连接本地服务</p>
+                  <p className="mt-0.5 text-[11.5px] font-medium text-ui-muted/70">
+                    最近记录、快捷目录等数据暂时读取不到。请确认应用已正常启动（{apiBaseUrl}），然后重试。
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setBackendReloadNonce((nonce) => nonce + 1)}
+                className="shrink-0 rounded-[7px] border border-error/20 bg-surface px-3 py-1.5 text-[11px] font-bold text-error transition-colors hover:bg-error/5"
+              >
+                重新连接
+              </button>
+            </div>
+          ) : null}
           {activeWorkspaceTask ? (
             <button
               type="button"
@@ -2005,7 +2070,9 @@ export function SessionLauncherShell() {
                 </button>
               ))
             ) : (
-              <div className="col-span-full py-5 text-[12px] font-medium text-ui-muted/60">还没有整理记录。</div>
+              <div className="col-span-full py-5 text-[12px] font-medium text-ui-muted/60">
+                {backendUnavailable ? "连接本地服务失败，暂时读取不到整理记录。" : "还没有整理记录。"}
+              </div>
             )}
           </div>
         </div>

@@ -23,6 +23,15 @@ const FINAL_EXECUTION_STATUSES = new Set([
   ...ROLLED_BACK_EXECUTION_STATUSES,
   ...FAILED_ROLLBACK_STATUSES,
 ]);
+const SEARCH_DEBOUNCE_MS = 200;
+const historyDateFormatter = new Intl.DateTimeFormat("zh-CN", {
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  hour12: false,
+});
 
 function normalizedHistoryStatus(entry: HistoryItem): string {
   return String(entry.status || "").trim().toLowerCase();
@@ -124,14 +133,7 @@ export function getHistoryEntryName(entry: HistoryItem): string {
   if (Number.isNaN(date.getTime())) {
     return getHistoryEntryFallbackName(entry);
   }
-  return new Intl.DateTimeFormat("zh-CN", {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  }).format(date);
+  return historyDateFormatter.format(date);
 }
 
 function filterHistoryEntries(history: HistoryItem[], query: string, filter: HistoryFilter) {
@@ -171,6 +173,17 @@ function toErrorMessage(error: unknown, fallback: string) {
   return localizeUserFacingError(error, fallback);
 }
 
+function useDebouncedValue<T>(value: T, delay: number): T {
+  const [debouncedValue, setDebouncedValue] = useState<T>(value);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedValue(value), delay);
+    return () => clearTimeout(timer);
+  }, [value, delay]);
+
+  return debouncedValue;
+}
+
 export function useHistoryList({ autoLoad = true }: { autoLoad?: boolean } = {}) {
   const api = useMemo(() => createApiClient(getApiBaseUrl(), getApiToken()), []);
   const [history, setHistory] = useState<HistoryItem[]>([]);
@@ -202,9 +215,11 @@ export function useHistoryList({ autoLoad = true }: { autoLoad?: boolean } = {})
     }
   }, [autoLoad, loadHistory]);
 
+  const debouncedQuery = useDebouncedValue(query, SEARCH_DEBOUNCE_MS);
+
   const filteredHistory = useMemo(
-    () => filterHistoryEntries(history, query, filter),
-    [filter, history, query],
+    () => filterHistoryEntries(history, debouncedQuery, filter),
+    [debouncedQuery, filter, history],
   );
 
   const requestDelete = useCallback((id: string) => {
