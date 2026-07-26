@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useEffect } from "react";
-import { AnimatePresence, motion } from "motion/react";
+import React from "react";
+import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { FileText, Palette, Plus, RefreshCw, Save, Trash2, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -53,42 +53,28 @@ export function IconWorkbenchTemplateDrawer({
     { label: "分类", value: "{{category}}" },
   ];
 
-  useEffect(() => {
-    if (!open) return;
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [onClose, open]);
-
   return (
-    <AnimatePresence>
-      {open ? (
-        <>
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={onClose}
-            className="fixed inset-0 z-[70] bg-black/20 backdrop-blur-[2px]"
-          />
-
-          <motion.div
-            initial={{ x: "100%" }}
-            animate={{ x: 0 }}
-            exit={{ x: "100%" }}
-            transition={{ type: "spring", damping: 26, stiffness: 220 }}
-            className="fixed right-0 top-0 z-[75] flex h-full w-full max-w-[1120px] flex-col border-l-2 border-on-surface/12 bg-surface-container-lowest"
-          >
+    <DialogPrimitive.Root
+      open={open}
+      onOpenChange={(nextOpen) => {
+        if (!nextOpen) onClose();
+      }}
+    >
+      <DialogPrimitive.Portal>
+        <DialogPrimitive.Overlay className="fixed inset-0 z-[70] bg-black/20 backdrop-blur-[2px] transition-opacity duration-200 ease-out starting:opacity-0" />
+        <DialogPrimitive.Content className="fixed right-0 top-0 z-[75] flex h-full w-full max-w-[1120px] flex-col border-l-2 border-on-surface/12 bg-surface-container-lowest outline-none transition-transform duration-300 ease-out starting:translate-x-full">
             <div className="flex items-center justify-between border-b border-on-surface/6 px-5 py-4 sm:px-6">
               <div className="flex items-center gap-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-[10px] bg-primary/10 text-primary">
                   <Palette className="h-5 w-5" />
                 </div>
                 <div>
-                  <h2 className="text-[18px] font-black tracking-tight text-on-surface">模板管理</h2>
-                  <p className="text-[12px] text-ui-muted">定义「视觉主体 + 风格描述」的预设；系统会在应用时补全通用图标约束。</p>
+                  <DialogPrimitive.Title asChild>
+                    <h2 className="text-[18px] font-black tracking-tight text-on-surface">模板管理</h2>
+                  </DialogPrimitive.Title>
+                  <DialogPrimitive.Description asChild>
+                    <p className="text-[12px] text-ui-muted">定义「视觉主体 + 风格描述」的预设；系统会在应用时补全通用图标约束。</p>
+                  </DialogPrimitive.Description>
                 </div>
               </div>
               <button
@@ -282,9 +268,8 @@ export function IconWorkbenchTemplateDrawer({
                 </div>
               </section>
             </div>
-          </motion.div>
-        </>
-      ) : null}
-    </AnimatePresence>
+        </DialogPrimitive.Content>
+      </DialogPrimitive.Portal>
+    </DialogPrimitive.Root>
   );
 }

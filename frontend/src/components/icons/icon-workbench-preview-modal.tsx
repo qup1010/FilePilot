@@ -1,13 +1,13 @@
 "use client";
 
-import { useEffect, useCallback, useState } from "react";
-import { createPortal } from "react-dom";
-import { 
-  X, 
-  Download, 
-  CheckCircle2, 
-  RefreshCw, 
-  Monitor, 
+import { useState } from "react";
+import * as DialogPrimitive from "@radix-ui/react-dialog";
+import {
+  X,
+  Download,
+  CheckCircle2,
+  RefreshCw,
+  Monitor,
   Info,
   Maximize2,
   Sparkles,
@@ -44,6 +44,9 @@ interface IconWorkbenchPreviewModalProps {
 /**
  * Premium Studio Preview Modal
  * 提供高保真 Windows 风格模拟预览
+ *
+ * 注意：本组件目前硬编码了暗色（bg-[#0c0c0c] 等）配色，
+ * 主题化改造不在本次 Radix 迁移范围内。
  */
 export function IconWorkbenchPreviewModal({
   src,
@@ -66,24 +69,6 @@ export function IconWorkbenchPreviewModal({
   const [isLoaded, setIsLoaded] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloadError, setDownloadError] = useState<string | null>(null);
-
-  const handleKeyDown = useCallback(
-    (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        onClose();
-      }
-    },
-    [onClose],
-  );
-
-  useEffect(() => {
-    document.addEventListener("keydown", handleKeyDown);
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.removeEventListener("keydown", handleKeyDown);
-      document.body.style.overflow = "";
-    };
-  }, [handleKeyDown]);
 
   const handleDownload = async () => {
     if (!src) return;
@@ -117,25 +102,19 @@ export function IconWorkbenchPreviewModal({
     }
   };
 
-  const modalContent = (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 lg:p-8">
-      {/* Backdrop */}
-      <motion.div 
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        className="absolute inset-0 bg-black/85 backdrop-blur-md"
-        onClick={onClose}
-      />
-
-      <motion.div
-        initial={{ opacity: 0, scale: 0.95, y: 20 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.95, y: 20 }}
-        transition={{ type: "spring", damping: 25, stiffness: 300 }}
-        className="relative flex h-full max-h-[860px] w-full max-w-[1240px] flex-col overflow-hidden rounded-[24px] border border-white/10 bg-[#0c0c0c] lg:flex-row"
-        onClick={(e) => e.stopPropagation()}
-      >
+  return (
+    <DialogPrimitive.Root
+      open
+      onOpenChange={(nextOpen) => {
+        if (!nextOpen) onClose();
+      }}
+    >
+      <DialogPrimitive.Portal>
+        <DialogPrimitive.Overlay className="fixed inset-0 z-[100] bg-black/85 backdrop-blur-md transition-opacity duration-200 ease-out starting:opacity-0" />
+        <DialogPrimitive.Content
+          aria-describedby={undefined}
+          className="fixed left-1/2 top-1/2 z-[100] flex h-[calc(100vh-2rem)] max-h-[860px] w-[calc(100vw-2rem)] max-w-[1240px] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-[24px] border border-white/10 bg-[#0c0c0c] outline-none transition-[opacity,scale] duration-200 ease-out starting:scale-95 starting:opacity-0 lg:h-[calc(100vh-4rem)] lg:w-[calc(100vw-4rem)] lg:flex-row"
+        >
         {/* Mobile Header */}
         <div className="flex shrink-0 items-center justify-between border-b border-white/5 px-6 py-4 lg:hidden">
           <div className="min-w-0">
@@ -191,7 +170,7 @@ export function IconWorkbenchPreviewModal({
                              <span>演示目录</span>
                           </div>
                        </div>
-                       
+
                        <div className="flex h-full items-center">
                           <div className="flex h-full items-center px-4 hover:bg-white/5">
                              <div className="h-px w-2.5 bg-white/60" />
@@ -215,15 +194,15 @@ export function IconWorkbenchPreviewModal({
                           <Search className="h-3.5 w-3.5 text-white/20" />
                        </div>
                     </div>
-                    
+
                     <div className="flex-1 overflow-y-auto bg-[#191919] p-8">
                        <div className="grid grid-cols-4 gap-x-8 gap-y-12">
                           <div className="flex flex-col items-center gap-2.5 group cursor-default relative">
                              <div className="relative flex h-24 w-24 items-center justify-center">
-                                <img 
-                                  src={src} 
-                                  className="h-full w-full object-contain transition-transform group-hover:scale-105" 
-                                  alt="icon-as-folder" 
+                                <img
+                                  src={src}
+                                  className="h-full w-full object-contain transition-transform group-hover:scale-105"
+                                  alt="icon-as-folder"
                                 />
                                 <div className="absolute -inset-3 ring-[1.5px] ring-primary/60 bg-primary/10 rounded-[6px] opacity-100" />
                              </div>
@@ -246,7 +225,7 @@ export function IconWorkbenchPreviewModal({
                        <div className="h-2 w-12 rounded-full bg-white/5" />
                     </div>
                  </div>
-                 
+
                  <div className="space-y-1 text-center">
                     <p className="text-[14px] font-black text-white/50 tracking-tight">Windows 预览模拟</p>
                     <p className="text-[11px] font-medium text-white/25">当前展示图标直接作为文件夹图标后的视觉效果</p>
@@ -257,7 +236,7 @@ export function IconWorkbenchPreviewModal({
 
           {/* Toggle View Mode */}
           <div className="absolute bottom-8 left-1/2 flex -translate-x-1/2 items-center gap-1.5 rounded-full border border-white/10 bg-white/5 p-1 backdrop-blur-md">
-             <button 
+             <button
                onClick={() => setShowMockup(false)}
                className={cn(
                  "flex h-9 items-center gap-2 rounded-full px-4 text-[12px] font-black transition-all",
@@ -267,7 +246,7 @@ export function IconWorkbenchPreviewModal({
                <Maximize2 className="h-3.5 w-3.5" />
                单体预览
              </button>
-             <button 
+             <button
                onClick={() => setShowMockup(true)}
                className={cn(
                  "flex h-9 items-center gap-2 rounded-full px-4 text-[12px] font-black transition-all",
@@ -292,7 +271,9 @@ export function IconWorkbenchPreviewModal({
                  <X className="h-5 w-5" />
                </button>
             </div>
-            <h2 className="mt-6 text-[1.4rem] font-black tracking-tight text-white">{folderName || "方案预览"}</h2>
+            <DialogPrimitive.Title asChild>
+              <h2 className="mt-6 text-[1.4rem] font-black tracking-tight text-white">{folderName || "方案预览"}</h2>
+            </DialogPrimitive.Title>
             <p className="mt-1.5 text-[12px] font-bold text-white/40 uppercase tracking-[0.05em]">{subtitle}</p>
           </div>
 
@@ -343,13 +324,13 @@ export function IconWorkbenchPreviewModal({
              )}
 
              {onApply && (
-                <Button 
-                  onClick={isApplied ? () => onOpenFolder?.(folderPath || "") : onApply} 
+                <Button
+                  onClick={isApplied ? () => onOpenFolder?.(folderPath || "") : onApply}
                   disabled={isApplying}
                   className={cn(
                     "h-14 w-full rounded-[12px] text-[15px] font-black text-white border border-white/10 transition-all",
-                    isApplied 
-                      ? "bg-success hover:bg-success" 
+                    isApplied
+                      ? "bg-success hover:bg-success"
                       : "bg-primary hover:bg-primary/90"
                   )}
                 >
@@ -363,10 +344,10 @@ export function IconWorkbenchPreviewModal({
                   {isApplied ? "打开文件夹查看" : "应用到文件夹"}
                 </Button>
              )}
-             
+
              <div className="grid grid-cols-2 gap-2">
-                <Button 
-                  variant="secondary" 
+                <Button
+                  variant="secondary"
                   onClick={onRegenerate}
                   disabled={regenerateDisabled}
                   className="h-11 rounded-[10px] border-white/10 bg-white/5 text-[12px] font-black text-white hover:bg-white/10 disabled:opacity-40"
@@ -374,7 +355,7 @@ export function IconWorkbenchPreviewModal({
                   <RefreshCw className="mr-2 h-3.5 w-3.5" />
                   重新生成
                 </Button>
-                <Button 
+                <Button
                   variant="secondary"
                   onClick={handleDownload}
                   disabled={isDownloading}
@@ -384,8 +365,8 @@ export function IconWorkbenchPreviewModal({
                    下载 PNG
                 </Button>
              </div>
-             
-             <button 
+
+             <button
                onClick={onClose}
                className="h-11 w-full text-[12px] font-bold text-white/40 hover:text-white"
              >
@@ -393,14 +374,8 @@ export function IconWorkbenchPreviewModal({
              </button>
           </div>
         </div>
-      </motion.div>
-    </div>
-  );
-
-  return createPortal(
-    <AnimatePresence>
-      {modalContent}
-    </AnimatePresence>,
-    document.body,
+        </DialogPrimitive.Content>
+      </DialogPrimitive.Portal>
+    </DialogPrimitive.Root>
   );
 }

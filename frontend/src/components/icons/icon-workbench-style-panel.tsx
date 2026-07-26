@@ -1,8 +1,7 @@
 "use client";
 
-import { useEffect } from "react";
+import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { X, Check, Palette, Plus } from "lucide-react";
-import { motion } from "motion/react";
 import { cn } from "@/lib/utils";
 import type { IconTemplate } from "@/types/icon-workbench";
 
@@ -27,37 +26,19 @@ export function IconWorkbenchStylePanel({
   selectedTemplateId,
   onRequestManageTemplate,
 }: IconWorkbenchStylePanelProps) {
-  // ESC 键自动关闭
-  useEffect(() => {
-    if (!isOpen) return;
-    const handleEsc = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", handleEsc);
-    return () => window.removeEventListener("keydown", handleEsc);
-  }, [isOpen, onClose]);
-
-  if (!isOpen) return null;
-
   return (
-    <div className="fixed inset-0 z-[62] flex items-center justify-center p-6 lg:p-12">
-      {/* 遮罩背景 */}
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        onClick={onClose}
-        className="absolute inset-0 bg-on-surface/40 backdrop-blur-md"
-      />
+    <DialogPrimitive.Root
+      open={isOpen}
+      onOpenChange={(nextOpen) => {
+        if (!nextOpen) onClose();
+      }}
+    >
+      <DialogPrimitive.Portal>
+        {/* 遮罩背景 */}
+        <DialogPrimitive.Overlay className="fixed inset-0 z-[62] bg-on-surface/40 backdrop-blur-md transition-opacity duration-200 ease-out starting:opacity-0" />
 
-      {/* 核心面板容器 */}
-      <motion.div
-        initial={{ opacity: 0, scale: 0.95, y: 20 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.95, y: 20 }}
-        transition={{ type: "spring", damping: 25, stiffness: 300 }}
-        className="relative flex h-full w-full max-w-[1160px] flex-col overflow-hidden rounded-2xl border border-on-surface/12 bg-surface ring-1 ring-white/10"
-      >
+        {/* 核心面板容器 */}
+        <DialogPrimitive.Content className="fixed left-1/2 top-1/2 z-[62] flex h-[calc(100vh-3rem)] w-[calc(100vw-3rem)] max-w-[1160px] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-2xl border border-on-surface/12 bg-surface ring-1 ring-white/10 outline-none transition-[opacity,scale] duration-200 ease-out starting:scale-95 starting:opacity-0 lg:h-[calc(100vh-6rem)] lg:w-[calc(100vw-6rem)]">
         {/* 顶部标题栏 */}
         <div className="flex items-center justify-between border-b border-on-surface/8 px-8 py-5 bg-surface-container-lowest/60 backdrop-blur-xl z-10">
           <div className="flex items-center gap-4">
@@ -65,11 +46,15 @@ export function IconWorkbenchStylePanel({
               <Palette className="h-6 w-6" />
             </div>
             <div>
-              <h2 className="text-[20px] font-black tracking-tight text-on-surface leading-tight">选择风格模板</h2>
+              <DialogPrimitive.Title asChild>
+                <h2 className="text-[20px] font-black tracking-tight text-on-surface leading-tight">选择风格模板</h2>
+              </DialogPrimitive.Title>
               <div className="mt-1 flex items-center gap-2">
                 <span className="text-[10px] font-black uppercase tracking-[0.15em] text-primary/70">视觉定义</span>
                 <span className="h-1 w-1 rounded-full bg-on-surface/20" />
-                <p className="text-[12px] font-bold text-ui-muted opacity-60">选中后将作为当前图标生成的视觉基准</p>
+                <DialogPrimitive.Description asChild>
+                  <p className="text-[12px] font-bold text-ui-muted opacity-60">选中后将作为当前图标生成的视觉基准</p>
+                </DialogPrimitive.Description>
               </div>
             </div>
           </div>
@@ -185,7 +170,8 @@ export function IconWorkbenchStylePanel({
             )}
           </div>
         </div>
-      </motion.div>
-    </div>
+        </DialogPrimitive.Content>
+      </DialogPrimitive.Portal>
+    </DialogPrimitive.Root>
   );
 }
