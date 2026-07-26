@@ -19,6 +19,9 @@
   --color-on-surface: var(--on-surface);
   --color-on-surface-variant: var(--on-surface-variant);
 
+  --color-ui-muted: var(--ui-muted);
+  --color-ui-subtle: var(--ui-subtle);
+
   --color-outline: var(--outline);
   --color-outline-variant: var(--outline-variant);
 
@@ -74,6 +77,9 @@
     --on-surface: #1a1c1e;
     --on-surface-variant: #5c6166;
 
+    --ui-muted: var(--on-surface-variant);
+    --ui-subtle: color-mix(in srgb, var(--on-surface-variant) 65%, transparent);
+
     --outline: #8b9198;
     --outline-variant: #c4c8cd;
 
@@ -104,6 +110,9 @@
 
     --on-surface: #e5e7eb;
     --on-surface-variant: #9ca3af;
+
+    --ui-muted: var(--on-surface-variant);
+    --ui-subtle: color-mix(in srgb, var(--on-surface-variant) 65%, transparent);
 
     --outline: #4b5563;
     --outline-variant: #374151;
@@ -161,7 +170,8 @@
     inset: 0;
     opacity: 0.018; /* Increased noise visibility */
     pointer-events: none;
-    background-image: url("https://grains-img.vercel.app/noise.png");
+    /* Inline SVG fractal noise — no external network dependency */
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='128' height='128'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='2'/%3E%3C/filter%3E%3Crect width='128' height='128' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E");
     background-repeat: repeat;
   }
 
@@ -375,7 +385,18 @@
 }
 
 button, [role="button"], .select-active {
-  @apply transition-all duration-200 active:scale-[0.97] outline-none;
+  @apply transition-all duration-200 active:scale-[0.97];
+}
+
+/* Accessible focus ring — --primary adapts to light/dark themes */
+button:focus-visible,
+[role="button"]:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
 }
 
 @media (min-width: 640px) {
