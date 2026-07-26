@@ -142,21 +142,8 @@ export function ComposerBar({
           </motion.div>
         ) : null}
  
-        {unresolvedCount > 0 && composerMode === "editable" ? (
-          <motion.div
-            key="unresolved-count-pill"
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: "auto" }}
-            exit={{ opacity: 0, height: 0 }}
-            transition={{ duration: 0.2 }}
-            className="overflow-hidden"
-          >
-            <div className="mb-3 mt-1 flex items-center gap-2.5 self-start rounded-full border border-warning/20 bg-warning/[0.04] px-4 py-1.5 text-[11px] font-black text-warning-dim">
-              <AlertTriangle className="h-3.5 w-3.5" />
-              <span className="uppercase tracking-wide">方案中有 {unresolvedCount} 个待确认项</span>
-            </div>
-          </motion.div>
-        ) : null}
+        {/* 待确认数已由右侧面板的徽标、底部提示与主按钮三处呈现，这里不再重复。
+            unresolvedCount 仍用于判断是否显示"可直接做安全检查"提示。 */}
       </AnimatePresence>
  
       {composerMode === "editable" ? (

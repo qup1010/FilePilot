@@ -1,7 +1,7 @@
 "use client";
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, ArrowRight, CheckCircle2, ChevronDown, ChevronRight, FileText, Folder, FolderOpen, Layers, Search, Sparkles, Edit2, Info, ChevronsDownUp, ChevronsUpDown, RotateCcw } from "lucide-react";
+import { AlertTriangle, ArrowRight, CheckCircle2, ChevronDown, ChevronRight, FileText, Folder, FolderOpen, Layers, Search, Sparkles, Edit2, Info, ChevronsDownUp, ChevronsUpDown, RotateCcw, X } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { MarkdownProse } from "./markdown-prose";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, } from "@/components/ui/dialog";
@@ -68,6 +68,13 @@ interface PreviewPanelProps {
 }
 
 const EMPTY_PLACEMENT: PlacementConfig = { new_directory_root: "", review_root: "" };
+
+const ACTIVE_FILTER_LABELS: Record<Exclude<PreviewFilter, "all">, string> = {
+  changed: "已变更",
+  unresolved: "待决策",
+  review: "待核对",
+  invalidated: "需重确认",
+};
 
 function treeNodeKey(node: TreeNode): string {
   if (node.kind === "file") {
@@ -1019,20 +1026,19 @@ export function PreviewPanel(props: PreviewPanelProps) {
                     )}
                   </div>
 
-                  <div className="relative flex shrink-0 items-center">
-                    <select
-                      value={filter}
-                      onChange={(event) => setFilter(event.target.value as PreviewFilter)}
-                      className="h-8 min-w-[90px] appearance-none rounded-md border border-on-surface/8 bg-surface-container-lowest pl-2.5 pr-8 text-[11px] font-black text-on-surface outline-none transition-all hover:bg-on-surface/[0.02] focus:border-primary/40"
+                  {/* 常驻筛选下拉几乎无人手动使用；筛选真正的入口是队列卡片的"查看全部"
+                      与安全检查页的"定位问题"。这里只在筛选生效时显示一枚可清除的标记。 */}
+                  {filter !== "all" ? (
+                    <button
+                      type="button"
+                      onClick={() => setFilter("all")}
+                      title="清除筛选，显示全部条目"
+                      className="flex h-8 shrink-0 items-center gap-1.5 rounded-md border border-primary/25 bg-primary/8 px-2.5 text-[11px] font-bold text-primary transition-colors hover:bg-primary/12"
                     >
-                      <option value="all">全部</option>
-                      <option value="changed">变更</option>
-                      <option value="unresolved">待定</option>
-                      <option value="review">核对</option>
-                      <option value="invalidated">需确认</option>
-                    </select>
-                    <ChevronDown className="absolute right-2.5 h-3 w-3 text-ui-muted pointer-events-none opacity-40" />
-                  </div>
+                      <span>仅看{ACTIVE_FILTER_LABELS[filter]}</span>
+                      <X className="h-3 w-3" />
+                    </button>
+                  ) : null}
 
                   <div className="relative hidden shrink-0 items-center @3xl:flex">
                     <select
