@@ -20,6 +20,7 @@ class CreateSessionPayload(BaseModel):
     target_dir: str | None = None
     resume_if_exists: bool = False
     organize_method: str | None = None
+    unattended: bool = False
     strategy: dict[str, Any] | None = None
     output_dir: str | None = None
     target_profile_id: str | None = None

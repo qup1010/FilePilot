@@ -587,6 +587,8 @@ class OrganizerSession:
     placement: PlacementPayload = field(default_factory=PlacementPayload)
     source_collection: list[SourceCollectionItem] = field(default_factory=list)
     organize_method: str = DEFAULT_ORGANIZE_METHOD
+    # 一键整理：扫描→规划→预检→执行自动推进，不在 ready_* 停站等待前端
+    unattended: bool = False
     output_dir: str = ""
     target_profile_id: str = ""
     selected_target_directories: list[str] = field(default_factory=list)
@@ -772,6 +774,7 @@ class OrganizerSession:
                 if item is not None
             ],
             organize_method=organize_method,
+            unattended=bool(data.get("unattended", False)),
             output_dir=str(data.get("output_dir") or ""),
             target_profile_id=str(data.get("target_profile_id") or ""),
             selected_target_directories=[

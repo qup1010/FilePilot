@@ -350,6 +350,18 @@ class ExecutionAppService:
         self.helpers._record_event("precheck.ready", session)
         return SessionMutationResult(session_snapshot=self.helpers._build_snapshot(session))
 
+    @staticmethod
+    def _rule_snapshot_for_session(session) -> dict | None:
+        """执行时刻的规则快照：规则会演进，回看历史必须还能理解当时的分类依据。"""
+        details = list(session.selected_target_directory_details or [])
+        if not details:
+            return None
+        return {
+            "profile_id": str(session.target_profile_id or "").strip() or None,
+            "unattended": bool(getattr(session, "unattended", False)),
+            "directories": [item.to_dict() if hasattr(item, "to_dict") else dict(item) for item in details],
+        }
+
     def return_to_planning(self, session_id: str) -> SessionMutationResult:
         session = self.helpers._load_or_raise(session_id)
         ensure_stage(session.stage, STAGE_READY_TO_EXECUTE)
@@ -382,8 +394,9 @@ class ExecutionAppService:
             task, registry = self.helpers._build_organize_task(session, final_plan)
             mapped_plan = self._build_mapped_execution_plan(session, final_plan, task, registry)
             plan = execution_service.build_execution_plan_from_mapped(mapped_plan)
+            rule_snapshot = self._rule_snapshot_for_session(session)
             try:
-                report = execution_service.execute_plan(plan)
+                report = execution_service.execute_plan(plan, rule_snapshot=rule_snapshot)
             except Exception as exc:
                 session.stage = STAGE_INTERRUPTED
                 session.last_error = str(exc)

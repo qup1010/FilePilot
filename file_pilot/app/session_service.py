@@ -1778,6 +1778,7 @@ class OrganizerSessionService:
         target_directory_details: list[dict] | list[TargetProfileDirectory] | None = None,
         new_directory_root: str = "",
         review_root: str = "",
+        unattended: bool = False,
     ) -> CreateSessionResult:
         normalized_sources = sources
         normalized_method = organize_method
@@ -1810,6 +1811,7 @@ class OrganizerSessionService:
             target_profile_id=target_profile_id,
             target_directories=target_directories,
             target_directory_details=target_directory_details,
+            unattended=unattended,
             new_directory_root=new_directory_root,
             review_root=review_root,
         )
@@ -2645,6 +2647,7 @@ class OrganizerSessionService:
             self._record_event("scan.completed", session)
 
             self.orchestrator.maybe_run_auto_plan_after_scan(session)
+            self.orchestrator.maybe_auto_advance_unattended(session)
         finally:
             self._mark_scan_inactive(session_id)
 
@@ -2773,6 +2776,11 @@ class OrganizerSessionService:
                 payload={"entry_count": len(all_entries), "mode": "sync"},
             )
             self._record_event("scan.completed", session)
+            if session.unattended:
+                # 一键会话在同步扫描路径同样自动接规划与执行；
+                # 有人值守的同步扫描保持原行为（规划由调用方驱动）
+                self.orchestrator.maybe_run_auto_plan_after_scan(session)
+                self.orchestrator.maybe_auto_advance_unattended(session)
             return result
         finally:
             self._mark_scan_inactive(session.session_id)

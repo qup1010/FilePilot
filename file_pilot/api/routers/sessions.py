@@ -63,6 +63,7 @@ def create_session(payload: CreateSessionPayload, request: Request):
             ],
             new_directory_root=str(payload.new_directory_root or ""),
             review_root=str(payload.review_root or ""),
+            unattended=bool(payload.unattended),
         )
     except ValueError as exc:
         if str(exc) == "TASK_TYPE_CONFLICT":
@@ -79,6 +80,8 @@ def create_session(payload: CreateSessionPayload, request: Request):
             "REVIEW_ROOT_CONFLICT",
             "TARGET_DIRECTORIES_REQUIRED",
             "TARGET_PROFILE_NOT_FOUND",
+            "UNATTENDED_REQUIRES_EXISTING_CATEGORIES",
+            "TARGET_RULES_INCOMPLETE",
         }:
             return JSONResponse(status_code=400, content={"error_code": str(exc)})
         raise

@@ -483,7 +483,7 @@ def cleanup_empty_dirs(dirs: list[Path]) -> list[Path]:
             logger.warning("execution.empty_dir_cleanup_failed path=%s", d, exc_info=True)
     return cleaned
 
-def _build_running_journal(plan: ExecutionPlan) -> ExecutionJournal:
+def _build_running_journal(plan: ExecutionPlan, rule_snapshot: dict | None = None) -> ExecutionJournal:
     return ExecutionJournal(
         execution_id=uuid.uuid4().hex,
         target_dir=str(plan.base_dir.resolve()),
@@ -491,6 +491,7 @@ def _build_running_journal(plan: ExecutionPlan) -> ExecutionJournal:
         status="running",
         items=[],
         rollback_attempts=[],
+        rule_snapshot=rule_snapshot,
     )
 
 
@@ -595,12 +596,12 @@ def _append_skipped_item(journal: ExecutionJournal, action: ExecutionAction, mes
     save_execution_journal(journal)
 
 
-def execute_plan(plan: ExecutionPlan) -> ExecutionReport:
+def execute_plan(plan: ExecutionPlan, *, rule_snapshot: dict | None = None) -> ExecutionReport:
     results: list[ExecutionItemResult] = []
     success_count = 0
     failure_count = 0
     skipped_count = 0
-    journal = _build_running_journal(plan)
+    journal = _build_running_journal(plan, rule_snapshot)
     save_execution_journal(journal)
 
     for action in plan.mkdir_actions:
