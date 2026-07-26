@@ -513,6 +513,7 @@ export interface JournalSummary {
   items?: {
     action_type: string;
     status: string;
+    message?: string | null;
     source: string | null;
     target: string | null;
     display_name: string;

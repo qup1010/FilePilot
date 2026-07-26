@@ -212,6 +212,93 @@ describe("CompletionView", () => {
     expect(screen.queryByRole("button", { name: "去生成文件夹图标" })).not.toBeInTheDocument();
   });
 
+  it("promotes rollback as the primary action on partial failure", () => {
+    const onRollback = vi.fn();
+
+    render(
+      <CompletionView
+        journal={{
+          journal_id: "j1",
+          execution_id: "e1",
+          target_dir: "D:/download",
+          status: "partial_failure",
+          created_at: "2026-04-20T00:00:00Z",
+          item_count: 2,
+          success_count: 1,
+          failure_count: 1,
+          rollback_attempt_count: 0,
+          items: [
+            {
+              action_type: "MOVE",
+              status: "success",
+              source: "D:/download/a.txt",
+              target: "D:/download/Docs/a.txt",
+              display_name: "a.txt",
+            },
+            {
+              action_type: "MOVE",
+              status: "failed",
+              source: "D:/download/b.txt",
+              target: "D:/download/Docs/b.txt",
+              display_name: "b.txt",
+            },
+          ],
+        }}
+        summary="done"
+        loading={false}
+        targetDir="D:/download"
+        organizeMethod="assign_into_existing_categories"
+        isBusy={false}
+        onOpenExplorer={() => {}}
+        onCleanupDirs={() => {}}
+        onRollback={onRollback}
+        onGoHome={() => {}}
+      />,
+    );
+
+    expect(screen.getByText("部分文件未能移动，建议先回退")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "回退本次整理" }));
+    expect(onRollback).toHaveBeenCalledOnce();
+  });
+
+  it("hides the rollback suggestion card when execution fully succeeded", () => {
+    render(
+      <CompletionView
+        journal={{
+          journal_id: "j1",
+          execution_id: "e1",
+          target_dir: "D:/download",
+          status: "completed",
+          created_at: "2026-04-20T00:00:00Z",
+          item_count: 1,
+          success_count: 1,
+          failure_count: 0,
+          rollback_attempt_count: 0,
+          items: [
+            {
+              action_type: "MOVE",
+              status: "success",
+              source: "D:/download/a.txt",
+              target: "D:/download/Docs/a.txt",
+              display_name: "a.txt",
+            },
+          ],
+        }}
+        summary="done"
+        loading={false}
+        targetDir="D:/download"
+        organizeMethod="assign_into_existing_categories"
+        isBusy={false}
+        onOpenExplorer={() => {}}
+        onCleanupDirs={() => {}}
+        onRollback={() => {}}
+        onGoHome={() => {}}
+      />,
+    );
+
+    expect(screen.queryByText("部分文件未能移动，建议先回退")).not.toBeInTheDocument();
+  });
+
   it("delegates rollback action to the workspace precheck flow", () => {
     const onRollback = vi.fn();
 

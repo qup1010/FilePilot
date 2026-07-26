@@ -22,7 +22,7 @@ function createLocalMessageId(prefix: string): string {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
-function nowLabel(): string {
+function _nowLabel(): string {
   return new Date().toLocaleTimeString([], {
     hour12: false,
     hour: "2-digit",
@@ -303,6 +303,7 @@ export function useSession(sessionId: string | null) {
   const [snapshot, setSnapshot] = useState<SessionSnapshot | null>(null);
   const [journal, setJournal] = useState<JournalSummary | null>(null);
   const [journalLoading, setJournalLoading] = useState(false);
+  const [journalError, setJournalError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [chatError, setChatError] = useState<string | null>(null);
   const [chatErrorCode, setChatErrorCode] = useState<string | null>(null);
@@ -321,17 +322,22 @@ export function useSession(sessionId: string | null) {
     snapshotRef.current = snapshot;
   }, [snapshot]);
 
-  function resetConversationTransientState() {
+  const applySnapshot = useCallback((next: SessionSnapshot | null) => {
+    snapshotRef.current = next;
+    setSnapshot(next);
+  }, []);
+
+  const resetConversationTransientState = useCallback(() => {
     setAssistantDraft("");
     setAssistantRuntime(null);
     setChatError(null);
     setChatErrorCode(null);
-  }
+  }, []);
 
-  function applyChatError(error: unknown, fallback: string) {
+  const applyChatError = useCallback((error: unknown, fallback: string) => {
     setChatError(localizeUserFacingError(error, fallback));
     setChatErrorCode(getUserFacingErrorCode(error));
-  }
+  }, []);
 
   const clearOfflineTimer = useCallback(() => {
     if (offlineTimerRef.current !== null) {
@@ -351,6 +357,23 @@ export function useSession(sessionId: string | null) {
     streamRef.current?.close();
     streamRef.current = null;
     hasConnectedRef.current = false;
+  }, []);
+
+  // 流式 typing 事件每个 token 都会到达一次；若每次都整体替换 snapshot，
+  // 下游依赖 plan_snapshot 引用的 useMemo（预览树等）会在每个 token 上全部失效。
+  // 只有当阶段或规划进度等标量里程碑变化时才应用 typing 事件附带的 snapshot。
+  const shouldApplyTypingSnapshot = useCallback((next: SessionSnapshot): boolean => {
+    const current = snapshotRef.current;
+    if (!current) {
+      return true;
+    }
+    const currentProgress = current.planner_progress;
+    const nextProgress = next.planner_progress;
+    return current.stage !== next.stage
+      || currentProgress?.status !== nextProgress?.status
+      || currentProgress?.phase !== nextProgress?.phase
+      || currentProgress?.attempt !== nextProgress?.attempt
+      || (current.messages?.length || 0) !== (next.messages?.length || 0);
   }, []);
 
   const handleStreamEvent = useCallback((event: SessionEvent) => {
@@ -387,8 +410,8 @@ export function useSession(sessionId: string | null) {
     }
 
     if (event.event_type === "scan.ai_typing") {
-      if (event.session_snapshot) {
-        setSnapshot(event.session_snapshot);
+      if (event.session_snapshot && shouldApplyTypingSnapshot(event.session_snapshot)) {
+        applySnapshot(event.session_snapshot);
       }
       setAssistantRuntime(assistantRuntimeFromTyping("scan"));
       return;
@@ -396,8 +419,8 @@ export function useSession(sessionId: string | null) {
 
     if (event.event_type === "plan.ai_typing") {
       planReplyFallbackPendingRef.current = true;
-      if (event.session_snapshot) {
-        setSnapshot(event.session_snapshot);
+      if (event.session_snapshot && shouldApplyTypingSnapshot(event.session_snapshot)) {
+        applySnapshot(event.session_snapshot);
       }
       setAssistantRuntime(assistantRuntimeFromTyping("plan"));
       setAssistantDraft((prev) => prev + (event.content || ""));
@@ -405,7 +428,7 @@ export function useSession(sessionId: string | null) {
     }
 
     if (event.session_snapshot) {
-      setSnapshot(event.session_snapshot);
+      applySnapshot(event.session_snapshot);
       if (event.session_snapshot.stage !== "interrupted" && event.event_type !== "session.error") {
         setChatError(null);
         setChatErrorCode(null);
@@ -477,6 +500,7 @@ export function useSession(sessionId: string | null) {
       setSnapshot(null);
       setJournal(null);
       setJournalLoading(false);
+      setJournalError(null);
       setLoading(false);
       setStreamStatus("offline");
       resetConversationTransientState();
@@ -487,6 +511,7 @@ export function useSession(sessionId: string | null) {
     setLoading(true);
     setJournal(null);
     setJournalLoading(false);
+    setJournalError(null);
     resetConversationTransientState();
     void (async () => {
       try {
@@ -500,7 +525,7 @@ export function useSession(sessionId: string | null) {
         connectStream(sessionId);
         const response = await api.getSession(sessionId);
         if (!cancelled && response.session_snapshot) {
-          setSnapshot(response.session_snapshot);
+          applySnapshot(response.session_snapshot);
         }
       } catch (err) {
         if (!cancelled) {
@@ -518,7 +543,7 @@ export function useSession(sessionId: string | null) {
       closeStream();
       clearOfflineTimer();
     };
-  }, [api, clearOfflineTimer, closeStream, connectStream, sessionId]);
+  }, [api, applyChatError, applySnapshot, clearOfflineTimer, closeStream, connectStream, resetConversationTransientState, sessionId]);
 
   const stage = snapshot?.stage || "idle";
   const stageView = useMemo(() => getSessionStageView(stage), [stage]);
@@ -598,15 +623,15 @@ export function useSession(sessionId: string | null) {
     });
   }, [stageView]);
 
-  async function refreshSnapshot() {
+  const refreshSnapshot = useCallback(async () => {
     if (!sessionId) {
       return;
     }
     const response = await api.getSession(sessionId);
-    setSnapshot(response.session_snapshot);
-  }
+    applySnapshot(response.session_snapshot);
+  }, [api, applySnapshot, sessionId]);
 
-  async function retryStream() {
+  const retryStream = useCallback(async () => {
     if (!sessionId) {
       return;
     }
@@ -619,16 +644,16 @@ export function useSession(sessionId: string | null) {
     } catch (err) {
       applyChatError(err, "重新连接后仍无法同步当前任务。");
     }
-  }
+  }, [applyChatError, connectStream, refreshSnapshot, sessionId]);
 
-  async function sendMessage(content: string) {
+  const sendMessage = useCallback(async (content: string) => {
     if (!sessionId) {
       return;
     }
 
     const previousSnapshot = snapshotRef.current;
     if (previousSnapshot) {
-      setSnapshot({
+      applySnapshot({
         ...previousSnapshot,
         messages: [
           ...previousSnapshot.messages,
@@ -650,20 +675,20 @@ export function useSession(sessionId: string | null) {
 
     try {
       const response = await api.sendMessage(sessionId, content);
-      setSnapshot(response.session_snapshot);
+      applySnapshot(response.session_snapshot);
       setAssistantDraft("");
     } catch (err) {
       if (previousSnapshot) {
-        setSnapshot(previousSnapshot);
+        applySnapshot(previousSnapshot);
       }
       setAssistantRuntime(null);
       applyChatError(err, "发送调整意见失败，请重试。");
     } finally {
       setLoading(false);
     }
-  }
+  }, [api, applyChatError, applySnapshot, sessionId]);
 
-  async function scan() {
+  const scan = useCallback(async () => {
     if (!sessionId) {
       return;
     }
@@ -677,16 +702,16 @@ export function useSession(sessionId: string | null) {
     });
     try {
       const response = await api.scanSession(sessionId);
-      setSnapshot(response.session_snapshot);
+      applySnapshot(response.session_snapshot);
     } catch (err) {
       setAssistantRuntime(null);
       applyChatError(err, "启动扫描失败，请重试。");
     } finally {
       setLoading(false);
     }
-  }
+  }, [api, applyChatError, applySnapshot, resetConversationTransientState, sessionId]);
 
-  async function refreshPlan() {
+  const refreshPlan = useCallback(async () => {
     if (!sessionId) {
       return;
     }
@@ -695,15 +720,15 @@ export function useSession(sessionId: string | null) {
     planReplyFallbackPendingRef.current = true;
     try {
       const response = await api.refreshSession(sessionId);
-      setSnapshot(response.session_snapshot);
+      applySnapshot(response.session_snapshot);
     } catch (err) {
       applyChatError(err, "刷新当前任务失败，请重试。");
     } finally {
       setLoading(false);
     }
-  }
+  }, [api, applyChatError, applySnapshot, resetConversationTransientState, sessionId]);
 
-  async function confirmTargetDirectories(selectedTargetDirs: string[]) {
+  const confirmTargetDirectories = useCallback(async (selectedTargetDirs: string[]) => {
     if (!sessionId) {
       return;
     }
@@ -721,7 +746,7 @@ export function useSession(sessionId: string | null) {
       const response = await api.confirmTargetDirectories(sessionId, {
         selected_target_dirs: selectedTargetDirs,
       });
-      setSnapshot(response.session_snapshot);
+      applySnapshot(response.session_snapshot);
       setAssistantDraft("");
     } catch (err) {
       setAssistantRuntime(null);
@@ -729,9 +754,9 @@ export function useSession(sessionId: string | null) {
     } finally {
       setLoading(false);
     }
-  }
+  }, [api, applyChatError, applySnapshot, sessionId]);
 
-  async function runPrecheck() {
+  const runPrecheck = useCallback(async () => {
     if (!sessionId) {
       return;
     }
@@ -739,15 +764,15 @@ export function useSession(sessionId: string | null) {
     setChatError(null);
     try {
       const response = await api.runPrecheck(sessionId);
-      setSnapshot(response.session_snapshot);
+      applySnapshot(response.session_snapshot);
     } catch (err) {
       applyChatError(err, "执行检查失败，请重试。");
     } finally {
       setLoading(false);
     }
-  }
+  }, [api, applyChatError, applySnapshot, sessionId]);
 
-  async function applyTargetConflictSuggestions() {
+  const applyTargetConflictSuggestions = useCallback(async () => {
     if (!sessionId) {
       return;
     }
@@ -755,15 +780,15 @@ export function useSession(sessionId: string | null) {
     setChatError(null);
     try {
       const response = await api.applyTargetConflictSuggestions(sessionId);
-      setSnapshot(response.session_snapshot);
+      applySnapshot(response.session_snapshot);
     } catch (err) {
       applyChatError(err, "应用冲突建议失败，请重试。");
     } finally {
       setLoading(false);
     }
-  }
+  }, [api, applyChatError, applySnapshot, sessionId]);
 
-  async function returnToPlanning() {
+  const returnToPlanning = useCallback(async () => {
     if (!sessionId) {
       return;
     }
@@ -771,15 +796,15 @@ export function useSession(sessionId: string | null) {
     setChatError(null);
     try {
       const response = await api.returnToPlanning(sessionId);
-      setSnapshot(response.session_snapshot);
+      applySnapshot(response.session_snapshot);
     } catch (err) {
       applyChatError(err, "返回方案调整阶段失败，请重试。");
     } finally {
       setLoading(false);
     }
-  }
+  }, [api, applyChatError, applySnapshot, sessionId]);
 
-  async function execute(): Promise<boolean> {
+  const execute = useCallback(async (): Promise<boolean> => {
     if (!sessionId) {
       return false;
     }
@@ -788,7 +813,7 @@ export function useSession(sessionId: string | null) {
     setAssistantDraft("");
     try {
       const response = await api.execute(sessionId, true);
-      setSnapshot(response.session_snapshot);
+      applySnapshot(response.session_snapshot);
       return true;
     } catch (err) {
       applyChatError(err, "执行整理失败，请重试。");
@@ -796,9 +821,9 @@ export function useSession(sessionId: string | null) {
     } finally {
       setLoading(false);
     }
-  }
+  }, [api, applyChatError, applySnapshot, sessionId]);
 
-  async function prepareRollback(): Promise<RollbackPrecheckSummary | null> {
+  const prepareRollback = useCallback(async (): Promise<RollbackPrecheckSummary | null> => {
     if (!sessionId) {
       return null;
     }
@@ -806,7 +831,7 @@ export function useSession(sessionId: string | null) {
     setChatError(null);
     try {
       const response = await api.rollback(sessionId, false);
-      setSnapshot(response.session_snapshot);
+      applySnapshot(response.session_snapshot);
       if (!response.rollback_precheck) {
         setChatError("回退预检没有返回可确认的信息，请重试。");
         return null;
@@ -818,9 +843,9 @@ export function useSession(sessionId: string | null) {
     } finally {
       setLoading(false);
     }
-  }
+  }, [api, applyChatError, applySnapshot, sessionId]);
 
-  async function confirmRollback(): Promise<boolean> {
+  const confirmRollback = useCallback(async (): Promise<boolean> => {
     if (!sessionId) {
       return false;
     }
@@ -829,7 +854,7 @@ export function useSession(sessionId: string | null) {
     setAssistantDraft("");
     try {
       const response = await api.rollback(sessionId, true);
-      setSnapshot(response.session_snapshot);
+      applySnapshot(response.session_snapshot);
       return true;
     } catch (err) {
       applyChatError(err, "执行回退失败，请重试。");
@@ -837,13 +862,13 @@ export function useSession(sessionId: string | null) {
     } finally {
       setLoading(false);
     }
-  }
+  }, [api, applyChatError, applySnapshot, sessionId]);
 
-  async function rollback(): Promise<boolean> {
+  const rollback = useCallback(async (): Promise<boolean> => {
     return confirmRollback();
-  }
+  }, [confirmRollback]);
 
-  async function cleanupEmptyDirs() {
+  const cleanupEmptyDirs = useCallback(async () => {
     if (!sessionId) {
       return;
     }
@@ -851,15 +876,15 @@ export function useSession(sessionId: string | null) {
     setChatError(null);
     try {
       const response = await api.cleanupEmptyDirs(sessionId);
-      setSnapshot(response.session_snapshot);
+      applySnapshot(response.session_snapshot);
     } catch (err) {
       applyChatError(err, "清理空目录失败，请重试。");
     } finally {
       setLoading(false);
     }
-  }
+  }, [api, applyChatError, applySnapshot, sessionId]);
 
-  async function abandonSession(): Promise<boolean> {
+  const abandonSession = useCallback(async (): Promise<boolean> => {
     if (!sessionId) {
       return true;
     }
@@ -874,31 +899,32 @@ export function useSession(sessionId: string | null) {
     } finally {
       setLoading(false);
     }
-  }
+  }, [api, applyChatError, resetConversationTransientState, sessionId]);
 
-  async function openExplorer(path: string) {
+  const openExplorer = useCallback(async (path: string) => {
     try {
       await api.openDir(path);
     } catch {
       setChatError("暂时无法打开该目录。");
     }
-  }
+  }, [api]);
 
-  async function loadJournal() {
+  const loadJournal = useCallback(async () => {
     if (!sessionId) {
       return;
     }
     try {
       setJournalLoading(true);
+      setJournalError(null);
       setJournal(await api.getJournal(sessionId));
     } catch (err) {
-      applyChatError(err, "读取执行记录失败。");
+      setJournalError(localizeUserFacingError(err, "读取执行记录失败。"));
     } finally {
       setJournalLoading(false);
     }
-  }
+  }, [api, sessionId]);
 
-  async function updateItem(payload: { item_id: string; target_dir?: string; target_slot?: string; move_to_review?: boolean }) {
+  const updateItem = useCallback(async (payload: { item_id: string; target_dir?: string; target_slot?: string; move_to_review?: boolean }) => {
     if (!sessionId) {
       return;
     }
@@ -906,15 +932,15 @@ export function useSession(sessionId: string | null) {
     setChatError(null);
     try {
       const response = await api.updateItem(sessionId, payload);
-      setSnapshot(response.session_snapshot);
+      applySnapshot(response.session_snapshot);
     } catch (err) {
       applyChatError(err, "更新条目去向失败，请重试。");
     } finally {
       setLoading(false);
     }
-  }
+  }, [api, applyChatError, applySnapshot, sessionId]);
 
-  async function restoreAiSuggestion(itemId: string) {
+  const restoreAiSuggestion = useCallback(async (itemId: string) => {
     if (!sessionId) {
       return;
     }
@@ -922,19 +948,20 @@ export function useSession(sessionId: string | null) {
     setChatError(null);
     try {
       const response = await api.restoreAiSuggestion(sessionId, itemId);
-      setSnapshot(response.session_snapshot);
+      applySnapshot(response.session_snapshot);
     } catch (err) {
       applyChatError(err, "恢复 AI 建议失败，请重试。");
     } finally {
       setLoading(false);
     }
-  }
+  }, [api, applyChatError, applySnapshot, sessionId]);
 
   return {
     snapshot,
     stage,
     journal,
     journalLoading,
+    journalError,
     loading,
     chatMessages,
     assistantDraft,

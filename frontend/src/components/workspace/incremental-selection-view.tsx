@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { ArrowRightLeft, FolderTree, Inbox, Layers3, ScanSearch } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence } from "motion/react";
 
 import type { SourceTreeEntry } from "@/types/session";
 import { cn } from "@/lib/utils";
@@ -20,11 +20,13 @@ export function IncrementalSelectionView({
   sourceTreeEntries,
   loading,
   onConfirm,
+  onExit,
 }: {
   rootDirectoryOptions: string[];
   sourceTreeEntries: SourceTreeEntry[];
   loading: boolean;
   onConfirm: (selectedTargetDirs: string[]) => void;
+  onExit?: () => void;
 }) {
   const [selected, setSelected] = useState<string[]>([]);
   const normalizedRootDirectoryOptions = useMemo(
@@ -140,9 +142,18 @@ export function IncrementalSelectionView({
                 </label>
               );
             }) : (
-              <div className="col-span-full flex h-40 flex-col items-center justify-center rounded-xl border-2 border-dashed border-warning/20 bg-warning/[0.02] p-8 text-center">
+              <div className="col-span-full flex h-48 flex-col items-center justify-center rounded-xl border-2 border-dashed border-warning/20 bg-warning/[0.02] p-8 text-center">
                 <p className="text-[13px] font-bold text-warning/80">当前根目录下没有可用的现有目录。</p>
-                <p className="mt-1 text-[11px] text-warning/50">建议改用“整理整个目录”模式。</p>
+                <p className="mt-1 text-[11px] text-warning/50">这个模式需要至少一个已有目录作为归类目标。请结束本次任务，回到首页改用“整理整个目录”模式重新开始。</p>
+                {onExit ? (
+                  <button
+                    type="button"
+                    onClick={onExit}
+                    className="mt-4 rounded-[8px] border border-on-surface/10 bg-surface px-4 py-2 text-[12px] font-semibold text-on-surface-variant transition-colors hover:bg-on-surface/5"
+                  >
+                    结束本次任务并返回首页
+                  </button>
+                ) : null}
               </div>
             )}
           </div>

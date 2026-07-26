@@ -6,9 +6,8 @@ import type { OrganizeMethod, JournalSummary } from "@/types/session";
 import { DirectoryTreeDiff, type DirectoryTreeLeafEntry, type DirectoryTreeFilter } from "./directory-tree-diff";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { motion } from "framer-motion";
+import { motion } from "motion/react";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { MarkdownProse } from "./markdown-prose";
 import { FileRadarIllustration } from "@/components/ui/svg-illustrations";
 
 
@@ -16,11 +15,14 @@ interface CompletionViewProps {
   journal: JournalSummary | null;
   summary: string;
   loading: boolean;
+  loadError?: string | null;
   targetDir: string;
   organizeMethod?: OrganizeMethod;
   cleanupCandidateCount?: number;
   isBusy: boolean;
   readOnly?: boolean;
+  rollbackPreparing?: boolean;
+  onRetryLoad?: () => void;
   onOpenExplorer: (path?: string) => void;
   onCleanupDirs: () => void;
   onRollback: () => void;
@@ -48,11 +50,14 @@ export function CompletionView({
   journal,
   summary,
   loading,
+  loadError = null,
   targetDir,
   organizeMethod,
   cleanupCandidateCount = 0,
   isBusy,
   readOnly = false,
+  rollbackPreparing = false,
+  onRetryLoad,
   onOpenExplorer,
   onCleanupDirs,
   onRollback,
@@ -62,6 +67,38 @@ export function CompletionView({
   const [filter, setFilter] = useState<DirectoryTreeFilter>("all");
   const [cleanupConfirmOpen, setCleanupConfirmOpen] = useState(false);
   const [isCleaning, setIsCleaning] = useState(false);
+
+  if (!journal && loadError) {
+    return (
+      <div className="mx-auto flex min-h-[360px] max-w-[720px] flex-col items-center justify-center gap-4 rounded-lg border border-error/15 bg-error/[0.02] p-12 text-center">
+        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-error/10 text-error">
+          <AlertTriangle className="h-5 w-5" />
+        </div>
+        <div className="space-y-1">
+          <p className="text-[14px] font-black text-on-surface">读取执行记录失败</p>
+          <p className="text-[12px] font-medium text-on-surface-variant">{loadError}</p>
+        </div>
+        <div className="flex items-center gap-3">
+          {onRetryLoad ? (
+            <button
+              type="button"
+              onClick={onRetryLoad}
+              className="rounded-[8px] bg-primary px-4 py-2 text-[12px] font-bold text-white transition-opacity hover:opacity-90"
+            >
+              重试读取
+            </button>
+          ) : null}
+          <button
+            type="button"
+            onClick={onGoHome}
+            className="rounded-[8px] border border-on-surface/10 bg-surface px-4 py-2 text-[12px] font-semibold text-on-surface-variant transition-colors hover:bg-on-surface/5"
+          >
+            返回首页
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (loading) {
     return (
@@ -229,6 +266,37 @@ export function CompletionView({
             ))}
         </div>
 
+        {/* Action Suggestion: Rollback on partial failure - Promoted to Card */}
+        {isPartial && !readOnly ? (
+        <motion.div
+           initial={{ opacity: 0, y: 8, scale: 0.98 }}
+           animate={{ opacity: 1, y: 0, scale: 1 }}
+           transition={{ type: "spring", stiffness: 300, damping: 26, delay: 0.2 }}
+           className="flex flex-col gap-4 sm:flex-row sm:items-center justify-between rounded-lg border border-error/25 bg-error/[0.02] p-3.5 transition-colors hover:bg-error/[0.03]"
+        >
+           <div className="flex items-center gap-4">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-error/10 text-error">
+                 <RotateCcw className="h-4.5 w-4.5" />
+              </div>
+              <div className="min-w-0">
+                 <h3 className="text-[13px] font-black tracking-tight text-on-surface uppercase">部分文件未能移动，建议先回退</h3>
+                 <p className="mt-0.5 text-[11px] font-medium leading-relaxed text-ui-muted opacity-60">
+                    本次整理有 {journal.failure_count || 0} 个项目执行失败，目录现在处于部分整理状态。回退会把已移动的 {journal.success_count || 0} 个项目放回原位，之后可以排查失败原因再重新整理。
+                 </p>
+              </div>
+           </div>
+           <button
+              type="button"
+              onClick={onRollback}
+              disabled={isBusy || rollbackPreparing}
+              className="shrink-0 flex h-8 items-center justify-center gap-2 rounded-md bg-error px-5 text-[11px] font-black text-white transition-all hover:bg-error/85 active:scale-95 disabled:opacity-50 uppercase tracking-widest"
+            >
+              {rollbackPreparing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RotateCcw className="h-3.5 w-3.5" />}
+              {rollbackPreparing ? "正在预检..." : "回退本次整理"}
+           </button>
+        </motion.div>
+        ) : null}
+
         {/* Action Suggestion: Beautify Icons - Promoted to Card */}
         {canBeautifyCreatedDirs ? (
         <motion.div 
@@ -316,6 +384,12 @@ export function CompletionView({
                              <span className="text-[8px] font-black uppercase text-error/60">目标</span>
                              <p className="truncate font-mono text-[9px] text-error/70" title={item.target || ""}>{item.target}</p>
                           </div>
+                          {item.message ? (
+                            <div className="flex items-start gap-2">
+                              <span className="shrink-0 text-[8px] font-black uppercase text-error/60">原因</span>
+                              <p className="text-[10px] font-medium leading-snug text-error/80" title={item.message}>{item.message}</p>
+                            </div>
+                          ) : null}
                         </div>
                       ))}
                     </div>
@@ -401,11 +475,11 @@ export function CompletionView({
               <button
                 type="button"
                 onClick={onRollback}
-                disabled={isBusy}
+                disabled={isBusy || rollbackPreparing}
                 className="flex h-8.5 items-center justify-center gap-2 rounded-lg border border-error/20 bg-error/5 px-3.5 text-[11.5px] font-black text-error/70 transition-all hover:bg-error/10 active:scale-95 disabled:opacity-50"
               >
-                <RotateCcw className="h-3.5 w-3.5" />
-                回退整理
+                {rollbackPreparing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RotateCcw className="h-3.5 w-3.5" />}
+                {rollbackPreparing ? "正在预检..." : "回退整理"}
               </button>
             </div>
           )}

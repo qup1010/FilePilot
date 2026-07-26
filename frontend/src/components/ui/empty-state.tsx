@@ -1,21 +1,23 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { motion } from "motion/react";
 import { cn } from "@/lib/utils";
 
-export function EmptyState({ 
-  icon: Icon, 
+export function EmptyState({
+  icon: Icon,
+  iconClassName,
   illustration: Illustration,
-  title, 
-  description, 
+  title,
+  description,
   className,
   children
-}: { 
-  icon?: any; 
-  illustration?: React.ComponentType<any>;
-  title: string; 
-  description: string; 
-  className?: string; 
+}: {
+  icon?: React.ComponentType<{ className?: string }>;
+  iconClassName?: string;
+  illustration?: React.ComponentType<{ className?: string }>;
+  title: string;
+  description: string;
+  className?: string;
   children?: React.ReactNode;
 }) {
   return (
@@ -29,7 +31,7 @@ export function EmptyState({
           <Illustration className="h-36 w-36" />
         ) : Icon ? (
           <div className="flex h-16 w-16 items-center justify-center rounded-[20px] border border-on-surface/5 bg-on-surface/[0.025] text-on-surface/20 transition-colors group-hover:bg-primary/5 group-hover:text-primary/60">
-            <Icon className="h-8 w-8 stroke-[1.5]" />
+            <Icon className={cn("h-8 w-8 stroke-[1.5]", iconClassName)} />
           </div>
         ) : null}
         <div className="max-w-[320px] space-y-2">

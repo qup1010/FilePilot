@@ -237,7 +237,7 @@ export function ComposerBar({
         </div>
       ) : (
         <div className="rounded-[10px] border border-on-surface/8 bg-surface-container-lowest px-5 py-4 text-[13px] text-on-surface-variant">
-          正在扫描，暂时不能继续输入。
+          当前阶段暂时不需要输入，等方案生成后就可以在这里继续调整。
         </div>
       )}
  

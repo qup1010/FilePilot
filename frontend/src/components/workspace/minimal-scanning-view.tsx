@@ -1,6 +1,6 @@
 "use client";
 import React from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence } from "motion/react";
 import { 
   Activity,
   AlertCircle,
@@ -163,7 +163,7 @@ export function MinimalScanningView({
                 <span className="font-mono text-[16px] font-bold text-on-surface">{formatElapsedLabel(elapsedSeconds)}</span>
               </div>
               <div className="h-8 w-[1px] bg-on-surface/10" />
-              {onAbort && effectivePhase !== "planning" && (
+              {onAbort && (
                 <button
                   type="button"
                   onClick={onAbort}
@@ -171,7 +171,7 @@ export function MinimalScanningView({
                   className="group flex h-10 items-center gap-2 rounded-lg border border-on-surface/10 bg-surface-container-lowest px-4 text-[11px] font-black uppercase tracking-widest transition-all hover:bg-error/5 hover:text-error hover:border-error/20 active:scale-95 disabled:opacity-40"
                 >
                   {aborting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <StopCircle className="h-3.5 w-3.5" />}
-                  <span>{aborting ? "正在停止" : "停止扫描"}</span>
+                  <span>{aborting ? "正在停止" : effectivePhase === "planning" ? "停止并结束任务" : "停止扫描"}</span>
                 </button>
               )}
             </div>

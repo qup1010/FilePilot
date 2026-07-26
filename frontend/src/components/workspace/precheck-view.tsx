@@ -5,7 +5,7 @@ import { PlanItem, PlanTargetSlot, PrecheckSummary } from "@/types/session";
 import { cn } from "@/lib/utils";
 import { DirectoryTreeDiff, type DirectoryTreeLeafEntry, type DirectoryTreeFilter } from "./directory-tree-diff";
 import { useState } from "react";
-import { motion } from "framer-motion";
+import { motion } from "motion/react";
 import { Button } from "@/components/ui/button";
 import { PathDiffViewer } from "./path-diff-viewer";
 import { getFileIcon } from "./preview/preview-utils";
@@ -72,6 +72,15 @@ export function PrecheckView({
                 <div className="space-y-4">
                     <div className="h-10 w-10 animate-spin rounded-full border-2 border-primary border-t-transparent mx-auto" />
                     <p className="text-[14px] text-ui-muted">正在检查移动风险...</p>
+                    {!readOnly ? (
+                        <button
+                            type="button"
+                            onClick={onBack}
+                            className="mx-auto rounded-[8px] border border-on-surface/10 bg-surface px-4 py-2 text-[12px] font-semibold text-on-surface-variant transition-colors hover:bg-on-surface/5"
+                        >
+                            返回方案调整
+                        </button>
+                    ) : null}
                 </div>
             </div>
         );
@@ -113,7 +122,7 @@ export function PrecheckView({
         : hasWarnings
             ? "可以执行，建议先看提醒"
             : "安全检查通过";
-    const statusDescription = hasErrors
+    const _statusDescription = hasErrors
         ? "发现必须先处理的问题，修复后再执行会更安全。"
         : hasWarnings
             ? "结构已经通过，但还有一些风险提醒值得先确认。"
@@ -167,7 +176,9 @@ export function PrecheckView({
                                 <div className="flex items-center gap-2">
                                     <span className="text-[9px] font-black tracking-widest opacity-40">检查结果</span>
                                     <span className="h-0.5 w-0.5 rounded-full bg-current opacity-20" />
-                                    <span className="text-[9px] font-black uppercase tracking-widest opacity-60">SYSTEM {summaryTone}</span>
+                                    <span className="text-[9px] font-black tracking-widest opacity-60">
+                                        {summaryTone === "danger" ? "存在阻塞问题" : summaryTone === "warning" ? "有风险提醒" : "检查通过"}
+                                    </span>
                                 </div>
                                 <h2 className="text-[14px] font-black tracking-tight text-on-surface mt-0.5 uppercase leading-none">
                                     {statusTitle}
@@ -250,7 +261,7 @@ export function PrecheckView({
                                         ? "待确认区"
                                         : slot?.display_name || "";
                                     const isReview = isReviewTarget(move);
-                                    const targetLabel = displayMoveTarget(move);
+                                    const _targetLabel = displayMoveTarget(move);
                                     const riskMessages = riskMessagesByItemId.get(move.item_id) || [];
                                     
                                     return (

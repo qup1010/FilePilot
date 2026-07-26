@@ -2,7 +2,7 @@
 
 import React, { useMemo, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { AlertCircle, AlertTriangle, ArrowRight, CheckCircle2, FolderPlus, FolderTree, Layers, ListChecks, Loader2, LogOut, PanelLeftClose, PanelLeftOpen, RefreshCw, ShieldAlert } from "lucide-react";
+import { AlertCircle, AlertTriangle, ArrowRight, CheckCircle2, Layers, ListChecks, Loader2, LogOut, PanelLeftClose, PanelLeftOpen, RefreshCw, ShieldAlert } from "lucide-react";
 import { getSessionStageView } from "@/lib/session-view-model";
 import { cn } from "@/lib/utils";
 import { canRunPrecheck as deriveCanRunPrecheck } from "@/lib/workspace-precheck";
@@ -31,6 +31,9 @@ import type { RollbackPrecheckSummary } from "@/types/session";
 const DEFAULT_LEFT_WIDTH = 50;
 const SCAN_PREVIEW_GRACE_MS = 1200;
 const COMPACT_WORKSPACE_BREAKPOINT = 1100;
+const APP_CONTEXT_EVENT = "file-pilot-context-change";
+const WORKSPACE_CONTEXT_KEY = "workspace_header_context";
+const ACTIVE_WORKSPACE_ROUTE_KEY = "workspace_active_route";
 type InitialAutoPlanUiState = "idle" | "pending" | "revealing" | "done";
 type WorkspacePipelineStepState = "done" | "active" | "pending" | "blocked";
 
@@ -139,9 +142,6 @@ function deriveWorkspacePipeline(stageView: ReturnType<typeof getSessionStageVie
 }
 
 export default function WorkspaceClient({ view = "progress" }: { view?: WorkspaceView }) {
-  const APP_CONTEXT_EVENT = "file-pilot-context-change";
-  const WORKSPACE_CONTEXT_KEY = "workspace_header_context";
-  const ACTIVE_WORKSPACE_ROUTE_KEY = "workspace_active_route";
   const searchParams = useSearchParams();
   const router = useRouter();
   const sessionIdParam = searchParams.get("session_id");
@@ -154,6 +154,7 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
     stage,
     journal,
     journalLoading,
+    journalError,
     loading,
     chatMessages,
     assistantDraft,
@@ -183,16 +184,18 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
     restoreAiSuggestion,
   } = useSession(sessionIdParam);
 
-  const [globalConfig, setGlobalConfig] = useState<any>(null);
-  const [configLoading, setConfigLoading] = useState(true);
+  const [globalConfig, setGlobalConfig] = useState<{ text_configured?: boolean } | null>(null);
 
   React.useEffect(() => {
     const api = createApiClient(getApiBaseUrl(), getApiToken());
-    api.getSettings().then(data => {
-      setGlobalConfig(data.status);
-    }).finally(() => {
-      setConfigLoading(false);
-    });
+    api.getSettings()
+      .then((data) => {
+        setGlobalConfig(data.status);
+      })
+      .catch(() => {
+        // 后端不可用时无法判断模型是否已配置，保持默认视为已配置，避免误导性提示。
+        setGlobalConfig(null);
+      });
   }, []);
 
   const isTextModelConfigured = useMemo(() => {
@@ -209,7 +212,7 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
   const [rollbackPrecheck, setRollbackPrecheck] = useState<RollbackPrecheckSummary | null>(null);
   const [scanAbortConfirmOpen, setScanAbortConfirmOpen] = useState(false);
   const [scanAborting, setScanAborting] = useState(false);
-  const [showExitMenu, setShowExitMenu] = useState(false);
+  const [_showExitMenu, setShowExitMenu] = useState(false);
   const [dividerLeft, setDividerLeft] = useState<number | null>(null);
   const [previewFocusRequest, setPreviewFocusRequest] = useState<PreviewFocusRequest | null>(null);
   const [scanPreviewHoldUntil, setScanPreviewHoldUntil] = useState<number | null>(null);
@@ -284,7 +287,7 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
       }
       router.push("/");
     }
-  }, [ACTIVE_WORKSPACE_ROUTE_KEY, APP_CONTEXT_EVENT, chatErrorCode, router]);
+  }, [chatErrorCode, router]);
 
   const saveWidth = React.useCallback((width: number) => {
     localStorage.setItem("workspace_sidebar_width", width.toString());
@@ -407,7 +410,7 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
   const showPreviewPane = !isCompactLayout || !compactConversationOpen;
   const effectiveComposerMode = isReadOnly ? "hidden" : composerMode;
   const targetPath = snapshot?.target_dir || dirParam || "";
-  const targetDirName = useMemo(
+  const _targetDirName = useMemo(
     () => formatDirName(targetPath),
     [targetPath],
   );
@@ -464,7 +467,7 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
     }
     return "当前任务正在推进。";
   }, [canRunPrecheck, hasStrandedInitialAutoPlan, isEmptyCompleted, isReadOnly, precheck?.move_preview.length, progressPhase, reviewMoveCount, stageView]);
-  const isRootTarget = useMemo(() => /^[a-zA-Z]:[\\/]?$/.test((snapshot?.target_dir || "").trim()), [snapshot?.target_dir]);
+  const _isRootTarget = useMemo(() => /^[a-zA-Z]:[\\/]?$/.test((snapshot?.target_dir || "").trim()), [snapshot?.target_dir]);
   const beginScanPreviewHold = React.useCallback(() => {
     if (typeof window === "undefined") {
       return;
@@ -536,6 +539,20 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
     document.body.style.webkitUserSelect = "none";
   };
 
+  React.useEffect(() => {
+    // 拖拽分栏期间组件被卸载（如 SSE 触发路由跳转）时，document 上的监听与光标样式会残留。
+    return () => {
+      if (isResizing.current) {
+        isResizing.current = false;
+        document.removeEventListener("mousemove", handleMouseMove);
+        document.removeEventListener("mouseup", stopResizing);
+        document.body.style.cursor = "default";
+        document.body.style.userSelect = "";
+        document.body.style.webkitUserSelect = "";
+      }
+    };
+  }, [handleMouseMove, stopResizing]);
+
   const handleSendMessage = async () => {
     if (isReadOnly || !messageInput.trim() || isBusy || isComposerLocked) {
       return;
@@ -548,9 +565,10 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
     await sendMessage(content);
   };
 
-  const handleExitWorkbench = () => {
+  const handleExitWorkbench = React.useCallback(() => {
     setShowExitMenu(false);
-    if (isReadOnly) {
+    // 只读或已完成的任务，返回首页是纯导航，无需确认拦截。
+    if (isReadOnly || stageView.isCompleted) {
       if (typeof window !== "undefined" && sessionIdParam) {
         const storedRoute = window.localStorage.getItem(ACTIVE_WORKSPACE_ROUTE_KEY);
         if (getSessionIdFromWorkspaceRoute(storedRoute) === sessionIdParam) {
@@ -562,7 +580,7 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
       return;
     }
     setExitConfirmOpen(true);
-  };
+  }, [isReadOnly, router, sessionIdParam, stageView.isCompleted]);
 
   const handleConfirmExitWorkbench = async () => {
     if (typeof window !== "undefined") {
@@ -1008,10 +1026,11 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
   }, [scanPreviewHoldUntil, shouldShowScanningPreview]);
 
   React.useEffect(() => {
-    if (stageView.isCompleted && !isEmptyCompleted && !journal && !journalLoading && !isBusy) {
+    // journalError 挡住失败后的自动重试，否则读取失败会形成无限请求循环；重试由用户在结果页手动触发。
+    if (stageView.isCompleted && !isEmptyCompleted && !journal && !journalLoading && !journalError && !isBusy) {
       void loadJournal();
     }
-  }, [stageView, isEmptyCompleted, journal, journalLoading, isBusy, loadJournal]);
+  }, [stageView, isEmptyCompleted, journal, journalLoading, journalError, isBusy, loadJournal]);
 
   React.useEffect(() => {
     return () => {
@@ -1066,7 +1085,7 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
       }),
     );
     window.dispatchEvent(new Event(APP_CONTEXT_EVENT));
-  }, [APP_CONTEXT_EVENT, WORKSPACE_CONTEXT_KEY, dirParam, sessionIdParam, snapshot?.target_dir, snapshot?.session_title, stage]);
+  }, [dirParam, sessionIdParam, snapshot?.target_dir, snapshot?.session_title, stage]);
 
   React.useEffect(() => {
     if (view !== "plan") {
@@ -1131,7 +1150,7 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
       window.localStorage.removeItem(ACTIVE_WORKSPACE_ROUTE_KEY);
       window.dispatchEvent(new Event(APP_CONTEXT_EVENT));
     }
-  }, [ACTIVE_WORKSPACE_ROUTE_KEY, APP_CONTEXT_EVENT, isReadOnly, sessionIdParam, stageView.isCompleted, view]);
+  }, [isReadOnly, sessionIdParam, stageView.isCompleted, view]);
 
   const focusPreviewItems = React.useCallback((itemIds: string[], filter?: PreviewFilter) => {
     setPreviewFocusRequest({
@@ -1141,16 +1160,22 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
     });
   }, []);
 
-  const handlePrepareRollback = async () => {
-    if (isReadOnly) {
+  const [rollbackPreparing, setRollbackPreparing] = useState(false);
+  const handlePrepareRollback = React.useCallback(async () => {
+    if (isReadOnly || rollbackPreparing) {
       return;
     }
-    const precheck = await prepareRollback();
-    if (precheck) {
-      setRollbackPrecheck(precheck);
-      setRollbackConfirmOpen(true);
+    setRollbackPreparing(true);
+    try {
+      const precheck = await prepareRollback();
+      if (precheck) {
+        setRollbackPrecheck(precheck);
+        setRollbackConfirmOpen(true);
+      }
+    } finally {
+      setRollbackPreparing(false);
     }
-  };
+  }, [isReadOnly, prepareRollback, rollbackPreparing]);
 
   const handleConfirmRollback = async () => {
     const ok = await confirmRollback();
@@ -1168,8 +1193,32 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
     setRollbackPrecheck(null);
   };
 
+  // 传给 PreviewPanel / CompletionView 的回调保持稳定引用，避免子树在无关状态（如输入框）变化时全量重渲染。
+  const handleRunPrecheck = React.useCallback(() => {
+    if (!isReadOnly) void runPrecheck();
+  }, [isReadOnly, runPrecheck]);
+  const handleApplyTargetConflictSuggestions = React.useCallback(() => {
+    if (!isReadOnly) void applyTargetConflictSuggestions();
+  }, [applyTargetConflictSuggestions, isReadOnly]);
+  const handleUpdateItem = React.useCallback(async (id: string, payload: { target_dir?: string; target_slot?: string; move_to_review?: boolean }) => {
+    if (!isReadOnly) await updateItem({ item_id: id, ...payload });
+  }, [isReadOnly, updateItem]);
+  const handleRestoreAiSuggestion = React.useCallback(async (id: string) => {
+    if (!isReadOnly) await restoreAiSuggestion(id);
+  }, [isReadOnly, restoreAiSuggestion]);
+  const handleOpenExplorerPath = React.useCallback((path?: string) => {
+    void openExplorer(path || snapshot?.target_dir || "");
+  }, [openExplorer, snapshot?.target_dir]);
+  const handleCleanupDirs = React.useCallback(() => {
+    if (!isReadOnly) void cleanupEmptyDirs();
+  }, [cleanupEmptyDirs, isReadOnly]);
+  const handleRollbackRequest = React.useCallback(() => {
+    if (!isReadOnly) void handlePrepareRollback();
+  }, [handlePrepareRollback, isReadOnly]);
+
   const renderWorkspaceStatusStrip = () => {
-    if (shouldShowScanningPreview) {
+    // 断线时必须始终可见——扫描进行中后端断开，进度条会冻结而计时继续走，用户需要重连入口。
+    if (shouldShowScanningPreview && streamStatus !== "offline") {
       return null;
     }
     const notice = workspacePrimaryNotice;
@@ -1312,7 +1361,7 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
                   scanner={scanner}
                   progressPercent={progressPercent}
                   phase={progressPhase === "stranded" ? "planning" : progressPhase}
-                  onAbort={progressPhase === "planning" ? undefined : () => setScanAbortConfirmOpen(true)}
+                  onAbort={() => setScanAbortConfirmOpen(true)}
                   aborting={scanAborting}
                   isModelConfigured={isTextModelConfigured}
                 />
@@ -1325,6 +1374,7 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
                   scanner={scanner}
                   progressPercent={progressPercent}
                   phase="planning"
+                  onAbort={() => setScanAbortConfirmOpen(true)}
                   aborting={scanAborting}
                   isModelConfigured={isTextModelConfigured}
                 />
@@ -1337,7 +1387,7 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
                   scanner={scanner}
                   progressPercent={progressPercent}
                   phase={progressPhase}
-                  onAbort={progressPhase === "planning" ? undefined : () => setScanAbortConfirmOpen(true)}
+                  onAbort={() => setScanAbortConfirmOpen(true)}
                   aborting={scanAborting}
                   isModelConfigured={isTextModelConfigured}
                 />
@@ -1348,6 +1398,7 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
               return (
                 <EmptyState
                   icon={Loader2}
+                  iconClassName="animate-spin"
                   title={stageView.isRollingBack ? "正在回退整理" : "正在执行整理"}
                   description={stageView.isRollingBack ? "正在按回退记录恢复文件位置，请不要关闭窗口。" : "正在移动本地文件，完成后会自动打开整理结果。"}
                   className="mx-auto h-full max-w-[1360px]"
@@ -1390,19 +1441,18 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
                 <CompletionView
                   journal={journal}
                   summary={snapshot?.summary || ""}
-                  loading={journalLoading || !journal}
+                  loading={journalLoading || (!journal && !journalError)}
+                  loadError={journalError}
+                  onRetryLoad={loadJournal}
                   targetDir={snapshot?.target_dir || ""}
                   organizeMethod={snapshot?.strategy?.organize_method}
                   cleanupCandidateCount={snapshot?.execution_report?.cleanup_candidate_count ?? 0}
                   isBusy={isBusy}
                   readOnly={isReadOnly}
-                  onOpenExplorer={(path) => void openExplorer(path || snapshot?.target_dir || "")}
-                  onCleanupDirs={() => {
-                    if (!isReadOnly) void cleanupEmptyDirs();
-                  }}
-                  onRollback={() => {
-                    if (!isReadOnly) void handlePrepareRollback();
-                  }}
+                  rollbackPreparing={rollbackPreparing}
+                  onOpenExplorer={handleOpenExplorerPath}
+                  onCleanupDirs={handleCleanupDirs}
+                  onRollback={handleRollbackRequest}
                   onGoHome={handleExitWorkbench}
                 />
               );
@@ -1458,6 +1508,7 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
                       void confirmTargetDirectories(selectedTargetDirs);
                     }
                   }}
+                  onExit={handleExitWorkbench}
                 />
               );
             }
@@ -1504,18 +1555,10 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
                       sourceTreeEntries={snapshot?.source_tree_entries || []}
                       incrementalSelection={incrementalSelection}
                       precheckSummary={snapshot?.precheck_summary}
-                      onRunPrecheck={() => {
-                        if (!isReadOnly) void runPrecheck();
-                      }}
-                      onApplyTargetConflictSuggestions={() => {
-                        if (!isReadOnly) void applyTargetConflictSuggestions();
-                      }}
-                      onUpdateItem={async (id, payload) => {
-                        if (!isReadOnly) await updateItem({ item_id: id, ...payload });
-                      }}
-                      onRestoreAiSuggestion={async (id) => {
-                        if (!isReadOnly) await restoreAiSuggestion(id);
-                      }}
+                      onRunPrecheck={handleRunPrecheck}
+                      onApplyTargetConflictSuggestions={handleApplyTargetConflictSuggestions}
+                      onUpdateItem={handleUpdateItem}
+                      onRestoreAiSuggestion={handleRestoreAiSuggestion}
                       onPendingReviewCountChange={setPendingReviewCount}
                     />
                   )}
@@ -1633,9 +1676,27 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
     </div>
   );
 
+  // 操作失败（执行、回退、清理等）必须在所有视图可见；会话面板只在 plan 视图渲染，不能只依赖它。
+  const chatErrorBanner = chatError ? (
+    <div className="z-10 border-b border-error/20 bg-error/[0.04] px-4 py-3">
+      <div className="mx-auto flex max-w-[1360px] items-start gap-3">
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[8px] bg-error/10 text-error">
+          <AlertCircle className="h-4 w-4" />
+        </div>
+        <div className="min-w-0">
+          <p className="text-[13px] font-black text-on-surface">操作失败</p>
+          <p className="mt-0.5 text-[12px] font-medium leading-5 text-error/80">{chatError}</p>
+        </div>
+      </div>
+    </div>
+  ) : null;
+
   const singlePaneContent = (
     <section className="flex h-full min-w-0 flex-1 flex-col overflow-hidden bg-surface">
-      {view === "progress" || view === "review" ? null : renderWorkspaceStatusStrip()}
+      {view === "progress" || view === "review"
+        ? (streamStatus === "offline" ? renderWorkspaceStatusStrip() : null)
+        : renderWorkspaceStatusStrip()}
+      {chatErrorBanner}
       <div className="flex-1 min-h-0 w-full overflow-hidden flex flex-col">{renderPreviewContent()}</div>
     </section>
   );
@@ -1710,6 +1771,7 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
           className="flex h-full min-w-0 flex-1 flex-col overflow-hidden bg-surface"
         >
           {renderWorkspaceStatusStrip()}
+          {(isChatCollapsed || !showConversationPane) ? chatErrorBanner : null}
           <div className="flex-1 min-h-0 w-full overflow-hidden flex flex-col">{renderPreviewContent()}</div>
         </section>
       )}
@@ -1825,10 +1887,15 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
         verificationText={(precheck && ((precheck.warnings || []).length > 0 || reviewMoveCount > 0)) ? "YES" : undefined}
         verificationPlaceholder="请输入大写 YES 确认执行"
         onConfirm={async () => {
-          setExecuteConfirmOpen(false);
+          // 先执行再关框：loading 状态在对话框上可见；失败时错误横幅会在页面顶部显示。
           await execute();
+          setExecuteConfirmOpen(false);
         }}
-        onCancel={() => setExecuteConfirmOpen(false)}
+        onCancel={() => {
+          if (!loading) {
+            setExecuteConfirmOpen(false);
+          }
+        }}
       >
         <div className="grid gap-2 text-[13px]">
           <div className="flex items-center justify-between rounded-[10px] bg-surface-container-low px-3 py-2">
