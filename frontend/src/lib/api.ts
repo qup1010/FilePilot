@@ -7,14 +7,17 @@ import type {
   CreateSessionRequest,
   CreateSessionResponse,
   ExecuteResponse,
+  FileHistorySearchResult,
   GetSessionResponse,
   HistoryItem,
   JournalSummary,
   MessageResponse,
   PrecheckResponse,
+  ProfileRuleDraftsResult,
   ResumeSessionResponse,
   RollbackResponse,
   ScanAcceptedResponse,
+  SessionRuleDraftsResult,
   SessionSnapshot,
   TargetProfile,
   UpdateItemRequest,
@@ -49,11 +52,14 @@ export interface ApiClient {
   selectDir(): Promise<{ path: string | null }>;
   getCommonDirs(): Promise<{ label: string; path: string }[]>;
   getHistory(): Promise<HistoryItem[]>;
+  searchFileHistory(query: string, limit?: number): Promise<FileHistorySearchResult>;
   deleteHistoryEntry(entry_id: string): Promise<{ status: string; entry_id: string; entry_type: string }>;
   getTargetProfiles(): Promise<TargetProfile[]>;
   createTargetProfile(payload: { name: string; directories: Array<{ path: string; label?: string; description?: string }> }): Promise<TargetProfile>;
   updateTargetProfile(profile_id: string, payload: { name?: string; directories?: Array<{ path: string; label?: string; description?: string }> }): Promise<TargetProfile>;
   deleteTargetProfile(profile_id: string): Promise<{ status: string; profile_id: string }>;
+  generateProfileRuleDrafts(profile_id: string): Promise<ProfileRuleDraftsResult>;
+  generateSessionRuleDrafts(session_id: string): Promise<SessionRuleDraftsResult>;
   getSettings(): Promise<SettingsSnapshot>;
   getSettingsRuntime<T = Record<string, unknown>>(family: string): Promise<T>;
   updateSettings(payload: SettingsUpdatePayload): Promise<SettingsSnapshot>;
@@ -246,6 +252,10 @@ export function createApiClient(baseUrl: string, apiToken?: string): ApiClient {
     async getHistory() {
       return requestJson<HistoryItem[]>(baseUrl, "/api/history", {}, apiToken);
     },
+    async searchFileHistory(query, limit = 50) {
+      const params = new URLSearchParams({ q: query, limit: String(limit) });
+      return requestJson<FileHistorySearchResult>(baseUrl, `/api/history/search?${params.toString()}`, {}, apiToken);
+    },
     async deleteHistoryEntry(entry_id) {
       return requestJson<{ status: string; entry_id: string; entry_type: string }>(
         baseUrl,
@@ -289,6 +299,22 @@ export function createApiClient(baseUrl: string, apiToken?: string): ApiClient {
         baseUrl,
         `/api/target-profiles/${profile_id}`,
         { method: "DELETE" },
+        apiToken,
+      );
+    },
+    async generateProfileRuleDrafts(profile_id) {
+      return requestJson<ProfileRuleDraftsResult>(
+        baseUrl,
+        `/api/target-profiles/${profile_id}/rule-drafts`,
+        { method: "POST" },
+        apiToken,
+      );
+    },
+    async generateSessionRuleDrafts(session_id) {
+      return requestJson<SessionRuleDraftsResult>(
+        baseUrl,
+        `/api/sessions/${session_id}/rule-drafts`,
+        { method: "POST" },
         apiToken,
       );
     },

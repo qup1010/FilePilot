@@ -128,6 +128,8 @@ export function CompletionView({
   const moveItems = allItems.filter((item) => item.action_type === "MOVE");
   const mkdirItems = allItems.filter((item) => item.action_type === "MKDIR" && item.target);
   const failedItems = moveItems.filter((item) => item.status === "failed");
+  // 「留在原地」与「已归位」同等重要：看不到跳过项，用户的默认假设是「漏了」
+  const skippedItems = moveItems.filter((item) => item.status === "skipped");
   const reviewItems = moveItems.filter(isReviewJournalItem);
   const isPartial = (journal.failure_count || 0) > 0;
   const baseLabel = targetDir.split(/[\\/]/).filter(Boolean).at(-1) || "当前目录";
@@ -233,9 +235,12 @@ export function CompletionView({
         </div>
 
         {/* Metrics Grid - High Density */}
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <div className={cn("grid grid-cols-2 gap-2", skippedItems.length > 0 ? "sm:grid-cols-5" : "sm:grid-cols-4")}>
             {[
                 { label: "成功移动", count: journal.success_count || 0, icon: CheckCircle2, color: "text-success-dim", bg: "bg-success/5" },
+                ...(skippedItems.length > 0
+                  ? [{ label: "留在原地", count: skippedItems.length, icon: Info, color: "text-warning-dim", bg: "bg-warning/5" }]
+                  : []),
                 { label: "执行失败", count: journal.failure_count || 0, icon: AlertTriangle, color: isPartial ? "text-error" : "text-ui-muted", bg: isPartial ? "bg-error/5" : "bg-on-surface/5" },
                 { label: "待确认区", count: reviewItems.length, icon: Layers, color: "text-warning", bg: "bg-warning/5" },
                 { label: "处理总数", count: journal.item_count || 0, icon: History, color: "text-primary", bg: "bg-primary/5" },
@@ -353,9 +358,43 @@ export function CompletionView({
           </div>
         </section>
 
-        {(failedItems.length > 0 || reviewItems.length > 0) ? (
+        {(failedItems.length > 0 || reviewItems.length > 0 || skippedItems.length > 0) ? (
           <section className="shrink-0 flex flex-col gap-4 pb-6">
-            <div className={cn("grid gap-4", (failedItems.length > 0 && reviewItems.length > 0) ? "lg:grid-cols-2" : "grid-cols-1")}>
+            <div className={cn(
+              "grid gap-4",
+              [failedItems.length > 0, reviewItems.length > 0, skippedItems.length > 0].filter(Boolean).length > 1
+                ? "lg:grid-cols-2"
+                : "grid-cols-1",
+            )}>
+              {skippedItems.length > 0 && (
+                <div className="flex flex-col rounded-lg border border-warning/20 bg-warning/[0.01] overflow-hidden">
+                  <div className="flex items-center justify-between px-4 py-2 border-b border-warning/15 bg-warning/5">
+                    <div className="flex items-center gap-2">
+                        <Info className="h-3 w-3 text-warning-dim" />
+                        <h3 className="text-[11px] font-black uppercase tracking-[0.2em] text-warning-dim">留在原地</h3>
+                    </div>
+                    <span className="font-mono text-[11px] font-bold text-warning-dim/60">{skippedItems.length} 项</span>
+                  </div>
+                  <p className="px-4 py-1.5 text-[11px] font-medium leading-snug text-on-surface-variant/70 border-b border-warning/10">
+                    这些文件本次没有移动，原文件仍在原位置，原因如下。下次整理会再次评估。
+                  </p>
+                  <div className="p-1 max-h-[280px] overflow-y-auto scrollbar-thin">
+                    <div className="flex flex-col">
+                      {skippedItems.map((item, idx) => (
+                        <div key={idx} className="group flex flex-col gap-1 p-2 transition-colors hover:bg-warning/5 border-b border-warning/5 last:border-0 text-[11px]">
+                          <p className="truncate font-mono font-black text-on-surface/90" title={item.display_name}>{item.display_name}</p>
+                          {item.message ? (
+                            <div className="flex items-start gap-2">
+                              <span className="shrink-0 text-[11px] font-black uppercase text-warning-dim/70">原因</span>
+                              <p className="text-[11px] font-medium leading-snug text-on-surface-variant/80" title={item.message}>{item.message}</p>
+                            </div>
+                          ) : null}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
               {failedItems.length > 0 && (
                 <div className="flex flex-col rounded-lg border border-error/15 bg-error/[0.01] overflow-hidden">
                   <div className="flex items-center justify-between px-4 py-2 border-b border-error/10 bg-error/5">

@@ -23,6 +23,7 @@ import { localizeSessionLastError, localizeUserFacingError } from "@/lib/user-fa
 import { useRouter, useSearchParams } from "next/navigation";
 
 import type { JournalSummary, HistoryItem, SessionSnapshot, RollbackPrecheckSummary } from "@/types/session";
+import { FileHistorySearch } from "@/components/file-history-search";
 import { RollbackPreviewDialog } from "@/components/workspace/rollback-preview-dialog";
 import { Button } from "@/components/ui/button";
 import { ErrorAlert } from "@/components/ui/error-alert";
@@ -646,6 +647,7 @@ export default function HistoryPage() {
                   className="w-full rounded-[6px] border border-on-surface/10 bg-on-surface/[0.02] py-2 pl-[2.25rem] pr-4 text-[13px] font-medium text-on-surface outline-none transition-all placeholder:text-ui-muted/50 focus:bg-surface focus:ring-2 focus:ring-primary/5"
                 />
               </div>
+              <FileHistorySearch api={api} onSelectExecution={(id) => setSelectedSessionId(id)} />
             </div>
           </div>
 

@@ -119,6 +119,7 @@ import { LauncherHistoryPanel } from "./launcher/launcher-history-panel";
 import { ResumePromptDialog } from "./launcher/resume-prompt-dialog";
 import { type LauncherSourceListItem } from "./launcher/source-list";
 import { SourceStep } from "./launcher/source-step";
+import { OneClickPanel } from "./one-click-panel";
 import { StrategyStep } from "./launcher/strategy-step";
 
 type SourceFeedback = {
@@ -1713,6 +1714,11 @@ export function SessionLauncherShell() {
                 </div>
               ) : null}
 
+               {!launchFlowOpen ? (
+                 <div className="mb-4">
+                   <OneClickPanel />
+                 </div>
+               ) : null}
                {!launchFlowOpen ? renderLaunchWorkbench() : null}
 
               <div hidden={!launchFlowOpen} className={cn("flex flex-col gap-3", !launchFlowOpen && "hidden")}>

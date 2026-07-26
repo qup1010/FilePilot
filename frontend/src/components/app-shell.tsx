@@ -7,7 +7,7 @@ import { motion } from "motion/react";
 
 // ... (existing imports)
 import Link from "next/link";
-import { LayoutGrid, History, Settings, Palette, Sun, Moon, Monitor, CheckCircle2 } from "lucide-react";
+import { BookOpenCheck, LayoutGrid, History, Settings, Palette, Sun, Moon, Monitor, CheckCircle2 } from "lucide-react";
 import { WindowControls } from "./ui/window-controls";
 import { GlobalTaskIndicator } from "./global-task-indicator";
 import { useTheme } from "@/lib/theme";
@@ -246,6 +246,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   const navItems = [
     { href: workspaceRoute, icon: LayoutGrid, label: workspaceRoute === "/" ? "开始整理" : "当前任务" },
+    { href: "/rules", icon: BookOpenCheck, label: "分类规则" },
     { href: "/history", icon: History, label: "整理历史" },
     { href: "/icons", icon: Palette, label: "图标工坊" },
     { href: "/settings", icon: Settings, label: "设置" },

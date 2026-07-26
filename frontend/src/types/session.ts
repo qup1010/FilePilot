@@ -45,6 +45,49 @@ export interface TargetProfileDirectory {
   path: string;
   label?: string;
   description?: string;
+  extensions?: string[];
+  name_patterns?: string[];
+}
+
+export interface RuleDraftItem {
+  path: string;
+  label?: string;
+  current_description?: string;
+  draft_description: string | null;
+  basis: string | null;
+  total_entries: number;
+  readable: boolean;
+}
+
+export interface ProfileRuleDraftsResult {
+  profile_id: string;
+  items: RuleDraftItem[];
+}
+
+export interface SessionRuleDraftsResult {
+  session_id: string;
+  journal_id: string;
+  suggested_profile_name: string;
+  items: RuleDraftItem[];
+}
+
+export interface FileHistoryMatch {
+  display_name: string;
+  source_path: string | null;
+  current_path: string | null;
+  current_path_exists: boolean;
+  status: "success" | "rolled_back" | "skipped" | "failed" | "pending" | string;
+  message: string;
+  decision_basis: string | null;
+  execution_id: string;
+  moved_at: string;
+  target_dir: string;
+}
+
+export interface FileHistorySearchResult {
+  query: string;
+  total: number;
+  matches: FileHistoryMatch[];
 }
 
 export interface TargetProfile {
@@ -289,10 +332,20 @@ export interface PrecheckIssue {
   related_item_ids: string[];
 }
 
+export interface PrecheckItemSkip {
+  reason: "target_exists" | "source_missing" | "duplicate_target" | "self_subpath" | "parent_missing" | "not_movable" | string;
+  message: string;
+  item_id: string | null;
+  display_name: string | null;
+  source: string | null;
+  target: string | null;
+}
+
 export interface PrecheckSummary {
   can_execute: boolean;
   blocking_errors: string[];
   warnings: string[];
+  item_skips?: PrecheckItemSkip[];
   mkdir_preview: string[];
   move_preview: PrecheckMovePreview[];
   target_conflict_suggestions?: PrecheckTargetConflictSuggestion[];
@@ -314,6 +367,7 @@ export interface RollbackReport {
   restored_from_execution_id: string;
   success_count: number;
   failure_count: number;
+  skipped_count?: number;
   status: "success" | "partial_failure" | "aborted" | string;
 }
 
@@ -413,6 +467,7 @@ export interface CreateSessionRequest {
   sources: SessionSourceSelection[];
   resume_if_exists?: boolean;
   organize_method: OrganizeMethod;
+  unattended?: boolean;
   strategy?: SessionStrategySelection;
   output_dir?: string;
   target_profile_id?: string;
