@@ -504,7 +504,8 @@ class ExecutionAppService:
             "restored_from_execution_id": journal.execution_id,
             "success_count": report.success_count,
             "failure_count": report.failure_count,
-            "status": "success" if report.failure_count == 0 else "partial_failure",
+            "skipped_count": report.skipped_count,
+            "status": "success" if report.failure_count == 0 and report.skipped_count == 0 else "partial_failure",
         }
         session.last_journal_id = journal.execution_id
         session.stage = STAGE_STALE
@@ -562,6 +563,7 @@ class ExecutionAppService:
         return {
             "can_execute": bool(precheck.can_execute),
             "blocking_errors": list(precheck.blocking_errors or []),
+            "item_skips": [skip.to_dict() for skip in (precheck.item_skips or [])],
             "actions": [
                 {
                     "type": action.type,
@@ -612,7 +614,8 @@ class ExecutionAppService:
                     "restored_from_execution_id": journal.execution_id,
                     "success_count": report.success_count,
                     "failure_count": report.failure_count,
-                    "status": "success" if report.failure_count == 0 else "partial_failure",
+                    "skipped_count": report.skipped_count,
+                    "status": "success" if report.failure_count == 0 and report.skipped_count == 0 else "partial_failure",
                 },
                 "integrity_flags": {
                     "is_stale": True,
