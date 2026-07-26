@@ -193,10 +193,27 @@ class SourceCollectionItem:
 class TargetProfileDirectory:
     path: str
     label: str = ""
+    # 规则主字段：「什么样的文件应该放进这里」，一个目录一条，天然无冲突
     description: str = ""
+    # 可选硬条件（加速层）：命中即确定性分类，不调模型；不是必需层
+    extensions: list[str] = field(default_factory=list)
+    name_patterns: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict:
         return asdict(self)
+
+    @staticmethod
+    def _normalize_str_list(value, *, canonicalize=None) -> list[str]:
+        if not isinstance(value, (list, tuple)):
+            return []
+        items: list[str] = []
+        for entry in value:
+            text = str(entry or "").strip()
+            if canonicalize is not None:
+                text = canonicalize(text)
+            if text and text not in items:
+                items.append(text)
+        return items
 
     @classmethod
     def from_dict(cls, data: dict | "TargetProfileDirectory" | None) -> "TargetProfileDirectory" | None:
@@ -213,6 +230,10 @@ class TargetProfileDirectory:
             path=path,
             label=str(data.get("label") or "").strip(),
             description=str(data.get("description") or "").strip(),
+            extensions=cls._normalize_str_list(
+                data.get("extensions"), canonicalize=lambda text: text.lstrip(".").lower()
+            ),
+            name_patterns=cls._normalize_str_list(data.get("name_patterns")),
         )
 
 

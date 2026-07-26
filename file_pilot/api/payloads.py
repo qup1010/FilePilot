@@ -11,6 +11,8 @@ class TargetProfileDirectoryPayload(BaseModel):
     path: str
     label: str | None = None
     description: str | None = None
+    extensions: list[str] | None = None
+    name_patterns: list[str] | None = None
 
 
 class CreateSessionPayload(BaseModel):

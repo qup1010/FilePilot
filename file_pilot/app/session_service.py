@@ -1830,6 +1830,46 @@ class OrganizerSessionService:
     def delete_target_profile(self, profile_id: str) -> bool:
         return self.target_profiles.delete(profile_id)
 
+    def generate_target_profile_rule_drafts(self, profile_id: str, *, client=None, model: str | None = None) -> dict:
+        """为 profile 的每个目录生成规则描述初稿（只返回，不落库；采纳由用户校订决定）。"""
+        from file_pilot.organize import rule_advisor
+
+        profile = self.target_profiles.get(profile_id)
+        if profile is None:
+            raise FileNotFoundError(profile_id)
+
+        profiles = [
+            rule_advisor.collect_directory_content_profile(
+                Path(directory.path),
+                label=directory.label,
+                current_description=directory.description,
+            )
+            for directory in profile.directories
+        ]
+        drafts = rule_advisor.generate_rule_drafts(profiles, client=client, model=model)
+        drafts_by_path = {draft.path: draft for draft in drafts}
+        return {
+            "profile_id": profile.profile_id,
+            "items": [
+                {
+                    "path": content_profile.path,
+                    "label": content_profile.label,
+                    "current_description": content_profile.current_description,
+                    "draft_description": (
+                        drafts_by_path[content_profile.path].draft_description
+                        if content_profile.path in drafts_by_path
+                        else None
+                    ),
+                    "basis": (
+                        drafts_by_path[content_profile.path].basis if content_profile.path in drafts_by_path else None
+                    ),
+                    "total_entries": content_profile.total_entries,
+                    "readable": content_profile.readable,
+                }
+                for content_profile in profiles
+            ],
+        }
+
     def abandon_session(self, session_id: str) -> dict:
         return self.lifecycle.abandon_session(session_id)
 

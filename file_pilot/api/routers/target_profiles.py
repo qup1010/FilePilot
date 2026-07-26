@@ -42,6 +42,16 @@ def update_target_profile(profile_id: str, payload: UpdateTargetProfilePayload, 
         raise HTTPException(status_code=404, detail="TARGET_PROFILE_NOT_FOUND")
 
 
+@router.post("/{profile_id}/rule-drafts")
+def generate_rule_drafts(profile_id: str, request: Request):
+    try:
+        return request.app.state.service.generate_target_profile_rule_drafts(profile_id)
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="TARGET_PROFILE_NOT_FOUND")
+    except ValueError as exc:
+        raise HTTPException(status_code=502, detail=str(exc))
+
+
 @router.delete("/{profile_id}")
 def delete_target_profile(profile_id: str, request: Request):
     if not request.app.state.service.delete_target_profile(profile_id):
