@@ -16,6 +16,7 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { cn, formatDisplayDate, } from "@/lib/utils";
 import { getPathBasename } from "@/lib/path-normalization";
 import { localizeSessionLastError, localizeUserFacingError } from "@/lib/user-facing-copy";
@@ -41,6 +42,9 @@ import {
   isHistorySessionEntry,
   useHistoryList,
 } from "@/lib/use-history-list";
+
+// 变更明细最多直接渲染的行数：超出后仅显示前 N 条并提示用检索缩小范围，避免上千行拖垮渲染。
+const MOVE_ROWS_DISPLAY_LIMIT = 200;
 
 function formatPath(path: string) {
   const segments = path.split(/[\\/]/);
@@ -348,6 +352,16 @@ export default function HistoryPage() {
       item.target?.toLowerCase().includes(q)
     );
   });
+  const visibleMoveRows = filteredMoveRows.slice(0, MOVE_ROWS_DISPLAY_LIMIT);
+
+  const historyListScrollRef = useRef<HTMLDivElement | null>(null);
+  const historyListVirtualizer = useVirtualizer({
+    count: filteredHistory.length,
+    getScrollElement: () => historyListScrollRef.current,
+    estimateSize: () => 62,
+    getItemKey: (index) => filteredHistory[index]?.execution_id ?? index,
+    overscan: 8,
+  });
 
   const activeCount = history.filter((item) => isHistorySessionEntry(item)).length;
   const completedCount = history.filter((item) => isHistoryCompletedEntry(item)).length;
@@ -514,7 +528,7 @@ export default function HistoryPage() {
         <div className="rounded-lg border border-on-surface/8 bg-on-surface/[0.01] overflow-hidden">
           <div className="flex flex-col divide-y divide-on-surface/6">
             {filteredMoveRows.length ? (
-              filteredMoveRows.map((item, index) => {
+              visibleMoveRows.map((item, index) => {
                 const isRolledBack = selectedEntry ? isHistoryRolledBackEntry(selectedEntry) : false;
                 return (
                   <div 
@@ -582,6 +596,11 @@ export default function HistoryPage() {
                 <p className="text-[12px] font-bold">没有可显示的变更明细</p>
               </div>
             )}
+            {filteredMoveRows.length > MOVE_ROWS_DISPLAY_LIMIT && (
+              <div className="px-3 py-2.5 text-center text-[11px] font-bold text-ui-muted/60">
+                仅显示前 {MOVE_ROWS_DISPLAY_LIMIT} 条，共 {filteredMoveRows.length} 条，可用上方检索缩小范围。
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -641,15 +660,19 @@ export default function HistoryPage() {
             </div>
           </div>
 
-          <div className="relative flex-1 overflow-y-auto px-2 py-4 scrollbar-thin">
+          <div ref={historyListScrollRef} className="relative flex-1 overflow-y-auto px-2 py-4 scrollbar-thin">
             {loading ? (
               <div className="flex h-full flex-col items-center justify-center gap-3 opacity-30">
                 <Activity className="h-6 w-6 animate-spin text-primary" />
                 <p className="text-[12px] font-bold">正在读取记录...</p>
               </div>
             ) : filteredHistory.length > 0 ? (
-              <div className="space-y-0.5">
-                {filteredHistory.map((entry, idx) => {
+              <div className="relative w-full" style={{ height: `${historyListVirtualizer.getTotalSize()}px` }}>
+                {historyListVirtualizer.getVirtualItems().map((virtualRow) => {
+                  const entry = filteredHistory[virtualRow.index];
+                  if (!entry) {
+                    return null;
+                  }
                   const active = selectedSessionId === entry.execution_id;
                   const sessionLike = isHistorySessionEntry(entry);
                   const isRolledBack = isHistoryRolledBackEntry(entry);
@@ -658,11 +681,17 @@ export default function HistoryPage() {
                   const dirShortName = getPathBasename(entry.target_dir, entry.target_dir || "未指定目录");
 
                   return (
-                    <motion.div
+                    <div
                       key={entry.execution_id}
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      transition={{ delay: Math.min(idx * 0.01, 0.2), duration: 0.2 }}
+                      ref={historyListVirtualizer.measureElement}
+                      data-index={virtualRow.index}
+                      className={cn(
+                        "absolute left-0 top-0 w-full",
+                        virtualRow.index < filteredHistory.length - 1 && "pb-0.5",
+                      )}
+                      style={{ transform: `translateY(${virtualRow.start}px)` }}
+                    >
+                    <div
                       role="button"
                       tabIndex={0}
                       onClick={() => setSelectedSessionId(entry.execution_id)}
@@ -734,7 +763,8 @@ export default function HistoryPage() {
                       >
                         <Trash2 className="h-3.5 w-3.5" />
                       </button>
-                    </motion.div>
+                    </div>
+                    </div>
                   );
                 })}
               </div>

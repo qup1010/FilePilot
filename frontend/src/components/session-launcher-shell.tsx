@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import {
   Activity,
@@ -25,6 +25,7 @@ import {
   Info,
 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
+import { useVirtualizer } from "@tanstack/react-virtual";
 
 import { createApiClient } from "@/lib/api";
 import {
@@ -481,6 +482,159 @@ function mapDirectoryEntryToSource(entry: { path: string; is_dir: boolean; is_fi
   return null;
 }
 
+type SourceImportGroupView = SourceImportGroup & { items: SessionSourceSelection[] };
+
+// 扁平化后的虚拟列表行：普通来源行 / 导入组头 / 导入组内嵌行。
+type LauncherSourceListItem =
+  | { kind: "source"; key: string; source: SessionSourceSelection }
+  | { kind: "group-header"; key: string; group: SourceImportGroupView }
+  | { kind: "group-source"; key: string; source: SessionSourceSelection; isFirst: boolean; isLast: boolean };
+
+interface SourceRowProps {
+  item: SessionSourceSelection;
+  nested?: boolean;
+  loading: boolean;
+  onRemove: (path: string, sourceType: SessionSourceSelection["source_type"]) => void;
+  onImportInternal: (item: SessionSourceSelection) => void;
+  onSetAtomicMode: (path: string) => void;
+}
+
+const SourceRow = memo(function SourceRow({
+  item,
+  nested = false,
+  loading,
+  onRemove,
+  onImportInternal,
+  onSetAtomicMode,
+}: SourceRowProps) {
+  const isDirectory = item.source_type === "directory";
+  const isAtomic = normalizeDirectoryMode(item) === "atomic";
+
+  return (
+    <div
+      className={cn(
+        "group flex items-center justify-between gap-3 transition-all active:scale-[0.995]",
+        nested
+          ? "rounded-md border border-on-surface/6 bg-surface px-2.5 py-1.5 hover:border-on-surface/16"
+          : "rounded-lg border border-on-surface/8 bg-surface-container-lowest px-3 py-2 hover:border-on-surface/20",
+      )}
+    >
+      <div className="flex min-w-0 items-center gap-2.5">
+        <div className={cn(
+          "flex shrink-0 items-center justify-center rounded bg-primary/10 text-primary",
+          nested ? "h-7.5 w-7.5" : "h-8.5 w-8.5",
+        )}>
+          {isDirectory ? (
+            <FolderOpen className={cn("text-primary", nested ? "h-3.5 w-3.5" : "h-4 w-4")} />
+          ) : (
+            <FileText className={cn("text-primary", nested ? "h-3.5 w-3.5" : "h-4 w-4")} />
+          )}
+        </div>
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <span className={cn("truncate font-black tracking-tight text-on-surface", nested ? "text-[12.5px]" : "text-[13.5px]")}>
+              {item.path.split(/[\\/]/).pop() || item.path}
+            </span>
+            <span className="shrink-0 rounded bg-on-surface/5 px-1 py-0.2 text-[8px] font-black uppercase tracking-wider text-ui-muted opacity-80 scale-90 origin-left">
+              {getSourceBehaviorLabel(item)}
+            </span>
+          </div>
+          <div className="flex items-center gap-1.5 mt-0.5 leading-none">
+            <span className="truncate font-mono text-[9.5px] font-medium text-ui-muted opacity-40 uppercase tracking-tighter max-w-[280px] sm:max-w-[400px]" title={item.path}>
+              {item.path}
+            </span>
+            {isDirectory && (
+              <>
+                <span className="text-[9px] text-ui-muted opacity-25 select-none">·</span>
+                <button
+                  type="button"
+                  disabled={loading}
+                  onClick={() => {
+                    if (isAtomic) {
+                      onImportInternal(item);
+                    } else {
+                      onSetAtomicMode(item.path);
+                    }
+                  }}
+                  className="shrink-0 text-[9.5px] font-bold text-primary hover:underline transition-colors leading-none"
+                >
+                  {isAtomic ? "导入内部项" : "改为整体移动"}
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+      <button
+        type="button"
+        onClick={() => onRemove(item.path, item.source_type)}
+        disabled={loading}
+        className="shrink-0 rounded-[4px] p-1.5 text-on-surface-variant/40 transition-colors hover:bg-error/10 hover:text-error opacity-0 group-hover:opacity-100 focus:opacity-100"
+        title="移除"
+      >
+        <Trash2 className="h-4 w-4" />
+      </button>
+    </div>
+  );
+});
+
+interface SourceGroupHeaderProps {
+  groupId: string;
+  sourcePath: string;
+  expanded: boolean;
+  itemCount: number;
+  loading: boolean;
+  onToggleExpanded: (groupId: string) => void;
+  onRemoveGroup: (groupId: string) => void;
+}
+
+const SourceGroupHeader = memo(function SourceGroupHeader({
+  groupId,
+  sourcePath,
+  expanded,
+  itemCount,
+  loading,
+  onToggleExpanded,
+  onRemoveGroup,
+}: SourceGroupHeaderProps) {
+  return (
+    <div
+      onClick={() => onToggleExpanded(groupId)}
+      className="flex items-start justify-between gap-3 cursor-pointer hover:bg-primary/[0.03] -m-2 p-2 rounded-lg transition-colors select-none"
+    >
+      <div className="min-w-0 flex items-start gap-2">
+        <div className="mt-1 shrink-0 flex items-center justify-center">
+          <ChevronDown className={cn("h-4 w-4 text-primary/70 transition-transform duration-200", !expanded && "-rotate-90")} />
+        </div>
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <Layers3 className="h-4 w-4 text-primary/70 shrink-0" />
+            <p className="text-[13px] font-black tracking-tight text-on-surface">
+              已从 {sourcePath.split(/[\\/]/).pop()} 导入 {itemCount} 项
+            </p>
+          </div>
+          <p className="mt-1 truncate font-mono text-[10px] font-bold text-ui-muted opacity-40 uppercase tracking-widest">
+            批量导入 · {sourcePath}
+          </p>
+        </div>
+      </div>
+      <div className="flex shrink-0 items-center gap-1.5">
+        <button
+          type="button"
+          disabled={loading}
+          onClick={(e) => {
+            e.stopPropagation();
+            onRemoveGroup(groupId);
+          }}
+          className="rounded-[6px] px-2.5 py-1.5 text-[10.5px] font-bold text-ui-muted/55 transition-colors hover:bg-error/10 hover:text-error"
+        >
+          移除整组
+        </button>
+      </div>
+    </div>
+  );
+});
+
 function placementDefaults(
   config: LaunchStrategyConfig | null,
   options: {
@@ -726,6 +880,50 @@ export function SessionLauncherShell() {
     }
     return mapping;
   }, [sourceImportGroupViews]);
+
+  // 把“普通来源行 + 导入组头 + 展开的组内行”拍平成单一数组，交给虚拟滚动统一渲染。
+  const sourceListItems = useMemo<LauncherSourceListItem[]>(() => {
+    const items: LauncherSourceListItem[] = [];
+    const renderedGroupIds = new Set<string>();
+    for (const item of displaySources) {
+      const key = sourceSelectionKey(item);
+      const group = sourceImportGroupByKey.get(key);
+      if (!group) {
+        items.push({ kind: "source", key, source: item });
+        continue;
+      }
+      if (renderedGroupIds.has(group.group_id)) {
+        continue;
+      }
+      const firstVisibleKey = group.item_keys.find((candidate) => sourceKeyMap.has(candidate));
+      if (firstVisibleKey !== key) {
+        continue;
+      }
+      renderedGroupIds.add(group.group_id);
+      items.push({ kind: "group-header", key: group.group_id, group });
+      if (group.expanded) {
+        group.items.forEach((groupItem, index) => {
+          items.push({
+            kind: "group-source",
+            key: `${group.group_id}:${sourceSelectionKey(groupItem)}`,
+            source: groupItem,
+            isFirst: index === 0,
+            isLast: index === group.items.length - 1,
+          });
+        });
+      }
+    }
+    return items;
+  }, [displaySources, sourceImportGroupByKey, sourceKeyMap]);
+
+  const sourceListScrollRef = useRef<HTMLDivElement | null>(null);
+  const sourceListVirtualizer = useVirtualizer({
+    count: sourceListItems.length,
+    getScrollElement: () => sourceListScrollRef.current,
+    estimateSize: (index) => (sourceListItems[index]?.kind === "group-header" ? 84 : 62),
+    getItemKey: (index) => sourceListItems[index]?.key ?? index,
+    overscan: 8,
+  });
 
   const currentSummary = useMemo(
     () =>
@@ -1177,15 +1375,15 @@ export function SessionLauncherShell() {
     };
   }, []);
 
-  function removeSource(path: string, sourceType: SessionSourceSelection["source_type"]) {
+  const removeSource = useCallback((path: string, sourceType: SessionSourceSelection["source_type"]) => {
     setSources((previous) => {
       const nextSources = previous.filter((item) => !(item.path === path && item.source_type === sourceType));
       setSourceImportGroups((previousGroups) => pruneImportGroups(previousGroups, nextSources));
       return nextSources;
     });
-  }
+  }, [pruneImportGroups]);
 
-  function updateDirectorySourceMode(path: string, directoryMode: DirectorySourceMode) {
+  const updateDirectorySourceMode = useCallback((path: string, directoryMode: DirectorySourceMode) => {
     setSources((previous) =>
       dedupeSources(
         previous.map((item) =>
@@ -1195,23 +1393,31 @@ export function SessionLauncherShell() {
         ),
       ),
     );
-  }
+  }, []);
 
-  function toggleImportGroupExpanded(groupId: string) {
+  const setSourceAtomicMode = useCallback((path: string) => {
+    updateDirectorySourceMode(path, "atomic");
+  }, [updateDirectorySourceMode]);
+
+  const toggleImportGroupExpanded = useCallback((groupId: string) => {
     setSourceImportGroups((previous) =>
       previous.map((group) =>
         group.group_id === groupId ? { ...group, expanded: !group.expanded } : group,
       ),
     );
-  }
+  }, []);
 
-  function removeImportGroup(groupId: string) {
-    const group = sourceImportGroupViews.find((item) => item.group_id === groupId);
-    if (!group) return;
-    const keysToRemove = new Set(group.item_keys);
-    setSources((previous) => previous.filter((item) => !keysToRemove.has(sourceSelectionKey(item))));
-    setSourceImportGroups((previous) => previous.filter((item) => item.group_id !== groupId));
-  }
+  const removeImportGroup = useCallback((groupId: string) => {
+    setSourceImportGroups((previousGroups) => {
+      const group = previousGroups.find((item) => item.group_id === groupId);
+      if (!group) {
+        return previousGroups;
+      }
+      const keysToRemove = new Set(group.item_keys);
+      setSources((previous) => previous.filter((item) => !keysToRemove.has(sourceSelectionKey(item))));
+      return previousGroups.filter((item) => item.group_id !== groupId);
+    });
+  }, []);
 
   function clearAllSources() {
     setSources([]);
@@ -1373,6 +1579,18 @@ export function SessionLauncherShell() {
     await importDirectoryEntries(item.path, { replaceSourcePath: item.path });
   }
 
+  // 行内“导入内部项”按钮的稳定回调：通过 ref 转发到最新的 handleImportFromSource，
+  // 避免因闭包变化导致 memo 化的 SourceRow 在无关状态更新（如手填路径键入）时整列重渲染。
+  const importFromSourceRef = useRef<(item: SessionSourceSelection) => void>(() => {});
+  useEffect(() => {
+    importFromSourceRef.current = (item) => {
+      void handleImportFromSource(item);
+    };
+  });
+  const handleImportInternal = useCallback((item: SessionSourceSelection) => {
+    importFromSourceRef.current(item);
+  }, []);
+
   async function handleChooseFiles() {
     setError(null);
     if (!isTauriDesktop()) {
@@ -1388,80 +1606,6 @@ export function SessionLauncherShell() {
     } catch {
       setError("现在还不能打开文件选择器，请检查本地服务是否正常运行。");
     }
-  }
-
-  function renderSourceRow(item: SessionSourceSelection, options?: { nested?: boolean }) {
-    const nested = options?.nested === true;
-    const isDirectory = item.source_type === "directory";
-    const isAtomic = normalizeDirectoryMode(item) === "atomic";
-
-    return (
-      <div
-        key={sourceSelectionKey(item)}
-        className={cn(
-          "group flex items-center justify-between gap-3 transition-all active:scale-[0.995]",
-          nested
-            ? "rounded-md border border-on-surface/6 bg-surface px-2.5 py-1.5 hover:border-on-surface/16"
-            : "rounded-lg border border-on-surface/8 bg-surface-container-lowest px-3 py-2 hover:border-on-surface/20",
-        )}
-      >
-        <div className="flex min-w-0 items-center gap-2.5">
-          <div className={cn(
-            "flex shrink-0 items-center justify-center rounded bg-primary/10 text-primary",
-            nested ? "h-7.5 w-7.5" : "h-8.5 w-8.5",
-          )}>
-            {isDirectory ? (
-              <FolderOpen className={cn("text-primary", nested ? "h-3.5 w-3.5" : "h-4 w-4")} />
-            ) : (
-              <FileText className={cn("text-primary", nested ? "h-3.5 w-3.5" : "h-4 w-4")} />
-            )}
-          </div>
-          <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <span className={cn("truncate font-black tracking-tight text-on-surface", nested ? "text-[12.5px]" : "text-[13.5px]")}>
-                {item.path.split(/[\\/]/).pop() || item.path}
-              </span>
-              <span className="shrink-0 rounded bg-on-surface/5 px-1 py-0.2 text-[8px] font-black uppercase tracking-wider text-ui-muted opacity-80 scale-90 origin-left">
-                {getSourceBehaviorLabel(item)}
-              </span>
-            </div>
-            <div className="flex items-center gap-1.5 mt-0.5 leading-none">
-              <span className="truncate font-mono text-[9.5px] font-medium text-ui-muted opacity-40 uppercase tracking-tighter max-w-[280px] sm:max-w-[400px]" title={item.path}>
-                {item.path}
-              </span>
-              {isDirectory && (
-                <>
-                  <span className="text-[9px] text-ui-muted opacity-25 select-none">·</span>
-                  <button
-                    type="button"
-                    disabled={loading}
-                    onClick={() => {
-                      if (isAtomic) {
-                        void handleImportFromSource(item);
-                      } else {
-                        updateDirectorySourceMode(item.path, "atomic");
-                      }
-                    }}
-                    className="shrink-0 text-[9.5px] font-bold text-primary hover:underline transition-colors leading-none"
-                  >
-                    {isAtomic ? "导入内部项" : "改为整体移动"}
-                  </button>
-                </>
-              )}
-            </div>
-          </div>
-        </div>
-        <button
-          type="button"
-          onClick={() => removeSource(item.path, item.source_type)}
-          disabled={loading}
-          className="shrink-0 rounded-[4px] p-1.5 text-on-surface-variant/40 transition-colors hover:bg-error/10 hover:text-error opacity-0 group-hover:opacity-100 focus:opacity-100"
-          title="移除"
-        >
-          <Trash2 className="h-4 w-4" />
-        </button>
-      </div>
-    );
   }
 
   function removeManualTargetDirectory(path: string) {
@@ -2476,69 +2620,77 @@ export function SessionLauncherShell() {
                                   </button>
                                 </div>
                               </div>
-                              <div className="max-h-[42vh] min-h-[180px] overflow-y-auto p-2 scrollbar-thin">
-                                <div className="grid gap-2">
-                                  {(() => {
-                                    const renderedGroupIds = new Set<string>();
-                                    return displaySources.map((item) => {
-                                      const key = sourceSelectionKey(item);
-                                      const group = sourceImportGroupByKey.get(key);
-                                      if (!group) {
-                                        return renderSourceRow(item);
-                                      }
-                                      if (renderedGroupIds.has(group.group_id)) {
-                                        return null;
-                                      }
-                                      const firstVisibleKey = group.item_keys.find((candidate) => sourceKeyMap.has(candidate));
-                                      if (firstVisibleKey !== key) {
-                                        return null;
-                                      }
-                                      renderedGroupIds.add(group.group_id);
-                                      return (
-                                        <div key={group.group_id} className="rounded-xl border border-primary/20 bg-primary/[0.04] p-3 text-on-surface/80">
+                              <div ref={sourceListScrollRef} className="max-h-[42vh] min-h-[180px] overflow-y-auto p-2 scrollbar-thin">
+                                <div className="relative w-full" style={{ height: `${sourceListVirtualizer.getTotalSize()}px` }}>
+                                  {sourceListVirtualizer.getVirtualItems().map((virtualRow) => {
+                                    const listItem = sourceListItems[virtualRow.index];
+                                    if (!listItem) {
+                                      return null;
+                                    }
+                                    const isLastOverall = virtualRow.index === sourceListItems.length - 1;
+                                    // 行间距：普通行/组头之间保持原 gap-2；展开的组头与组内行、组内行之间保持连续卡片外观。
+                                    const spacingClass =
+                                      isLastOverall
+                                        || (listItem.kind === "group-header" && listItem.group.expanded)
+                                        || (listItem.kind === "group-source" && !listItem.isLast)
+                                        ? ""
+                                        : "pb-2";
+                                    return (
+                                      <div
+                                        key={listItem.key}
+                                        ref={sourceListVirtualizer.measureElement}
+                                        data-index={virtualRow.index}
+                                        className={cn("absolute left-0 top-0 w-full", spacingClass)}
+                                        style={{ transform: `translateY(${virtualRow.start}px)` }}
+                                      >
+                                        {listItem.kind === "source" ? (
+                                          <SourceRow
+                                            item={listItem.source}
+                                            loading={loading}
+                                            onRemove={removeSource}
+                                            onImportInternal={handleImportInternal}
+                                            onSetAtomicMode={setSourceAtomicMode}
+                                          />
+                                        ) : listItem.kind === "group-header" ? (
                                           <div
-                                            onClick={() => toggleImportGroupExpanded(group.group_id)}
-                                            className="flex items-start justify-between gap-3 cursor-pointer hover:bg-primary/[0.03] -m-2 p-2 rounded-lg transition-colors select-none"
+                                            className={cn(
+                                              "border-primary/20 bg-primary/[0.04] text-on-surface/80",
+                                              listItem.group.expanded ? "rounded-t-xl border-x border-t px-3 pt-3" : "rounded-xl border p-3",
+                                            )}
                                           >
-                                            <div className="min-w-0 flex items-start gap-2">
-                                              <div className="mt-1 shrink-0 flex items-center justify-center">
-                                                <ChevronDown className={cn("h-4 w-4 text-primary/70 transition-transform duration-200", !group.expanded && "-rotate-90")} />
-                                              </div>
-                                              <div className="min-w-0">
-                                                <div className="flex items-center gap-2">
-                                                  <Layers3 className="h-4 w-4 text-primary/70 shrink-0" />
-                                                  <p className="text-[13px] font-black tracking-tight text-on-surface">
-                                                    已从 {group.source_path.split(/[\\/]/).pop()} 导入 {group.items.length} 项
-                                                  </p>
-                                                </div>
-                                                <p className="mt-1 truncate font-mono text-[10px] font-bold text-ui-muted opacity-40 uppercase tracking-widest">
-                                                  批量导入 · {group.source_path}
-                                                </p>
-                                              </div>
-                                            </div>
-                                            <div className="flex shrink-0 items-center gap-1.5">
-                                              <button
-                                                type="button"
-                                                disabled={loading}
-                                                onClick={(e) => {
-                                                  e.stopPropagation();
-                                                  removeImportGroup(group.group_id);
-                                                }}
-                                                className="rounded-[6px] px-2.5 py-1.5 text-[10.5px] font-bold text-ui-muted/55 transition-colors hover:bg-error/10 hover:text-error"
-                                              >
-                                                移除整组
-                                              </button>
+                                            <SourceGroupHeader
+                                              groupId={listItem.group.group_id}
+                                              sourcePath={listItem.group.source_path}
+                                              expanded={listItem.group.expanded}
+                                              itemCount={listItem.group.items.length}
+                                              loading={loading}
+                                              onToggleExpanded={toggleImportGroupExpanded}
+                                              onRemoveGroup={removeImportGroup}
+                                            />
+                                          </div>
+                                        ) : (
+                                          <div
+                                            className={cn(
+                                              "border-x border-primary/20 bg-primary/[0.04] px-3",
+                                              listItem.isFirst && "pt-3",
+                                              listItem.isLast && "rounded-b-xl border-b pb-3",
+                                            )}
+                                          >
+                                            <div className={cn(listItem.isFirst ? "border-t border-primary/10 pt-3" : "pt-2")}>
+                                              <SourceRow
+                                                item={listItem.source}
+                                                nested
+                                                loading={loading}
+                                                onRemove={removeSource}
+                                                onImportInternal={handleImportInternal}
+                                                onSetAtomicMode={setSourceAtomicMode}
+                                              />
                                             </div>
                                           </div>
-                                          {group.expanded && (
-                                            <div className="mt-3 grid gap-2 border-t border-primary/10 pt-3">
-                                              {group.items.map((groupItem) => renderSourceRow(groupItem, { nested: true }))}
-                                            </div>
-                                          )}
-                                        </div>
-                                      );
-                                    });
-                                  })()}
+                                        )}
+                                      </div>
+                                    );
+                                  })}
                                 </div>
                               </div>
                             </div>

@@ -43,6 +43,31 @@ vi.mock("./launcher/launch-transition-overlay", () => ({
   LaunchTransitionOverlay: () => null,
 }));
 
+// jsdom 中滚动容器没有真实高度，虚拟滚动测得可视区为 0 而不渲染任何行；
+// 测试里直接让 useVirtualizer 渲染全部行，保持原有 DOM 断言不变。
+vi.mock("@tanstack/react-virtual", () => ({
+  useVirtualizer: ({
+    count,
+    estimateSize,
+  }: {
+    count: number;
+    estimateSize: (index: number) => number;
+  }) => {
+    let offset = 0;
+    const items = Array.from({ length: count }, (_, index) => {
+      const size = estimateSize?.(index) ?? 60;
+      const item = { index, key: index, start: offset, end: offset + size, size, lane: 0 };
+      offset += size;
+      return item;
+    });
+    return {
+      getTotalSize: () => offset,
+      getVirtualItems: () => items,
+      measureElement: () => {},
+    };
+  },
+}));
+
 vi.mock("@/lib/runtime", () => ({
   getApiBaseUrl: () => "http://127.0.0.1:8765",
   getApiToken: () => "",
