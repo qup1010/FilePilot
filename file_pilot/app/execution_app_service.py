@@ -153,8 +153,13 @@ class ExecutionAppService:
         known_mkdir_targets: set[str] = set()
 
         move_actions: list[MappedExecutionAction] = []
+        # 增量/归档模式：拿不准的条目留在原地（不生成任何 move），在总结中呈现；
+        # 物理待确认区只属于大扫除模式
+        leave_unresolved_in_place = self.helpers._normalize_organize_mode(session.organize_mode) == "incremental"
         for mapping in task.mappings:
             if mapping.target_slot_id in {"", None}:
+                continue
+            if leave_unresolved_in_place and mapping.target_slot_id == REVIEW_SLOT_ID:
                 continue
             source = source_by_id.get(mapping.source_ref_id)
             if source is None:

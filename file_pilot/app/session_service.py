@@ -1216,7 +1216,9 @@ class OrganizerSessionService:
         return PendingPlanPayload.from_dict(plan or {}) or PendingPlanPayload()
 
     def _task_planner_adapter(self, session: OrganizerSession) -> TaskPlannerAdapter:
-        return TaskPlannerAdapter(session.target_dir)
+        # 归档模式（增量）：AI 只能把条目分到用户显式配置的目录池内
+        strict_targets = self._normalize_organize_mode(session.organize_mode) == "incremental"
+        return TaskPlannerAdapter(session.target_dir, strict_targets=strict_targets)
 
     @staticmethod
     def _task_state_payload(task_state: TaskState | dict | None) -> TaskState:

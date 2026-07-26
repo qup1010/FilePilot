@@ -620,14 +620,19 @@ class OrganizerSessionServiceTests(unittest.TestCase):
                 scan_runner=lambda path: "Docs | dir | 已整理目录 | 保留原结构\ninvoice.pdf | file | 财务票据 | 发票\nnotes.txt | file | 学习笔记 | 笔记",
             )
 
-        self.assertEqual(result.session_snapshot["stage"], "ready_for_precheck")
+        # 严格目录池：Docs/Finance 不在显式配置的目标目录里（父目录不授权子目录），
+        # 该项降级为 unresolved，会话停在 planning 而不是带着注定失败的方案去预检
+        self.assertEqual(result.session_snapshot["stage"], "planning")
         self.assertEqual(result.session_snapshot["incremental_selection"]["target_directories"], ["Docs"])
         self.assertTrue(result.session_snapshot["incremental_selection"]["source_scan_completed"])
         self.assertEqual(result.session_snapshot["incremental_selection"]["pending_items_count"], 2)
+        reloaded_session = self.store.load(session.session_id)
         self.assertEqual(
-            [item["source_relpath"] for item in self.store.load(session.session_id).planner_items],
+            [item["source_relpath"] for item in reloaded_session.planner_items],
             ["invoice.pdf", "notes.txt"],
         )
+        pending = reloaded_session.pending_plan or {}
+        self.assertIn("invoice.pdf", pending.get("unresolved_items", []))
 
     def test_confirm_target_directories_reconciles_incremental_organize_method(self):
         created = self.service.create_session(

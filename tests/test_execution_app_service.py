@@ -77,6 +77,41 @@ class ExecutionAppServiceTests(unittest.TestCase):
         self.assertEqual(precheck["move_preview"][0]["target_kind"], "review")
         self.assertTrue(precheck["move_preview"][0]["is_review"])
 
+    def test_incremental_precheck_leaves_unresolved_in_place(self):
+        (self.target_dir / "a.txt").write_text("hello", encoding="utf-8")
+        (self.target_dir / "b.txt").write_text("world", encoding="utf-8")
+        (self.target_dir / "Docs").mkdir()
+        created = self.service.create_session(
+            str(self.target_dir),
+            resume_if_exists=False,
+            strategy={"organize_mode": "incremental"},
+        )
+        session = created.session
+        assert session is not None
+        session.stage = "planning"
+        session.selected_target_directories = ["Docs"]
+        session.incremental_selection = {"status": "ready", "target_directories": ["Docs"]}
+        session.pending_plan = {
+            "directories": ["Docs"],
+            "moves": [
+                {"source": "a.txt", "target": "Docs/a.txt"},
+                {"source": "b.txt", "target": "Review/b.txt"},
+            ],
+            "unresolved_items": ["b.txt"],
+            "summary": "1 项归位，1 项待确认",
+        }
+        self.store.save(session)
+
+        result = self.service.execution_app.run_precheck(session.session_id)
+
+        precheck = result.session_snapshot["precheck_summary"]
+        # 归档模式：拿不准的条目留在原地，不生成任何指向待确认区的移动
+        move_targets = [move["target"] for move in precheck["move_preview"]]
+        self.assertEqual(len(move_targets), 1)
+        self.assertNotIn("Review/b.txt", move_targets)
+        self.assertFalse(any("Review" in str(path) for path in precheck["mkdir_preview"]))
+        self.assertTrue((self.target_dir / "b.txt").exists())
+
     def test_run_precheck_marks_directory_move_preview_as_directory_kind(self):
         (self.target_dir / "a.txt").write_text("hello", encoding="utf-8")
         created = self.service.create_session(str(self.target_dir), resume_if_exists=False)

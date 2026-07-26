@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import file_pilot.shared.config as config
+from file_pilot.execution.movability import movability_skip_reason
 from file_pilot.execution.models import (
     ExecutionAction,
     ExecutionItemResult,
@@ -293,6 +294,18 @@ def validate_execution_preconditions(plan: ExecutionPlan) -> PrecheckResult:
             )
             continue
 
+        movability_reason = movability_skip_reason(source)
+        if movability_reason is not None:
+            item_skips.append(
+                _item_skip(
+                    action,
+                    plan.base_dir,
+                    reason="not_movable",
+                    message=f"{movability_reason}: {relative_display(source, plan.base_dir)}",
+                )
+            )
+            continue
+
         executable_move_count += 1
         if _is_cross_volume_move(source_abs, _existing_ancestor(parent_dir)):
             pair = (str(source_abs), str(target_abs))
@@ -555,6 +568,9 @@ def _runtime_move_skip_reason(action: ExecutionAction) -> str | None:
         return "来源已不存在，跳过"
     if action.target.exists() and action.source.resolve() != action.target.resolve(strict=False):
         return "目标已有同名文件，跳过并留在原地"
+    movability_reason = movability_skip_reason(action.source)
+    if movability_reason is not None:
+        return movability_reason
     return None
 
 
