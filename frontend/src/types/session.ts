@@ -533,9 +533,20 @@ export interface RollbackPrecheckAction {
   original_path?: string;
 }
 
+export interface RollbackItemSkip {
+  reason: "target_exists" | "source_missing" | "invalid_dir" | "dir_not_empty" | string;
+  message: string;
+  action_type: string;
+  source: string | null;
+  target: string | null;
+  item_id: string | null;
+  display_name: string | null;
+}
+
 export interface RollbackPrecheckSummary {
   can_execute: boolean;
   blocking_errors: string[];
+  item_skips?: RollbackItemSkip[];
   actions: RollbackPrecheckAction[];
 }
 

@@ -14,6 +14,8 @@ class ExecutionAction:
     source_ref_id: str = ""
     target_slot_id: str = ""
     display_name: str = ""
+    # 判定来源："ai"（模型分类）| "user"（用户手动指定），随 journal 留档
+    decision_basis: str = ""
 
 
 @dataclass
@@ -27,6 +29,7 @@ class MappedExecutionAction:
     target_slot_id: str = ""
     display_name: str = ""
     status: str = ""
+    decision_basis: str = ""
 
 
 @dataclass

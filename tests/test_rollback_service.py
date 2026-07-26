@@ -213,6 +213,43 @@ class RollbackServiceTests(unittest.TestCase):
         latest_index = json.loads(self.latest_path.read_text(encoding="utf-8"))
         self.assertIn(str(self.base_dir.resolve()), latest_index)
 
+    def test_rollback_retry_converges_to_rolled_back_after_conflict_cleared(self):
+        (self.base_dir / "a.txt").write_text("a", encoding="utf-8")
+        (self.base_dir / "b.txt").write_text("b", encoding="utf-8")
+        journal_dict = self._write_execution_journal(
+            '<COMMANDS>\n'
+            'MKDIR "Docs"\n'
+            'MOVE "a.txt" "Docs/a.txt"\n'
+            'MOVE "b.txt" "Docs/b.txt"\n'
+            '</COMMANDS>'
+        )
+        journal = rollback_service.ExecutionJournal.from_dict(journal_dict)
+        plan = rollback_service.build_rollback_plan(journal)
+        (self.base_dir / "a.txt").write_text("occupied", encoding="utf-8")
+
+        with mock.patch.object(rollback_service.config, "EXECUTION_LOG_DIR", self.executions_dir), \
+             mock.patch.object(rollback_service.config, "LATEST_BY_DIRECTORY_PATH", self.latest_path), \
+             mock.patch.object(execution_service.config, "EXECUTION_LOG_DIR", self.executions_dir), \
+             mock.patch.object(execution_service.config, "LATEST_BY_DIRECTORY_PATH", self.latest_path):
+            first_report = rollback_service.execute_rollback_plan(plan)
+            rollback_service.finalize_rollback_state(journal, first_report)
+
+            # 用户处理掉占用后重试：已回退的 b 视为「已在原位」而非跳过
+            (self.base_dir / "a.txt").unlink()
+            retry_plan = rollback_service.build_rollback_plan(journal)
+            retry_report = rollback_service.execute_rollback_plan(retry_plan)
+            rollback_service.finalize_rollback_state(journal, retry_report)
+
+        self.assertEqual(retry_report.failure_count, 0)
+        self.assertEqual(retry_report.skipped_count, 0)
+        self.assertTrue((self.base_dir / "a.txt").exists())
+        self.assertTrue((self.base_dir / "b.txt").exists())
+        saved = json.loads((self.executions_dir / f"{journal.execution_id}.json").read_text(encoding="utf-8"))
+        # 重试后收敛：完全回退，指针清除
+        self.assertEqual(saved["status"], "rolled_back")
+        latest_index = json.loads(self.latest_path.read_text(encoding="utf-8"))
+        self.assertNotIn(str(self.base_dir.resolve()), latest_index)
+
     def test_validate_rollback_preconditions_allows_rmdir_after_prior_move_empties_directory(self):
         (self.base_dir / "demo.txt").write_text("demo", encoding="utf-8")
         journal = self._write_execution_journal('<COMMANDS>\nMKDIR "Docs"\nMOVE "demo.txt" "Docs/demo.txt"\n</COMMANDS>')

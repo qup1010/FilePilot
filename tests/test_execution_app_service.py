@@ -112,6 +112,48 @@ class ExecutionAppServiceTests(unittest.TestCase):
         self.assertFalse(any("Review" in str(path) for path in precheck["mkdir_preview"]))
         self.assertTrue((self.target_dir / "b.txt").exists())
 
+    def test_incremental_precheck_leaves_unresolved_with_pool_target_in_place(self):
+        (self.target_dir / "a.txt").write_text("hello", encoding="utf-8")
+        (self.target_dir / "Docs").mkdir()
+        created = self.service.create_session(
+            str(self.target_dir),
+            resume_if_exists=False,
+            strategy={"organize_mode": "incremental"},
+        )
+        session = created.session
+        assert session is not None
+        session.stage = "planning"
+        session.selected_target_directories = ["Docs"]
+        session.incremental_selection = {"status": "ready", "target_directories": ["Docs"]}
+        # 模型拿不准但仍给了池内目标：「拿不准的留在原地」承诺必须覆盖这种情况
+        session.pending_plan = {
+            "directories": ["Docs"],
+            "moves": [{"source": "a.txt", "target": "Docs/a.txt"}],
+            "unresolved_items": ["a.txt"],
+            "summary": "1 项待确认",
+        }
+        self.store.save(session)
+
+        result = self.service.execution_app.run_precheck(session.session_id)
+
+        precheck = result.session_snapshot["precheck_summary"]
+        self.assertEqual(precheck["move_preview"], [])
+        self.assertTrue((self.target_dir / "a.txt").exists())
+
+    def test_execute_rejects_concurrent_second_caller(self):
+        created = self.service.create_session(str(self.target_dir), resume_if_exists=False)
+        session = created.session
+        assert session is not None
+
+        guard = self.service._execution_guard(session.session_id)
+        self.assertTrue(guard.acquire(blocking=False))
+        try:
+            with self.assertRaises(RuntimeError) as ctx:
+                self.service.execution_app.execute(session.session_id, confirm=True)
+            self.assertEqual(str(ctx.exception), "SESSION_LOCKED")
+        finally:
+            guard.release()
+
     def test_run_precheck_marks_directory_move_preview_as_directory_kind(self):
         (self.target_dir / "a.txt").write_text("hello", encoding="utf-8")
         created = self.service.create_session(str(self.target_dir), resume_if_exists=False)

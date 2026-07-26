@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -146,6 +147,11 @@ def build_rule_draft_prompt(profiles: list[DirectoryContentProfile]) -> list[dic
     return [{"role": "user", "content": "\n".join(lines)}]
 
 
+def _canonical_path_key(path_text: str) -> str:
+    # 模型经 JSON 往返后常把反斜杠回写成正斜杠：比较前统一分隔符与大小写
+    return os.path.normcase(str(Path(str(path_text).strip())))
+
+
 def parse_rule_drafts(tool_arguments: str, *, allowed_paths: set[str]) -> list[RuleDraft]:
     """解析模型输出；path 必须来自输入清单，拒收幻觉目录。"""
     try:
@@ -153,18 +159,19 @@ def parse_rule_drafts(tool_arguments: str, *, allowed_paths: set[str]) -> list[R
     except json.JSONDecodeError as exc:
         raise ValueError(f"RULE_DRAFTS_INVALID_JSON: {exc}") from exc
 
+    original_by_key = {_canonical_path_key(path): path for path in allowed_paths}
     drafts: list[RuleDraft] = []
     for entry in payload.get("drafts", []):
         if not isinstance(entry, dict):
             continue
-        path = str(entry.get("path") or "").strip()
+        original_path = original_by_key.get(_canonical_path_key(str(entry.get("path") or "")))
         description = str(entry.get("draft_description") or "").strip()
-        if path not in allowed_paths or not description:
-            logger.warning("rule_advisor.draft_rejected path=%s", path)
+        if original_path is None or not description:
+            logger.warning("rule_advisor.draft_rejected path=%s", entry.get("path"))
             continue
         drafts.append(
             RuleDraft(
-                path=path,
+                path=original_path,
                 draft_description=description,
                 basis=str(entry.get("basis") or "").strip(),
             )

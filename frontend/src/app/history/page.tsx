@@ -647,7 +647,16 @@ export default function HistoryPage() {
                   className="w-full rounded-[6px] border border-on-surface/10 bg-on-surface/[0.02] py-2 pl-[2.25rem] pr-4 text-[13px] font-medium text-on-surface outline-none transition-all placeholder:text-ui-muted/50 focus:bg-surface focus:ring-2 focus:ring-primary/5"
                 />
               </div>
-              <FileHistorySearch api={api} onSelectExecution={(id) => setSelectedSessionId(id)} />
+              <FileHistorySearch
+                api={api}
+                onSelectExecution={(id) => {
+                  // 目标记录可能被顶部过滤词排除在列表外，被选择校正 effect 抢回第一项：
+                  // 显式选择前先清掉过滤词
+                  setQuery("");
+                  setFilter("all");
+                  setSelectedSessionId(id);
+                }}
+              />
             </div>
           </div>
 

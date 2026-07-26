@@ -563,3 +563,90 @@ if __name__ == "__main__":
     unittest.main()
 
 
+
+    def test_load_execution_journal_reconciles_crashed_run(self):
+        (self.base_dir / "first.txt").write_text("first", encoding="utf-8")
+        (self.base_dir / "second.txt").write_text("second", encoding="utf-8")
+        parsed = organizer_service.parse_commands_block(
+            '<COMMANDS>\n'
+            'MKDIR "Docs"\n'
+            'MOVE "first.txt" "Docs/first.txt"\n'
+            'MOVE "second.txt" "Docs/second.txt"\n'
+            '</COMMANDS>'
+        )
+        plan = execution_service.build_execution_plan(parsed, self.base_dir)
+        executions_dir = self.history_root / "executions"
+        latest_path = self.history_root / "latest_by_directory.json"
+
+        original_move = shutil.move
+
+        def crashing_move(src, dst):
+            if Path(src).name == "second.txt":
+                raise KeyboardInterrupt("simulated crash")
+            return original_move(src, dst)
+
+        with mock.patch.object(execution_service.config, "EXECUTION_LOG_DIR", executions_dir),              mock.patch.object(execution_service.config, "LATEST_BY_DIRECTORY_PATH", latest_path):
+            with mock.patch("file_pilot.execution.service.shutil.move", side_effect=crashing_move):
+                with self.assertRaises(KeyboardInterrupt):
+                    execution_service.execute_plan(plan)
+
+            execution_id = next(iter(executions_dir.glob("*.json"))).stem
+            journal = execution_service.load_execution_journal(execution_id)
+
+            # 对账：pending 意图落定（second.txt 未移动 → skipped），status 不再是 running
+            assert journal is not None
+            self.assertEqual(journal.status, "partial_failure")
+            statuses = [item.status for item in journal.items]
+            self.assertNotIn("pending", statuses)
+            second_item = journal.items[-1]
+            self.assertEqual(second_item.status, "skipped")
+            # 最近执行指针补上，回退入口指向真实动过文件的这次执行
+            latest_index = json.loads(latest_path.read_text(encoding="utf-8"))
+            self.assertEqual(latest_index[str(self.base_dir.resolve())], execution_id)
+
+    def test_load_execution_journal_reconciles_move_that_actually_happened(self):
+        from file_pilot.execution.models import ExecutionJournal, ExecutionJournalItem
+
+        (self.base_dir / "Docs").mkdir()
+        moved_target = self.base_dir / "Docs" / "gone.txt"
+        moved_target.write_text("moved", encoding="utf-8")
+        executions_dir = self.history_root / "executions"
+        latest_path = self.history_root / "latest_by_directory.json"
+        journal = ExecutionJournal(
+            execution_id="crash-1",
+            target_dir=str(self.base_dir.resolve()),
+            created_at="2026-07-26T00:00:00+00:00",
+            status="running",
+            items=[
+                ExecutionJournalItem(
+                    action_type="MOVE",
+                    status="pending",
+                    message="",
+                    source_before=str((self.base_dir / "gone.txt").resolve()),
+                    target_after=str(moved_target.resolve()),
+                )
+            ],
+        )
+
+        with mock.patch.object(execution_service.config, "EXECUTION_LOG_DIR", executions_dir),              mock.patch.object(execution_service.config, "LATEST_BY_DIRECTORY_PATH", latest_path):
+            execution_service.save_execution_journal(journal)
+            reconciled = execution_service.load_execution_journal("crash-1")
+
+        # 目标已出现且来源已消失 → 判定移动已完成，可参与回退
+        assert reconciled is not None
+        self.assertEqual(reconciled.items[0].status, "success")
+        self.assertEqual(reconciled.status, "partial_failure")
+
+    def test_execute_plan_skips_move_when_parent_dir_missing_at_runtime(self):
+        (self.base_dir / "demo.txt").write_text("demo", encoding="utf-8")
+        parsed = organizer_service.parse_commands_block(
+            '<COMMANDS>\nMOVE "demo.txt" "Missing/demo.txt"\n</COMMANDS>'
+        )
+        plan = execution_service.build_execution_plan(parsed, self.base_dir)
+
+        report = execution_service.execute_plan(plan)
+
+        # 预检对用户说「将跳过」的项，执行时不能变成「失败」
+        self.assertEqual(report.failure_count, 0)
+        self.assertEqual(report.skipped_count, 1)
+        self.assertTrue((self.base_dir / "demo.txt").exists())

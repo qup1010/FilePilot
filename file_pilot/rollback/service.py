@@ -15,7 +15,7 @@ from file_pilot.rollback.models import (
     RollbackPrecheckResult,
     RollbackReport,
 )
-from file_pilot.shared.history_store import build_journal_path, read_latest_index, write_latest_index
+from file_pilot.shared.history_store import atomic_write_json, build_journal_path, read_latest_index, write_latest_index
 
 
 def _history_paths() -> tuple[Path, Path]:
@@ -24,10 +24,7 @@ def _history_paths() -> tuple[Path, Path]:
 
 def save_execution_journal(journal: ExecutionJournal) -> None:
     _, executions_dir = _history_paths()
-    build_journal_path(journal.execution_id, executions_dir).write_text(
-        json.dumps(journal.to_dict(), ensure_ascii=False, indent=2),
-        encoding="utf-8",
-    )
+    atomic_write_json(build_journal_path(journal.execution_id, executions_dir), journal.to_dict())
 
 
 def load_latest_execution_for_directory(target_dir: Path | str) -> ExecutionJournal | None:
@@ -219,6 +216,16 @@ def execute_rollback_plan(plan: RollbackPlan) -> RollbackReport:
     skipped_count = 0
 
     for action in plan.actions:
+        # 已在原位/已删除 = 该项此前已经回退过：视为完成而非跳过，
+        # 否则部分回退后的重试永远无法收敛到 rolled_back
+        if action.type == "MOVE" and not action.source.exists() and action.target.exists():
+            results.append(RollbackItemResult(action=action, status="success", message="已在原位，无需回退"))
+            success_count += 1
+            continue
+        if action.type == "RMDIR" and not action.source.exists():
+            results.append(RollbackItemResult(action=action, status="success", message="目录已不存在，无需删除"))
+            success_count += 1
+            continue
         skip_message = _runtime_rollback_skip_reason(action)
         if skip_message is not None:
             results.append(RollbackItemResult(action=action, status="skipped", message=skip_message))

@@ -23,7 +23,7 @@ from file_pilot.execution.models import (
     PrecheckResult,
 )
 from file_pilot.organize.models import FinalPlan, PlanMove
-from file_pilot.shared.history_store import build_journal_path, read_latest_index, write_latest_index
+from file_pilot.shared.history_store import atomic_write_json, build_journal_path, read_latest_index, write_latest_index
 from file_pilot.shared.path_utils import relative_display
 
 _CROSS_VOLUME_WARNING_TEMPLATE = "检测到可能跨磁盘分区移动: {source} -> {target}（可能耗时较久）"
@@ -65,10 +65,7 @@ def _journal_path(execution_id: str) -> Path:
 
 def save_execution_journal(journal: ExecutionJournal) -> Path:
     path = _journal_path(journal.execution_id)
-    path.write_text(
-        json.dumps(journal.to_dict(), ensure_ascii=False, indent=2),
-        encoding="utf-8",
-    )
+    atomic_write_json(path, journal.to_dict())
     return path
 
 
@@ -79,11 +76,68 @@ def update_latest_execution_pointer(target_dir: Path, execution_id: str) -> None
     write_latest_index(latest_index, latest_index_path, executions_dir)
 
 
+# 本进程正在执行中的 journal：status=="running" 且不在此集合 = 进程曾崩溃
+_ACTIVE_EXECUTION_IDS: set[str] = set()
+
+
+def _reconcile_interrupted_journal(journal: ExecutionJournal) -> None:
+    """崩溃对账：用文件系统事实落定 pending 意图，让 journal 重新可信。
+
+    write-ahead 保证崩溃时留下 pending 意图；这里把它落定——目标已出现且
+    来源已消失视为移动已完成，否则视为未执行留在原地。对账后 journal
+    进入 partial_failure（执行未走完，如实呈现），回退与检索恢复可用。
+    """
+    for index, item in enumerate(journal.items):
+        if item.status != "pending":
+            continue
+        if item.action_type == "MOVE":
+            target = Path(item.target_after) if item.target_after else None
+            source = Path(item.source_before) if item.source_before else None
+            moved = bool(target is not None and target.exists() and (source is None or not source.exists()))
+            journal.items[index] = replace(
+                item,
+                status="success" if moved else "skipped",
+                message="进程中断后对账确认：移动已完成" if moved else "进程中断，移动未执行，文件留在原地",
+            )
+        else:
+            journal.items[index] = replace(item, status="skipped", message="进程中断，未确认执行结果")
+    journal.status = "partial_failure"
+    save_execution_journal(journal)
+    _maybe_restore_latest_pointer(journal)
+    logger.warning(
+        "execution.journal_reconciled execution_id=%s target_dir=%s",
+        journal.execution_id,
+        journal.target_dir,
+    )
+
+
+def _maybe_restore_latest_pointer(journal: ExecutionJournal) -> None:
+    """崩溃的执行没来得及更新最近执行指针；仅当没有更新的执行时补上。"""
+    latest_index_path, executions_dir = _history_paths()
+    latest_index = read_latest_index(latest_index_path, executions_dir)
+    key = str(Path(journal.target_dir).resolve())
+    current_id = latest_index.get(key)
+    if current_id and current_id != journal.execution_id:
+        current_path = build_journal_path(current_id, executions_dir)
+        if current_path.exists():
+            try:
+                current_created = str(json.loads(current_path.read_text(encoding="utf-8")).get("created_at") or "")
+            except (json.JSONDecodeError, OSError):
+                current_created = ""
+            if current_created >= journal.created_at:
+                return
+    latest_index[key] = journal.execution_id
+    write_latest_index(latest_index, latest_index_path, executions_dir)
+
+
 def load_execution_journal(execution_id: str) -> ExecutionJournal | None:
     path = _journal_path(execution_id)
     if not path.exists():
         return None
-    return ExecutionJournal.from_dict(json.loads(path.read_text(encoding="utf-8")))
+    journal = ExecutionJournal.from_dict(json.loads(path.read_text(encoding="utf-8")))
+    if journal.status == "running" and journal.execution_id not in _ACTIVE_EXECUTION_IDS:
+        _reconcile_interrupted_journal(journal)
+    return journal
 
 
 def delete_execution_journal(execution_id: str) -> bool:
@@ -172,6 +226,7 @@ def build_execution_plan_from_mapped(mapped_plan: MappedExecutionPlan) -> Execut
             source_ref_id=action.source_ref_id,
             target_slot_id=action.target_slot_id,
             display_name=action.display_name,
+            decision_basis=action.decision_basis,
         )
         for action in mapped_plan.move_actions
     ]
@@ -534,6 +589,7 @@ def _begin_journal_item(
             display_name=str(action.display_name or "").strip() or None,
             size_bytes=size_bytes,
             mtime=mtime,
+            decision_basis=str(action.decision_basis or "").strip() or None,
         )
     )
     save_execution_journal(journal)
@@ -567,8 +623,15 @@ def _runtime_move_skip_reason(action: ExecutionAction) -> str | None:
     assert action.source is not None
     if not action.source.exists():
         return "来源已不存在，跳过"
-    if action.target.exists() and action.source.resolve() != action.target.resolve(strict=False):
+    source_abs = action.source.resolve()
+    target_abs = action.target.resolve(strict=False)
+    if action.target.exists() and source_abs != target_abs:
         return "目标已有同名文件，跳过并留在原地"
+    # 与预检口径一致：预检对用户说「将跳过」的项，执行时不能变成「失败」
+    if source_abs in target_abs.parents:
+        return "不能移动到自身子路径，跳过"
+    if source_abs != target_abs and not action.target.parent.exists():
+        return "目标父目录不存在，跳过"
     movability_reason = movability_skip_reason(action.source)
     if movability_reason is not None:
         return movability_reason
@@ -591,17 +654,26 @@ def _append_skipped_item(journal: ExecutionJournal, action: ExecutionAction, mes
             display_name=str(action.display_name or "").strip() or None,
             size_bytes=size_bytes,
             mtime=mtime,
+            decision_basis=str(action.decision_basis or "").strip() or None,
         )
     )
     save_execution_journal(journal)
 
 
 def execute_plan(plan: ExecutionPlan, *, rule_snapshot: dict | None = None) -> ExecutionReport:
+    journal = _build_running_journal(plan, rule_snapshot)
+    _ACTIVE_EXECUTION_IDS.add(journal.execution_id)
+    try:
+        return _execute_plan_with_journal(plan, journal)
+    finally:
+        _ACTIVE_EXECUTION_IDS.discard(journal.execution_id)
+
+
+def _execute_plan_with_journal(plan: ExecutionPlan, journal: ExecutionJournal) -> ExecutionReport:
     results: list[ExecutionItemResult] = []
     success_count = 0
     failure_count = 0
     skipped_count = 0
-    journal = _build_running_journal(plan, rule_snapshot)
     save_execution_journal(journal)
 
     for action in plan.mkdir_actions:

@@ -159,7 +159,9 @@ class ExecutionAppService:
         for mapping in task.mappings:
             if mapping.target_slot_id in {"", None}:
                 continue
-            if leave_unresolved_in_place and mapping.target_slot_id == REVIEW_SLOT_ID:
+            # 同时按 status 过滤：模型可能把条目标为 unresolved 却给出池内目标，
+            # 「拿不准的留在原地」承诺必须覆盖这种情况
+            if leave_unresolved_in_place and (mapping.target_slot_id == REVIEW_SLOT_ID or mapping.status == "unresolved"):
                 continue
             source = source_by_id.get(mapping.source_ref_id)
             if source is None:
@@ -216,6 +218,7 @@ class ExecutionAppService:
                     target_slot_id=str(mapping.target_slot_id or ""),
                     display_name=display_name,
                     status=mapping.status,
+                    decision_basis="user" if mapping.user_overridden else "ai",
                 )
             )
 
@@ -378,6 +381,16 @@ class ExecutionAppService:
         if not confirm:
             raise ValueError("confirmation_required")
 
+        guard = self.helpers._execution_guard(session_id)
+        if not guard.acquire(blocking=False):
+            raise RuntimeError("SESSION_LOCKED")
+        try:
+            return self._execute_locked(session_id)
+        finally:
+            guard.release()
+
+    def _execute_locked(self, session_id: str) -> SessionMutationResult:
+        # stage 检查必须在互斥锁内重新加载后进行，否则两个触发者都能通过检查
         session = self.helpers._load_or_raise(session_id)
         ensure_stage(session.stage, STAGE_READY_TO_EXECUTE)
 
@@ -432,6 +445,7 @@ class ExecutionAppService:
                 "journal_id": journal_id,
                 "success_count": report.success_count,
                 "failure_count": report.failure_count,
+                "skipped_count": report.skipped_count,
                 "status": "success" if report.failure_count == 0 else "partial_failure",
                 "has_cleanup_candidates": False,
                 "cleanup_candidate_count": 0,
@@ -479,7 +493,8 @@ class ExecutionAppService:
                 raise KeyError(f"Session {session_id} not found")
             return self.rollback_execution_journal(journal)
 
-        ensure_stage_in(session.stage, {STAGE_COMPLETED, STAGE_INTERRUPTED})
+        # STAGE_STALE：部分回退后会话已置 stale，允许用户处理占用后再次回退
+        ensure_stage_in(session.stage, {STAGE_COMPLETED, STAGE_INTERRUPTED, STAGE_STALE})
 
         lock_result = self.helpers.store.acquire_directory_lock(Path(session.target_dir), session.session_id)
         if not lock_result.acquired:
@@ -600,7 +615,8 @@ class ExecutionAppService:
         }
 
     def rollback_execution_journal(self, journal) -> SessionMutationResult:
-        if journal.status not in {"completed", "partial_failure"}:
+        # rollback_partial_failure 允许重试：用户处理完占用后再来一次
+        if journal.status not in {"completed", "partial_failure", "rollback_partial_failure"}:
             raise RuntimeError(SESSION_STAGE_CONFLICT)
 
         target_dir = Path(journal.target_dir)

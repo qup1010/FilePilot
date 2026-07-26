@@ -3,6 +3,7 @@ from __future__ import annotations
 import copy
 import json
 import logging
+import os
 import threading
 import uuid
 from dataclasses import replace
@@ -105,6 +106,10 @@ class OrganizerSessionService:
         self._active_scan_lock = threading.RLock()
         self._active_locked_sessions: dict[str, str] = {}
         self._active_locked_lock = threading.RLock()
+        # 一键自动推进（扫描线程）与前端请求可能并发触发 execute：
+        # per-session 互斥保证同一会话同一时刻只有一个执行者
+        self._execution_guards: dict[str, threading.Lock] = {}
+        self._execution_guards_lock = threading.Lock()
         self.source_manager = SourceManager(self)
         self.target_resolver = TargetResolver(self)
         self.target_manager = TargetManager(self)
@@ -340,6 +345,9 @@ class OrganizerSessionService:
                     path=path,
                     label=str(matched.label or "").strip() if matched else "",
                     description=str(matched.description or "").strip() if matched else "",
+                    # 硬条件透传：丢了它们，journal 的规则快照就不完整
+                    extensions=list(matched.extensions) if matched else [],
+                    name_patterns=list(matched.name_patterns) if matched else [],
                 )
             )
         return resolved
@@ -1216,6 +1224,10 @@ class OrganizerSessionService:
             return PendingPlanPayload.from_dict(self._pending_plan_to_dict(plan)) or PendingPlanPayload()
         return PendingPlanPayload.from_dict(plan or {}) or PendingPlanPayload()
 
+    def _execution_guard(self, session_id: str) -> threading.Lock:
+        with self._execution_guards_lock:
+            return self._execution_guards.setdefault(str(session_id), threading.Lock())
+
     def _task_planner_adapter(self, session: OrganizerSession) -> TaskPlannerAdapter:
         # 归档模式（增量）：AI 只能把条目分到用户显式配置的目录池内
         strict_targets = self._normalize_organize_mode(session.organize_mode) == "incremental"
@@ -1859,7 +1871,7 @@ class OrganizerSessionService:
             if item.action_type != "MOVE" or item.status != "success" or not item.target_after:
                 continue
             parent = Path(item.target_after).parent
-            key = str(parent).lower()
+            key = os.path.normcase(str(parent))
             if key not in seen:
                 seen.add(key)
                 target_dirs.append(parent)
@@ -3253,6 +3265,8 @@ class OrganizerSessionService:
         return FinalPlan(
             directories=pending.directories,
             moves=pending.moves,
+            # unresolved 信号必须活到执行期：归档模式靠它把「拿不准的」留在原地
+            unresolved_items=list(pending.unresolved_items or []),
         )
 
     def _target_slot_payloads_from_task(self, session: OrganizerSession, task: OrganizeTask) -> list[PlanTargetSlotPayload]:
