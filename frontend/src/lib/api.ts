@@ -58,7 +58,7 @@ export interface ApiClient {
   createTargetProfile(payload: { name: string; directories: Array<{ path: string; label?: string; description?: string }> }): Promise<TargetProfile>;
   updateTargetProfile(profile_id: string, payload: { name?: string; directories?: Array<{ path: string; label?: string; description?: string }> }): Promise<TargetProfile>;
   deleteTargetProfile(profile_id: string): Promise<{ status: string; profile_id: string }>;
-  generateProfileRuleDrafts(profile_id: string): Promise<ProfileRuleDraftsResult>;
+  generateProfileRuleDrafts(profile_id: string, paths?: string[]): Promise<ProfileRuleDraftsResult>;
   generateSessionRuleDrafts(session_id: string): Promise<SessionRuleDraftsResult>;
   getSettings(): Promise<SettingsSnapshot>;
   getSettingsRuntime<T = Record<string, unknown>>(family: string): Promise<T>;
@@ -302,11 +302,16 @@ export function createApiClient(baseUrl: string, apiToken?: string): ApiClient {
         apiToken,
       );
     },
-    async generateProfileRuleDrafts(profile_id) {
+    async generateProfileRuleDrafts(profile_id, paths) {
+      const body = paths?.length ? { paths } : {};
       return requestJson<ProfileRuleDraftsResult>(
         baseUrl,
         `/api/target-profiles/${profile_id}/rule-drafts`,
-        { method: "POST" },
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        },
         apiToken,
       );
     },

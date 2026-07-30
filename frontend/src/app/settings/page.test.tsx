@@ -462,44 +462,14 @@ describe("SettingsPage preset flow", () => {
     });
   });
 
-  it("manages explicit target directory profiles in the launch settings tab", async () => {
+  it("shows vision verification result details after running the test", async () => {
     const user = userEvent.setup();
-    getTargetProfiles.mockResolvedValue([
-      {
-        profile_id: "profile-1",
-        name: "工作资料库",
-        directories: [{ path: "D:/archive/docs", label: "文档", description: "项目文档" }],
-        created_at: "2026-01-01T00:00:00Z",
-        updated_at: "2026-01-01T00:00:00Z",
-      },
-    ]);
-
+    getSettings.mockResolvedValue(createSnapshotWithEditableVisionPreset());
     render(<SettingsPage />);
-
-    await clickSettingsCategory("整理策略配置");
-    await clickSettingsCategory("目标目录");
-
-    expect(await screen.findByText("目标目录配置")).toBeInTheDocument();
-    expect(screen.getByDisplayValue("工作资料库")).toBeInTheDocument();
-    expect(screen.getByText("D:/archive/docs")).toBeInTheDocument();
-
-    await user.type(screen.getByPlaceholderText("目标目录完整路径"), "D:/archive/media");
-    const labelInputs = screen.getAllByPlaceholderText("标签（可选）");
-    await user.type(labelInputs[labelInputs.length - 1], "媒体");
-    await user.click(screen.getByRole("button", { name: "添加目录" }));
-    await user.click(await screen.findByRole("button", { name: "保存当前修改" }));
-
+    await clickSettingsCategory("视觉模型");
+    await user.click(screen.getByRole("button", { name: "测试连接" }));
     await waitFor(() => {
-      expect(updateTargetProfile).toHaveBeenCalledWith(
-        "profile-1",
-        expect.objectContaining({
-          name: "工作资料库",
-          directories: [
-            { path: "D:/archive/docs", label: "文档", description: "项目文档" },
-            { path: "D:/archive/media", label: "媒体", description: undefined },
-          ],
-        }),
-      );
+      expect(screen.getByText("测试成功")).toBeInTheDocument();
     });
   });
 

@@ -1901,23 +1901,44 @@ class OrganizerSessionService:
             ],
         }
 
-    def generate_target_profile_rule_drafts(self, profile_id: str, *, client=None, model: str | None = None) -> dict:
-        """为 profile 的每个目录生成规则描述初稿（只返回，不落库；采纳由用户校订决定）。"""
+    def generate_target_profile_rule_drafts(
+        self,
+        profile_id: str,
+        *,
+        paths: list[str] | None = None,
+        client=None,
+        model: str | None = None,
+    ) -> dict:
+        """为 profile 目录生成规则描述初稿（只返回，不落库；采纳由用户校订决定）。
+
+        paths 非空时只分析指定目录（单目录 AI）；否则整套生成。
+        """
         from file_pilot.organize import rule_advisor
 
         profile = self.target_profiles.get(profile_id)
         if profile is None:
             raise FileNotFoundError(profile_id)
 
-        profiles = [
+        directories = list(profile.directories)
+        if paths:
+            wanted = {os.path.normcase(str(Path(item))) for item in paths if str(item or "").strip()}
+            directories = [
+                directory
+                for directory in directories
+                if os.path.normcase(str(Path(directory.path))) in wanted
+            ]
+            if not directories:
+                raise ValueError("RULE_DRAFTS_PATHS_NOT_IN_PROFILE")
+
+        content_profiles = [
             rule_advisor.collect_directory_content_profile(
                 Path(directory.path),
                 label=directory.label,
                 current_description=directory.description,
             )
-            for directory in profile.directories
+            for directory in directories
         ]
-        drafts = rule_advisor.generate_rule_drafts(profiles, client=client, model=model)
+        drafts = rule_advisor.generate_rule_drafts(content_profiles, client=client, model=model)
         drafts_by_path = {draft.path: draft for draft in drafts}
         return {
             "profile_id": profile.profile_id,
@@ -1937,7 +1958,7 @@ class OrganizerSessionService:
                     "total_entries": content_profile.total_entries,
                     "readable": content_profile.readable,
                 }
-                for content_profile in profiles
+                for content_profile in content_profiles
             ],
         }
 

@@ -360,6 +360,8 @@ def cleanup_empty_dirs(session_id: str, request: Request):
 
 @router.post("/{session_id}/rule-drafts")
 def generate_rules_from_session(session_id: str, request: Request):
+    from file_pilot.organize.rule_advisor import classify_rule_draft_error
+
     service = _service(request)
     try:
         return service.generate_rules_from_completed_session(session_id)
@@ -368,7 +370,11 @@ def generate_rules_from_session(session_id: str, request: Request):
     except RuntimeError:
         return error_response(service, session_id, "SESSION_STAGE_CONFLICT", 409)
     except ValueError as exc:
-        raise HTTPException(status_code=502, detail=str(exc))
+        code, message = classify_rule_draft_error(exc)
+        return JSONResponse(status_code=502, content={"error_code": code, "detail": code, "message": message})
+    except Exception as exc:
+        code, message = classify_rule_draft_error(exc)
+        return JSONResponse(status_code=502, content={"error_code": code, "detail": code, "message": message})
 
 
 @router.get("/{session_id}/journal")

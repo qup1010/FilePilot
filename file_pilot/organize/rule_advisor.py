@@ -179,6 +179,70 @@ def parse_rule_drafts(tool_arguments: str, *, allowed_paths: set[str]) -> list[R
     return drafts
 
 
+def _client_base_url(client) -> str:
+    base_url = getattr(client, "base_url", None)
+    if base_url is None:
+        return ""
+    return str(base_url).rstrip("/")
+
+
+def looks_like_deepseek(*, model: str | None = None, base_url: str | None = None) -> bool:
+    """识别 DeepSeek 官方或兼容端点：V4 默认开启 thinking，强制 tool_choice 会 400。"""
+    haystack = f"{model or ''} {base_url or ''}".lower()
+    return "deepseek" in haystack
+
+
+def build_rule_draft_completion_kwargs(
+    *,
+    model: str,
+    messages: list[dict],
+    base_url: str | None = None,
+) -> dict:
+    """构造规则初稿 completion 参数；DeepSeek 关闭 thinking 以兼容强制 tool_choice。"""
+    kwargs: dict = {
+        "model": model,
+        "messages": messages,
+        "tools": [_RULE_DRAFT_TOOL],
+        "tool_choice": {"type": "function", "function": {"name": "submit_rule_drafts"}},
+        "stream": False,
+    }
+    if looks_like_deepseek(model=model, base_url=base_url):
+        # DeepSeek V4 默认 thinking=enabled；思考模式拒绝特定 tool_choice。
+        # 官方：extra_body={"thinking": {"type": "disabled"}}
+        kwargs["extra_body"] = {"thinking": {"type": "disabled"}}
+    return kwargs
+
+
+def classify_rule_draft_error(exc: BaseException) -> tuple[str, str]:
+    """将模型/网络异常映射为前端可识别的 error_code + 中文说明。"""
+    message = str(exc or "").strip()
+    lowered = message.lower()
+    if "thinking mode does not support this tool_choice" in lowered or (
+        "thinking" in lowered and "tool_choice" in lowered
+    ):
+        return (
+            "RULE_DRAFTS_THINKING_TOOL_UNSUPPORTED",
+            "当前模型处于思考模式，不支持强制工具调用。请关闭 thinking，或换用支持工具调用的非思考模型。",
+        )
+    if "tool" in lowered and ("not support" in lowered or "unsupported" in lowered or "does not support" in lowered):
+        return (
+            "RULE_DRAFTS_TOOL_UNSUPPORTED",
+            "当前模型不支持工具调用，无法自动生成规则初稿。请在设置中换用支持 function calling 的文本模型。",
+        )
+    if "401" in lowered or "unauthorized" in lowered or "authentication" in lowered or "invalid api key" in lowered:
+        return ("RULE_DRAFTS_MODEL_AUTH", "模型服务认证失败，请检查设置中的 API 密钥。")
+    if "429" in lowered or "rate limit" in lowered:
+        return ("RULE_DRAFTS_MODEL_RATE_LIMIT", "模型服务请求过于频繁，请稍后再试。")
+    if "timeout" in lowered or "timed out" in lowered:
+        return ("RULE_DRAFTS_MODEL_TIMEOUT", "模型服务响应超时，请稍后重试。")
+    if "connection" in lowered or "connect" in lowered or "name or service" in lowered:
+        return ("RULE_DRAFTS_MODEL_NETWORK", "无法连接到模型服务，请检查网络与接口地址。")
+    if message.startswith("RULE_DRAFTS_"):
+        code = message.split(":", 1)[0].strip()
+        return (code, "生成规则初稿失败，模型返回的内容无法解析，请重试。")
+    return ("RULE_DRAFTS_MODEL_ERROR", "生成规则初稿失败，请确认模型配置后重试。")
+
+
 def generate_rule_drafts(
     profiles: list[DirectoryContentProfile],
     *,
@@ -191,11 +255,11 @@ def generate_rule_drafts(
     model = model or get_organizer_model_name()
 
     response = client.chat.completions.create(
-        model=model,
-        messages=build_rule_draft_prompt(profiles),
-        tools=[_RULE_DRAFT_TOOL],
-        tool_choice={"type": "function", "function": {"name": "submit_rule_drafts"}},
-        stream=False,
+        **build_rule_draft_completion_kwargs(
+            model=model,
+            messages=build_rule_draft_prompt(profiles),
+            base_url=_client_base_url(client),
+        )
     )
     tool_calls = response.choices[0].message.tool_calls or []
     if not tool_calls:

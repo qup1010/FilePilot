@@ -87,6 +87,39 @@ function requestErrorMessage(status: number, detail?: string): string {
   if (normalizedDetail === "REVIEW_SUBDIRECTORY_NOT_ALLOWED") {
     return "待确认区只作为统一暂存位置，不能再指定它的子目录。";
   }
+  if (normalizedDetail === "RULE_DRAFTS_THINKING_TOOL_UNSUPPORTED") {
+    return "当前模型处于思考模式，不支持强制工具调用。请关闭 thinking，或换用支持工具调用的非思考模型。";
+  }
+  if (normalizedDetail === "RULE_DRAFTS_TOOL_UNSUPPORTED") {
+    return "当前模型不支持工具调用，无法自动生成规则初稿。请在设置中换用支持 function calling 的文本模型。";
+  }
+  if (normalizedDetail === "RULE_DRAFTS_MODEL_AUTH") {
+    return "模型服务认证失败，请检查设置中的 API 密钥。";
+  }
+  if (normalizedDetail === "RULE_DRAFTS_MODEL_RATE_LIMIT") {
+    return "模型服务请求过于频繁，请稍后再试。";
+  }
+  if (normalizedDetail === "RULE_DRAFTS_MODEL_TIMEOUT") {
+    return "模型服务响应超时，请稍后重试。";
+  }
+  if (normalizedDetail === "RULE_DRAFTS_MODEL_NETWORK") {
+    return "无法连接到模型服务，请检查网络与接口地址。";
+  }
+  if (normalizedDetail === "RULE_DRAFTS_MODEL_REJECTED") {
+    return "模型服务拒绝了规则生成请求，请稍后再试。";
+  }
+  if (normalizedDetail === "RULE_DRAFTS_MODEL_ERROR") {
+    return "生成规则初稿失败，请确认模型配置后重试。";
+  }
+  if (normalizedDetail === "RULE_DRAFTS_MISSING_TOOL_CALL") {
+    return "模型未返回可用的规则初稿，请稍后重试。";
+  }
+  if (normalizedDetail === "RULE_DRAFTS_PATHS_NOT_IN_PROFILE") {
+    return "指定的目录不在当前规则配置中。";
+  }
+  if (normalizedDetail.startsWith("RULE_DRAFTS_INVALID_JSON")) {
+    return "模型返回的规则格式无效，请稍后重试。";
+  }
 
   if (status === 401 || status === 403) {
     return "当前连接已失效，请重新启动应用后再试。";
@@ -106,12 +139,25 @@ function requestErrorMessage(status: number, detail?: string): string {
   return "操作失败，请稍后再试。";
 }
 
+const GENERIC_REQUEST_ERROR_MESSAGES = new Set([
+  "本地服务处理请求时出错，请稍后再试。",
+  "当前请求暂时无法完成，请刷新后重试。",
+  "操作失败，请稍后再试。",
+]);
+
 export function createUserFacingRequestError(status: number, statusText: string, errorText: string): UserFacingError {
   const payload = parseErrorPayload(errorText);
-  const detail = payload?.detail || payload?.message || payload?.error_code || "";
+  // Prefer machine codes for mapping; keep backend Chinese message as fallback.
+  const code = payload?.error_code || payload?.detail || "";
+  const mapped = requestErrorMessage(status, code || payload?.message || "");
+  const backendMessage = String(payload?.message || "").trim();
+  const message =
+    GENERIC_REQUEST_ERROR_MESSAGES.has(mapped) && backendMessage
+      ? backendMessage
+      : mapped;
   const rawMessage = `Request failed (${status} ${statusText}): ${errorText}`;
-  return new UserFacingError(requestErrorMessage(status, detail), {
-    code: detail || undefined,
+  return new UserFacingError(message, {
+    code: code || backendMessage || undefined,
     status,
     rawMessage,
   });

@@ -2,7 +2,7 @@
 
 import { useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "motion/react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   CheckCircle2,
   Cpu,
@@ -24,7 +24,6 @@ import {
   buildFingerprint,
   buildSecretPayload,
   buildSettingsTabFingerprint,
-  buildTargetProfilesFingerprint,
   clampConcurrencyInput,
   copyTextToClipboard,
   createSecretDraft,
@@ -37,7 +36,6 @@ import {
   type ModelLookupState,
   type PresetConfigFamily,
   type SecretDraft,
-  type TargetProfileDraft,
 } from "@/app/settings/settings-draft";
 import {
   ConnectionTestPanel,
@@ -53,7 +51,6 @@ import { TextTab } from "@/app/settings/text-tab";
 import { createApiClient } from "@/lib/api";
 import { notifyAppContextChange } from "@/lib/app-context-store";
 import { getApiBaseUrl, getApiToken, invokeTauriCommand, isTauriDesktop, pickDirectoryWithTauri, openUrlWithTauri } from "@/lib/runtime";
-import { findDropZoneForPosition, listenToTauriDragDrop } from "@/lib/tauri-drag-drop";
 import { cn } from "@/lib/utils";
 import type {
   SettingsFamily,
@@ -61,7 +58,6 @@ import type {
   SettingsTestResult,
   SettingsUpdatePayload,
 } from "@/types/settings";
-import type { TargetProfile, TargetProfileDirectory } from "@/types/session";
 
 type CreatePresetDialogState = {
   family: PresetConfigFamily;
@@ -85,7 +81,8 @@ const COMPACT_SETTINGS_BREAKPOINT = 960;
 export default function SettingsPage() {
   const searchParams = useSearchParams();
   const initialTab = searchParams.get("tab");
-  const normalizedInitialTab = initialTab === "vision" ? "text" : initialTab;
+  const normalizedInitialTab =
+    initialTab === "vision" || initialTab === "targets" ? (initialTab === "targets" ? "launch" : "text") : initialTab;
   const api = useMemo(() => createApiClient(getApiBaseUrl(), getApiToken()), []);
   const desktopReady = isTauriDesktop();
   const [snapshot, setSnapshot] = useState<SettingsSnapshot | null>(null);
@@ -113,21 +110,8 @@ export default function SettingsPage() {
   );
   const [isCompactLayout, setIsCompactLayout] = useState(false);
   const [categoryDialogOpen, setCategoryDialogOpen] = useState(false);
-  const [targetProfiles, setTargetProfiles] = useState<TargetProfile[]>([]);
-  const [targetProfilesLoading, setTargetProfilesLoading] = useState(false);
-  const [targetProfileDrafts, setTargetProfileDrafts] = useState<Record<string, TargetProfileDraft>>({});
-  const [expandedTargetDirectoryEditors, setExpandedTargetDirectoryEditors] = useState<Record<string, boolean>>({});
-  const [targetProfilesBaseline, setTargetProfilesBaseline] = useState("");
-  const [newTargetProfileName, setNewTargetProfileName] = useState("常用目标目录");
-  const [selectedTargetProfileId, setSelectedTargetProfileId] = useState<string>("");
-  const [targetProfileSelectorOpen, setTargetProfileSelectorOpen] = useState(false);
-  const [creatingTargetProfile, setCreatingTargetProfile] = useState(false);
   const [activeLaunchSection, setActiveLaunchSection] = useState<LaunchSection>("strategy");
   const [iconAdvancedOpen, setIconAdvancedOpen] = useState(false);
-  const [dragTargetProfileId, setDragTargetProfileId] = useState<string | null>(null);
-  const targetProfileSelectorRef = useRef<HTMLDivElement>(null);
-  const targetDropZoneRefs = useRef<Record<string, HTMLDivElement | null>>({});
-  const [pendingDeleteTargetProfileId, setPendingDeleteTargetProfileId] = useState<string | null>(null);
 
   // 关于与检查更新相关 State
   const [appVersion, setAppVersion] = useState("v1.0.4");
@@ -241,7 +225,7 @@ export default function SettingsPage() {
   );
   const activeCategory = categories.find((item) => item.id === activeTab) ?? categories[0];
 
-  const settingsDirty = useMemo(
+  const isDirty = useMemo(
     () =>
       buildFingerprint(draft, secretMap, {
         analysisConcurrencyInput,
@@ -249,11 +233,6 @@ export default function SettingsPage() {
       }) !== baseline,
     [analysisConcurrencyInput, baseline, draft, imageConcurrencyInput, secretMap],
   );
-  const targetProfilesDirty = useMemo(
-    () => buildTargetProfilesFingerprint(targetProfileDrafts) !== targetProfilesBaseline,
-    [targetProfileDrafts, targetProfilesBaseline],
-  );
-  const isDirty = settingsDirty || targetProfilesDirty;
   const dirtyTabs = useMemo(() => {
     if (!snapshot || !draft) {
       return {} as Record<string, boolean>;
@@ -272,10 +251,10 @@ export default function SettingsPage() {
     return SETTINGS_TAB_IDS.reduce<Record<string, boolean>>((result, tabId) => {
       const baselineValue = buildSettingsTabFingerprint(tabId, baselineDraft, baselineSecrets, baselineInputs);
       const currentValue = buildSettingsTabFingerprint(tabId, draft, secretMap, currentInputs);
-      result[tabId] = baselineValue !== currentValue || (tabId === "launch" && targetProfilesDirty);
+      result[tabId] = baselineValue !== currentValue;
       return result;
     }, {});
-  }, [analysisConcurrencyInput, draft, imageConcurrencyInput, secretMap, snapshot, targetProfilesDirty]);
+  }, [analysisConcurrencyInput, draft, imageConcurrencyInput, secretMap, snapshot]);
   const dirtyTabLabels = useMemo(
     () => categories.filter((item) => dirtyTabs[item.id]).map((item) => item.label),
     [categories, dirtyTabs],
@@ -350,39 +329,6 @@ export default function SettingsPage() {
     setTestResults({});
   };
 
-  const hydrateTargetProfiles = useCallback((items: TargetProfile[]) => {
-    setTargetProfiles(items);
-    setSelectedTargetProfileId((current) => {
-      if (items.some((item) => item.profile_id === current)) {
-        return current;
-      }
-      return items[0]?.profile_id ?? "";
-    });
-    const next: Record<string, TargetProfileDraft> = {};
-    for (const profile of items) {
-      next[profile.profile_id] = {
-        name: profile.name,
-        directories: profile.directories,
-        newPath: "",
-        newLabel: "",
-        newDescription: "",
-      };
-    }
-    setTargetProfileDrafts(next);
-    setTargetProfilesBaseline(buildTargetProfilesFingerprint(next));
-  }, []);
-
-  const loadTargetProfiles = useCallback(async () => {
-    setTargetProfilesLoading(true);
-    try {
-      hydrateTargetProfiles(await api.getTargetProfiles());
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "读取目标目录配置失败");
-    } finally {
-      setTargetProfilesLoading(false);
-    }
-  }, [api, hydrateTargetProfiles]);
-
   useEffect(() => {
     let cancelled = false;
     const load = async () => {
@@ -409,79 +355,6 @@ export default function SettingsPage() {
     };
   }, [api]);
 
-  useEffect(() => {
-    void loadTargetProfiles();
-  }, [loadTargetProfiles]);
-
-  useEffect(() => {
-    if (!targetProfileSelectorOpen) {
-      return;
-    }
-
-    const handlePointerDown = (event: MouseEvent) => {
-      if (!targetProfileSelectorRef.current?.contains(event.target as Node)) {
-        setTargetProfileSelectorOpen(false);
-      }
-    };
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        setTargetProfileSelectorOpen(false);
-      }
-    };
-
-    document.addEventListener("mousedown", handlePointerDown);
-    window.addEventListener("keydown", handleKeyDown);
-    return () => {
-      document.removeEventListener("mousedown", handlePointerDown);
-      window.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [targetProfileSelectorOpen]);
-
-  const addDirectoriesRef = useRef<(profileId: string, paths: string[]) => void>(null as any);
-
-  useEffect(() => {
-    let disposed = false;
-    let unlisten: (() => void) | null = null;
-
-    void listenToTauriDragDrop((event) => {
-      if (event.payload.type === "over") {
-        const profileId = findDropZoneForPosition(
-          event.payload.position,
-          Object.entries(targetDropZoneRefs.current).map(([key, element]) => ({ key, element })),
-        );
-        setDragTargetProfileId(profileId);
-        return;
-      }
-
-      if (event.payload.type === "leave") {
-        setDragTargetProfileId(null);
-        return;
-      }
-
-      if (event.payload.type === "drop") {
-        const profileId = findDropZoneForPosition(
-          event.payload.position,
-          Object.entries(targetDropZoneRefs.current).map(([key, element]) => ({ key, element })),
-        );
-        setDragTargetProfileId(null);
-        if (profileId) {
-          void addDirectoriesRef.current(profileId, event.payload.paths);
-        }
-      }
-    }).then((nextUnlisten) => {
-      if (disposed) {
-        nextUnlisten?.();
-        return;
-      }
-      unlisten = nextUnlisten;
-    });
-
-    return () => {
-      disposed = true;
-      unlisten?.();
-    };
-  }, []);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -646,182 +519,12 @@ export default function SettingsPage() {
     }
   };
 
-  const updateTargetProfileDraft = (profileId: string, updater: (current: TargetProfileDraft) => TargetProfileDraft) => {
-    setTargetProfileDrafts((current) => {
-      const draft = current[profileId];
-      if (!draft) {
-        return current;
-      }
-      return {
-        ...current,
-        [profileId]: updater(draft),
-      };
-    });
-    setSuccess(null);
-  };
-
-  const addDirectoriesToTargetProfile = (profileId: string, paths: string[]) => {
-    const draft = targetProfileDrafts[profileId];
-    if (!draft) {
+  const handleActivatePreset = async (family: PresetConfigFamily, presetId: string) => {
+    if (isDirty) {
+      setSwitchPresetDialog({ family, presetId });
       return;
     }
-    const cleanedPaths = paths.map((path) => path.trim()).filter(Boolean);
-    if (!cleanedPaths.length) {
-      setError("没有读取到可添加的目录路径。");
-      return;
-    }
-
-    const seen = new Set(draft.directories.map((item) => item.path.trim().toLowerCase()));
-    const additions: TargetProfileDirectory[] = [];
-    for (const path of cleanedPaths) {
-      const key = path.toLowerCase();
-      if (seen.has(key)) {
-        continue;
-      }
-      seen.add(key);
-      additions.push({ path, description: "" });
-    }
-
-    if (!additions.length) {
-      setSuccess("这些目录已经在当前配置里");
-      return;
-    }
-
-    const directories = [...draft.directories, ...additions];
-    updateTargetProfileDraft(profileId, (current) => ({ ...current, directories, newPath: "", newLabel: "", newDescription: "" }));
-  };
-
-  useEffect(() => {
-    addDirectoriesRef.current = addDirectoriesToTargetProfile;
-  }, [addDirectoriesToTargetProfile]);
-
-  const saveTargetProfileDrafts = async () => {
-    const entries = Object.entries(targetProfileDrafts);
-    for (const [, draft] of entries) {
-      if (!draft.name.trim()) {
-        throw new Error("目标目录配置名称不能为空。");
-      }
-    }
-    setTargetProfilesLoading(true);
-    try {
-      await Promise.all(
-        entries.map(([profileId, draft]) =>
-          api.updateTargetProfile(profileId, {
-            name: draft.name.trim(),
-            directories: draft.directories
-              .map((item) => ({
-                path: item.path.trim(),
-                label: item.label?.trim() || undefined,
-                description: item.description?.trim() || undefined,
-              }))
-              .filter((item) => item.path),
-          }),
-        ),
-      );
-      await loadTargetProfiles();
-    } finally {
-      setTargetProfilesLoading(false);
-    }
-  };
-
-  const createTargetProfile = async () => {
-    const name = newTargetProfileName.trim();
-    if (!name) {
-      setError("请先输入目标目录配置名称。");
-      return;
-    }
-    setTargetProfilesLoading(true);
-    setError(null);
-    try {
-      const profile = await api.createTargetProfile({ name, directories: [] });
-      setNewTargetProfileName("常用目标目录");
-      setSelectedTargetProfileId(profile.profile_id);
-      setCreatingTargetProfile(false);
-      setTargetProfileSelectorOpen(false);
-      await loadTargetProfiles();
-      setSuccess("目标目录配置已创建");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "创建目标目录配置失败");
-    } finally {
-      setTargetProfilesLoading(false);
-    }
-  };
-
-  const deleteTargetProfile = async (profileId: string) => {
-    setTargetProfilesLoading(true);
-    setError(null);
-    try {
-      await api.deleteTargetProfile(profileId);
-      setSelectedTargetProfileId((current) => (current === profileId ? "" : current));
-      if (draft?.global_config.LAUNCH_DEFAULT_TARGET_PROFILE_ID === profileId) {
-        updateGlobal("LAUNCH_DEFAULT_TARGET_PROFILE_ID", "");
-      }
-      await loadTargetProfiles();
-      setSuccess("目标目录配置已删除");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "删除目标目录配置失败");
-    } finally {
-      setTargetProfilesLoading(false);
-    }
-  };
-
-  const addDirectoryToTargetProfile = (profileId: string) => {
-    const draft = targetProfileDrafts[profileId];
-    if (!draft) {
-      return;
-    }
-    const path = draft.newPath.trim();
-    if (!path) {
-      setError("请先输入目标目录路径。");
-      return;
-    }
-    const key = path.toLowerCase();
-    const directories = [
-      ...draft.directories.filter((item) => item.path.trim().toLowerCase() !== key),
-      {
-        path,
-        label: draft.newLabel.trim() || undefined,
-        description: draft.newDescription.trim() || undefined,
-      },
-    ];
-    updateTargetProfileDraft(profileId, (current) => ({ ...current, directories, newPath: "", newLabel: "", newDescription: "" }));
-  };
-
-  const removeDirectoryFromTargetProfile = (profileId: string, path: string) => {
-    const draft = targetProfileDrafts[profileId];
-    if (!draft) {
-      return;
-    }
-    const directories = draft.directories.filter((item) => item.path !== path);
-    updateTargetProfileDraft(profileId, (current) => ({ ...current, directories }));
-  };
-
-  const toggleTargetDirectoryEditor = (editorKey: string) => {
-    setExpandedTargetDirectoryEditors((current) => ({
-      ...current,
-      [editorKey]: !(current[editorKey] ?? false),
-    }));
-  };
-
-  const registerTargetDropZone = (profileId: string, element: HTMLDivElement | null) => {
-    targetDropZoneRefs.current[profileId] = element;
-  };
-
-  const pickDirectory = async (): Promise<string | null> => {
-    try {
-      const selected = desktopReady
-        ? await pickDirectoryWithTauri()
-        : (await api.selectDir()).path;
-      return selected || null;
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "选择目录失败");
-      return null;
-    }
-  };
-
-  const handleSelectTab = (tabId: string) => {
-    setActiveTab(tabId === "vision" ? "text" : tabId);
-    setCategoryDialogOpen(false);
+    await performActivatePreset(family, presetId);
   };
 
   const performActivatePreset = async (family: PresetConfigFamily, presetId: string) => {
@@ -836,14 +539,6 @@ export default function SettingsPage() {
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleActivatePreset = async (family: PresetConfigFamily, presetId: string) => {
-    if (isDirty) {
-      setSwitchPresetDialog({ family, presetId });
-      return;
-    }
-    await performActivatePreset(family, presetId);
   };
 
   const performCreatePreset = async (family: PresetConfigFamily, presetName: string) => {
@@ -906,6 +601,11 @@ export default function SettingsPage() {
     });
   };
 
+  const handleSelectTab = (tabId: string) => {
+    setActiveTab(tabId === "vision" ? "text" : tabId);
+    setCategoryDialogOpen(false);
+  };
+
   const performDeletePreset = async (family: PresetConfigFamily, presetId: string) => {
     setLoading(true);
     setError(null);
@@ -959,13 +659,13 @@ export default function SettingsPage() {
       mode: visionMode,
       ...(visionMode === "separate" || snapshot?.families.vision.active_preset_id
         ? {
-          ...buildFamilySavePayload("vision", {
-            IMAGE_ANALYSIS_NAME: draft.vision.IMAGE_ANALYSIS_NAME,
-            IMAGE_ANALYSIS_BASE_URL: draft.vision.IMAGE_ANALYSIS_BASE_URL,
-            IMAGE_ANALYSIS_MODEL: draft.vision.IMAGE_ANALYSIS_MODEL,
-          }),
-          secret: buildSecretPayload(visionSecret),
-        }
+            ...buildFamilySavePayload("vision", {
+              IMAGE_ANALYSIS_NAME: draft.vision.IMAGE_ANALYSIS_NAME,
+              IMAGE_ANALYSIS_BASE_URL: draft.vision.IMAGE_ANALYSIS_BASE_URL,
+              IMAGE_ANALYSIS_MODEL: draft.vision.IMAGE_ANALYSIS_MODEL,
+            }),
+            secret: buildSecretPayload(visionSecret),
+          }
         : {}),
     };
 
@@ -998,34 +698,9 @@ export default function SettingsPage() {
     setError(null);
     setSuccess(null);
     try {
-      if (targetProfilesDirty && Object.values(targetProfileDrafts).some((profile) => !profile.name.trim())) {
-        throw new Error("目标目录配置名称不能为空。");
-      }
-      const savedParts: string[] = [];
-      const failedParts: string[] = [];
-      if (settingsDirty) {
-        try {
-          const nextSnapshot = await api.updateSettings(payload);
-          hydrate(nextSnapshot);
-          savedParts.push("模型与全局设置已保存");
-        } catch (err) {
-          failedParts.push(`模型与全局设置保存失败：${err instanceof Error ? err.message : "未知错误"}`);
-        }
-      }
-      if (targetProfilesDirty) {
-        try {
-          await saveTargetProfileDrafts();
-          savedParts.push("目标目录配置已保存");
-        } catch (err) {
-          failedParts.push(`目标目录配置保存失败：${err instanceof Error ? err.message : "未知错误"}`);
-        }
-      }
-      if (failedParts.length) {
-        const prefix = savedParts.length ? `${savedParts.join("，")}，但` : "";
-        setError(`${prefix}${failedParts.join("；")}`);
-        return;
-      }
-      setSuccess(savedParts.length ? `${savedParts.join("，")}并生效` : "设置已保存并生效");
+      const nextSnapshot = await api.updateSettings(payload);
+      hydrate(nextSnapshot);
+      setSuccess("设置已保存并生效");
     } catch (err) {
       setError(err instanceof Error ? err.message : "保存失败");
     } finally {
@@ -1037,7 +712,6 @@ export default function SettingsPage() {
     if (snapshot) {
       hydrate(snapshot);
     }
-    hydrateTargetProfiles(targetProfiles);
   };
 
   const resolveBgRemovalRuntimeConfig = async () => {
@@ -1417,27 +1091,12 @@ export default function SettingsPage() {
                 activeSection={activeLaunchSection}
                 onSelectSection={setActiveLaunchSection}
                 onUpdateGlobal={updateGlobal}
-                targetProfiles={targetProfiles}
-                targetProfilesLoading={targetProfilesLoading}
-                targetProfileDrafts={targetProfileDrafts}
-                selectedTargetProfileId={selectedTargetProfileId}
-                onSelectTargetProfile={setSelectedTargetProfileId}
-                creatingTargetProfile={creatingTargetProfile}
-                onSetCreatingTargetProfile={setCreatingTargetProfile}
-                newTargetProfileName={newTargetProfileName}
-                onChangeNewTargetProfileName={setNewTargetProfileName}
-                expandedDirectoryEditors={expandedTargetDirectoryEditors}
-                onToggleDirectoryEditor={toggleTargetDirectoryEditor}
-                dragTargetProfileId={dragTargetProfileId}
-                setDragTargetProfileId={setDragTargetProfileId}
-                registerDropZone={registerTargetDropZone}
-                onUpdateTargetProfileDraft={updateTargetProfileDraft}
-                onAddDirectories={addDirectoriesToTargetProfile}
-                onAddDirectory={addDirectoryToTargetProfile}
-                onRemoveDirectory={removeDirectoryFromTargetProfile}
-                onCreateTargetProfile={() => void createTargetProfile()}
-                onDeleteTargetProfile={(profileId) => void deleteTargetProfile(profileId)}
-                onPickDirectory={pickDirectory}
+                onPickDirectory={async () => {
+                  if (desktopReady) {
+                    return pickDirectoryWithTauri();
+                  }
+                  return null;
+                }}
               />
             )}
 
@@ -1558,9 +1217,7 @@ export default function SettingsPage() {
               if (event.key === "Enter" && createPresetDialog?.value.trim()) {
                 void (async () => {
                   const dialog = createPresetDialog;
-                  if (!dialog) {
-                    return;
-                  }
+                  if (!dialog) return;
                   setCreatePresetDialog(null);
                   await performCreatePreset(dialog.family, dialog.value);
                 })();
@@ -1576,14 +1233,11 @@ export default function SettingsPage() {
         open={Boolean(deletePresetDialog)}
         title="删除预设"
         description={deletePresetDialog ? `确定删除“${deletePresetDialog.presetName}”吗？删除后不能恢复。` : ""}
-        confirmLabel="确认删除"
+        confirmLabel="删除"
         cancelLabel="取消"
-        tone="danger"
         loading={loading}
         onConfirm={async () => {
-          if (!deletePresetDialog) {
-            return;
-          }
+          if (!deletePresetDialog) return;
           const dialog = deletePresetDialog;
           setDeletePresetDialog(null);
           await performDeletePreset(dialog.family, dialog.presetId);
@@ -1593,37 +1247,19 @@ export default function SettingsPage() {
 
       <ConfirmDialog
         open={Boolean(switchPresetDialog)}
-        title="切换预设并放弃草稿？"
-        description="当前页面有未保存修改。继续切换会丢失这批草稿内容。"
-        confirmLabel="放弃并切换"
-        cancelLabel="继续编辑"
+        title="切换预设并放弃草稿"
+        description="当前草稿将丢失，确定切换吗？"
+        confirmLabel="切换"
+        cancelLabel="取消"
         loading={loading}
         onConfirm={async () => {
-          if (!switchPresetDialog) {
-            return;
-          }
+          if (!switchPresetDialog) return;
           const dialog = switchPresetDialog;
           setSwitchPresetDialog(null);
           await performActivatePreset(dialog.family, dialog.presetId);
         }}
         onCancel={() => setSwitchPresetDialog(null)}
       />
-      <ConfirmDialog
-        open={Boolean(pendingDeleteTargetProfileId)}
-        title="删除目标配置"
-        description="确定要删除这个目标目录配置吗？删除后将无法通过此配置快速归档文件。"
-        confirmLabel="确认删除"
-        cancelLabel="取消"
-        tone="danger"
-        loading={targetProfilesLoading}
-        onConfirm={async () => {
-          if (!pendingDeleteTargetProfileId) return;
-          const id = pendingDeleteTargetProfileId;
-          setPendingDeleteTargetProfileId(null);
-          await deleteTargetProfile(id);
-        }}
-        onCancel={() => setPendingDeleteTargetProfileId(null)}
-      />
-    </div>
+</div>
   );
 }

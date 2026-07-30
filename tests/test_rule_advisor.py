@@ -83,6 +83,36 @@ class RuleAdvisorTests(unittest.TestCase):
         self.assertEqual(call_kwargs["model"], "test-model")
         self.assertEqual(call_kwargs["tool_choice"]["function"]["name"], "submit_rule_drafts")
         self.assertFalse(call_kwargs["stream"])
+        self.assertNotIn("extra_body", call_kwargs)
+
+    def test_generate_rule_drafts_disables_deepseek_thinking(self):
+        profiles = [
+            rule_advisor.DirectoryContentProfile(path="D:/known", label="文档", total_entries=1),
+        ]
+        client = _fake_client(
+            json.dumps({"drafts": [{"path": "D:/known", "draft_description": "文档", "basis": "样本"}]})
+        )
+        client.base_url = "https://api.deepseek.com/v1"
+
+        rule_advisor.generate_rule_drafts(profiles, client=client, model="deepseek-v4-flash")
+
+        call_kwargs = client.chat.completions.create.call_args.kwargs
+        self.assertEqual(call_kwargs["extra_body"], {"thinking": {"type": "disabled"}})
+
+    def test_build_rule_draft_completion_kwargs_detects_deepseek_by_model_name(self):
+        kwargs = rule_advisor.build_rule_draft_completion_kwargs(
+            model="deepseek-v4-pro",
+            messages=[{"role": "user", "content": "x"}],
+            base_url="https://proxy.example/v1",
+        )
+        self.assertEqual(kwargs["extra_body"], {"thinking": {"type": "disabled"}})
+
+    def test_classify_rule_draft_error_thinking_tool_choice(self):
+        code, message = rule_advisor.classify_rule_draft_error(
+            RuntimeError("Error code: 400 - Thinking mode does not support this tool_choice")
+        )
+        self.assertEqual(code, "RULE_DRAFTS_THINKING_TOOL_UNSUPPORTED")
+        self.assertIn("思考模式", message)
 
 
 class TargetProfileRuleFieldsTests(unittest.TestCase):
@@ -155,6 +185,55 @@ class GenerateProfileRuleDraftsServiceTests(unittest.TestCase):
         self.assertEqual(item["basis"], "现有 1 个 PDF")
         self.assertEqual(item["total_entries"], 1)
         self.assertTrue(item["readable"])
+
+    def test_generate_rule_drafts_single_path(self):
+        other = self.root / "images"
+        other.mkdir()
+        (other / "a.png").write_text("x", encoding="utf-8")
+        profile = self.service.create_target_profile(
+            "常用目录",
+            [
+                {"path": str(self.docs_dir), "label": "文档", "description": ""},
+                {"path": str(other), "label": "图片", "description": ""},
+            ],
+        )
+        client = _fake_client(
+            json.dumps(
+                {
+                    "drafts": [
+                        {
+                            "path": str(self.docs_dir),
+                            "draft_description": "仅文档",
+                            "basis": "单目录",
+                        }
+                    ]
+                }
+            )
+        )
+
+        result = self.service.generate_target_profile_rule_drafts(
+            profile["profile_id"],
+            paths=[str(self.docs_dir)],
+            client=client,
+            model="test-model",
+        )
+
+        self.assertEqual(len(result["items"]), 1)
+        self.assertEqual(result["items"][0]["path"], str(self.docs_dir))
+        self.assertEqual(result["items"][0]["draft_description"], "仅文档")
+
+    def test_generate_rule_drafts_unknown_path(self):
+        profile = self.service.create_target_profile(
+            "常用目录",
+            [{"path": str(self.docs_dir), "label": "文档", "description": ""}],
+        )
+        with self.assertRaises(ValueError) as ctx:
+            self.service.generate_target_profile_rule_drafts(
+                profile["profile_id"],
+                paths=["D:/not-in-profile"],
+                client=_fake_client("{}"),
+            )
+        self.assertEqual(str(ctx.exception), "RULE_DRAFTS_PATHS_NOT_IN_PROFILE")
 
     def test_generate_rule_drafts_unknown_profile(self):
         with self.assertRaises(FileNotFoundError):

@@ -48,6 +48,12 @@ class UpdateTargetProfilePayload(BaseModel):
     directories: list[TargetProfileDirectoryPayload] | None = None
 
 
+class GenerateRuleDraftsPayload(BaseModel):
+    """可选：只为指定目录生成初稿；省略则整套生成。"""
+
+    paths: list[str] | None = None
+
+
 class UpdateItemPayload(BaseModel):
     item_id: str
     target_dir: str | None = None

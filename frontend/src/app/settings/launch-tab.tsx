@@ -1,9 +1,9 @@
 "use client";
 
-import type { Dispatch, SetStateAction } from "react";
+import Link from "next/link";
 import {
+  BookOpenCheck,
   FolderOpen,
-  FolderPlus,
   Settings as SettingsIcon,
   SlidersHorizontal,
 } from "lucide-react";
@@ -26,12 +26,10 @@ import {
   STRATEGY_TEMPLATES,
 } from "@/lib/strategy-templates";
 import { cn } from "@/lib/utils";
-import type { TargetProfileDraft } from "@/app/settings/settings-draft";
-import { TargetProfilesSection } from "@/app/settings/target-profiles-section";
 import type { SettingsSnapshot } from "@/types/settings";
-import type { OrganizeMethod, TargetProfile } from "@/types/session";
+import type { OrganizeMethod } from "@/types/session";
 
-export type LaunchSection = "strategy" | "placement" | "targets";
+export type LaunchSection = "strategy" | "placement";
 
 const LAUNCH_SECTIONS: Array<{
   id: LaunchSection;
@@ -39,37 +37,15 @@ const LAUNCH_SECTIONS: Array<{
   description: string;
   icon: typeof SettingsIcon;
 }> = [
-    { id: "strategy", label: "启动策略", description: "模板、语言、粒度", icon: SlidersHorizontal },
-    { id: "placement", label: "放置规则", description: "新目录与待确认区", icon: FolderOpen },
-    { id: "targets", label: "目标目录", description: "归档目录池", icon: FolderPlus },
-  ];
-
+  { id: "strategy", label: "启动策略", description: "模板、语言、粒度", icon: SlidersHorizontal },
+  { id: "placement", label: "放置规则", description: "新目录与待确认区", icon: FolderOpen },
+];
 
 export interface LaunchTabProps {
   globalConfig: SettingsSnapshot["global_config"];
   activeSection: LaunchSection;
   onSelectSection: (section: LaunchSection) => void;
   onUpdateGlobal: (key: string, value: unknown) => void;
-  targetProfiles: TargetProfile[];
-  targetProfilesLoading: boolean;
-  targetProfileDrafts: Record<string, TargetProfileDraft>;
-  selectedTargetProfileId: string;
-  onSelectTargetProfile: (profileId: string) => void;
-  creatingTargetProfile: boolean;
-  onSetCreatingTargetProfile: (creating: boolean) => void;
-  newTargetProfileName: string;
-  onChangeNewTargetProfileName: (name: string) => void;
-  expandedDirectoryEditors: Record<string, boolean>;
-  onToggleDirectoryEditor: (editorKey: string) => void;
-  dragTargetProfileId: string | null;
-  setDragTargetProfileId: Dispatch<SetStateAction<string | null>>;
-  registerDropZone: (profileId: string, element: HTMLDivElement | null) => void;
-  onUpdateTargetProfileDraft: (profileId: string, updater: (current: TargetProfileDraft) => TargetProfileDraft) => void;
-  onAddDirectories: (profileId: string, paths: string[]) => void;
-  onAddDirectory: (profileId: string) => void;
-  onRemoveDirectory: (profileId: string, path: string) => void;
-  onCreateTargetProfile: () => void;
-  onDeleteTargetProfile: (profileId: string) => void;
   onPickDirectory: () => Promise<string | null>;
 }
 
@@ -78,26 +54,6 @@ export function LaunchTab({
   activeSection,
   onSelectSection,
   onUpdateGlobal,
-  targetProfiles,
-  targetProfilesLoading,
-  targetProfileDrafts,
-  selectedTargetProfileId,
-  onSelectTargetProfile,
-  creatingTargetProfile,
-  onSetCreatingTargetProfile,
-  newTargetProfileName,
-  onChangeNewTargetProfileName,
-  expandedDirectoryEditors,
-  onToggleDirectoryEditor,
-  dragTargetProfileId,
-  setDragTargetProfileId,
-  registerDropZone,
-  onUpdateTargetProfileDraft,
-  onAddDirectories,
-  onAddDirectory,
-  onRemoveDirectory,
-  onCreateTargetProfile,
-  onDeleteTargetProfile,
   onPickDirectory,
 }: LaunchTabProps) {
   const launchTemplate = getTemplateMeta(globalConfig.LAUNCH_DEFAULT_TEMPLATE_ID ?? "general_downloads");
@@ -132,10 +88,10 @@ export function LaunchTab({
     <SettingsSection
       icon={SettingsIcon}
       title="新任务默认值"
-      description="配置新任务的整理方式、默认模板、放置规则和归档目录。"
+      description="配置新任务的整理方式、默认模板与放置规则。分类规则请在侧栏「分类规则」中管理。"
     >
       <div className="rounded-[12px] border border-on-surface/8 bg-surface px-4 py-4">
-        <div className="grid gap-2 md:grid-cols-3">
+        <div className="grid gap-2 md:grid-cols-2">
           {LAUNCH_SECTIONS.map((section) => {
             const active = activeSection === section.id;
             return (
@@ -184,11 +140,34 @@ export function LaunchTab({
               <StrategyOptionButton
                 active={launchDefaultOrganizeMethod === "assign_into_existing_categories"}
                 label="归入已有目录"
-                description="默认把内容归入已保存的目标目录配置；拿不准的项目进入待确认区（不会自动归入目标目录）。"
+                description="默认把内容归入已保存的分类规则；拿不准的项目进入待确认区。"
                 onClick={() => onUpdateGlobal("LAUNCH_DEFAULT_ORGANIZE_METHOD", "assign_into_existing_categories")}
               />
             </div>
           </FieldGroup>
+
+          {launchDefaultOrganizeMethod === "assign_into_existing_categories" ? (
+            <div className="rounded-[12px] border border-primary/15 bg-primary/[0.04] px-4 py-3.5">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <h3 className="flex items-center gap-1.5 text-[13px] font-semibold text-on-surface">
+                    <BookOpenCheck className="h-4 w-4 text-primary" aria-hidden />
+                    分类规则
+                  </h3>
+                  <p className="mt-1 text-[12px] leading-5 text-on-surface-variant/70">
+                    目标目录、规则文案与默认配置请在「分类规则」页管理。默认配置会影响一键整理与直启。
+                  </p>
+                </div>
+                <Link
+                  href="/rules"
+                  className="shrink-0 rounded-[8px] border border-primary/30 bg-surface px-3 py-1.5 text-[12px] font-bold text-primary transition-colors hover:bg-primary/5"
+                >
+                  打开分类规则
+                </Link>
+              </div>
+            </div>
+          ) : null}
+
           <FieldGroup label="默认模板">
             <div className="grid gap-2 xl:grid-cols-2">
               {STRATEGY_TEMPLATES.map((template) => (
@@ -341,38 +320,14 @@ export function LaunchTab({
                 <h3 className="text-[13px] font-semibold text-on-surface">直接使用默认值启动</h3>
                 <p className="mt-1 text-[12px] leading-5 text-on-surface-variant/65">开启后，首页点击开始时直接进入任务。</p>
               </div>
-              <ToggleSwitch checked={Boolean(globalConfig.LAUNCH_SKIP_STRATEGY_PROMPT)} onClick={() => onUpdateGlobal("LAUNCH_SKIP_STRATEGY_PROMPT", !globalConfig.LAUNCH_SKIP_STRATEGY_PROMPT)} ariaLabel="直接使用默认值启动" />
+              <ToggleSwitch
+                checked={Boolean(globalConfig.LAUNCH_SKIP_STRATEGY_PROMPT)}
+                onClick={() => onUpdateGlobal("LAUNCH_SKIP_STRATEGY_PROMPT", !globalConfig.LAUNCH_SKIP_STRATEGY_PROMPT)}
+                ariaLabel="直接使用默认值启动"
+              />
             </div>
           </div>
         </div>
-      )}
-
-      {activeSection === "targets" && (
-        <TargetProfilesSection
-          launchDefaultTargetProfileId={launchDefaultTargetProfileId}
-          onUpdateGlobal={onUpdateGlobal}
-          targetProfiles={targetProfiles}
-          targetProfilesLoading={targetProfilesLoading}
-          targetProfileDrafts={targetProfileDrafts}
-          selectedTargetProfileId={selectedTargetProfileId}
-          onSelectTargetProfile={onSelectTargetProfile}
-          creatingTargetProfile={creatingTargetProfile}
-          onSetCreatingTargetProfile={onSetCreatingTargetProfile}
-          newTargetProfileName={newTargetProfileName}
-          onChangeNewTargetProfileName={onChangeNewTargetProfileName}
-          expandedDirectoryEditors={expandedDirectoryEditors}
-          onToggleDirectoryEditor={onToggleDirectoryEditor}
-          dragTargetProfileId={dragTargetProfileId}
-          setDragTargetProfileId={setDragTargetProfileId}
-          registerDropZone={registerDropZone}
-          onUpdateTargetProfileDraft={onUpdateTargetProfileDraft}
-          onAddDirectories={onAddDirectories}
-          onAddDirectory={onAddDirectory}
-          onRemoveDirectory={onRemoveDirectory}
-          onCreateTargetProfile={onCreateTargetProfile}
-          onDeleteTargetProfile={onDeleteTargetProfile}
-          onPickDirectory={onPickDirectory}
-        />
       )}
     </SettingsSection>
   );
