@@ -1911,7 +1911,8 @@ class OrganizerSessionService:
     ) -> dict:
         """为 profile 目录生成规则描述初稿（只返回，不落库；采纳由用户校订决定）。
 
-        paths 非空时只分析指定目录（单目录 AI）；否则整套生成。
+        paths 非空时只分析指定目录（单目录 AI），并将同一 profile 中其他已有规则的
+        目录作为上下文注入，帮助模型识别边界与潜在冲突。
         """
         from file_pilot.organize import rule_advisor
 
@@ -1919,16 +1920,34 @@ class OrganizerSessionService:
         if profile is None:
             raise FileNotFoundError(profile_id)
 
-        directories = list(profile.directories)
+        all_directories = list(profile.directories)
+
         if paths:
             wanted = {os.path.normcase(str(Path(item))) for item in paths if str(item or "").strip()}
             directories = [
                 directory
-                for directory in directories
+                for directory in all_directories
                 if os.path.normcase(str(Path(directory.path))) in wanted
             ]
             if not directories:
                 raise ValueError("RULE_DRAFTS_PATHS_NOT_IN_PROFILE")
+
+            # 其他目录中已有确认规则的，作为上下文注入
+            target_paths = {os.path.normcase(str(Path(d.path))) for d in directories}
+            context_entries = [
+                rule_advisor.ContextEntry(
+                    path=directory.path,
+                    label=directory.label or "",
+                    description=str(directory.description or "").strip(),
+                )
+                for directory in all_directories
+                if os.path.normcase(str(Path(directory.path))) not in target_paths
+                and str(directory.description or "").strip()
+            ]
+        else:
+            directories = all_directories
+            # 全量分析时不注入上下文（批次内模型已能看到所有目录）
+            context_entries = []
 
         content_profiles = [
             rule_advisor.collect_directory_content_profile(
@@ -1938,7 +1957,12 @@ class OrganizerSessionService:
             )
             for directory in directories
         ]
-        drafts = rule_advisor.generate_rule_drafts(content_profiles, client=client, model=model)
+        drafts = rule_advisor.generate_rule_drafts(
+            content_profiles,
+            client=client,
+            model=model,
+            context_entries=context_entries if context_entries else None,
+        )
         drafts_by_path = {draft.path: draft for draft in drafts}
         return {
             "profile_id": profile.profile_id,
@@ -1954,6 +1978,16 @@ class OrganizerSessionService:
                     ),
                     "basis": (
                         drafts_by_path[content_profile.path].basis if content_profile.path in drafts_by_path else None
+                    ),
+                    "overlap_paths": (
+                        drafts_by_path[content_profile.path].overlap_paths
+                        if content_profile.path in drafts_by_path
+                        else []
+                    ),
+                    "overlap_note": (
+                        drafts_by_path[content_profile.path].overlap_note
+                        if content_profile.path in drafts_by_path
+                        else ""
                     ),
                     "total_entries": content_profile.total_entries,
                     "readable": content_profile.readable,

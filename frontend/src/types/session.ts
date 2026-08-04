@@ -55,6 +55,10 @@ export interface RuleDraftItem {
   current_description?: string;
   draft_description: string | null;
   basis: string | null;
+  /** 与已有规则高度重叠的目录路径列表（单目录分析时有效） */
+  overlap_paths?: string[];
+  /** 重叠原因说明 */
+  overlap_note?: string;
   total_entries: number;
   readable: boolean;
 }

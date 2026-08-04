@@ -346,31 +346,17 @@ export function SessionLauncherShell() {
       <div className="mt-6 rounded-xl border border-on-surface/5 bg-on-surface/[0.01] p-4 space-y-3.5 animate-in fade-in duration-300">
         <div className="text-[12px] font-bold text-on-surface flex items-center gap-1.5 border-b border-on-surface/[0.04] pb-2">
           <span className="h-1.5 w-1.5 rounded-full bg-primary" />
-          <span>所选方式整理逻辑</span>
+          <span>整理逻辑</span>
         </div>
         {isAssign ? (
           <div className="space-y-2.5 text-[12px] text-ui-muted leading-relaxed">
-            <p>
-              <strong>工作机制：</strong>扫描来源文件，与您指定的已有目标文件夹（如工作资料库、各项目目录）进行名称和内容的比对分配。
-            </p>
-            <p>
-              <strong>未匹配规则：</strong>如果文件无法明确归入任何目标目录，会被统一放入“待确认区（Review）”，不会强制乱放或自动创建未知文件夹。
-            </p>
-            <p className="text-[11px] font-medium opacity-60">
-              适用场景：已有建立好、边界清晰的分类目录，只需将零乱新文件精准归档入库。
-            </p>
+            <p>按名称和内容比对，把来源文件归入你指定的已有目录；拿不准的进入「待确认区（Review）」，不会乱放或新建未知目录。</p>
+            <p className="text-[11px] font-medium opacity-60">适合已有清晰分类目录的场景。</p>
           </div>
         ) : (
           <div className="space-y-2.5 text-[12px] text-ui-muted leading-relaxed">
-            <p>
-              <strong>工作机制：</strong>AI 全自动分析所有文件的主题、类型和关联度，在指定的根目录下为您自动构建多级全新的分类子文件夹。
-            </p>
-            <p>
-              <strong>待确认规则：</strong>无法合理归纳的文件会被归入“待确认区（Review）”目录，不会遗失，方便您后续手动调整。
-            </p>
-            <p className="text-[11px] font-medium opacity-60">
-              适用场景：面临杂乱无章、没有预设分类的大量文件，希望能一键自动生成一套逻辑清晰的新目录结构。
-            </p>
+            <p>AI 分析文件主题与类型，在指定根目录下自动构建多级新目录；无法归纳的进入「待确认区（Review）」，可后续手动调整。</p>
+            <p className="text-[11px] font-medium opacity-60">适合杂乱无章、没有预设分类的文件。</p>
           </div>
         )}
       </div>
@@ -464,16 +450,19 @@ export function SessionLauncherShell() {
   );
   const isCompletedResume = Boolean(resumeStageView?.isCompleted);
   const skipStrategyPrompt = shouldSkipLaunchStrategyPrompt(launchConfig);
+  const hasProfiles = targetProfiles.length > 0;
   const stepItems = skipStrategyPrompt
     ? [{ id: 1 as const, title: "选择整理来源" }]
     : [
-      { id: 1 as const, title: "选择整理来源" },
-      { id: 2 as const, title: "决定整理方式" },
+      { id: 1 as const, title: "选择整理方式" },
+      { id: 2 as const, title: "选择整理来源" },
       { id: 3 as const, title: "填写必要信息" },
     ];
   const primaryLaunchLabel = isAssignExisting ? "读取目录并开始规划" : "读取目录并生成建议";
   const fastStartLabel = "按默认配置开始整理";
   const displayPath = isFullCategorize ? effectiveOutputDir || firstSourcePath(sources) : firstSourcePath(sources);
+  // Step 1 归入现有目录但无 Profile 时阻断
+  const step1BlockedByNoProfile = isAssignExisting && !hasProfiles && !targetProfilesLoading;
 
   useEffect(() => {
     if (skipStrategyPrompt && step !== 1) {
@@ -1276,6 +1265,15 @@ export function SessionLauncherShell() {
     return true;
   }
 
+  // Step 1（选方式）-> Step 2（选来源）的前置校验
+  function validateStepMethod(): boolean {
+    if (step1BlockedByNoProfile) {
+      setError("请先在「分类规则」页面创建一套分类规则，才能使用「归入现有目录」模式。");
+      return false;
+    }
+    return true;
+  }
+
   function buildLaunchRequest(resumeIfExists: boolean): LaunchRequestState {
     const normalizedStrategy: SessionStrategySelection = {
       ...strategy,
@@ -1474,12 +1472,14 @@ export function SessionLauncherShell() {
     setIsTargetDropActive(false);
   }
 
+  // Step 1（选方式）-> Step 2（选来源）
   function goToStepTwo() {
-    if (!validateStepOne()) return;
+    if (!validateStepMethod()) return;
     setError(null);
     setStep(2);
   }
 
+  // Step 2（选来源）-> Step 3（填信息）
   function goToStepThree() {
     if (!validateStepOne()) return;
     setError(null);
@@ -1496,7 +1496,10 @@ export function SessionLauncherShell() {
       return;
     }
 
-    if (!validateStepOne()) return;
+    // 从 Step 1 前进：校验整理方式（有无 Profile）
+    if (step === 1 && !validateStepMethod()) return;
+    // 从 Step 2 前进：校验来源不为空
+    if (step === 2 && !validateStepOne()) return;
 
     setError(null);
     setStep(targetId);
@@ -1572,7 +1575,7 @@ export function SessionLauncherShell() {
               </span>
               <div>
                 <p className="text-[13px] font-black text-on-surface/80">当前没有挂起的会话</p>
-                <p className="mt-0.5 text-[12px] font-medium text-ui-muted/50">主工作台处于闲置状态，添加整理来源即可唤起新任务。</p>
+                <p className="mt-0.5 text-[12px] font-medium text-ui-muted/50">添加整理来源即可开始新任务。</p>
               </div>
             </div>
           )}
@@ -1591,7 +1594,7 @@ export function SessionLauncherShell() {
                 <Plus className="h-4.5 w-4.5" />
               </div>
               <p className="mt-3 text-[13px] font-black text-on-surface tracking-tight">新建整理</p>
-              <p className="mt-1 text-[12px] font-medium leading-relaxed text-ui-muted/60">拖入或混选本地文件与文件夹，由 AI 自动推导分类目录结构。</p>
+              <p className="mt-1 text-[12px] font-medium leading-relaxed text-ui-muted/60">拖入文件或文件夹，AI 自动推导分类结构。</p>
             </button>
             <button
               type="button"
@@ -1602,7 +1605,7 @@ export function SessionLauncherShell() {
                 <History className="h-4.5 w-4.5" />
               </div>
               <p className="mt-3 text-[13px] font-black text-on-surface tracking-tight">整理历史</p>
-              <p className="mt-1 text-[12px] font-medium leading-relaxed text-ui-muted/60">检索以往的历史整理方案与操作归档，并可在此一键安全回退。</p>
+              <p className="mt-1 text-[12px] font-medium leading-relaxed text-ui-muted/60">查看历史整理记录，可一键安全回退。</p>
             </button>
             <button
               type="button"
@@ -1613,7 +1616,7 @@ export function SessionLauncherShell() {
                 <Sparkles className="h-4.5 w-4.5" />
               </div>
               <p className="mt-3 text-[13px] font-black text-on-surface tracking-tight">图标工坊</p>
-              <p className="mt-1 text-[12px] font-medium leading-relaxed text-ui-muted/60">为新建的文件夹匹配并应用图标，提升视觉辨识度。</p>
+              <p className="mt-1 text-[12px] font-medium leading-relaxed text-ui-muted/60">为文件夹匹配并应用图标，提升辨识度。</p>
             </button>
           </div>
         </div>
@@ -1787,39 +1790,6 @@ export function SessionLauncherShell() {
                 <div className="flex-1 space-y-4">
                   <div className="space-y-4">
                     {step === 1 ? (
-                      <SourceStep
-                        sourceDropZoneRef={sourceDropZoneRef}
-                        loading={loading}
-                        isDropActive={isDropActive}
-                        isDraggingGlobal={isDraggingGlobal}
-                        isDesktopEnvironment={isDesktopEnvironment}
-                        isSourceDropdownOpen={isSourceDropdownOpen}
-                        onSetSourceDropdownOpen={setIsSourceDropdownOpen}
-                        showManualInput={showManualInput}
-                        onSetShowManualInput={setShowManualInput}
-                        commonDirs={commonDirs}
-                        sourceDraftType={sourceDraftType}
-                        onSetSourceDraftType={setSourceDraftType}
-                        sourceDraftPath={sourceDraftPath}
-                        onSetSourceDraftPath={setSourceDraftPath}
-                        onAddManualSource={addManualSource}
-                        onImportDirectoryEntries={() => void handleImportDirectoryEntries()}
-                        onChooseDirectories={() => void handleChooseDirectories()}
-                        onChooseFiles={() => void handleChooseFiles()}
-                        onImportCommonDir={(path) => void importDirectoryEntries(path)}
-                        listItems={sourceListItems}
-                        sourceStats={sourceStats}
-                        showClearConfirm={showClearConfirm}
-                        onClearSources={handleClearSourcesWithConfirm}
-                        onRemoveSource={removeSource}
-                        onImportInternal={handleImportInternal}
-                        onSetAtomicMode={setSourceAtomicMode}
-                        onToggleGroupExpanded={toggleImportGroupExpanded}
-                        onRemoveGroup={removeImportGroup}
-                      />
-                    ) : null}
-
-                    {step === 2 ? (
                       <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
                         <div className="flex items-center gap-2">
                           <div className="flex h-6 w-6 items-center justify-center rounded-[4px] bg-primary/10 text-primary">
@@ -1832,12 +1802,12 @@ export function SessionLauncherShell() {
                             {
                               method: "assign_into_existing_categories" as const,
                               title: "归入现有目录",
-                              description: "根据文件名和内容，分配到您指定的文件夹中。",
+                              description: "按文件名和内容，归入你指定的文件夹。",
                             },
                             {
                               method: "categorize_into_new_structure" as const,
                               title: "生成新分类结构",
-                              description: "让 AI 根据文件自动生成新的多级文件夹并分类存放。",
+                              description: "AI 自动生成新的多级目录并分类存放。",
                             },
                           ].map((option) => {
                             const active = organizeMethod === option.method;
@@ -1885,7 +1855,61 @@ export function SessionLauncherShell() {
                           })}
                         </div>
                         {renderMethodExplanation()}
+
+                        {/* 归入现有目录但无 Profile 时的阻断提示 */}
+                        {step1BlockedByNoProfile ? (
+                          <div className="animate-in fade-in duration-200 rounded-xl border border-warning/30 bg-warning/[0.04] px-4 py-3.5">
+                            <div className="flex flex-wrap items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <p className="text-[13px] font-bold text-on-surface">还没有分类规则</p>
+                                <p className="mt-1 text-[12px] leading-5 text-on-surface-variant/70">
+                                  「归入现有目录」需要先配置一套分类规则。
+                                </p>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => router.push("/rules")}
+                                className="shrink-0 rounded-[8px] border border-primary/30 bg-surface px-3 py-1.5 text-[12px] font-bold text-primary transition-colors hover:bg-primary/5"
+                              >
+                                去创建分类规则
+                              </button>
+                            </div>
+                          </div>
+                        ) : null}
                       </div>
+                    ) : null}
+
+                    {step === 2 ? (
+                      <SourceStep
+                        sourceDropZoneRef={sourceDropZoneRef}
+                        loading={loading}
+                        isDropActive={isDropActive}
+                        isDraggingGlobal={isDraggingGlobal}
+                        isDesktopEnvironment={isDesktopEnvironment}
+                        isSourceDropdownOpen={isSourceDropdownOpen}
+                        onSetSourceDropdownOpen={setIsSourceDropdownOpen}
+                        showManualInput={showManualInput}
+                        onSetShowManualInput={setShowManualInput}
+                        commonDirs={commonDirs}
+                        sourceDraftType={sourceDraftType}
+                        onSetSourceDraftType={setSourceDraftType}
+                        sourceDraftPath={sourceDraftPath}
+                        onSetSourceDraftPath={setSourceDraftPath}
+                        onAddManualSource={addManualSource}
+                        onImportDirectoryEntries={() => void handleImportDirectoryEntries()}
+                        onChooseDirectories={() => void handleChooseDirectories()}
+                        onChooseFiles={() => void handleChooseFiles()}
+                        onImportCommonDir={(path) => void importDirectoryEntries(path)}
+                        listItems={sourceListItems}
+                        sourceStats={sourceStats}
+                        showClearConfirm={showClearConfirm}
+                        onClearSources={handleClearSourcesWithConfirm}
+                        onRemoveSource={removeSource}
+                        onImportInternal={handleImportInternal}
+                        onSetAtomicMode={setSourceAtomicMode}
+                        onToggleGroupExpanded={toggleImportGroupExpanded}
+                        onRemoveGroup={removeImportGroup}
+                      />
                     ) : null}
 
                     {step === 3 ? (
@@ -1922,8 +1946,8 @@ export function SessionLauncherShell() {
                               </div>
                               <p className="mt-2 text-[11px] font-medium leading-relaxed text-ui-muted opacity-80">
                                 {isAssignExisting
-                                  ? "用于存放未匹配的条目。留空时使用系统默认放置规则。"
-                                  : "留空时使用系统默认放置规则（任务启动根目录）。"}
+                                  ? "存放未匹配的条目，留空则用默认值。"
+                                  : "留空则用默认值（任务启动根目录）。"}
                               </p>
                             </div>
 
@@ -1970,7 +1994,7 @@ export function SessionLauncherShell() {
                                 </button>
                               </div>
                               <p className="mt-2 text-[11px] font-medium leading-relaxed text-ui-muted opacity-80">
-                                默认跟随新目录根路径生成 Review 子目录，不再创建更深层级的目录结构。
+                                默认在新目录根路径下生成 Review 子目录。
                               </p>
                             </div>
                           </div>
@@ -2015,7 +2039,7 @@ export function SessionLauncherShell() {
                                 <Info className="h-4 w-4 shrink-0 text-primary mt-0.5" />
                                 <div>
                                   <span className="font-bold text-on-surface">需要目标目录：</span>
-                                  当前选择的整理方式需要至少一个目标目录。请选择一个已有目录配置，或在下方添加/拖入目标文件夹。
+                                  当前整理方式需要至少一个目标目录，请选择已有配置或添加/拖入文件夹。
                                 </div>
                               </div>
                             )}
@@ -2114,7 +2138,7 @@ export function SessionLauncherShell() {
                                               value={item.description || ""}
                                               onChange={(event) => updateTargetDirectoryDraft(item.path, { description: event.target.value })}
                                               disabled={loading}
-                                              placeholder="目录说明（可选，用来提示这个目录适合收什么）"
+                                              placeholder="目录说明（可选，提示该目录收什么）"
                                               className="h-9 rounded-[8px] border border-on-surface/8 bg-surface px-3 text-[12px] text-on-surface outline-none focus:border-primary/40"
                                             />
                                           </div>
@@ -2144,7 +2168,7 @@ export function SessionLauncherShell() {
                               >
                                 <div className="flex items-center gap-2 text-[13px] font-bold text-on-surface/60 mb-3 sm:mb-0">
                                   <Plus className="hidden h-4 w-4 text-on-surface/20 sm:block" />
-                                  拖拽文件夹作为目标候选，或者
+                                  拖入文件夹作为目标，或
                                   <button type="button" onClick={() => void handleAddTargetDirectories()} className="mx-1 font-black text-primary hover:underline underline-offset-4 decoration-2">点击选择</button>
                                 </div>
                                 <button
@@ -2192,7 +2216,7 @@ export function SessionLauncherShell() {
                               <div>
                                 <h2 className="text-[14px] font-bold text-on-surface">把这次目录组合保存为常用配置</h2>
                                 <p className="mt-1 text-[11px] font-medium leading-relaxed text-ui-muted">
-                                  若该组目录是常用候选库，保存配置可避免下次繁琐拖拽。
+                                  保存后下次可直接选用，无需重新拖入。
                                 </p>
                               </div>
                             </div>
@@ -2248,16 +2272,16 @@ export function SessionLauncherShell() {
                         <Button
                           variant="primary"
                           onClick={skipStrategyPrompt ? () => void launchCurrentRequest(true, { directStart: true }) : goToStepTwo}
-                          disabled={loading || sources.length === 0}
+                          disabled={loading || step1BlockedByNoProfile || targetProfilesLoading}
                           className="pointer-events-auto h-10 px-8 font-bold border border-primary/20 bg-primary"
                         >
-                          {loading ? "正在启动..." : skipStrategyPrompt ? fastStartLabel : "下一步：选择整理方式"}
+                          {loading ? "正在启动..." : skipStrategyPrompt ? fastStartLabel : "下一步：选择整理来源"}
                         </Button>
                       ) : step === 2 ? (
                         <Button
                           variant="primary"
                           onClick={goToStepThree}
-                          disabled={loading}
+                          disabled={loading || sources.length === 0}
                           className="pointer-events-auto h-10 px-8 font-bold border border-primary/20 bg-primary"
                         >
                           下一步：填写必要信息

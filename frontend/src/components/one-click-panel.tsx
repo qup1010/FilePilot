@@ -143,7 +143,7 @@ export function OneClickPanel() {
             {profiles.length === 0 ? "先建立你的目录规则，就能一键整理" : "补全目录规则后即可一键整理"}
           </p>
           <p className="text-[12px] text-on-surface-variant/60">
-            为每个目标目录写一句「什么文件放这里」，AI 按规则直接分好类，拿不准的留在原地。
+            为每个目录写一句「什么文件放这里」，AI 按规则分类，拿不准的留在原地。
           </p>
           <Link
             href="/rules"
@@ -162,7 +162,7 @@ export function OneClickPanel() {
         <Zap className="h-4 w-4 text-primary" aria-hidden />
         <h2 className="text-[13px] font-black text-on-surface">一键整理</h2>
         <span className="text-[11px] font-semibold text-on-surface-variant/55">
-          按已写好的规则直接分类，拿不准的留在原地，完成后给出总结
+          按规则分类，拿不准的留在原地，完成后给出总结
         </span>
       </div>
       {error ? (

@@ -89,7 +89,7 @@ export function SourceStep({
             <div className="min-w-0 flex-1">
               <div className="text-[12px] font-black tracking-tight text-on-surface">整理前安全建议</div>
               <p className="mt-1 text-[12px] font-medium leading-5 text-ui-muted">
-                推荐从下载、桌面、照片、个人文档等明确资料夹开始。避免直接选择磁盘根目录、系统目录、软件安装目录或正在开发的代码工程。
+                建议从下载、桌面、文档等文件夹开始；避免磁盘根目录、系统目录、软件安装目录和开发中的工程。
               </p>
             </div>
           </div>
@@ -217,12 +217,12 @@ export function SourceStep({
             )}
             <p className="max-w-lg text-[11px] font-medium leading-relaxed text-ui-muted/55 text-center px-4">
               {isDesktopEnvironment
-                ? "“整理文件夹内容”会分析并提取其中的文件；您也可以点击右侧下拉菜单，选择移动整个文件夹或添加单个文件。"
-                : "“移动整个文件夹”会保留文件夹结构本身，“添加单个文件”仅整理选中的文件。"}
+                ? "「整理文件夹内容」会分析并提取其中文件，也可移动整个文件夹或添加单个文件。"
+                : "「移动整个文件夹」保留文件夹结构，「添加单个文件」只整理所选文件。"}
             </p>
             {isDesktopEnvironment && (
               <div className="rounded-[6px] border border-on-surface/6 bg-on-surface/[0.015] px-4 py-2 text-[11px] font-mono leading-relaxed text-ui-muted/50 max-w-md text-center mt-1">
-                * Windows 原生限制：如需单次混选文件与文件夹，请直接拖拽至上方区域 *
+                * Windows 原生限制：混选文件与文件夹请直接拖入上方区域 *
               </div>
             )}
           </div>

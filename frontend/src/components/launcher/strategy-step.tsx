@@ -118,7 +118,7 @@ export function StrategyStep({
             </div>
 
             <div className="mt-3.5 flex justify-between items-center border-t border-on-surface/5 pt-2">
-              <span className="text-[11px] text-on-surface/40 font-medium">微调更多细节？</span>
+              <span className="text-[11px] text-on-surface/40 font-medium">需要更多细节？</span>
               <button
                 type="button"
                 onClick={onOpenAdvancedSettings}
@@ -196,7 +196,7 @@ export function StrategyStep({
             <div className="space-y-3.5">
               <h2 className="text-[13px] font-black text-on-surface flex items-center gap-1.5">
                 <Activity className="h-3.5 w-3.5 text-primary" />
-                归档倾向配置
+                归档策略
               </h2>
 
               <div className="space-y-1.5">
