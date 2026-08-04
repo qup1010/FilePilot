@@ -1932,18 +1932,34 @@ class OrganizerSessionService:
             if not directories:
                 raise ValueError("RULE_DRAFTS_PATHS_NOT_IN_PROFILE")
 
-            # 其他目录中已有确认规则的，作为上下文注入
+            # 所有非目标目录全部加入 context（无论 description 是否为空），
+            # 同时标注与目标目录的父子包含关系，帮助模型区分边界。
             target_paths = {os.path.normcase(str(Path(d.path))) for d in directories}
-            context_entries = [
-                rule_advisor.ContextEntry(
-                    path=directory.path,
-                    label=directory.label or "",
-                    description=str(directory.description or "").strip(),
+            target_resolved = [Path(d.path).resolve() for d in directories]
+            context_entries = []
+            for directory in all_directories:
+                if os.path.normcase(str(Path(directory.path))) in target_paths:
+                    continue
+                dir_resolved = Path(directory.path).resolve()
+                relation = ""
+                for tr in target_resolved:
+                    try:
+                        if tr.is_relative_to(dir_resolved):
+                            relation = "[父目录]"
+                            break
+                        if dir_resolved.is_relative_to(tr):
+                            relation = "[子目录]"
+                            break
+                    except (ValueError, AttributeError):
+                        pass
+                context_entries.append(
+                    rule_advisor.ContextEntry(
+                        path=directory.path,
+                        label=directory.label or "",
+                        description=str(directory.description or "").strip(),
+                        relation=relation,
+                    )
                 )
-                for directory in all_directories
-                if os.path.normcase(str(Path(directory.path))) not in target_paths
-                and str(directory.description or "").strip()
-            ]
         else:
             directories = all_directories
             # 全量分析时不注入上下文（批次内模型已能看到所有目录）

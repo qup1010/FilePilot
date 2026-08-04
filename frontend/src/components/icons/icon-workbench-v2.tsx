@@ -255,7 +255,7 @@ export default function IconWorkbenchV2() {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const detail = hasTargets ? `工作区 · ${targetCount} 个目标` : "准备就绪";
+    const detail = hasTargets ? `${targetCount} 个目标` : "图标生成";
     window.localStorage.setItem(ICONS_CONTEXT_KEY, JSON.stringify({ detail }));
     notifyAppContextChange();
   }, [hasTargets, targetCount]);

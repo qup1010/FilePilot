@@ -29,6 +29,7 @@ import { getPathBasename } from "@/lib/path-normalization";
 import { localizeUserFacingError } from "@/lib/user-facing-copy";
 import { cn } from "@/lib/utils";
 import type { RuleDraftItem, TargetProfile, TargetProfileDirectory } from "@/types/session";
+import { RULES_CONTEXT_KEY, notifyAppContextChange } from "@/lib/app-context-store";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 interface DraftState {
@@ -139,6 +140,22 @@ export default function RulesPage() {
     if (!selectedProfileId || typeof window === "undefined") return;
     window.localStorage.setItem(SELECTED_PROFILE_STORAGE_KEY, selectedProfileId);
   }, [selectedProfileId]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (selectedProfile?.name) {
+      window.localStorage.setItem(
+        RULES_CONTEXT_KEY,
+        JSON.stringify({ detail: selectedProfile.name }),
+      );
+    } else {
+      window.localStorage.setItem(
+        RULES_CONTEXT_KEY,
+        JSON.stringify({ detail: "规则配置" }),
+      );
+    }
+    notifyAppContextChange();
+  }, [selectedProfile]);
 
   useEffect(() => {
     setEditedName(null);

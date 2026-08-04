@@ -323,3 +323,213 @@ class GenerateRulesFromCompletedSessionTests(unittest.TestCase):
         assert session is not None
         with self.assertRaises(RuntimeError):
             self.service.generate_rules_from_completed_session(session.session_id, client=_fake_client("{}"))
+
+
+class DetectNestedPairsTests(unittest.TestCase):
+    """detect_nested_pairs 的边界测试。"""
+
+    def test_parallel_paths_no_pairs(self):
+        pairs = rule_advisor.detect_nested_pairs(["D:/A", "D:/B"])
+        self.assertEqual(pairs, [])
+
+    def test_direct_parent_child(self):
+        # 创建真实目录以让 resolve() 正常工作
+        import tempfile, os
+        with tempfile.TemporaryDirectory() as tmp:
+            parent = os.path.join(tmp, "parent")
+            child = os.path.join(tmp, "parent", "child")
+            os.makedirs(child)
+            pairs = rule_advisor.detect_nested_pairs([parent, child])
+            self.assertEqual(len(pairs), 1)
+            # 结果中 parent 在左，child 在右
+            self.assertIn((parent, child), pairs)
+
+    def test_name_prefix_not_confused_as_parent(self):
+        """D:/Pictures 不应该是 D:/Pictures2 的父目录。"""
+        import tempfile, os
+        with tempfile.TemporaryDirectory() as tmp:
+            p1 = os.path.join(tmp, "Pictures")
+            p2 = os.path.join(tmp, "Pictures2")
+            os.makedirs(p1)
+            os.makedirs(p2)
+            pairs = rule_advisor.detect_nested_pairs([p1, p2])
+            self.assertEqual(pairs, [])
+
+    def test_deep_nesting(self):
+        """三层嵌套：A ⊃ A/B ⊃ A/B/C，应返回 3 对。"""
+        import tempfile, os
+        with tempfile.TemporaryDirectory() as tmp:
+            a = os.path.join(tmp, "A")
+            b = os.path.join(tmp, "A", "B")
+            c = os.path.join(tmp, "A", "B", "C")
+            os.makedirs(c)
+            pairs = rule_advisor.detect_nested_pairs([a, b, c])
+            # 应包含 (a,b), (a,c), (b,c)
+            self.assertEqual(len(pairs), 3)
+            self.assertIn((a, b), pairs)
+            self.assertIn((a, c), pairs)
+            self.assertIn((b, c), pairs)
+
+    def test_empty_list(self):
+        self.assertEqual(rule_advisor.detect_nested_pairs([]), [])
+
+    def test_single_path(self):
+        self.assertEqual(rule_advisor.detect_nested_pairs(["D:/only"]), [])
+
+
+class ContextEntryRelationTests(unittest.TestCase):
+    """ContextEntry relation 字段与 to_context_line 渲染。"""
+
+    def test_relation_prefix_rendered(self):
+        entry = rule_advisor.ContextEntry(
+            path="D:/Pictures",
+            label="图库",
+            description="存放图片",
+            relation="[父目录]",
+        )
+        line = entry.to_context_line()
+        self.assertTrue(line.startswith("- [父目录]"))
+        self.assertIn("D:/Pictures", line)
+
+    def test_no_relation_no_extra_space(self):
+        entry = rule_advisor.ContextEntry(path="D:/Docs", description="文档")
+        line = entry.to_context_line()
+        self.assertTrue(line.startswith("- D:/Docs"))
+
+    def test_empty_description_renders_placeholder(self):
+        entry = rule_advisor.ContextEntry(path="D:/Empty", relation="[子目录]")
+        line = entry.to_context_line()
+        self.assertIn("暂无规则", line)
+        self.assertIn("[子目录]", line)
+
+
+class BuildRuleDraftPromptTopologyTests(unittest.TestCase):
+    """build_rule_draft_prompt 的拓扑注入行为。"""
+
+    def _make_profile(self, path: str) -> rule_advisor.DirectoryContentProfile:
+        return rule_advisor.DirectoryContentProfile(path=path, label="", total_entries=0)
+
+    def test_no_nesting_no_topology_section(self):
+        import tempfile, os
+        with tempfile.TemporaryDirectory() as tmp:
+            a = os.path.join(tmp, "A")
+            b = os.path.join(tmp, "B")
+            os.makedirs(a); os.makedirs(b)
+            profiles = [self._make_profile(a), self._make_profile(b)]
+            messages = rule_advisor.build_rule_draft_prompt(profiles)
+            content = messages[0]["content"]
+            self.assertNotIn("层级关系", content)
+            self.assertNotIn("最窄匹配", content)
+
+    def test_nested_profiles_inject_topology(self):
+        import tempfile, os
+        with tempfile.TemporaryDirectory() as tmp:
+            parent = os.path.join(tmp, "Parent")
+            child = os.path.join(tmp, "Parent", "Child")
+            os.makedirs(child)
+            profiles = [self._make_profile(parent), self._make_profile(child)]
+            messages = rule_advisor.build_rule_draft_prompt(profiles)
+            content = messages[0]["content"]
+            self.assertIn("层级关系", content)
+            self.assertIn("最窄匹配", content)
+            self.assertIn("⊃", content)
+
+    def test_nested_context_entry_inject_topology(self):
+        """profiles 里没嵌套，但 profile 与 context_entry 之间有嵌套关系时，也应注入拓扑。"""
+        import tempfile, os
+        with tempfile.TemporaryDirectory() as tmp:
+            parent = os.path.join(tmp, "Parent")
+            child = os.path.join(tmp, "Parent", "Child")
+            os.makedirs(child)
+            profiles = [self._make_profile(child)]
+            context_entries = [
+                rule_advisor.ContextEntry(path=parent, label="", description="通用文件", relation="[父目录]")
+            ]
+            messages = rule_advisor.build_rule_draft_prompt(profiles, context_entries=context_entries)
+            content = messages[0]["content"]
+            self.assertIn("层级关系", content)
+            self.assertIn("最窄匹配", content)
+
+
+class SinglePathContextCoverageTests(unittest.TestCase):
+    """单目录分析时 context_entries 应覆盖所有非目标目录，包括 description 为空的嵌套目录。"""
+
+    def setUp(self):
+        import tempfile
+        self._tmp = tempfile.mkdtemp()
+        self.root = Path(self._tmp)
+        self.store = SessionStore(self.root / "sessions")
+        self.service = OrganizerSessionService(self.store)
+
+    def tearDown(self):
+        import shutil
+        shutil.rmtree(self._tmp, ignore_errors=True)
+
+    def _capture_context_entries(self, profile_id: str, target_path: str):
+        """调用服务并捕获传入 generate_rule_drafts 的 context_entries。"""
+        captured = {}
+
+        def fake_generate(profiles, *, client=None, model=None, context_entries=None):
+            captured["context_entries"] = context_entries or []
+            path = profiles[0].path
+            return [rule_advisor.RuleDraft(path=path, draft_description="x", basis="y")]
+
+        with mock.patch.object(rule_advisor, "generate_rule_drafts", side_effect=fake_generate):
+            self.service.generate_target_profile_rule_drafts(
+                profile_id, paths=[target_path], client=mock.MagicMock(), model="m"
+            )
+        return captured["context_entries"]
+
+    def test_empty_description_sibling_included_in_context(self):
+        """description 为空的平行目录也应进入 context。"""
+        docs = self.root / "Docs"
+        images = self.root / "Images"
+        docs.mkdir(); images.mkdir()
+
+        profile = self.service.create_target_profile(
+            "测试",
+            [
+                {"path": str(docs), "label": "文档", "description": "PDF 手册"},
+                {"path": str(images), "label": "图片", "description": ""},  # description 为空
+            ],
+        )
+        entries = self._capture_context_entries(profile["profile_id"], str(docs))
+        paths_in_context = [e.path for e in entries]
+        self.assertIn(str(images), paths_in_context)
+
+    def test_empty_description_parent_marked_as_parent(self):
+        """父目录 description 为空，对子目录触发分析，父目录必须进入 context 且 relation=[父目录]。"""
+        parent = self.root / "Pictures"
+        child = self.root / "Pictures" / "Design"
+        child.mkdir(parents=True)
+
+        profile = self.service.create_target_profile(
+            "嵌套测试",
+            [
+                {"path": str(parent), "label": "图库", "description": ""},   # description 为空
+                {"path": str(child), "label": "设计稿", "description": ""},
+            ],
+        )
+        entries = self._capture_context_entries(profile["profile_id"], str(child))
+        parent_entries = [e for e in entries if e.path == str(parent)]
+        self.assertEqual(len(parent_entries), 1)
+        self.assertEqual(parent_entries[0].relation, "[父目录]")
+
+    def test_empty_description_child_marked_as_child(self):
+        """子目录 description 为空，对父目录触发分析，子目录必须进入 context 且 relation=[子目录]。"""
+        parent = self.root / "Pictures"
+        child = self.root / "Pictures" / "Design"
+        child.mkdir(parents=True)
+
+        profile = self.service.create_target_profile(
+            "嵌套测试2",
+            [
+                {"path": str(parent), "label": "图库", "description": ""},
+                {"path": str(child), "label": "设计稿", "description": ""},
+            ],
+        )
+        entries = self._capture_context_entries(profile["profile_id"], str(parent))
+        child_entries = [e for e in entries if e.path == str(child)]
+        self.assertEqual(len(child_entries), 1)
+        self.assertEqual(child_entries[0].relation, "[子目录]")
+

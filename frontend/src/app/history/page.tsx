@@ -266,17 +266,17 @@ export default function HistoryPage() {
     if (!selectedEntry) {
       window.localStorage.setItem(
         HISTORY_CONTEXT_KEY,
-        JSON.stringify({ detail: "会话与执行档案" }),
+        JSON.stringify({ detail: "历史记录" }),
       );
       notifyAppContextChange();
       return;
     }
     window.localStorage.setItem(
-        HISTORY_CONTEXT_KEY,
-        JSON.stringify({
-          detail: `${getHistoryEntryName(selectedEntry)} · ${getHistoryEntrySummary(selectedEntry)}`,
-        }),
-      );
+      HISTORY_CONTEXT_KEY,
+      JSON.stringify({
+        detail: getHistoryEntrySummary(selectedEntry),
+      }),
+    );
     notifyAppContextChange();
   }, [HISTORY_CONTEXT_KEY, selectedEntry]);
 

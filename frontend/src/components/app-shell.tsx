@@ -14,10 +14,9 @@ import { useTheme } from "@/lib/theme";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 import { getPathBasename } from "@/lib/path-normalization";
-import { APP_CONTEXT_EVENT, WORKSPACE_CONTEXT_KEY, readActiveWorkspaceRoute } from "@/lib/app-context-store";
+import { APP_CONTEXT_EVENT, WORKSPACE_CONTEXT_KEY, RULES_CONTEXT_KEY, HISTORY_CONTEXT_KEY, readActiveWorkspaceRoute } from "@/lib/app-context-store";
 
 const SETTINGS_CONTEXT_KEY = "settings_header_context";
-const HISTORY_CONTEXT_KEY = "history_header_context";
 const ICONS_CONTEXT_KEY = "icons_header_context";
 
 function cn(...inputs: ClassValue[]) {
@@ -54,10 +53,16 @@ function getWorkspaceLoadingLabel() {
 }
 
 function getBaseModuleLabel(pathname: string, searchParams: URLSearchParams) {
+  if (pathname === "/rules") {
+    return {
+      title: "分类规则",
+      detail: "规则配置",
+    };
+  }
   if (pathname === "/history") {
     return {
       title: "整理历史",
-      detail: "会话与执行档案",
+      detail: "历史记录",
     };
   }
   if (pathname === "/settings") {
@@ -69,7 +74,7 @@ function getBaseModuleLabel(pathname: string, searchParams: URLSearchParams) {
   if (pathname === "/icons") {
     return {
       title: "图标工坊",
-      detail: "选择目标文件夹并生成图标",
+      detail: "图标生成",
     };
   }
   if (pathname.startsWith("/workspace")) {
@@ -84,15 +89,22 @@ function getBaseModuleLabel(pathname: string, searchParams: URLSearchParams) {
       detail: "当前整理任务",
     };
   }
-  return { title: "开始整理", detail: "选择目录并开始新的整理任务" };
+  return { title: "开始整理", detail: "新建整理任务" };
 }
 
 function getStoredModuleLabel(pathname: string, searchParams: URLSearchParams) {
+  if (pathname === "/rules") {
+    const stored = readStoredContext(RULES_CONTEXT_KEY);
+    return {
+      title: "分类规则",
+      detail: stored?.detail || "规则配置",
+    };
+  }
   if (pathname === "/history") {
     const stored = readStoredContext(HISTORY_CONTEXT_KEY);
     return {
       title: "整理历史",
-      detail: stored?.detail || "会话与执行档案",
+      detail: stored?.detail || "历史记录",
     };
   }
   if (pathname === "/settings") {
@@ -106,7 +118,7 @@ function getStoredModuleLabel(pathname: string, searchParams: URLSearchParams) {
     const stored = readStoredContext(ICONS_CONTEXT_KEY);
     return {
       title: "图标工坊",
-      detail: stored?.detail || "选择目标文件夹并生成图标",
+      detail: stored?.detail || "图标生成",
     };
   }
   if (pathname.startsWith("/workspace")) {
@@ -134,7 +146,7 @@ function getStoredModuleLabel(pathname: string, searchParams: URLSearchParams) {
       detail: stored?.stage || "当前整理任务",
     };
   }
-  return { title: "开始整理", detail: "选择目录并开始新的整理任务" };
+  return { title: "开始整理", detail: "新建整理任务" };
 }
 
 function getWorkspaceRoute(pathname: string, searchParams: URLSearchParams) {
@@ -186,7 +198,7 @@ function ModuleStatusBadge({ detail }: { detail: string }) {
   return (
     <span
       className={cn(
-        "inline-flex h-5 max-w-[160px] shrink-0 items-center gap-1.5 rounded-[6px] px-2 text-[11px] font-black leading-none",
+        "hidden md:inline-flex h-5 max-w-[160px] shrink-0 items-center gap-1.5 rounded-[6px] px-2 text-[11px] font-black leading-none",
         isSuccess
           ? "bg-emerald-500/8 text-emerald-700 ring-1 ring-emerald-500/15 dark:text-emerald-300"
           : "bg-on-surface/[0.04] text-on-surface/45 ring-1 ring-on-surface/[0.05]",
@@ -279,7 +291,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
 
           <div className="flex min-w-0 items-center gap-2 overflow-hidden pointer-events-none">
-            <p className="max-w-[180px] truncate text-[14px] font-black tracking-[-0.025em] text-on-surface/88 sm:max-w-[260px] xl:max-w-[360px]">
+            <p className="min-w-0 truncate text-[14px] font-black tracking-[-0.025em] text-on-surface/88">
               {moduleCopy.title}
             </p>
             <ModuleStatusBadge detail={moduleCopy.detail} />

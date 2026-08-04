@@ -8,6 +8,8 @@
 export const APP_CONTEXT_EVENT = "file-pilot-context-change";
 export const ACTIVE_WORKSPACE_ROUTE_KEY = "workspace_active_route";
 export const WORKSPACE_CONTEXT_KEY = "workspace_header_context";
+export const RULES_CONTEXT_KEY = "rules_header_context";
+export const HISTORY_CONTEXT_KEY = "history_header_context";
 
 export function notifyAppContextChange(): void {
   if (typeof window === "undefined") {

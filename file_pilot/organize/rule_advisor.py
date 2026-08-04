@@ -93,15 +93,43 @@ class DirectoryContentProfile:
 
 @dataclass(frozen=True)
 class ContextEntry:
-    """同一配置中已有确认规则的目录，用于注入上下文防止冲突。"""
+    """同一配置中其他目录，用于注入上下文防止冲突。"""
 
     path: str
     label: str = ""
     description: str = ""  # 已确认的规则描述（非 draft）
+    relation: str = ""  # 与当前分析目标的关系，如 "[父目录]" 或 "[子目录]"
 
     def to_context_line(self) -> str:
         label_part = f'「{self.label}」' if self.label else ""
-        return f"- {label_part}{self.path}：{self.description or '（暂无规则）'}"
+        relation_part = f"{self.relation} " if self.relation else ""
+        return f"- {relation_part}{label_part}{self.path}：{self.description or '（暂无规则）'}"
+
+
+def detect_nested_pairs(paths: list[str]) -> list[tuple[str, str]]:
+    """检测路径列表中的父子包含关系，返回 (parent_path, child_path) 列表。
+
+    使用 Path.resolve() 处理 Windows 大小写与斜杠差异。
+    resolve() 在路径不存在时不报错（Python 3.6+ 行为），保留原始路径。
+    """
+    resolved = []
+    for p in paths:
+        try:
+            resolved.append((p, Path(p).resolve()))
+        except (OSError, ValueError):
+            resolved.append((p, Path(p)))
+
+    pairs: list[tuple[str, str]] = []
+    for i, (p1, r1) in enumerate(resolved):
+        for j, (p2, r2) in enumerate(resolved):
+            if i == j:
+                continue
+            try:
+                if r2.is_relative_to(r1) and r2 != r1:
+                    pairs.append((p1, p2))  # p1 是父，p2 是子
+            except (ValueError, AttributeError):
+                pass
+    return pairs
 
 
 @dataclass(frozen=True)
@@ -166,6 +194,27 @@ def collect_directory_content_profile(
     )
 
 
+def _build_topology_lines(
+    nested_pairs: list[tuple[str, str]],
+    *,
+    header: str = "【目录层级关系提示】",
+) -> list[str]:
+    """将嵌套对列表格式化为 Prompt 拓扑说明段落。"""
+    lines = [
+        "",
+        header,
+        "以下目录之间存在父子包含关系，生成规则时必须明确区分边界：",
+    ]
+    for parent, child in nested_pairs:
+        lines.append(f"- {parent}（父） ⊃ {child}（子）")
+    lines += [
+        "嵌套分流原则：",
+        "- 若文件特征同时符合父目录与子目录的规则，优先归入子目录（最窄匹配）。",
+        "- 父目录规则只描述不属于任何子目录的通用文件。",
+    ]
+    return lines
+
+
 def build_rule_draft_prompt(
     profiles: list[DirectoryContentProfile],
     *,
@@ -181,10 +230,19 @@ def build_rule_draft_prompt(
         "- 使用与目录标签一致的语言（默认中文）。",
     ]
 
+    # 收集所有路径，统一做一次拓扑检测
+    profile_paths = [p.path for p in profiles]
+    context_paths_list = [e.path for e in context_entries] if context_entries else []
+    all_paths = profile_paths + context_paths_list
+    all_nested = detect_nested_pairs(all_paths)
+
+    if all_nested:
+        lines += _build_topology_lines(all_nested)
+
     if context_entries:
         lines += [
             "",
-            "【同一配置中已有确认规则的其他目录（勿重复，注意边界）】",
+            "【同一配置中其他目录（勿重复，注意边界）】",
         ]
         for entry in context_entries:
             lines.append(entry.to_context_line())
