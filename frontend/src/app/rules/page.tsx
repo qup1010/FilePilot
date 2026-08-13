@@ -448,7 +448,7 @@ export default function RulesPage() {
         return;
       }
       unlisten = dispose;
-    });
+    }).catch(() => {});
 
     return () => {
       cancelled = true;
@@ -611,6 +611,19 @@ export default function RulesPage() {
       ...prev,
       [editKey(selectedProfile.profile_id, path)]: draftDescription,
     }));
+  }
+
+  function acceptAllDrafts() {
+    if (!selectedProfile) return;
+    const additions: Record<string, string> = {};
+    const items = draftState.items || {};
+    for (const [path, item] of Object.entries(items)) {
+      if (item?.draft_description) {
+        additions[editKey(selectedProfile.profile_id, path)] = item.draft_description;
+      }
+    }
+    if (Object.keys(additions).length === 0) return;
+    setEditedDescriptions((prev) => ({ ...prev, ...additions }));
   }
 
   return (
@@ -849,6 +862,17 @@ export default function RulesPage() {
                       )}
                       {draftState.loading && !draftState.loadingPath ? "正在阅读目录…" : "整套 AI 初稿"}
                     </button>
+                    {Object.keys(draftState.items).length > 0 && !draftState.loading ? (
+                      <button
+                        type="button"
+                        onClick={acceptAllDrafts}
+                        disabled={busy}
+                        className="flex items-center gap-1.5 rounded-[8px] border border-primary/40 bg-primary/8 px-3 py-1.5 text-[12px] font-bold text-primary transition-colors hover:bg-primary/15 disabled:opacity-50"
+                      >
+                        <Check className="h-3.5 w-3.5" aria-hidden />
+                        全部采纳
+                      </button>
+                    ) : null}
                     <button
                       type="button"
                       onClick={() => void handleSave()}

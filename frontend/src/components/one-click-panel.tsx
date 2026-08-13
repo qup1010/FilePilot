@@ -195,9 +195,17 @@ export function OneClickPanel() {
                 {sourcePath ? getPathBasename(sourcePath, sourcePath) : "选择目录"}
               </button>
               <span className="text-[12px] text-on-surface-variant/50">按</span>
-              <span className="max-w-[160px] truncate text-[12px] font-bold text-on-surface" title={profile.name}>
-                {profile.name}
-              </span>
+              <div className="flex min-w-0 flex-col">
+                <span className="max-w-[160px] truncate text-[12px] font-bold text-on-surface" title={profile.name}>
+                  {profile.name}
+                </span>
+                <span className="max-w-[160px] truncate text-[10px] text-on-surface-variant/45" title={profile.directories.map((d) => d.label || d.path.split(/[/\\]/).at(-1) || d.path).join("、")}>
+                  {profile.directories.length} 个目录
+                  {profile.directories.length > 0
+                    ? ` · ${profile.directories.slice(0, 3).map((d) => d.label || d.path.split(/[/\\]/).at(-1) || d.path).join("、")}${profile.directories.length > 3 ? "…" : ""}`
+                    : ""}
+                </span>
+              </div>
               <button
                 type="button"
                 onClick={() => void handleLaunch(profile)}

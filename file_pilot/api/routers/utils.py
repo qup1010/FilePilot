@@ -32,7 +32,9 @@ def open_dir(payload: OpenDirPayload):
 
     import subprocess
     try:
-        subprocess.run(["explorer", os.path.abspath(path)], check=True)
+        # explorer.exe 在把目录交给已有窗口后以退出码 1 退出，这是 Windows 正常行为，
+        # 不能用 check=True；改为忽略返回码，只要进程能启动即视为成功。
+        subprocess.Popen(["explorer", os.path.abspath(path)])
         return {"status": "ok"}
     except Exception:
         logger.exception("打开目录失败", extra={"path": path})

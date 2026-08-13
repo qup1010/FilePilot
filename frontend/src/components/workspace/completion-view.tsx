@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, ArrowLeft, CheckCircle2, Folder, History, Info, Layers, Loader2, Palette, RotateCcw, ShieldCheck } from "lucide-react";
+import { AlertTriangle, ArrowLeft, CheckCircle2, ExternalLink, Folder, FolderOpen, History, Info, Layers, Loader2, Palette, RotateCcw, ShieldCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { OrganizeMethod, JournalSummary } from "@/types/session";
 import { DirectoryTreeDiff, type DirectoryTreeLeafEntry, type DirectoryTreeFilter } from "./directory-tree-diff";
@@ -9,6 +9,23 @@ import { useRouter } from "next/navigation";
 import { motion } from "motion/react";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { FileRadarIllustration } from "@/components/ui/svg-illustrations";
+
+/** 计算一组路径的公共祖先路径（不区分大小写）。 */
+function computeCommonAncestor(paths: string[]): string {
+  const normalized = paths
+    .map((p) => p.replace(/\\/g, "/").replace(/\/+$/, ""))
+    .filter(Boolean);
+  if (!normalized.length) return "";
+  const parts = normalized[0].split("/");
+  let common = parts;
+  for (const p of normalized.slice(1)) {
+    const segs = p.split("/");
+    let i = 0;
+    while (i < common.length && i < segs.length && common[i].toLowerCase() === segs[i].toLowerCase()) i++;
+    common = common.slice(0, i);
+  }
+  return common.join("/");
+}
 
 
 interface CompletionViewProps {
@@ -177,6 +194,29 @@ export function CompletionView({
     return typeof source === 'string' ? source : (source?.path || "");
   }
 
+  // 计算整理后文件的公共祖先基目录（支持跨目录归档，避免出现盘符根节点）
+  const afterTargetPaths = moveItems
+    .filter((item): item is typeof item & { target: string } => Boolean(item.target))
+    .map((item) => item.target);
+  const afterBasePath = computeCommonAncestor(afterTargetPaths) || normalizeFsPath(targetDir);
+  const afterBaseLabel = afterBasePath.split(/[/\\]/).filter(Boolean).at(-1) || baseLabel;
+
+  // 按目标分类目录统计归档文件数（取公共祖先的直接子目录作为分组 key）
+  const targetGroupMap = new Map<string, { dirPath: string; count: number }>();
+  for (const item of moveItems) {
+    if (item.status !== "success" || !item.target) continue;
+    const normalized = item.target.replace(/\\/g, "/").replace(/\/+$/, "");
+    const relative = normalized.slice(afterBasePath.length).replace(/^\/+/, "");
+    const topDir = relative.split("/")[0];
+    if (!topDir) continue;
+    const dirPath = `${afterBasePath}/${topDir}`;
+    const existing = targetGroupMap.get(topDir);
+    targetGroupMap.set(topDir, { dirPath, count: (existing?.count ?? 0) + 1 });
+  }
+  const targetGroups = Array.from(targetGroupMap.entries())
+    .map(([name, { dirPath, count }]) => ({ name, dirPath, count }))
+    .sort((a, b) => b.count - a.count);
+
   const afterTree = {
     title: "整理后目录树",
     subtitle: "执行后的目标目录结构。成功、失败和待确认区（不会自动归入目标目录）会在树中标出。",
@@ -189,8 +229,8 @@ export function CompletionView({
     directoryEntries: mkdirItems
       .map((item) => item.target)
       .filter((target): target is string => Boolean(target)),
-    basePath: targetDir,
-    baseLabel,
+    basePath: afterBasePath.replace(/\//g, "\\\\"),
+    baseLabel: afterBaseLabel,
     emptyLabel: "当前没有可展示的目标目录结构。",
   };
 
@@ -325,6 +365,53 @@ export function CompletionView({
               去生成文件夹图标
            </button>
         </motion.div>
+        ) : null}
+
+        {/* 归档成果卡片 - 仅在一键整理（assign_into_existing_categories）模式下展示 */}
+        {organizeMethod === "assign_into_existing_categories" && targetGroups.length > 0 ? (
+          <motion.section
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ type: "spring", stiffness: 300, damping: 28, delay: 0.15 }}
+            className="flex flex-col gap-2"
+          >
+            <div className="flex items-center gap-2">
+              <h3 className="text-[12px] font-black text-on-surface uppercase tracking-tight">归档成果</h3>
+              <span className="text-[11px] font-semibold text-on-surface-variant/50">已将文件分发至 {targetGroups.length} 个目录</span>
+            </div>
+            <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-thin">
+              {targetGroups.map(({ name, dirPath, count }) => (
+                <div
+                  key={name}
+                  className="group flex min-w-[140px] max-w-[200px] flex-shrink-0 flex-col gap-1 rounded-lg border border-on-surface/8 bg-surface-container-lowest p-3 transition-all hover:border-primary/20 hover:bg-primary/[0.02]"
+                >
+                  <div className="flex items-center gap-2">
+                    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-primary/8 text-primary">
+                      <Folder className="h-3.5 w-3.5" />
+                    </div>
+                    <span className="min-w-0 flex-1 truncate text-[12px] font-black text-on-surface" title={name}>
+                      {name}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="rounded-full bg-success/10 px-2 py-0.5 text-[11px] font-bold text-success-dim">
+                      {count} 个文件
+                    </span>
+                    {onOpenExplorer ? (
+                      <button
+                        type="button"
+                        onClick={() => onOpenExplorer(dirPath.replace(/\//g, "\\\\"))}
+                        title={`在文件管理器中打开 ${name}`}
+                        className="flex h-6 w-6 items-center justify-center rounded-md text-on-surface-variant/40 opacity-0 transition-all group-hover:opacity-100 hover:bg-primary/8 hover:text-primary active:scale-90"
+                      >
+                        <FolderOpen className="h-3.5 w-3.5" />
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </motion.section>
         ) : null}
 
         {/* Structure Visualization */}

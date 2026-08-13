@@ -550,7 +550,7 @@ export function SessionLauncherShell() {
   }, []);
 
   useEffect(() => {
-    if (!draftHydrated || typeof window === "undefined") {
+    if (!draftHydrated || typeof window === "undefined" || !launchFlowOpen) {
       return;
     }
     // 防抖：sources 可能包含数千条导入项，序列化 + 同步写盘不能跟着每次按键跑。
@@ -736,6 +736,18 @@ export function SessionLauncherShell() {
   function updateStrategy(updater: (previous: SessionStrategySelection) => SessionStrategySelection) {
     setStrategy((previous) => updater(previous));
   }
+
+  const resetAndCloseLaunchFlow = useCallback(() => {
+    clearLauncherDraft();
+    launcherDraftRef.current = null;
+    setStep(1);
+    setSources([]);
+    setSourceImportGroups([]);
+    setSourceDraftPath("");
+    setError(null);
+    setSourceFeedback(null);
+    setLaunchFlowOpen(false);
+  }, []);
 
   const addSources = useCallback((nextItems: SessionSourceSelection[]) => {
     setLaunchFlowOpen(true);
@@ -1729,7 +1741,7 @@ export function SessionLauncherShell() {
                 <div className="relative mb-3 flex items-center justify-center border-b border-on-surface/5 pb-4 pt-1 w-full min-h-[44px]">
                   <button
                     type="button"
-                    onClick={() => setLaunchFlowOpen(false)}
+                    onClick={resetAndCloseLaunchFlow}
                     className="absolute left-0 top-1/2 -translate-y-1/2 flex items-center gap-1 text-[11px] font-black text-ui-muted hover:text-primary hover:bg-primary/5 rounded-[6px] px-2.5 py-1.5 transition-all active:scale-[0.97]"
                   >
                     <ChevronLeft className="h-3.5 w-3.5" />
