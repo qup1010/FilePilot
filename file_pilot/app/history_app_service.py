@@ -157,6 +157,7 @@ class HistoryAppService:
         raise FileNotFoundError(entry_id)
 
     def get_journal_summary(self, session_id: str) -> dict:
+        session = None
         journal_id = None
         try:
             session = self.helpers._load_or_raise(session_id)
@@ -169,6 +170,12 @@ class HistoryAppService:
         journal = execution_service.load_execution_journal(journal_id)
         if journal is None:
             raise FileNotFoundError(f"execution_journal_not_found: {journal_id}")
+
+        if session is None:
+            for s in self.helpers.store.list_sessions():
+                if s.last_journal_id == journal_id or s.session_id == session_id:
+                    session = s
+                    break
 
         def _is_review_target(target_slot_id: str | None, target_path: str | None) -> bool:
             if str(target_slot_id or "").strip() == REVIEW_SLOT_ID:
@@ -200,34 +207,75 @@ class HistoryAppService:
                 for item in latest_attempt.get("results", [])
                 if item.get("action_type") == "MOVE"
             ]
+        executed_items = [
+            {
+                "action_type": item.action_type,
+                "status": item.status,
+                "message": item.message,
+                "source": item.source_before,
+                "target": item.target_after or item.created_path,
+                "display_name": str(
+                    item.display_name
+                    or (Path(item.source_before).name if item.source_before else (Path(item.created_path).name if item.created_path else "unknown"))
+                ),
+                "item_id": item.item_id,
+                "source_ref_id": item.source_ref_id,
+                "target_slot_id": item.target_slot_id,
+                "target_kind": _target_kind(item.target_slot_id, item.target_after or item.created_path),
+                "is_review": _is_review_target(item.target_slot_id, item.target_after or item.created_path),
+            }
+            for item in journal.items
+        ]
+
+        # 补全全量扫描范围中未被移动（未命中分类规则、留在原地）的项
+        if session is not None:
+            try:
+                planner_items = self.helpers._session_planner_items(session)
+            except Exception:
+                planner_items = getattr(session, "planner_items", None) or []
+
+            if planner_items:
+                executed_sources = {
+                    str(Path(item["source"]).resolve()).lower()
+                    for item in executed_items
+                    if item.get("source")
+                }
+                base_dir = Path(session.target_dir)
+                for p_item in planner_items:
+                    if p_item.get("entry_type") == "dir":
+                        continue
+                    relpath = p_item.get("source_relpath") or ""
+                    if not relpath:
+                        continue
+                    full_path = (base_dir / relpath).resolve()
+                    norm_key = str(full_path).lower()
+                    if norm_key not in executed_sources:
+                        executed_items.append(
+                            {
+                                "action_type": "MOVE",
+                                "status": "skipped",
+                                "message": "未命中任何目标分类规则，选择留在原地",
+                                "source": str(full_path),
+                                "target": str(full_path),
+                                "display_name": str(p_item.get("display_name") or full_path.name),
+                                "item_id": p_item.get("planner_id"),
+                                "source_ref_id": None,
+                                "target_slot_id": None,
+                                "target_kind": "directory",
+                                "is_review": False,
+                            }
+                        )
+
         return {
             "journal_id": journal.execution_id,
             "execution_id": journal.execution_id,
             "target_dir": journal.target_dir,
             "status": journal.status,
             "created_at": journal.created_at,
-            "item_count": len(journal.items),
-            "success_count": sum(1 for item in journal.items if item.status == "success"),
-            "failure_count": sum(1 for item in journal.items if item.status == "failed"),
+            "item_count": len(executed_items),
+            "success_count": sum(1 for item in executed_items if item["status"] == "success"),
+            "failure_count": sum(1 for item in executed_items if item["status"] == "failed"),
             "rollback_attempt_count": len(journal.rollback_attempts),
             "restore_items": restore_items,
-            "items": [
-                {
-                    "action_type": item.action_type,
-                    "status": item.status,
-                    "message": item.message,
-                    "source": item.source_before,
-                    "target": item.target_after or item.created_path,
-                    "display_name": str(
-                        item.display_name
-                        or (Path(item.source_before).name if item.source_before else (Path(item.created_path).name if item.created_path else "unknown"))
-                    ),
-                    "item_id": item.item_id,
-                    "source_ref_id": item.source_ref_id,
-                    "target_slot_id": item.target_slot_id,
-                    "target_kind": _target_kind(item.target_slot_id, item.target_after or item.created_path),
-                    "is_review": _is_review_target(item.target_slot_id, item.target_after or item.created_path),
-                }
-                for item in journal.items
-            ],
+            "items": executed_items,
         }

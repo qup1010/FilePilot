@@ -229,7 +229,7 @@ export function CompletionView({
     directoryEntries: mkdirItems
       .map((item) => item.target)
       .filter((target): target is string => Boolean(target)),
-    basePath: afterBasePath.replace(/\//g, "\\\\"),
+    basePath: afterBasePath,
     baseLabel: afterBaseLabel,
     emptyLabel: "当前没有可展示的目标目录结构。",
   };

@@ -48,7 +48,7 @@ interface DirectoryTreeNode {
 }
 
 function normalizePath(path: string): string {
-  return path.replace(/\\/g, "/").replace(/^\/+|\/+$/g, "").trim();
+  return path.replace(/[/\\]+/g, "/").replace(/^\/+|\/+$/g, "").trim();
 }
 
 function relativePathFromBase(path: string, basePath?: string): string {

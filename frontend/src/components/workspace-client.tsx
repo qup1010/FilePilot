@@ -612,9 +612,8 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
     });
 
     if (typeof window !== "undefined") {
-      const isCompleted = stageView.isCompleted;
       const isInactive = stageView.isInactive;
-      const shouldClear = isReadOnly || isCompleted || isInactive;
+      const shouldClear = isReadOnly || isInactive;
 
       if (shouldClear) {
         clearActiveWorkspaceRouteForSession(sessionIdParam);
@@ -1083,7 +1082,7 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
     if (typeof window === "undefined" || !sessionIdParam) {
       return;
     }
-    const canRememberWorkspaceRoute = !isReadOnly && !stageView.isCompleted;
+    const canRememberWorkspaceRoute = !isReadOnly && !stageView.isInactive;
     if (canRememberWorkspaceRoute) {
       const params = new URLSearchParams(window.location.search);
       params.delete("auto_scan");
@@ -1092,7 +1091,7 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
       return;
     }
     clearActiveWorkspaceRouteForSession(sessionIdParam);
-  }, [isReadOnly, sessionIdParam, stageView.isCompleted, view]);
+  }, [isReadOnly, sessionIdParam, stageView.isInactive, view]);
 
   const focusPreviewItems = React.useCallback((itemIds: string[], filter?: PreviewFilter) => {
     setPreviewFocusRequest({

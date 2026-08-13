@@ -211,6 +211,30 @@ class HistoryAppServiceTests(unittest.TestCase):
         self.assertEqual(move_item["target_kind"], "review")
         self.assertTrue(move_item["is_review"])
 
+    def test_get_journal_summary_by_execution_id_does_not_raise_unbound_local_error(self):
+        (self.target_dir / "a.txt").write_text("hello", encoding="utf-8")
+        created = self.service.create_session(str(self.target_dir), resume_if_exists=False)
+        session = created.session
+        assert session is not None
+        session.stage = "ready_to_execute"
+        session.pending_plan = {
+            "directories": ["Docs"],
+            "moves": [{"source": "a.txt", "target": "Docs/a.txt"}],
+            "unresolved_items": [],
+            "summary": "move to docs",
+        }
+        self.store.save(session)
+        self.service.execute(session.session_id, confirm=True)
+        reloaded = self.store.load(session.session_id)
+        assert reloaded is not None
+        exec_id = reloaded.last_journal_id
+        assert exec_id is not None
+
+        # 直接使用 execution_id（非 session_id）查询，验证不会引发 UnboundLocalError
+        summary = self.service.history_app.get_journal_summary(exec_id)
+        self.assertEqual(summary["execution_id"], exec_id)
+        self.assertEqual(summary["status"], "completed")
+
 
 class FileHistorySearchTests(unittest.TestCase):
     def setUp(self):
