@@ -161,7 +161,7 @@ export function ConnectionTestResult({ family, result, isTesting }: ConnectionTe
       <div className="min-w-0 flex-1 space-y-1">
         <div className="flex items-center justify-between gap-4">
           <h4 className={cn("text-[13px] font-bold tracking-tight", isOk ? "text-success-dim" : "text-error-dim")}>
-            {isVision ? (isOk ? "图片能力已验证" : "图片能力验证失败") : isOk ? "服务已成功对齐" : "连接测试失败"}
+            {isVision ? (isOk ? "图片能力已验证" : "图片能力验证失败") : isOk ? "连接成功，模型可用" : "连接测试失败"}
           </h4>
           {isOk && (
             <div className="flex items-center gap-1.5 rounded-[4px] bg-success/10 px-2 py-0.5 text-[11px] font-black uppercase tracking-widest text-success-dim">

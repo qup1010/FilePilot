@@ -307,7 +307,7 @@ describe("SettingsPage preset flow", () => {
     render(<SettingsPage />);
 
     await waitForSettingsHydrated();
-    await clickSettingsCategory("生图模型配置");
+    await clickSettingsCategory("图标生图配置");
 
     expect(await screen.findByText("双模型依赖")).toBeInTheDocument();
     expect(screen.getByText("文本模型（分析）")).toBeInTheDocument();
@@ -427,7 +427,7 @@ describe("SettingsPage preset flow", () => {
   it("shows launch placement default controls in the launch settings tab", async () => {
     render(<SettingsPage />);
 
-    await clickSettingsCategory("整理策略配置");
+    await clickSettingsCategory("任务默认策略");
     await clickSettingsCategory("放置规则");
 
     expect(await screen.findByText("默认放置规则")).toBeInTheDocument();
@@ -441,7 +441,7 @@ describe("SettingsPage preset flow", () => {
 
     render(<SettingsPage />);
 
-    await clickSettingsCategory("整理策略配置");
+    await clickSettingsCategory("任务默认策略");
     expect(await screen.findByRole("button", { name: /通用整理/ })).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: /项目资料/ }));
@@ -462,14 +462,14 @@ describe("SettingsPage preset flow", () => {
     });
   });
 
-  it("shows vision verification result details after running the test", async () => {
+  it("shows vision verification result details after running the test via health item click", async () => {
     const user = userEvent.setup();
     getSettings.mockResolvedValue(createSnapshotWithEditableVisionPreset());
     render(<SettingsPage />);
-    await clickSettingsCategory("视觉模型");
-    await user.click(screen.getByRole("button", { name: "测试连接" }));
+    await clickSettingsCategory("图片理解");
+    await user.click(await screen.findByRole("button", { name: "测试图片理解能力" }));
     await waitFor(() => {
-      expect(screen.getByText("测试成功")).toBeInTheDocument();
+      expect(screen.getByText("图片能力已验证")).toBeInTheDocument();
     });
   });
 

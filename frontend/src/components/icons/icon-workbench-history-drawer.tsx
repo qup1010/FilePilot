@@ -32,7 +32,7 @@ function formatUpdatedAt(value: string): string {
 }
 
 function countSummary(item: IconWorkbenchHistoryItem): string {
-  return `${item.target_count} 目标 · ${item.folder_count} 文件夹 · ${item.ready_count} 可用版本 · ${item.applied_count} 已应用`;
+  return `${item.folder_count} 个文件夹 · ${item.ready_count} 个预览图 · ${item.applied_count} 个已应用`;
 }
 
 export function IconWorkbenchHistoryDrawer({

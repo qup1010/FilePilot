@@ -44,7 +44,7 @@ function isReviewTarget(move: { target?: string; target_slot_id?: string; target
 
 function displayMoveTarget(move: EnrichedMovePreview): string {
     if (isReviewTarget(move)) {
-        return `待确认区/${move.display_name}`;
+        return `Review/${move.display_name}`;
     }
     return move.target;
 }
@@ -142,7 +142,7 @@ export function PrecheckView({
         title: "整理后目录树",
         subtitle: "这里是执行后即将形成的目标结构。",
         leafEntries: enrichedMoves.map<DirectoryTreeLeafEntry>((move) => ({
-            path: isReviewTarget(move) ? displayMoveTarget(move) : move.target,
+            path: displayMoveTarget(move),
             status: isReviewTarget(move) ? "review" : "pending",
         })),
         directoryEntries: summary.mkdir_preview || [],
@@ -255,10 +255,10 @@ export function PrecheckView({
                             <div className="grid gap-3 @4xl:grid-cols-2">
                                 {enrichedMoves.map((move, idx) => {
                                     const slot = move.target_slot_id ? targetSlotById.get(move.target_slot_id) : null;
-                                    const slotLabel = move.target_slot_id === "Review"
+                                    const isReview = isReviewTarget(move);
+                                    const slotLabel = isReview
                                         ? "待确认区"
                                         : slot?.display_name || "";
-                                    const isReview = isReviewTarget(move);
                                     const _targetLabel = displayMoveTarget(move);
                                     const riskMessages = riskMessagesByItemId.get(move.item_id) || [];
                                     
@@ -299,7 +299,7 @@ export function PrecheckView({
                                                 </div>
                                             </div>
                                             <div className="border-t border-on-surface/5 bg-on-surface/[0.01]/30 p-3">
-                                                <PathDiffViewer source={move.source} target={move.target} />
+                                                <PathDiffViewer source={move.source} target={move.target} isReview={isReview} targetKind={move.target_kind} />
                                             </div>
                                         </motion.div>
                                     );

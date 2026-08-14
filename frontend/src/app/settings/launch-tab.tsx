@@ -87,8 +87,8 @@ export function LaunchTab({
   return (
     <SettingsSection
       icon={SettingsIcon}
-      title="新任务默认值"
-      description="配置新任务的整理方式、默认模板与放置规则。分类规则请在侧栏「分类规则」中管理。"
+      title="任务默认策略"
+      description="配置新建任务时的默认整理方式、模板与放置规则。如需管理目标分类目录，请前往「分类规则」页面。"
     >
       <div className="rounded-[12px] border border-on-surface/8 bg-surface px-4 py-4">
         <div className="grid gap-2 md:grid-cols-2">
@@ -133,14 +133,14 @@ export function LaunchTab({
             <div className="grid gap-3 md:grid-cols-2">
               <StrategyOptionButton
                 active={launchDefaultOrganizeMethod === "categorize_into_new_structure"}
-                label="生成新的分类结构"
-                description="默认让 AI 为这批内容生成一套新目录，再写入新目录生成位置。"
+                label="全新分类整理"
+                description="AI 自动按内容生成一套清晰的新文件夹结构，适合整理混乱的下载或杂物文件夹。"
                 onClick={() => onUpdateGlobal("LAUNCH_DEFAULT_ORGANIZE_METHOD", "categorize_into_new_structure")}
               />
               <StrategyOptionButton
                 active={launchDefaultOrganizeMethod === "assign_into_existing_categories"}
-                label="归入已有目录"
-                description="默认把内容归入已保存的分类规则；拿不准的项目进入待确认区。"
+                label="按固定规则归档"
+                description="按已设定好的分类规则自动分发到指定目标文件夹，适合日常规律归档。"
                 onClick={() => onUpdateGlobal("LAUNCH_DEFAULT_ORGANIZE_METHOD", "assign_into_existing_categories")}
               />
             </div>
@@ -240,7 +240,7 @@ export function LaunchTab({
               </p>
             </div>
             <div className="grid gap-4 xl:grid-cols-2">
-              <FieldGroup label="默认新目录生成位置" hint="留空时，新结构任务默认使用输出目录；归入已有目录任务默认使用当前任务工作区根。">
+              <FieldGroup label="默认新目录生成位置" hint="留空时，将默认保存在源文件夹同级或任务输出目录下；支持在此自定义固定整理落点。">
                 <InputShell icon={FolderOpen} className="flex items-center">
                   <input
                     value={launchDefaultNewDirectoryRoot}
@@ -303,7 +303,7 @@ export function LaunchTab({
                 <div>
                   <h3 className="text-[13px] font-semibold text-on-surface">待确认区跟随新目录位置</h3>
                   <p className="mt-1 text-[12px] leading-5 text-on-surface-variant/65">
-                    开启后，待确认区默认派生为 `新目录生成位置/Review`。它只作为暂存落点，不会再自动拆分子目录。
+                    开启后，分类不确定或拿不准的文件会自动暂存至 `新目录/Review` 待确认文件夹，不打乱主目录结构。
                   </p>
                 </div>
                 <ToggleSwitch
@@ -317,13 +317,13 @@ export function LaunchTab({
           <div className="rounded-[12px] border border-on-surface/8 bg-surface px-4 py-3.5">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <h3 className="text-[13px] font-semibold text-on-surface">直接使用默认值启动</h3>
-                <p className="mt-1 text-[12px] leading-5 text-on-surface-variant/65">开启后，首页点击开始时直接进入任务。</p>
+                <h3 className="text-[13px] font-semibold text-on-surface">跳过启动确认直接整理</h3>
+                <p className="mt-1 text-[12px] leading-5 text-on-surface-variant/65">开启后，在首页选择文件夹并点击开始时，将直接使用上述默认策略运行，不再弹出确认窗口。</p>
               </div>
               <ToggleSwitch
                 checked={Boolean(globalConfig.LAUNCH_SKIP_STRATEGY_PROMPT)}
                 onClick={() => onUpdateGlobal("LAUNCH_SKIP_STRATEGY_PROMPT", !globalConfig.LAUNCH_SKIP_STRATEGY_PROMPT)}
-                ariaLabel="直接使用默认值启动"
+                ariaLabel="跳过启动确认直接整理"
               />
             </div>
           </div>

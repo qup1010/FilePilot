@@ -73,7 +73,7 @@ export function IconWorkbenchTemplateDrawer({
                     <h2 className="text-[18px] font-black tracking-tight text-on-surface">模板管理</h2>
                   </DialogPrimitive.Title>
                   <DialogPrimitive.Description asChild>
-                    <p className="text-[12px] text-ui-muted">定义「视觉主体 + 风格描述」的预设；系统会在应用时补全通用图标约束。</p>
+                    <p className="text-[12px] text-ui-muted">管理与创建自定义画风模板，生成时将自动与文件夹主题融合。</p>
                   </DialogPrimitive.Description>
                 </div>
               </div>
@@ -166,9 +166,9 @@ export function IconWorkbenchTemplateDrawer({
                     </span>
                   </div>
                   <p className="mt-2 text-[12px] leading-6 text-ui-muted">
-                    模板只需写风格部分：以{" "}
+                    提示词只需描述画风：以{" "}
                     <code className="rounded bg-on-surface/6 px-1 py-0.5 font-mono text-[11px]">{"{{subject}}"}</code>{" "}
-                    开头，后接风格与材质描述；把「画什么」交给主体变量，模板只负责「怎么画」。
+                    作为主体变量（生成时会自动替换为文件夹主题），后续补充画风、材质与光影细节。
                   </p>
                 </div>
 

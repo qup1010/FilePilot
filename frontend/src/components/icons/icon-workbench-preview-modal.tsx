@@ -298,7 +298,7 @@ export function IconWorkbenchPreviewModal({
                             {isApplied ? "已应用" : "未应用"}
                          </p>
                          <p className="mt-1 text-[11px] font-bold leading-4 text-white/35">
-                           {isCurrentVersion ? "这是当前版本，但当前版本不等于已应用。" : "可先设为当前版本，再决定是否应用。"}
+                           {isCurrentVersion ? "当前选中的预览版本，点击下方按钮即可应用至文件夹。" : "支持在多个历史版本中对比选择后再应用。"}
                          </p>
                       </div>
                    </div>

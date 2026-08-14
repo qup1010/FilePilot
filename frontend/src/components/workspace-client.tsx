@@ -29,6 +29,7 @@ import { notifyWorkspaceWhenAway, requestWorkspaceNotificationPermission } from 
 import { getWorkspaceRouteForSnapshot, getWorkspaceViewForSnapshot, hasStablePlan, type WorkspaceView } from "@/lib/workspace-routes";
 import { MinimalScanningView } from "./workspace/minimal-scanning-view";
 import type { WorkspaceProgressPhase } from "@/lib/scanner-progress-view";
+import { ExecutionProgressView } from "./workspace/execution-progress-view";
 import { PrecheckView } from "./workspace/precheck-view";
 import { CompletionView } from "./workspace/completion-view";
 import { ConversationPanel, type ConversationNotice } from "./workspace/conversation-panel";
@@ -1368,12 +1369,9 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
 
             if (stageView.isExecuting || stageView.isRollingBack) {
               return (
-                <EmptyState
-                  icon={Loader2}
-                  iconClassName="animate-spin"
-                  title={stageView.isRollingBack ? "正在回退整理" : "正在执行整理"}
-                  description={stageView.isRollingBack ? "正在按回退记录恢复文件位置，请不要关闭窗口。" : "正在移动本地文件，完成后会自动打开整理结果。"}
-                  className="mx-auto h-full max-w-[1360px]"
+                <ExecutionProgressView
+                  mode={stageView.isRollingBack ? "rolling_back" : "executing"}
+                  itemCount={precheck?.move_preview?.length}
                 />
               );
             }
@@ -1461,10 +1459,21 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
               return (
                 <EmptyState
                   illustration={FileRadarIllustration}
-                  title="等待读取目录"
-                  description="开始后会先只读扫描目录，再在这里显示整理建议。"
+                  title="等待读取待整理目录"
+                  description="点击下方按钮开始只读分析文件结构，稍后将在此生成智能整理方案。"
                   className="mx-auto h-[70vh] max-w-[1360px]"
-                />
+                >
+                  {!isReadOnly && (
+                    <button
+                      type="button"
+                      onClick={handleStartScan}
+                      className="inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-[13px] font-bold text-white shadow-sm transition-all hover:bg-primary-dim active:scale-95"
+                    >
+                      <RefreshCw className="h-4 w-4" />
+                      开始读取目录
+                    </button>
+                  )}
+                </EmptyState>
               );
             }
 

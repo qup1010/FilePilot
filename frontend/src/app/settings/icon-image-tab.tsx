@@ -83,14 +83,14 @@ export function IconImageTab({
   return (
     <SettingsSection
       icon={ImageIcon}
-      title="图标生成"
-      description="配置图标工坊的图像生成模型；目录分析使用整理文本模型。"
+      title="图标生图配置"
+      description="配置图标工坊的 AI 图像生成模型；目录分析使用整理文本模型。"
     >
       <SettingsMinPath
         items={[
-          "目录分析依赖「整理模型配置」中的文本模型",
-          "本页只配置生图端点：接口地址 + 模型 ID + API Key",
-          "尺寸、并发、保存方式为高级选项，可按需展开",
+          "目录分析：提炼文件夹主题与关键词，依赖「整理模型配置」中的文本模型",
+          "图标生图：本页配置绘制图标预览图的生图模型（接口地址 + 模型 ID + API 密钥）",
+          "高级选项：可按需调整图标尺寸、并发数上限及本地保存位置",
         ]}
       />
       <div className="rounded-[8px] border border-on-surface/8 bg-surface-container-lowest px-4 py-3">
@@ -106,7 +106,7 @@ export function IconImageTab({
                 {textConfigured ? "已配置" : "未配置"}
               </span>
             </div>
-            <p className="mt-1 text-[11px] text-ui-muted">图标工坊解析文件夹时使用</p>
+            <p className="mt-1 text-[11px] text-ui-muted">用于提炼文件夹主题与关键词</p>
             {!textConfigured ? (
               <button
                 type="button"
@@ -127,7 +127,7 @@ export function IconImageTab({
                 {iconImageConfigured ? "已配置" : "未配置"}
               </span>
             </div>
-            <p className="mt-1 text-[11px] text-ui-muted">本页下方端点负责生成图标预览</p>
+            <p className="mt-1 text-[11px] text-ui-muted">根据关键词绘制图标预览图</p>
           </div>
         </div>
       </div>
@@ -141,7 +141,7 @@ export function IconImageTab({
       />
       {!iconImagePresetEditable ? (
         <p className="text-[11px] leading-5 text-ui-muted">
-          尚未保存过预设：可直接填写下方字段，首次保存时会自动创建可编辑预设。
+          首次使用请直接在下方填写配置，首次保存时会自动创建可编辑预设。
         </p>
       ) : null}
       <div className="grid gap-4 xl:grid-cols-2">
@@ -187,7 +187,7 @@ export function IconImageTab({
           >
             <div>
               <p className="text-[13px] font-bold text-on-surface">高级选项</p>
-              <p className="mt-0.5 text-[11px] text-ui-muted">图片尺寸、分析/生图并发、保存方式</p>
+              <p className="mt-0.5 text-[11px] text-ui-muted">图片尺寸、分析/生图并发数、保存方式</p>
             </div>
             {advancedOpen ? <ChevronDown className="h-4 w-4 text-ui-muted" /> : <ChevronRight className="h-4 w-4 text-ui-muted" />}
           </button>
@@ -217,7 +217,7 @@ export function IconImageTab({
                   ))}
                 </div>
               </FieldGroup>
-              <FieldGroup label="分析并发上限" hint="控制文件夹内容分析阶段的并发数，通常可以设得比生图更高。">
+              <FieldGroup label="分析并发数" hint="同时分析多少个文件夹的内容（通常可以设得比生图更高，建议 2～4）。">
                 <InputShell icon={Cpu}>
                   <input
                     value={analysisConcurrencyInput}
@@ -234,7 +234,7 @@ export function IconImageTab({
                   />
                 </InputShell>
               </FieldGroup>
-              <FieldGroup label="生图并发上限" hint="控制图标预览生成阶段的并发数，建议保守设置，避免触发限流。">
+              <FieldGroup label="生图并发数" hint="同时生成多少张图标图像（生图接口限流较严，建议保持为 1）。">
                 <InputShell icon={Cpu}>
                   <input
                     value={imageConcurrencyInput}
@@ -253,8 +253,8 @@ export function IconImageTab({
               </FieldGroup>
               <FieldGroup label="保存方式" className="xl:col-span-2">
                 <div className="grid gap-3 md:grid-cols-2">
-                  <StrategyOptionButton active={iconImage.save_mode === "centralized"} label="集中保存" onClick={() => onUpdate((current) => ({ ...current, save_mode: "centralized" }))} description="应用后的 .ico 写入 %APPDATA%/FilePilot/managed_icons；预览 PNG 仍保存在项目 output/icon_workbench/previews。" />
-                  <StrategyOptionButton active={iconImage.save_mode === "in_folder"} label="就地保存" onClick={() => onUpdate((current) => ({ ...current, save_mode: "in_folder" }))} description="处理后资源靠近目标文件夹，适合边做边核对。" />
+                  <StrategyOptionButton active={iconImage.save_mode === "centralized"} label="应用内统一管理（推荐）" onClick={() => onUpdate((current) => ({ ...current, save_mode: "centralized" }))} description="生成的图标集中保存在应用数据目录中，不污染原文件夹。" />
+                  <StrategyOptionButton active={iconImage.save_mode === "in_folder"} label="保存在原文件夹内" onClick={() => onUpdate((current) => ({ ...current, save_mode: "in_folder" }))} description="图标文件直接保存在对应的目标文件夹中，便于直接查看和备份。" />
                 </div>
               </FieldGroup>
             </div>

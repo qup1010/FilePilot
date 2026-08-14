@@ -118,7 +118,7 @@ export function PathDiffViewer({ source, target, compact = false, targetKind, is
               <span className="opacity-30 select-none truncate max-w-[120px]">{displayCommonRoot}</span>
             )}
             {targetFolders.map((folder, idx) => {
-              const isReviewSegment = folder.toLowerCase() === "review";
+              const isReviewSegment = folder.toLowerCase() === "review" || (targetIsReview && idx === targetFolders.length - 1);
               return (
                 <span
                   key={idx}
@@ -200,7 +200,7 @@ export function PathDiffViewer({ source, target, compact = false, targetKind, is
               <span className="opacity-30 select-none whitespace-nowrap">{displayCommonRoot}</span>
             )}
             {targetFolders.map((folder, idx) => {
-              const isReviewSegment = folder.toLowerCase() === "review";
+              const isReviewSegment = folder.toLowerCase() === "review" || (targetIsReview && idx === targetFolders.length - 1);
               return (
                 <span
                   key={idx}

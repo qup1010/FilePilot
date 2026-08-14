@@ -43,7 +43,7 @@ describe("Icon workbench primitives", () => {
     );
 
     expect(screen.getByText("未应用")).toBeInTheDocument();
-    expect(screen.getByText("这是当前版本，但当前版本不等于已应用。")).toBeInTheDocument();
+    expect(screen.getByText("当前选中的预览版本，点击下方按钮即可应用至文件夹。")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /应用到文件夹/i })).toBeInTheDocument();
 
     rerender(

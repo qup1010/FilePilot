@@ -50,10 +50,10 @@ export function IconWorkbenchStylePanel({
                 <h2 className="text-[20px] font-black tracking-tight text-on-surface leading-tight">选择风格模板</h2>
               </DialogPrimitive.Title>
               <div className="mt-1 flex items-center gap-2">
-                <span className="text-[11px] font-black uppercase tracking-[0.15em] text-primary/70">视觉定义</span>
+                <span className="text-[11px] font-black uppercase tracking-[0.15em] text-primary/70">画风基准</span>
                 <span className="h-1 w-1 rounded-full bg-on-surface/20" />
                 <DialogPrimitive.Description asChild>
-                  <p className="text-[12px] font-bold text-ui-muted opacity-60">选中后将作为当前图标生成的视觉基准</p>
+                  <p className="text-[12px] font-bold text-ui-muted opacity-60">选择后将作为本次图标生成的画风基准</p>
                 </DialogPrimitive.Description>
               </div>
             </div>
@@ -163,7 +163,7 @@ export function IconWorkbenchStylePanel({
                     创建新模板
                   </h3>
                   <p className="line-clamp-2 text-[11px] leading-relaxed text-ui-muted/70 font-medium italic">
-                    用「主体 + 风格短语」自定义一套画风。
+                    通过自定义提示词创建专属图标画风。
                   </p>
                 </div>
               </button>

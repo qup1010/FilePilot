@@ -239,12 +239,18 @@ function DirectoryTreePanel({
     setExpanded((prev) => {
       let changed = false;
       const next = { ...prev };
-      for (const node of tree) {
-        if (!(node.path in next)) {
-          next[node.path] = true;
-          changed = true;
+      const markAll = (nodes: DirectoryTreeNode[]) => {
+        for (const node of nodes) {
+          if (node.kind === "directory") {
+            if (!(node.path in next)) {
+              next[node.path] = true;
+              changed = true;
+            }
+            markAll(node.children);
+          }
         }
-      }
+      };
+      markAll(tree);
       return changed ? next : prev;
     });
   }, [tree, setExpanded]);
@@ -325,7 +331,7 @@ function DirectoryTreePanel({
       );
     }
 
-    const isExpanded = expanded[node.path] ?? depth === 0;
+    const isExpanded = expanded[node.path] ?? true;
     const isReviewDirectory = Boolean(node.hasReviewDescendant)
       || node.path.toLowerCase() === "review"
       || node.path.toLowerCase().startsWith("review/");
@@ -395,12 +401,62 @@ function DirectoryTreePanel({
     );
   };
 
+  const handleCollapseColumn = () => {
+    const next: Record<string, boolean> = {};
+    const traverse = (nodes: DirectoryTreeNode[]) => {
+      for (const n of nodes) {
+        if (n.kind === "directory") {
+          next[n.path] = false;
+          traverse(n.children);
+        }
+      }
+    };
+    traverse(tree);
+    setExpanded(next);
+  };
+
+  const handleExpandColumn = () => {
+    const next: Record<string, boolean> = {};
+    const traverse = (nodes: DirectoryTreeNode[]) => {
+      for (const n of nodes) {
+        if (n.kind === "directory") {
+          next[n.path] = true;
+          traverse(n.children);
+        }
+      }
+    };
+    traverse(tree);
+    setExpanded(next);
+  };
+
   return (
     <div className="flex-1 flex flex-col min-w-0">
-      <div className="border-b border-on-surface/8 bg-on-surface/[0.015] px-4 py-1.5">
+      <div className="flex items-center justify-between border-b border-on-surface/8 bg-on-surface/[0.015] px-4 py-2">
         <h3 className="text-[11px] font-black uppercase tracking-[0.2em] text-on-surface/50 truncate">
           {column.title === "整理前目录树" ? "整理前" : "整理后"} · {column.title}
         </h3>
+        {tree.length > 0 && (
+          <div className="flex items-center gap-1 shrink-0">
+            <button
+              type="button"
+              title="收起此列全部目录"
+              onClick={handleCollapseColumn}
+              className="flex h-5 px-1.5 items-center gap-1 rounded border border-on-surface/8 bg-surface-container-lowest text-[10px] font-bold text-ui-muted/70 hover:text-on-surface hover:bg-on-surface/5 active:scale-95 transition-all select-none"
+            >
+              <ChevronsDownUp className="h-3 w-3" />
+              <span>收起</span>
+            </button>
+            <button
+              type="button"
+              title="展开此列全部目录"
+              onClick={handleExpandColumn}
+              className="flex h-5 px-1.5 items-center gap-1 rounded border border-on-surface/8 bg-surface-container-lowest text-[10px] font-bold text-ui-muted/70 hover:text-on-surface hover:bg-on-surface/5 active:scale-95 transition-all select-none"
+            >
+              <ChevronsUpDown className="h-3 w-3" />
+              <span>展开</span>
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="mt-4 space-y-1">
@@ -421,12 +477,26 @@ function DirectoryTreePanel({
   );
 }
 
-export function DirectoryTreeDiff({ before, after, filter = "all", onOpenExplorer }: DirectoryTreeDiffProps) {
-  const [expandedBefore, setExpandedBefore] = useState<Record<string, boolean>>({});
-  const [expandedAfter, setExpandedAfter] = useState<Record<string, boolean>>({});
+function collectAllDirectoryPaths(nodes: DirectoryTreeNode[]): Record<string, boolean> {
+  const result: Record<string, boolean> = {};
+  const traverse = (items: DirectoryTreeNode[]) => {
+    for (const item of items) {
+      if (item.kind === "directory") {
+        result[item.path] = true;
+        traverse(item.children);
+      }
+    }
+  };
+  traverse(nodes);
+  return result;
+}
 
+export function DirectoryTreeDiff({ before, after, filter = "all", onOpenExplorer }: DirectoryTreeDiffProps) {
   const beforeTree = useMemo(() => buildTree(before, filter), [before, filter]);
   const afterTree = useMemo(() => buildTree(after, filter), [after, filter]);
+
+  const [expandedBefore, setExpandedBefore] = useState<Record<string, boolean>>(() => collectAllDirectoryPaths(beforeTree));
+  const [expandedAfter, setExpandedAfter] = useState<Record<string, boolean>>(() => collectAllDirectoryPaths(afterTree));
 
   const handleCollapseAll = () => {
     const nextBefore: Record<string, boolean> = {};
@@ -486,47 +556,23 @@ export function DirectoryTreeDiff({ before, after, filter = "all", onOpenExplore
   }, []);
 
   return (
-    <div className="space-y-4">
-      {/* Controls Bar */}
-      <div className="flex items-center justify-end gap-1.5 border-b border-on-surface/5 pb-3">
-        <button
-          type="button"
-          title="全部收起 (Ctrl+Alt+C)"
-          onClick={handleCollapseAll}
-          className="flex h-7 px-2.5 items-center gap-1.5 rounded-md border border-on-surface/8 bg-surface text-[11px] font-black text-ui-muted hover:bg-on-surface/5 active:scale-95 transition-all select-none"
-        >
-          <ChevronsDownUp className="h-3.5 w-3.5" />
-          <span>全部收起</span>
-        </button>
-        <button
-          type="button"
-          title="全部展开 (Ctrl+Alt+E)"
-          onClick={handleExpandAll}
-          className="flex h-7 px-2.5 items-center gap-1.5 rounded-md border border-on-surface/8 bg-surface text-[11px] font-black text-ui-muted hover:bg-on-surface/5 active:scale-95 transition-all select-none"
-        >
-          <ChevronsUpDown className="h-3.5 w-3.5" />
-          <span>全部展开</span>
-        </button>
-      </div>
-
-      <div className="grid gap-6 lg:grid-cols-2">
-        <DirectoryTreePanel 
-          column={before} 
-          filter={filter} 
-          tree={beforeTree}
-          expanded={expandedBefore}
-          setExpanded={setExpandedBefore}
-          onOpenExplorer={onOpenExplorer}
-        />
-        <DirectoryTreePanel 
-          column={after} 
-          filter={filter} 
-          tree={afterTree}
-          expanded={expandedAfter}
-          setExpanded={setExpandedAfter}
-          onOpenExplorer={onOpenExplorer}
-        />
-      </div>
+    <div className="grid gap-6 lg:grid-cols-2">
+      <DirectoryTreePanel 
+        column={before} 
+        filter={filter} 
+        tree={beforeTree}
+        expanded={expandedBefore}
+        setExpanded={setExpandedBefore}
+        onOpenExplorer={onOpenExplorer}
+      />
+      <DirectoryTreePanel 
+        column={after} 
+        filter={filter} 
+        tree={afterTree}
+        expanded={expandedAfter}
+        setExpanded={setExpandedAfter}
+        onOpenExplorer={onOpenExplorer}
+      />
     </div>
   );
 }

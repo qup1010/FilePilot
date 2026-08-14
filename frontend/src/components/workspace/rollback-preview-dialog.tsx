@@ -60,9 +60,20 @@ export function RollbackPreviewDialog({
 
         <div className="max-h-[400px] overflow-y-auto p-0 scrollbar-thin">
           {!precheck ? (
-            <div className="flex flex-col items-center justify-center py-12 opacity-30">
-              <div className="h-6 w-6 animate-spin border-2 border-primary border-t-transparent rounded-full" />
-              <p className="mt-3 text-[11px] font-bold uppercase tracking-widest">正在检查是否可以安全还原...</p>
+            <div className="p-4 space-y-3">
+              <div className="flex items-center gap-2 px-2 text-[11px] font-bold text-primary">
+                <div className="h-3.5 w-3.5 animate-spin border-2 border-primary border-t-transparent rounded-full" />
+                <span>正在检查文件状态与原路径占用情况...</span>
+              </div>
+              {[1, 2, 3].map((idx) => (
+                <div key={idx} className="flex flex-col gap-2 rounded-xl border border-on-surface/5 bg-on-surface/[0.015] p-3.5 animate-pulse">
+                  <div className="flex items-center justify-between">
+                    <div className="h-4 w-40 rounded bg-on-surface/8" />
+                    <div className="h-4 w-16 rounded bg-on-surface/6" />
+                  </div>
+                  <div className="h-3 w-3/4 rounded bg-on-surface/5" />
+                </div>
+              ))}
             </div>
           ) : (
             <div className="divide-y divide-on-surface/5">

@@ -147,7 +147,7 @@ export function IconWorkbenchFolderCard({
         {/* Quick Actions */}
         <div className={cn("flex items-center gap-1", !isExpanded && "opacity-0 group-hover:opacity-100 transition-opacity")}>
           {!isExpanded && currentVersion?.status === "ready" && (
-            <button onClick={(e) => { e.stopPropagation(); onApplyVersion(currentVersion); }} disabled={isProcessing || !desktopReady} className="h-5.5 items-center rounded-[4px] bg-primary/10 px-2 text-[11px] font-black uppercase text-primary hover:bg-primary/20 active:scale-95 disabled:opacity-30 hidden lg:flex transition-all">一键应用</button>
+            <button onClick={(e) => { e.stopPropagation(); onApplyVersion(currentVersion); }} disabled={isProcessing || !desktopReady} className="h-5.5 items-center rounded-[4px] bg-primary/10 px-2 text-[11px] font-black uppercase text-primary hover:bg-primary/20 active:scale-95 disabled:opacity-30 hidden lg:flex transition-all">应用图标</button>
           )}
           <button onClick={(e) => { e.stopPropagation(); onRemoveTarget(); }} className="h-6.5 w-6.5 flex items-center justify-center rounded hover:bg-error/10 text-ui-muted/40 hover:text-error active:scale-90 transition-all"><X className="h-3 w-3" /></button>
           <div className={cn("h-6.5 w-6.5 flex items-center justify-center rounded transition-transform text-ui-muted/30", isExpanded && "rotate-180 text-primary")}><ChevronDown className="h-3.5 w-3.5" /></div>
@@ -165,7 +165,7 @@ export function IconWorkbenchFolderCard({
                 </div>
                 <div className="flex gap-1.5">
                   <button onClick={(e) => { e.stopPropagation(); onRegenerate(); }} disabled={isProcessing || !hasSelectedStyle || !!generateBlockedReason} className="h-6 items-center rounded bg-primary px-3 text-[11px] font-black uppercase text-white hover:bg-primary-dim active:scale-95 disabled:opacity-30 flex gap-1.5 transition-all"><RefreshCw className="h-2.5 w-2.5" /> 生成预览</button>
-                  <button disabled={isProcessing || !desktopReady} onClick={(e) => { e.stopPropagation(); onRestore(); }} className="h-6 items-center rounded border border-on-surface/10 bg-surface px-3 text-[11px] font-black uppercase text-on-surface hover:bg-on-surface/5 active:scale-95 disabled:opacity-30 transition-all">恢复原有</button>
+                  <button disabled={isProcessing || !desktopReady} onClick={(e) => { e.stopPropagation(); onRestore(); }} className="h-6 items-center rounded border border-on-surface/10 bg-surface px-3 text-[11px] font-black uppercase text-on-surface hover:bg-on-surface/5 active:scale-95 disabled:opacity-30 transition-all">还原默认图标</button>
                 </div>
               </div>
 
@@ -179,7 +179,7 @@ export function IconWorkbenchFolderCard({
                   ))}
                 </div>
               ) : (
-                <div className="flex h-20 items-center justify-center rounded border border-dashed border-on-surface/10 text-[11px] font-bold text-ui-muted/40 uppercase tracking-widest">暂无版本记录</div>
+                <div className="flex h-20 items-center justify-center rounded border border-dashed border-on-surface/10 text-[11px] font-bold text-ui-muted/40 uppercase tracking-widest">尚未生成图标预览</div>
               )}
 
               {folder.analysis && (

@@ -27,9 +27,9 @@ describe("IncrementalSelectionView", () => {
     expect(screen.getByText("2 个候选")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "全选" }));
-    fireEvent.click(screen.getByRole("button", { name: "确认并继续" }));
+    fireEvent.click(screen.getByRole("button", { name: /确认选择并继续/ }));
 
     expect(onConfirm).toHaveBeenCalledWith(["Docs", "Archive"]);
-    expect(screen.getAllByText("顶层项 1")).toHaveLength(2);
+    expect(screen.getAllByText(/已包含 1 项/)).toHaveLength(2);
   });
 });

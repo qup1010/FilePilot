@@ -31,14 +31,14 @@ export function BgRemovalTab({
   return (
     <SettingsSection
       icon={Scissors}
-      title="背景处理"
-      description="配置背景裁剪及抠图服务的端点和模型参数。"
+      title="透明抠图配置"
+      description="配置图标背景去除服务的端点与模型参数。"
     >
       <SettingsMinPath
         items={[
-          "与 OpenAI 兼容聊天/生图接口无关，走 Hugging Face Space 类服务",
-          "默认选内置预设即可；需要私有 Space 时再切自定义",
-          "HF Token 可选，公开 Space 通常不填也能用",
+          "功能说明：抠图服务用于将生成的方形图标背景去除转为透明，再生成标准 .ico 图标",
+          "开箱即用：默认使用内置免费云端抠图服务，无需额外配置即可直接使用",
+          "按需扩展：支持配置私有 Hugging Face Space 或自定义 Gradio 抠图端点",
         ]}
       />
       <FieldGroup label="服务模式">
@@ -46,13 +46,13 @@ export function BgRemovalTab({
           <StrategyOptionButton
             active={bgRemoval.mode === "preset"}
             label="使用内置预设"
-            description="直接使用内置的背景处理服务，适合快速开始。"
+            description="直接使用内置的免费抠图服务，适合快速上手。"
             onClick={() => onUpdate((current) => ({ ...current, mode: "preset" }))}
           />
           <StrategyOptionButton
             active={bgRemoval.mode === "custom"}
             label="自定义服务"
-            description="手动填写 Space ID、API 类型和 payload_template。"
+            description="手动配置 Space ID、API 类型及 Payload 请求模板。"
             onClick={() => onUpdate((current) => ({ ...current, mode: "custom" }))}
           />
         </div>
@@ -118,7 +118,7 @@ export function BgRemovalTab({
               />
             </InputShell>
           </FieldGroup>
-          <FieldGroup label="Payload Template" className="xl:col-span-2" hint="填写原始 JSON 文本，可使用 {{uploaded_path}} 与 {{model_id}} 占位符。">
+          <FieldGroup label="请求模板 (Payload Template)" className="xl:col-span-2" hint="（高级开发者选项）填写 JSON 请求体模板，支持 {{uploaded_path}} 与 {{model_id}} 占位符。">
             <textarea
               value={bgRemoval.custom.payload_template}
               onChange={(event) =>

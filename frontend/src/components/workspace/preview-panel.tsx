@@ -287,7 +287,7 @@ function TreeBranchInner({
     );
   }
 
-  const isExpanded = expanded[node.path] ?? depth < 1;
+  const isExpanded = expanded[node.path] ?? true;
   return (
     <div className="space-y-0.5">
       <button

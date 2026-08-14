@@ -82,9 +82,9 @@ export function TextTab({
     >
       <SettingsMinPath
         items={[
-          "文本：接口地址 + 模型 ID + API Key（整理主链路必需）",
-          "图片理解默认复用文本模型；仅当视觉模型不同时再选「单独图片模型」",
-          "填写后点「测试连接」确认可用；多套环境可用上方预设切换",
+          "基础必备：填写接口地址、模型 ID 和 API 密钥（文件整理核心依赖）",
+          "图片理解：默认复用上述文本模型；若文本模型不支持看图，可切换为「单独图片模型」",
+          "填写后点击「测试文本连接」确认可用；支持保存多套预设随时切换",
         ]}
       />
       <PresetSelector
@@ -97,7 +97,7 @@ export function TextTab({
       />
       {!textPresetEditable ? (
         <p className="text-[11px] leading-5 text-ui-muted">
-          尚未保存过预设：可直接填写下方字段，首次保存时会自动创建可编辑预设。
+          首次使用请直接在下方填写配置，首次保存时会自动创建可编辑预设。
         </p>
       ) : null}
       <div className="grid gap-4 xl:grid-cols-2">
@@ -172,7 +172,7 @@ export function TextTab({
               {
                 id: "separate" as const,
                 label: "单独图片模型",
-                description: "为图片理解保留独立预设，适合视觉模型与文本模型分开配置。",
+                description: "适合文本模型不带视觉能力、或希望单独配置视觉多模态模型时选用。",
               },
             ] as const).map((item) => {
               const active = visionMode === item.id;

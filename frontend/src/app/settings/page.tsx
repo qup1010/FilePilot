@@ -208,9 +208,9 @@ export default function SettingsPage() {
 
   const categories = [
     { id: "text", label: "整理模型配置", icon: Layers3, description: "配置文本分析与图片理解模型" },
-    { id: "launch", label: "整理策略配置", icon: SettingsIcon, description: "配置任务启动默认参数与规则" },
-    { id: "icon_image", label: "生图模型配置", icon: ImageIcon, description: "配置图标生成模型参数" },
-    { id: "bg_removal", label: "抠图服务配置", icon: Scissors, description: "配置抠图模型端点与参数" },
+    { id: "launch", label: "任务默认策略", icon: SettingsIcon, description: "配置新建任务时的默认分类与放置规则" },
+    { id: "icon_image", label: "图标生图配置", icon: ImageIcon, description: "配置图标工坊的 AI 生图模型与参数" },
+    { id: "bg_removal", label: "透明抠图配置", icon: Scissors, description: "配置图标背景去除服务与端点" },
     { id: "system", label: "关于与运行日志", icon: ShieldCheck, description: "项目版本、检查更新与系统日志" },
   ];
 
@@ -946,7 +946,7 @@ export default function SettingsPage() {
               </div>
               <div className="mt-4 border-t border-on-surface/5 pt-3">
                 <p className="text-[11px] font-bold leading-relaxed text-on-surface/25">
-                  文本分析是整理主链路必需；其他能力会按功能场景启用。
+                  文本分析为整理核心功能所必需；其余模型在用到对应功能时才会调用。
                 </p>
               </div>
             </div>
@@ -1130,9 +1130,9 @@ export default function SettingsPage() {
                 )}
               >
                 <div className="mr-4 flex flex-col">
-                  <span className="text-[11px] font-black uppercase tracking-wider text-primary">设置已修改</span>
+                  <span className="text-[11px] font-black uppercase tracking-wider text-primary">有未保存的配置更改</span>
                   <span className="text-[11px] font-medium text-on-surface/40">
-                    {dirtyTabLabels.length ? `将保存：${dirtyTabLabels.join("、")}` : "会保存本页未提交的修改"}
+                    {dirtyTabLabels.length ? `涉及分类：${dirtyTabLabels.join("、")}` : "会保存本页未提交的修改"}
                   </span>
                 </div>
                 <div className="h-8 w-px bg-primary/10" />
@@ -1247,9 +1247,9 @@ export default function SettingsPage() {
 
       <ConfirmDialog
         open={Boolean(switchPresetDialog)}
-        title="切换预设并放弃草稿"
-        description="当前草稿将丢失，确定切换吗？"
-        confirmLabel="切换"
+        title="放弃修改并切换预设？"
+        description="当前预设中有未保存的配置更改，切换后这些修改将丢失，确定继续切换吗？"
+        confirmLabel="确认切换"
         cancelLabel="取消"
         loading={loading}
         onConfirm={async () => {
