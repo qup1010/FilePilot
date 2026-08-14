@@ -1,6 +1,6 @@
 [package]
 name = "file-pilot-desktop"
-version = "1.0.4"
+version = "1.0.5"
 edition = "2021"
 description = "Tauri desktop host for the FilePilot workbench"
 authors = ["OpenAI Codex"]
