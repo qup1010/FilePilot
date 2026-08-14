@@ -413,12 +413,22 @@ class SnapshotBuilder:
         review_items.sort(key=lambda item: self.helpers._planner_id_number(item.item_id))
         mappings.sort(key=lambda item: self.helpers._planner_id_number(item.item_id))
 
-        move_count = len([item for item in items if item.status != "unresolved"])
-        unresolved_count = len([item for item in items if item.status == "unresolved"])
+        def _is_effective_move(item: PlanSnapshotItem) -> bool:
+            if item.status in {"unresolved", "review", "skipped", "unassigned"}:
+                return False
+            if not str(item.target_slot_id or "").strip() or item.target_slot_id == REVIEW_SLOT_ID:
+                return False
+            dir_name = target_directory_for_slot(item.target_slot_id)
+            if not dir_name or dir_name.lower() == "review":
+                return False
+            return True
+
+        move_count = len([item for item in items if _is_effective_move(item)])
+        unresolved_count = len([item for item in items if not _is_effective_move(item)])
         groups = [
             PlanGroupPayload(directory=directory, count=len(group_items), items=group_items)
             for directory, group_items in sorted(grouped_items.items(), key=lambda pair: pair[0])
-            if directory
+            if directory and directory.lower() != "review"
         ]
         invalidated_items = [
             self.normalize_plan_snapshot_item(
@@ -435,8 +445,9 @@ class SnapshotBuilder:
             summary=plan.summary,
             stats={
                 "move_count": move_count,
-                "unresolved_count": unresolved_count,
-                "directory_count": len([slot for slot in target_slots if str(slot.relpath or "").strip()]),
+                "unresolved_count": len([item for item in items if item.status == "unresolved"]),
+                "review_count": len([item for item in items if item.status == "review"]),
+                "directory_count": len([slot for slot in target_slots if str(slot.relpath or "").strip() and str(slot.slot_id or "") != REVIEW_SLOT_ID]),
             },
             placement=self.helpers._placement_payload(session.placement if session is not None else None),
             groups=groups,
@@ -447,6 +458,6 @@ class SnapshotBuilder:
             diff_summary=list(cycle_result.get("diff_summary", [])),
             target_slots=target_slots,
             mappings=mappings,
-            readiness={"can_precheck": bool(plan.moves) and unresolved_count == 0},
+            readiness={"can_precheck": move_count > 0 and len([item for item in items if item.status == "unresolved"]) == 0},
         )
         return asdict(payload)

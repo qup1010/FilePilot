@@ -71,9 +71,9 @@ const EMPTY_PLACEMENT: PlacementConfig = { new_directory_root: "", review_root: 
 
 const ACTIVE_FILTER_LABELS: Record<Exclude<PreviewFilter, "all">, string> = {
   changed: "已变更",
-  unresolved: "待决策",
-  review: "待核对",
-  invalidated: "需重确认",
+  unresolved: "未分配",
+  review: "待确认",
+  invalidated: "变动需确认",
 };
 
 function treeNodeKey(node: TreeNode): string {
@@ -597,14 +597,15 @@ export function PreviewPanel(props: PreviewPanelProps) {
     [allItems, sourceTreeEntries],
   );
   const placement = plan.placement || EMPTY_PLACEMENT;
+  const isAssignExisting = organizeMode === "incremental";
   const atomicChildCounts = useMemo(() => buildAtomicChildCounts(sourceTreeEntries), [sourceTreeEntries]);
   const resolveTargetLabel = useCallback(
-    (item: PlanItem) => displayDirectoryLabel(resolveItemDirectory(item, targetSlotById, placement)),
-    [placement, targetSlotById],
+    (item: PlanItem) => displayDirectoryLabel(resolveItemDirectory(item, targetSlotById, placement), isAssignExisting),
+    [isAssignExisting, placement, targetSlotById],
   );
   const resolveTargetMeta = (item: PlanItem) => {
     const directoryLabel = resolveTargetLabel(item);
-    const fullTargetPath = resolveItemTargetPath(item, targetSlotById, placement);
+    const fullTargetPath = resolveItemTargetPath(item, targetSlotById, placement, isAssignExisting);
     const mappingLabel = mappingStatusLabel(item.mapping_status || item.status, item, acceptedReviewItemIds);
     return { directoryLabel, fullTargetPath, mappingLabel };
   };
@@ -870,11 +871,11 @@ export function PreviewPanel(props: PreviewPanelProps) {
     : targetConflictSuggestionCount > 0
       ? `检测到 ${targetConflictSuggestionCount} 个同名目标，可应用建议后重新检查。`
     : invalidatedItems.length > 0
-      ? `仍有 ${invalidatedItems.length} 项需重新确认。`
+      ? `仍有 ${invalidatedItems.length} 项分类变动需确认。`
       : unresolvedItems.length > 0
-        ? `仍有 ${unresolvedItems.length} 项待决策。`
+        ? `仍有 ${unresolvedItems.length} 项未分配分类。`
         : reviewQueueCount > 0
-          ? `仍有 ${reviewQueueCount} 项待核对。`
+          ? `仍有 ${reviewQueueCount} 项暂放待确认。`
           : isPlanSyncing
             ? "方案正在更新，稍后即可进行检查。"
             : "方案还没准备好进行检查。";
@@ -937,10 +938,17 @@ export function PreviewPanel(props: PreviewPanelProps) {
                     <Sparkles className="h-2.5 w-2.5 text-primary/60" />
                     <span>移动 {plan.stats.move_count}</span>
                   </div>
-                  <div className="flex shrink-0 items-center gap-1.5 rounded-[4px] border border-on-surface/8 bg-on-surface/[0.02] px-2 py-0.5 text-[11px] font-bold text-on-surface uppercase tracking-widest">
-                    <Folder className="h-2.5 w-2.5 text-primary/60" />
-                    <span>新目录 {plan.stats.directory_count}</span>
-                  </div>
+                  {isAssignExisting ? (
+                    <div className="flex shrink-0 items-center gap-1.5 rounded-[4px] border border-on-surface/8 bg-on-surface/[0.02] px-2 py-0.5 text-[11px] font-bold text-on-surface uppercase tracking-widest">
+                      <Folder className="h-2.5 w-2.5 text-emerald-500/80" />
+                      <span>留原位 {plan.stats.unresolved_count}</span>
+                    </div>
+                  ) : (
+                    <div className="flex shrink-0 items-center gap-1.5 rounded-[4px] border border-on-surface/8 bg-on-surface/[0.02] px-2 py-0.5 text-[11px] font-bold text-on-surface uppercase tracking-widest">
+                      <Folder className="h-2.5 w-2.5 text-primary/60" />
+                      <span>新目录 {plan.stats.directory_count}</span>
+                    </div>
+                  )}
                 </div>
 
                 {/* 标题只讲"现在该做什么"；后端 summary 里的移动/待确认数与上方徽标重复，不再重复展示。 */}
@@ -1168,16 +1176,16 @@ export function PreviewPanel(props: PreviewPanelProps) {
                           }}
                           className="inline-flex h-8 items-center rounded-[8px] border border-primary/15 bg-primary/[0.05] px-3 text-[11px] font-black text-primary transition-all hover:bg-primary/[0.08] active:scale-95"
                         >
-                          全部保留在待确认区
+                          {isAssignExisting ? "确认保留在原地" : "全部保留在待确认区"}
                         </button>
                       </div>
                     ) : undefined
                   }
                 >
                   <div className="space-y-3">
-                    <QueueCard title="需重新确认" items={invalidatedItems} selectedItemId={editingItemId || selectedItemId} onSelectItem={(id) => { setSelectedItemId(id); setEditingItemId(id); }} onShowAll={() => setFilter("invalidated")} tone="border-error/12 bg-error-container/20" resolveTargetLabel={resolveTargetLabel} />
-                    <QueueCard title="待决策" items={unresolvedItems} selectedItemId={editingItemId || selectedItemId} onSelectItem={(id) => { setSelectedItemId(id); setEditingItemId(id); }} onShowAll={() => setFilter("unresolved")} tone="border-warning/12 bg-warning-container/25" resolveTargetLabel={resolveTargetLabel} />
-                    <QueueCard title="待核对" items={activeReviewItems} selectedItemId={editingItemId || selectedItemId} onSelectItem={(id) => { setSelectedItemId(id); setEditingItemId(id); }} onShowAll={() => setFilter("review")} tone="border-primary/12 bg-primary/5" resolveTargetLabel={resolveTargetLabel} />
+                    <QueueCard title="分类变动需确认" items={invalidatedItems} selectedItemId={editingItemId || selectedItemId} onSelectItem={(id) => { setSelectedItemId(id); setEditingItemId(id); }} onShowAll={() => setFilter("invalidated")} tone="border-error/12 bg-error-container/20" resolveTargetLabel={resolveTargetLabel} />
+                    <QueueCard title="未分配分类" items={unresolvedItems} selectedItemId={editingItemId || selectedItemId} onSelectItem={(id) => { setSelectedItemId(id); setEditingItemId(id); }} onShowAll={() => setFilter("unresolved")} tone="border-warning/12 bg-warning-container/25" resolveTargetLabel={resolveTargetLabel} />
+                    <QueueCard title="暂放待确认" items={activeReviewItems} selectedItemId={editingItemId || selectedItemId} onSelectItem={(id) => { setSelectedItemId(id); setEditingItemId(id); }} onShowAll={() => setFilter("review")} tone="border-primary/12 bg-primary/5" resolveTargetLabel={resolveTargetLabel} />
                   </div>
                 </QueuePanel>
               </div>
@@ -1193,7 +1201,7 @@ export function PreviewPanel(props: PreviewPanelProps) {
               <div>
                 <p className="text-[12px] font-bold uppercase tracking-[0.14em] text-ui-muted flex items-center gap-2">
                   <Edit2 className="w-3.5 h-3.5" />
-                  独立确认
+                  调整文件去向
                 </p>
                 <DialogTitle className="mt-1 text-[18px] font-bold tracking-tight text-on-surface">
                   {editingItem?.display_name || "未知条目"}

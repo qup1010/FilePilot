@@ -1926,6 +1926,40 @@ export function SessionLauncherShell() {
 
                     {step === 3 ? (
                       <div className="space-y-5 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                        {!isAssignExisting ? (
+                          <div className="space-y-4 rounded-xl border border-on-surface/8 bg-surface-container-low/30 p-5">
+                            <div className="flex items-center gap-2 border-b border-on-surface/10 pb-3">
+                              <div className="flex h-6 w-6 items-center justify-center rounded-[4px] bg-primary/10 text-primary">
+                                <FolderOpen className="h-3.5 w-3.5" />
+                              </div>
+                              <h2 className="text-[14px] font-bold text-on-surface">新目录生成位置</h2>
+                            </div>
+
+                            <div className="rounded-[8px] border border-on-surface/8 bg-surface-container-lowest p-3.5 transition-all focus-within:border-primary/30">
+                              <div className="flex gap-2">
+                                <input
+                                  value={newDirectoryRoot}
+                                  onChange={(event) => setNewDirectoryRoot(event.target.value)}
+                                  disabled={loading}
+                                  placeholder={placementConfig.defaultNewDirectoryRoot || "新目录生成路径"}
+                                  className="h-9 flex-1 rounded-[6px] border border-transparent bg-on-surface/[0.03] px-2.5 text-[13px] font-medium text-on-surface outline-none transition-all placeholder:text-on-surface-variant/35 focus:border-primary/30 focus:bg-surface focus:ring-2 focus:ring-primary/5"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => void handleSelectPlacementRoot("new")}
+                                  disabled={loading}
+                                  className="h-9 rounded-[6px] border border-on-surface/8 bg-surface px-3 text-[12px] font-bold text-on-surface transition-colors hover:border-primary/20 hover:text-primary disabled:opacity-50"
+                                >
+                                  选择目录
+                                </button>
+                              </div>
+                              <p className="mt-2 text-[11px] font-medium leading-relaxed text-ui-muted opacity-80">
+                                留空则默认在整理来源目录下新建分类结构。
+                              </p>
+                            </div>
+                          </div>
+                        ) : null}
+
                         <div className="space-y-3">
                           <div className="flex items-center gap-2 border-b border-on-surface/10 pb-3">
                             <div className="flex h-6 w-6 items-center justify-center rounded-[4px] bg-primary/10 text-primary">

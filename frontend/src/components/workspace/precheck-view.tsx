@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertCircle, ArrowRight, CheckCircle2, FolderPlus, ListChecks, ShieldAlert } from "lucide-react";
+import { AlertCircle, ArrowRight, CheckCircle2, FolderPlus, ListChecks, ShieldAlert, ShieldCheck } from "lucide-react";
 import { PlanItem, PlanTargetSlot, PrecheckSummary } from "@/types/session";
 import { cn } from "@/lib/utils";
 import { DirectoryTreeDiff, type DirectoryTreeLeafEntry, type DirectoryTreeFilter } from "./directory-tree-diff";
@@ -89,6 +89,9 @@ export function PrecheckView({
     const hasErrors = (summary.blocking_errors || []).length > 0;
     const hasWarnings = (summary.warnings || []).length > 0;
     const reviewCount = reviewMoveCount(summary);
+    const movedItemIds = new Set((summary.move_preview || []).map((move) => move.item_id));
+    const stayInPlaceItems = planItems.filter((item) => !movedItemIds.has(item.item_id));
+    const stayInPlaceCount = stayInPlaceItems.length;
     const targetConflictSuggestions = summary.target_conflict_suggestions || [];
     const summaryTone = hasErrors ? "danger" : hasWarnings ? "warning" : "success";
     const planItemById = new Map(planItems.map((item) => [item.item_id, item] as const));
@@ -184,7 +187,9 @@ export function PrecheckView({
                             {[
                                 { label: "将移动", value: summary.move_preview.length, icon: ArrowRight, color: "text-primary", bg: "bg-primary/5", iconRotate: "-45deg" },
                                 { label: "将新建目录", value: summary.mkdir_preview.length, icon: FolderPlus, color: "text-sky-500", bg: "bg-sky-500/5" },
-                                { label: "待确认", value: reviewCount, icon: AlertCircle, color: reviewCount > 0 ? "text-warning" : "text-success-dim", bg: reviewCount > 0 ? "bg-warning/5" : "bg-success/5" }
+                                stayInPlaceCount > 0
+                                    ? { label: "保留在原地", value: stayInPlaceCount, icon: ShieldCheck, color: "text-emerald-500", bg: "bg-emerald-500/5" }
+                                    : { label: "待确认", value: reviewCount, icon: AlertCircle, color: reviewCount > 0 ? "text-warning" : "text-success-dim", bg: reviewCount > 0 ? "bg-warning/5" : "bg-success/5" }
                             ].map((stat, i) => (
                                 <motion.div 
                                     key={i}
@@ -259,55 +264,29 @@ export function PrecheckView({
                                     
                                     return (
                                         <motion.div 
-                                            key={`${move.item_id}-${move.target}`} 
-                                            initial={{ opacity: 0, y: 5 }}
+                                            key={move.item_id}
+                                            initial={{ opacity: 0, y: 6 }}
                                             animate={{ opacity: 1, y: 0 }}
-                                            transition={{ delay: Math.min(idx * 0.01, 0.4), duration: 0.2 }}
-                                            className={cn(
-                                                "group relative rounded-md border transition-all",
-                                                isReview 
-                                                    ? "border-warning/30 bg-warning/[0.02]" 
-                                                    : "border-on-surface/8 bg-on-surface/[0.01] hover:border-primary/40 hover:bg-primary/[0.02]"
-                                            )}
+                                            transition={{ delay: idx * 0.02, duration: 0.2 }}
+                                            className="group flex flex-col rounded-lg border border-on-surface/8 bg-surface-container-lowest transition-all hover:border-on-surface/16"
                                         >
-                                            <div className="flex items-start gap-3 p-3">
-                                                {(() => {
-                                                    const ItemIcon = getFileIcon(move.display_name);
-                                                    return (
-                                                        <div className={cn(
-                                                            "flex h-7 w-7 shrink-0 items-center justify-center rounded-[6px] border transition-colors",
-                                                            isReview
-                                                                ? "border-warning/15 bg-warning/8 text-warning"
-                                                                : riskMessages.length > 0
-                                                                    ? "border-error/15 bg-error/8 text-error"
-                                                                    : "border-on-surface/8 bg-on-surface/[0.03] text-on-surface-variant/40 group-hover:border-primary/20 group-hover:bg-primary/5 group-hover:text-primary"
-                                                        )}>
-                                                            <ItemIcon className="h-3.5 w-3.5" />
-                                                        </div>
-                                                    );
-                                                })()}
-                                                <div className="min-w-0 flex-1">
-                                                    <div className="flex items-center gap-2">
-                                                        <p className="truncate text-[12px] font-black text-on-surface tracking-tight font-mono" title={move.display_name}>
+                                            <div className="p-3.5">
+                                                <div className="flex flex-col gap-1">
+                                                    <div className="flex items-start justify-between gap-3">
+                                                        <span className="truncate font-mono text-[13px] font-bold text-on-surface">
                                                             {move.display_name}
-                                                        </p>
-                                                        {isReview && (
-                                                            <div className="flex items-center gap-1 rounded-[4px] bg-warning/10 px-1.5 py-0.5 text-[11px] font-black uppercase text-warning border border-warning/20">
-                                                                <AlertCircle className="h-2 w-2" />
-                                                                待确认
-                                                            </div>
-                                                        )}
+                                                        </span>
                                                         {riskMessages.length > 0 && (
                                                             <div
                                                                 className="flex items-center gap-1 rounded-[4px] border border-error/20 bg-error/10 px-1.5 py-0.5 text-[11px] font-black uppercase text-error"
                                                                 title={riskMessages.join("\n")}
                                                             >
                                                                 <ShieldAlert className="h-2 w-2" />
-                                                                高影响
+                                                                重要变动
                                                             </div>
                                                         )}
                                                     </div>
-                                                    <div className="mt-1 flex items-center gap-1.5 opacity-50">
+                                                    <div className="flex items-center gap-1.5 opacity-50">
                                                         {slotLabel && (
                                                             <span className={cn(
                                                                 "rounded-[4px] px-1 py-0.5 text-[11px] font-black tracking-widest uppercase border",
@@ -323,6 +302,37 @@ export function PrecheckView({
                                                 <PathDiffViewer source={move.source} target={move.target} />
                                             </div>
                                         </motion.div>
+                                    );
+                                })}
+                            </div>
+                        </section>
+                    ) : null}
+
+                    {stayInPlaceItems.length > 0 ? (
+                        <section className="shrink-0 space-y-4 pb-4">
+                            <div className="flex items-baseline justify-between border-b border-on-surface/8 pb-3 mb-4">
+                                <div>
+                                    <h3 className="text-[15px] font-black font-headline text-on-surface tracking-tight">保留在原位的项目</h3>
+                                    <p className="text-[11px] font-medium text-ui-muted mt-0.5">未命中任何目标分类规则，整理时将安全保留在源文件夹中不变</p>
+                                </div>
+                                <div className="text-[11px] font-bold text-emerald-500 uppercase tracking-widest">{stayInPlaceItems.length} 个条目</div>
+                            </div>
+                            <div className="grid gap-3 @4xl:grid-cols-2">
+                                {stayInPlaceItems.map((item) => {
+                                    const FileIcon = getFileIcon(item.display_name, item.entry_type);
+                                    return (
+                                        <div key={item.item_id} className="flex items-center justify-between gap-3 rounded-lg border border-on-surface/8 bg-surface-container-lowest p-3.5 shadow-sm">
+                                            <div className="flex items-center gap-3 min-w-0 flex-1">
+                                                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-on-surface/8 bg-on-surface/[0.02] text-ui-muted">
+                                                    <FileIcon className="h-4 w-4" />
+                                                </div>
+                                                <div className="min-w-0 flex-1">
+                                                    <p className="truncate font-mono text-[13px] font-bold text-on-surface">{item.display_name}</p>
+                                                    <p className="mt-0.5 truncate text-[11px] text-ui-muted opacity-60">源路径：{item.source_relpath}</p>
+                                                </div>
+                                            </div>
+                                            <span className="shrink-0 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-1 text-[11px] font-bold text-emerald-600">保留在原地</span>
+                                        </div>
                                     );
                                 })}
                             </div>
@@ -448,7 +458,7 @@ export function PrecheckView({
                                 <p className="text-[11px] font-medium text-ui-muted opacity-70">
                                     {readOnly
                                         ? "当前只能查看记录，不能修改执行状态。"
-                                        : (hasErrors ? "当前存在阻塞性问题，请修复后再试。" : "任务执行后支持回退最近一次产生的变更。")}
+                                        : (hasErrors ? "发现必须先解决的问题，暂不能执行。" : "整理执行后支持随时一键安全还原。")}
                                 </p>
                             </div>
                         </div>

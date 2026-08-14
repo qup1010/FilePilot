@@ -50,9 +50,9 @@ export function RollbackPreviewDialog({
               <RotateCcw className="h-5 w-5" />
             </div>
             <div>
-              <DialogTitle className="text-[16px] font-black tracking-tight">确认回退执行</DialogTitle>
+              <DialogTitle className="text-[16px] font-black tracking-tight">确认还原文件</DialogTitle>
               <DialogDescription className="text-[12px] font-medium opacity-50">
-                预览即将执行的回退操作，系统将尝试撤销本次整理的所有变动。
+                系统将尝试撤销本次整理的所有变动，将文件移回原位置。
               </DialogDescription>
             </div>
           </div>
@@ -62,13 +62,13 @@ export function RollbackPreviewDialog({
           {!precheck ? (
             <div className="flex flex-col items-center justify-center py-12 opacity-30">
               <div className="h-6 w-6 animate-spin border-2 border-primary border-t-transparent rounded-full" />
-              <p className="mt-3 text-[11px] font-bold uppercase tracking-widest">正在加载预检信息...</p>
+              <p className="mt-3 text-[11px] font-bold uppercase tracking-widest">正在检查是否可以安全还原...</p>
             </div>
           ) : (
             <div className="divide-y divide-on-surface/5">
               {/* Actions List */}
               <div className="p-4 space-y-2 bg-on-surface/[0.01]">
-                <h4 className="px-2 text-[11px] font-black uppercase tracking-widest text-ui-muted/40 mb-3">待撤销的变更项 ({actions.length})</h4>
+                <h4 className="px-2 text-[11px] font-black uppercase tracking-widest text-ui-muted/40 mb-3">待移回原位的条目 ({actions.length})</h4>
                 {actions.map((action, idx) => (
                   <motion.div 
                     initial={{ opacity: 0, y: 5 }}
@@ -96,12 +96,12 @@ export function RollbackPreviewDialog({
                 ))}
               </div>
 
-              {/* 无法回退的项：逐项呈现原因，其余项照常回退 */}
+              {/* 无法还原的项：逐项呈现原因，其余项照常还原 */}
               {itemSkips.length > 0 && (
                 <div className="p-5 bg-warning/[0.02]">
                   <div className="flex items-center gap-2 text-warning-dim mb-3">
                     <Info className="h-4 w-4" />
-                    <h4 className="text-[12px] font-black tracking-tight">无法回退的项（将跳过，保持现状）</h4>
+                    <h4 className="text-[12px] font-black tracking-tight">无法还原的项（将跳过，保持现状）</h4>
                     <span className="font-mono text-[11px] font-bold text-warning-dim/60">{itemSkips.length} 项</span>
                   </div>
                   <ul className="space-y-1.5">
@@ -124,7 +124,7 @@ export function RollbackPreviewDialog({
                   <div className="flex items-center gap-2 text-error mb-3">
                     <XCircle className="h-4 w-4" />
                     <h4 className="text-[12px] font-black tracking-tight">
-                      {errors.length > 0 ? "检测到阻断性冲突" : "当前没有可回退的项"}
+                      {errors.length > 0 ? "目标路径已被占用，无法直接还原" : "当前没有可还原的项"}
                     </h4>
                   </div>
                   {errors.length > 0 ? (
@@ -141,8 +141,8 @@ export function RollbackPreviewDialog({
                     <Info className="h-4 w-4 text-error shrink-0 mt-0.5" />
                     <p className="text-[11px] font-medium text-error/70 leading-relaxed">
                       {errors.length > 0
-                        ? "上述路径冲突将导致回退失败。请先手动移除冲突的文件或检查目录权限，然后再试。"
-                        : "上方列出的原因（原位置被占用、目录非空等）导致所有项都无法回退。请先处理这些冲突，然后再试。"}
+                        ? "上述路径冲突将导致还原失败。请先手动清理冲突文件或检查目录权限，然后再试。"
+                        : "上方列出的原因（原位置被占用、目录非空等）导致所有项都无法还原。请先处理这些冲突，然后再试。"}
                     </p>
                   </div>
                 </div>
@@ -154,14 +154,14 @@ export function RollbackPreviewDialog({
                     <CheckCircle2 className="h-4 w-4" />
                     <h4 className="text-[12px] font-black tracking-tight">
                       {itemSkips.length > 0
-                        ? `可回退 ${restorableCount} 项，${itemSkips.length} 项将跳过`
-                        : "预检通过：系统可以尝试自动回退"}
+                        ? `可还原 ${restorableCount} 项，${itemSkips.length} 项将跳过`
+                        : "检查通过：可以将文件安全移回原位"}
                     </h4>
                   </div>
                   <p className="mt-2 text-[11px] font-medium text-ui-muted/60 leading-relaxed">
                     {itemSkips.length > 0
-                      ? "点击确认后，可回退的项将移回原始位置；上方列出的项保持现状，处理完冲突后可再次回退。"
-                      : "所有回退路径当前均可写入。点击确认后，系统将尝试将文件移回原始位置并清理本次生成的目录结构。"}
+                      ? "点击确认后，可还原的项将移回原始位置；上方列出的项保持现状，处理完冲突后可再次还原。"
+                      : "所有原路径当前均可写入。点击确认后，系统将尝试将文件移回原始位置并清理本次生成的目录结构。"}
                   </p>
                 </div>
               )}
@@ -172,7 +172,7 @@ export function RollbackPreviewDialog({
         <DialogFooter className="p-4 border-t border-on-surface/5 bg-on-surface/[0.02] sm:justify-between sm:items-center">
           <div className="hidden sm:flex items-center gap-2 text-[11px] font-medium text-ui-muted/40">
             <AlertTriangle className="h-3 w-3" />
-            回退操作不可撤销，请仔细核对。
+            还原操作将把文件移回原位置，请仔细核对。
           </div>
           <div className="flex items-center gap-3">
             <Button
@@ -190,7 +190,7 @@ export function RollbackPreviewDialog({
               loading={loading}
               className="h-9 rounded-[8px] px-8 text-[12px] font-black"
             >
-              确认回退
+              确认还原
             </Button>
           </div>
         </DialogFooter>

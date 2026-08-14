@@ -149,13 +149,13 @@ export function QueuePanel({
             >
               <div className="flex flex-wrap gap-2 px-4 py-3">
                 {invalidatedCount > 0 ? (
-                  <span className="rounded-md border border-error/15 bg-error/5 px-2 py-1 text-[11px] font-black uppercase tracking-wider text-error animate-[pulse_4s_infinite] shadow-[0_0_6px_rgba(239,68,68,0.05)]">需重新确认 {invalidatedCount}</span>
+                  <span className="rounded-md border border-error/15 bg-error/5 px-2 py-1 text-[11px] font-black uppercase tracking-wider text-error animate-[pulse_4s_infinite] shadow-[0_0_6px_rgba(239,68,68,0.05)]">分类变动需确认 {invalidatedCount}</span>
                 ) : null}
                 {unresolvedCount > 0 ? (
-                  <span className="rounded-md border border-warning/20 bg-warning/5 px-2 py-1 text-[11px] font-black uppercase tracking-wider text-warning-dim animate-[pulse_3.5s_infinite] shadow-[0_0_6px_rgba(245,158,11,0.05)]">待决策 {unresolvedCount}</span>
+                  <span className="rounded-md border border-warning/20 bg-warning/5 px-2 py-1 text-[11px] font-black uppercase tracking-wider text-warning-dim animate-[pulse_3.5s_infinite] shadow-[0_0_6px_rgba(245,158,11,0.05)]">未分配分类 {unresolvedCount}</span>
                 ) : null}
                 {reviewCount > 0 ? (
-                  <span className="rounded-md border border-primary/15 bg-primary/5 px-2 py-1 text-[11px] font-black uppercase tracking-wider text-primary animate-[pulse_4.5s_infinite] shadow-[0_0_6px_rgba(59,130,246,0.05)]">待核对 {reviewCount}</span>
+                  <span className="rounded-md border border-primary/15 bg-primary/5 px-2 py-1 text-[11px] font-black uppercase tracking-wider text-primary animate-[pulse_4.5s_infinite] shadow-[0_0_6px_rgba(59,130,246,0.05)]">暂放待确认 {reviewCount}</span>
                 ) : null}
               </div>
             </motion.div>

@@ -275,14 +275,16 @@ export function CompletionView({
         </div>
 
         {/* Metrics Grid - High Density */}
-        <div className={cn("grid grid-cols-2 gap-2", skippedItems.length > 0 ? "sm:grid-cols-5" : "sm:grid-cols-4")}>
+        <div className={cn("grid grid-cols-2 gap-2", (skippedItems.length > 0 || reviewItems.length > 0) ? "sm:grid-cols-4" : "sm:grid-cols-3")}>
             {[
                 { label: "成功移动", count: journal.success_count || 0, icon: CheckCircle2, color: "text-success-dim", bg: "bg-success/5" },
                 ...(skippedItems.length > 0
-                  ? [{ label: "留在原地", count: skippedItems.length, icon: Info, color: "text-warning-dim", bg: "bg-warning/5" }]
+                  ? [{ label: "留在原地", count: skippedItems.length, icon: ShieldCheck, color: "text-emerald-500", bg: "bg-emerald-500/5" }]
+                  : []),
+                ...(reviewItems.length > 0 && organizeMethod !== "assign_into_existing_categories"
+                  ? [{ label: "待确认区", count: reviewItems.length, icon: Layers, color: "text-warning", bg: "bg-warning/5" }]
                   : []),
                 { label: "执行失败", count: journal.failure_count || 0, icon: AlertTriangle, color: isPartial ? "text-error" : "text-ui-muted", bg: isPartial ? "bg-error/5" : "bg-on-surface/5" },
-                { label: "待确认区", count: reviewItems.length, icon: Layers, color: "text-warning", bg: "bg-warning/5" },
                 { label: "处理总数", count: journal.item_count || 0, icon: History, color: "text-primary", bg: "bg-primary/5" },
             ].map((stat, i) => (
                 <motion.div 
@@ -318,9 +320,9 @@ export function CompletionView({
                  <RotateCcw className="h-4.5 w-4.5" />
               </div>
               <div className="min-w-0">
-                 <h3 className="text-[13px] font-black tracking-tight text-on-surface uppercase">部分文件未能移动，建议先回退</h3>
+                 <h3 className="text-[13px] font-black tracking-tight text-on-surface uppercase">部分文件未能移动，建议先还原</h3>
                  <p className="mt-0.5 text-[11px] font-medium leading-relaxed text-ui-muted opacity-60">
-                    本次整理有 {journal.failure_count || 0} 个项目执行失败，目录现在处于部分整理状态。回退会把已移动的 {journal.success_count || 0} 个项目放回原位，之后可以排查失败原因再重新整理。
+                    本次整理有 {journal.failure_count || 0} 个项目执行失败，目录现在处于部分整理状态。一键还原会把已移动的 {journal.success_count || 0} 个项目放回原位，之后可以排查失败原因再重新整理。
                  </p>
               </div>
            </div>
@@ -331,7 +333,7 @@ export function CompletionView({
               className="shrink-0 flex h-8 items-center justify-center gap-2 rounded-md bg-error px-5 text-[11px] font-black text-white transition-all hover:bg-error/85 active:scale-95 disabled:opacity-50 uppercase tracking-widest"
             >
               {rollbackPreparing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RotateCcw className="h-3.5 w-3.5" />}
-              {rollbackPreparing ? "正在预检..." : "回退本次整理"}
+              {rollbackPreparing ? "正在检查..." : "一键还原本次整理"}
            </button>
         </motion.div>
         ) : null}
@@ -595,7 +597,7 @@ export function CompletionView({
                 className="flex h-8.5 items-center justify-center gap-2 rounded-lg border border-error/20 bg-error/5 px-3.5 text-[12px] font-black text-error/70 transition-all hover:bg-error/10 active:scale-95 disabled:opacity-50"
               >
                 {rollbackPreparing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RotateCcw className="h-3.5 w-3.5" />}
-                {rollbackPreparing ? "正在预检..." : "回退整理"}
+                {rollbackPreparing ? "正在检查..." : "一键还原"}
               </button>
             </div>
           )}

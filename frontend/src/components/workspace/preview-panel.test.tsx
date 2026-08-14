@@ -114,7 +114,7 @@ describe("PreviewPanel", () => {
 
     expect(screen.getByRole("button", { name: "展开列表" })).toBeInTheDocument();
     expect(screen.getByText("待确认队列")).toBeInTheDocument();
-    expect(screen.getAllByText("待核对 1").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("暂放待确认 1").length).toBeGreaterThan(0);
 
     fireEvent.click(screen.getByRole("button", { name: "展开列表" }));
 
@@ -162,7 +162,7 @@ describe("PreviewPanel", () => {
     );
 
     expect(screen.getAllByText("待确认 1").length).toBeGreaterThan(0);
-    expect(screen.getByText("仍有 1 项待核对。")).toBeInTheDocument();
+    expect(screen.getByText("仍有 1 项暂放待确认。")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "去处理待确认项（1）" })).toBeInTheDocument();
     expect(screen.queryByText("同步中")).not.toBeInTheDocument();
   });
@@ -205,7 +205,7 @@ describe("PreviewPanel", () => {
 
     expect(screen.queryByText("待确认队列")).not.toBeInTheDocument();
     expect(screen.getByText("已保留")).toBeInTheDocument();
-    expect(screen.queryAllByText("待核对").length).toBe(0);
+    expect(screen.queryAllByText("暂放待确认").length).toBe(0);
   });
 
   it("keeps the last review-only queue item without starting precheck automatically", () => {
@@ -340,7 +340,7 @@ describe("PreviewPanel", () => {
     fireEvent.click(screen.getByRole("button", { name: "收起" }));
     expect(screen.getByRole("button", { name: "展开列表" })).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "仍有 1 项待核对。 点击查看" }));
+    fireEvent.click(screen.getByRole("button", { name: "仍有 1 项暂放待确认。 点击查看" }));
     expect(screen.getByRole("button", { name: "收起" })).toBeInTheDocument();
   });
 
@@ -643,7 +643,7 @@ describe("PreviewPanel", () => {
 
     const reviewQueueButton = screen
       .getAllByRole("button", { name: /suspicious\.bin/ })
-      .find((button) => (button.textContent || "").includes("待确认区"));
+      .find((button) => (button.textContent || "").includes("待确认"));
     expect(reviewQueueButton).toBeDefined();
     fireEvent.click(reviewQueueButton!);
 
@@ -962,14 +962,14 @@ describe("PreviewPanel", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: /contract\.pdf.*待确认区.*待核对/ }));
+    fireEvent.click(screen.getAllByRole("button", { name: /contract\.pdf.*保留在原地/ })[0]);
     const editButton = screen
       .getAllByRole("button")
       .find((button) => (button.textContent || "").trim() === "");
     expect(editButton).toBeDefined();
     fireEvent.click(editButton!);
     await waitFor(() => {
-      expect(screen.getByText("独立确认")).toBeInTheDocument();
+      expect(screen.getByText("调整文件去向")).toBeInTheDocument();
     });
     fireEvent.click(screen.getByText(/\+ 手动指定其他路径/).closest("button")!);
     fireEvent.change(screen.getByPlaceholderText("如: 新专题/归档"), {

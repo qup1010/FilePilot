@@ -164,14 +164,19 @@ export function resolveItemDirectory(item: PlanItem, targetSlotById: TargetSlotL
   return "当前目录";
 }
 
-export function displayDirectoryLabel(directory: string): string {
-  return directory === REVIEW_DIRECTORY ? REVIEW_LABEL : directory;
+export function displayDirectoryLabel(directory: string, isAssignExisting: boolean = false): string {
+  if (directory === REVIEW_DIRECTORY) {
+    return isAssignExisting ? "保留在原地" : REVIEW_LABEL;
+  }
+  return directory;
 }
 
-export function resolveItemTargetPath(item: PlanItem, targetSlotById: TargetSlotLookup, placement: PlacementConfig): string {
+export function resolveItemTargetPath(item: PlanItem, targetSlotById: TargetSlotLookup, placement: PlacementConfig, isAssignExisting: boolean = false): string {
   const directoryLabel = resolveItemDirectory(item, targetSlotById, placement);
   const filename = item.display_name || item.source_relpath.split("/").pop() || item.source_relpath;
-  return directoryLabel && directoryLabel !== "当前目录" ? `${displayDirectoryLabel(directoryLabel)}/${filename}` : filename;
+  if (!directoryLabel || directoryLabel === "当前目录") return filename;
+  if (directoryLabel === REVIEW_DIRECTORY && isAssignExisting) return `保留在原地/${filename}`;
+  return `${displayDirectoryLabel(directoryLabel, isAssignExisting)}/${filename}`;
 }
 
 export function isItemChanged(item: PlanItem, targetSlotById: TargetSlotLookup, placement: PlacementConfig) {

@@ -256,8 +256,8 @@ describe("CompletionView", () => {
       />,
     );
 
-    expect(screen.getByText("部分文件未能移动，建议先回退")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "回退本次整理" }));
+    expect(screen.getByText("部分文件未能移动，建议先还原")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "一键还原本次整理" }));
     expect(onRollback).toHaveBeenCalledOnce();
   });
 
@@ -296,7 +296,7 @@ describe("CompletionView", () => {
       />,
     );
 
-    expect(screen.queryByText("部分文件未能移动，建议先回退")).not.toBeInTheDocument();
+    expect(screen.queryByText("部分文件未能移动，建议先还原")).not.toBeInTheDocument();
   });
 
   it("delegates rollback action to the workspace precheck flow", () => {
@@ -336,7 +336,7 @@ describe("CompletionView", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "回退整理" }));
+    fireEvent.click(screen.getByRole("button", { name: "一键还原" }));
 
     expect(onRollback).toHaveBeenCalledOnce();
   });

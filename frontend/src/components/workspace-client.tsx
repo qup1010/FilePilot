@@ -381,6 +381,17 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
     () => (precheck?.move_preview || []).filter((move) => move.target.split(/[\\/]/).some((part) => part.toLowerCase() === "review")).length,
     [precheck],
   );
+  const totalPlanItems = snapshot?.plan_snapshot?.items || [];
+  const movedItemIds = useMemo(
+    () => new Set((precheck?.move_preview || []).map((m) => m.item_id)),
+    [precheck?.move_preview],
+  );
+  const stayInPlaceCount = useMemo(
+    () => totalPlanItems.filter((item) => !movedItemIds.has(item.item_id)).length,
+    [movedItemIds, totalPlanItems],
+  );
+  const isAssignExisting = snapshot?.strategy?.organize_method === "assign_into_existing_categories";
+  const effectiveReviewOrStayCount = isAssignExisting ? stayInPlaceCount : reviewMoveCount;
   const interruptedDuring = String(snapshot?.integrity_flags?.interrupted_during || "").trim().toLowerCase();
   const isInterruptedDuringScan = stageView.isInterrupted && interruptedDuring === "scanning";
   const precheckItemNames = useMemo(() => {
@@ -1827,12 +1838,12 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
       <ConfirmDialog
         open={executeConfirmOpen}
         title="确认开始移动文件？"
-        description={`执行后会真实移动本地文件。本次将处理 ${precheck?.move_preview.length ?? 0} 项${reviewMoveCount > 0 ? `，其中 ${reviewMoveCount} 项会留在待确认区` : ""}${precheckItemsSummary ? `。涉及条目：${precheckItemsSummary}` : ""}。`}
+        description={`执行后会真实移动本地文件。本次涉及 ${totalPlanItems.length || precheck?.move_preview.length || 0} 项，其中 ${precheck?.move_preview.length ?? 0} 项将移动至目标目录${effectiveReviewOrStayCount > 0 ? `，${effectiveReviewOrStayCount} 项将${isAssignExisting ? "保留在原地" : "留在待确认区"}` : ""}${precheckItemsSummary ? `。涉及条目：${precheckItemsSummary}` : ""}。`}
         confirmLabel="开始移动"
         cancelLabel="再看看"
         tone="primary"
         loading={loading}
-        verificationText={(precheck && ((precheck.warnings || []).length > 0 || reviewMoveCount > 0)) ? "YES" : undefined}
+        verificationText={(precheck && ((precheck.warnings || []).length > 0 || (!isAssignExisting && reviewMoveCount > 0))) ? "YES" : undefined}
         verificationPlaceholder="请输入大写 YES 确认执行"
         onConfirm={async () => {
           // 先执行再关框：loading 状态在对话框上可见；失败时错误横幅会在页面顶部显示。
@@ -1855,8 +1866,8 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
             <span className="font-semibold text-on-surface">{precheck?.mkdir_preview.length ?? 0} 个</span>
           </div>
           <div className="flex items-center justify-between rounded-[8px] bg-surface-container-low px-3 py-2">
-            <span className="text-ui-muted">留在待确认区</span>
-            <span className="font-semibold text-on-surface">{reviewMoveCount} 项</span>
+            <span className="text-ui-muted">{isAssignExisting ? "保留在原地" : "留在待确认区"}</span>
+            <span className="font-semibold text-on-surface">{effectiveReviewOrStayCount} 项</span>
           </div>
         </div>
       </ConfirmDialog>
