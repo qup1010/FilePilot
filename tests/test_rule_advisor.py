@@ -334,7 +334,8 @@ class DetectNestedPairsTests(unittest.TestCase):
 
     def test_direct_parent_child(self):
         # 创建真实目录以让 resolve() 正常工作
-        import tempfile, os
+        import os
+        import tempfile
         with tempfile.TemporaryDirectory() as tmp:
             parent = os.path.join(tmp, "parent")
             child = os.path.join(tmp, "parent", "child")
@@ -346,7 +347,8 @@ class DetectNestedPairsTests(unittest.TestCase):
 
     def test_name_prefix_not_confused_as_parent(self):
         """D:/Pictures 不应该是 D:/Pictures2 的父目录。"""
-        import tempfile, os
+        import os
+        import tempfile
         with tempfile.TemporaryDirectory() as tmp:
             p1 = os.path.join(tmp, "Pictures")
             p2 = os.path.join(tmp, "Pictures2")
@@ -357,7 +359,8 @@ class DetectNestedPairsTests(unittest.TestCase):
 
     def test_deep_nesting(self):
         """三层嵌套：A ⊃ A/B ⊃ A/B/C，应返回 3 对。"""
-        import tempfile, os
+        import os
+        import tempfile
         with tempfile.TemporaryDirectory() as tmp:
             a = os.path.join(tmp, "A")
             b = os.path.join(tmp, "A", "B")
@@ -410,11 +413,13 @@ class BuildRuleDraftPromptTopologyTests(unittest.TestCase):
         return rule_advisor.DirectoryContentProfile(path=path, label="", total_entries=0)
 
     def test_no_nesting_no_topology_section(self):
-        import tempfile, os
+        import os
+        import tempfile
         with tempfile.TemporaryDirectory() as tmp:
             a = os.path.join(tmp, "A")
             b = os.path.join(tmp, "B")
-            os.makedirs(a); os.makedirs(b)
+            os.makedirs(a)
+            os.makedirs(b)
             profiles = [self._make_profile(a), self._make_profile(b)]
             messages = rule_advisor.build_rule_draft_prompt(profiles)
             content = messages[0]["content"]
@@ -422,7 +427,8 @@ class BuildRuleDraftPromptTopologyTests(unittest.TestCase):
             self.assertNotIn("最窄匹配", content)
 
     def test_nested_profiles_inject_topology(self):
-        import tempfile, os
+        import os
+        import tempfile
         with tempfile.TemporaryDirectory() as tmp:
             parent = os.path.join(tmp, "Parent")
             child = os.path.join(tmp, "Parent", "Child")
@@ -436,7 +442,8 @@ class BuildRuleDraftPromptTopologyTests(unittest.TestCase):
 
     def test_nested_context_entry_inject_topology(self):
         """profiles 里没嵌套，但 profile 与 context_entry 之间有嵌套关系时，也应注入拓扑。"""
-        import tempfile, os
+        import os
+        import tempfile
         with tempfile.TemporaryDirectory() as tmp:
             parent = os.path.join(tmp, "Parent")
             child = os.path.join(tmp, "Parent", "Child")
@@ -484,7 +491,8 @@ class SinglePathContextCoverageTests(unittest.TestCase):
         """description 为空的平行目录也应进入 context。"""
         docs = self.root / "Docs"
         images = self.root / "Images"
-        docs.mkdir(); images.mkdir()
+        docs.mkdir()
+        images.mkdir()
 
         profile = self.service.create_target_profile(
             "测试",

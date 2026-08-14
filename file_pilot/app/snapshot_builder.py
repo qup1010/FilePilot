@@ -424,7 +424,6 @@ class SnapshotBuilder:
             return True
 
         move_count = len([item for item in items if _is_effective_move(item)])
-        unresolved_count = len([item for item in items if not _is_effective_move(item)])
         groups = [
             PlanGroupPayload(directory=directory, count=len(group_items), items=group_items)
             for directory, group_items in sorted(grouped_items.items(), key=lambda pair: pair[0])

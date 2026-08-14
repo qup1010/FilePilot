@@ -10,7 +10,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import file_pilot.shared.config as config
-from file_pilot.execution.movability import movability_skip_reason
 from file_pilot.execution.models import (
     ExecutionAction,
     ExecutionItemResult,
@@ -22,6 +21,7 @@ from file_pilot.execution.models import (
     PrecheckItemSkip,
     PrecheckResult,
 )
+from file_pilot.execution.movability import movability_skip_reason
 from file_pilot.organize.models import FinalPlan, PlanMove
 from file_pilot.shared.history_store import atomic_write_json, build_journal_path, read_latest_index, write_latest_index
 from file_pilot.shared.path_utils import relative_display
