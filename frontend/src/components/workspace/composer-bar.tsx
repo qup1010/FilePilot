@@ -170,15 +170,14 @@ export function ComposerBar({
           </AnimatePresence>
  
           <div className={cn(
-            "relative flex items-end gap-3 rounded-xl border px-3 py-2.5 transition-all duration-500",
+            "relative flex items-end gap-3 rounded-xl border px-3.5 py-2.5 transition-all duration-300 shadow-sm",
             isComposerLocked 
-              ? "border-primary/18 bg-primary/[0.025] ring-1 ring-primary/5" 
-              : "border-on-surface/8 bg-surface-container-lowest focus-within:border-primary/40 focus-within:ring-1 focus-within:ring-primary/20"
+              ? "border-primary/20 bg-primary/[0.025] ring-1 ring-primary/5" 
+              : "border-on-surface/10 bg-surface-container-lowest focus-within:border-primary/45 focus-within:ring-2 focus-within:ring-primary/10"
           )}>
             {isComposerLocked && (
               <motion.div
-                layoutId="composer-shimmer"
-                className="absolute inset-0 rounded-xl bg-gradient-to-r from-transparent via-primary/[0.03] to-transparent pointer-events-none"
+                className="absolute inset-0 rounded-xl bg-gradient-to-r from-transparent via-primary/[0.035] to-transparent pointer-events-none"
                 animate={{ x: ["-100%", "100%"] }}
                 transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
               />
@@ -187,7 +186,7 @@ export function ComposerBar({
               ref={inputRef}
               rows={1}
               className={cn(
-                "min-h-[40px] flex-1 resize-none bg-transparent px-2 py-1.5 text-[13px] font-medium leading-relaxed text-on-surface outline-none placeholder:text-on-surface-variant/40 transition-[height] duration-150 ease-out",
+                "min-h-[40px] flex-1 resize-none bg-transparent px-1.5 py-1.5 text-[13px] font-medium leading-relaxed text-on-surface outline-none placeholder:text-on-surface-variant/45 transition-[height] duration-150 ease-out",
                 isComposerLocked && "cursor-not-allowed text-on-surface/35 placeholder:text-on-surface-variant/35",
               )}
               placeholder={inputPlaceholder}
@@ -208,8 +207,8 @@ export function ComposerBar({
               className={cn(
                 "mb-0.5 mr-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-all active:scale-90",
                 messageInput.trim() && !isComposerLocked
-                  ? "bg-primary text-white"
-                  : "bg-on-surface/5 text-on-surface-variant/20",
+                  ? "bg-primary text-white shadow-sm hover:bg-primary-dim hover:shadow"
+                  : "bg-on-surface/5 text-on-surface-variant/25",
               )}
             >
               {isComposerLocked ? (
@@ -223,7 +222,7 @@ export function ComposerBar({
           </div>
         </div>
       ) : (
-        <div className="rounded-[8px] border border-on-surface/8 bg-surface-container-lowest px-5 py-4 text-[13px] text-on-surface-variant">
+        <div className="rounded-xl border border-on-surface/8 bg-surface-container-lowest px-5 py-4 text-[13px] text-on-surface-variant">
           当前阶段暂时不需要输入，等方案生成后就可以在这里继续调整。
         </div>
       )}

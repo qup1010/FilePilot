@@ -95,6 +95,7 @@ interface ConversationPanelProps {
     isRunning: boolean;
   } | null;
   revealMessageId?: string | null;
+  onRevealComplete?: () => void;
 }
 
 
@@ -118,6 +119,7 @@ export function ConversationPanel({
   progressPercent = 0,
   plannerStatus,
   revealMessageId = null,
+  onRevealComplete,
 }: ConversationPanelProps) {
   const stageView = getSessionStageView(stage);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -146,38 +148,107 @@ export function ConversationPanel({
     }
   }, [assistantDraft, messages]);
 
+  const revealedMessageIdsRef = useRef<Set<string>>(new Set());
+  // 正在播放动画的消息 ID（防止 useMemo 重入）
+  const activeRevealingIdRef = useRef<string | null>(null);
+
+  // 追踪当前需要流式渐显展示的目标消息 ID
+  const activeRevealMessageId = React.useMemo(() => {
+    if (revealMessageId) {
+      return revealMessageId;
+    }
+    // 只读历史或已完成任务直接全量展示，不触发打字机
+    if (composerMode === "readonly" || composerMode === "hidden" || stageView.isCompleted || stageView.isRecovery) {
+      return null;
+    }
+    // 寻找最新一条非空助手建议消息
+    const lastAssistant = [...messages].reverse().find((m) => m.role === "assistant" && Boolean(m.content?.trim()));
+    if (!lastAssistant) {
+      return null;
+    }
+    // 正在播放中，直接沿用（不中断）
+    if (activeRevealingIdRef.current === lastAssistant.id) {
+      return lastAssistant.id;
+    }
+    // 已播放完毕，跳过
+    if (revealedMessageIdsRef.current.has(lastAssistant.id)) {
+      return null;
+    }
+    // 如果该消息是刚从实时 SSE 草稿流（assistantDraft）转正过来的，用户已经在草稿流中看到了实时流式输出，无需重复播放打字机动效
+    if (
+      (prevDraftRef.current && !assistantDraft) ||
+      justFinalizedRef.current.has(lastAssistant.id) ||
+      (assistantDraft && normalizeMessageContent(assistantDraft) === normalizeMessageContent(lastAssistant.content))
+    ) {
+      revealedMessageIdsRef.current.add(lastAssistant.id);
+      try {
+        if (typeof window !== "undefined") {
+          sessionStorage.setItem(`fp_revealed_${lastAssistant.id}`, "1");
+        }
+      } catch {
+        // ignore
+      }
+      return null;
+    }
+    // 检查 sessionStorage 防重放
+    if (typeof window !== "undefined") {
+      try {
+        if (sessionStorage.getItem(`fp_revealed_${lastAssistant.id}`) === "1") {
+          revealedMessageIdsRef.current.add(lastAssistant.id);
+          return null;
+        }
+      } catch {
+        // ignore
+      }
+    }
+    return lastAssistant.id;
+  }, [assistantDraft, composerMode, messages, revealMessageId, stageView.isCompleted, stageView.isRecovery]);
+
   const revealMessageContent = React.useMemo(() => {
-    if (!revealMessageId) {
+    if (!activeRevealMessageId) {
       return "";
     }
-    return messages.find((message) => message.id === revealMessageId)?.content || "";
-  }, [messages, revealMessageId]);
+    return messages.find((message) => message.id === activeRevealMessageId)?.content || "";
+  }, [activeRevealMessageId, messages]);
 
   useEffect(() => {
-    if (!revealMessageId || !revealMessageContent) {
-      setRevealingMessage((current) => current.id ? { id: null, visibleLength: 0 } : current);
+    if (!activeRevealMessageId || !revealMessageContent) {
+      if (!activeRevealingIdRef.current) {
+        setRevealingMessage((current) => (current.id ? { id: null, visibleLength: 0 } : current));
+      }
       return;
     }
 
-    setRevealingMessage({ id: revealMessageId, visibleLength: 0 });
-    const chunkSize = Math.max(1, Math.ceil(revealMessageContent.length / 90));
+    const targetId = activeRevealMessageId;
+    const totalLen = revealMessageContent.length;
+    activeRevealingIdRef.current = targetId;
+
+    let currentLength = 0;
+    setRevealingMessage({ id: targetId, visibleLength: 0 });
+
+    // 自适应打字步长：总动画时长约 1.2s - 1.5s
+    const chunkSize = Math.max(2, Math.ceil(totalLen / 55));
     const timer = window.setInterval(() => {
-      setRevealingMessage((current) => {
-        if (current.id !== revealMessageId) {
-          return current;
+      currentLength = Math.min(totalLen, currentLength + chunkSize);
+      setRevealingMessage({ id: targetId, visibleLength: currentLength });
+
+      if (currentLength >= totalLen) {
+        window.clearInterval(timer);
+        activeRevealingIdRef.current = null;
+        revealedMessageIdsRef.current.add(targetId);
+        try {
+          sessionStorage.setItem(`fp_revealed_${targetId}`, "1");
+        } catch {
+          // ignore
         }
-        const nextLength = Math.min(revealMessageContent.length, current.visibleLength + chunkSize);
-        if (nextLength >= revealMessageContent.length) {
-          window.clearInterval(timer);
-        }
-        return { id: revealMessageId, visibleLength: nextLength };
-      });
-    }, 22);
+        onRevealComplete?.();
+      }
+    }, 20);
 
     return () => {
       window.clearInterval(timer);
     };
-  }, [revealMessageContent, revealMessageId]);
+  }, [activeRevealMessageId, onRevealComplete, revealMessageContent]);
 
   // Debounced scroll-to-bottom to avoid competing scrolls during draft→message transition
   useEffect(() => {

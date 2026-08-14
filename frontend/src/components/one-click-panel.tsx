@@ -201,7 +201,7 @@ export function OneClickPanel() {
           </div>
           <div className="flex flex-col">
             <p className="text-[13px] font-black text-on-surface">
-              {profiles.length === 0 ? "先建立目录分类规则，即可解锁一键整理" : "补全规则描述后即可开启一键整理"}
+              {profiles.length === 0 ? "先建立你的目录规则，就能一键整理" : "补全目录规则后即可一键整理"}
             </p>
             <p className="text-[12px] font-medium text-on-surface-variant/60">
               为每个目标目录设定匹配条件，AI 自动判定分类，非目标文件留在原地。
@@ -211,7 +211,7 @@ export function OneClickPanel() {
             href="/rules"
             className="ml-auto shrink-0 rounded-lg bg-primary px-3.5 py-1.5 text-[12px] font-bold text-on-primary shadow-sm transition-all hover:bg-primary/90 active:scale-95"
           >
-            去配置规则
+            去写规则
           </Link>
         </div>
       </div>
@@ -316,7 +316,7 @@ export function OneClickPanel() {
         >
           <FolderInput className="h-4 w-4 shrink-0 text-primary/70 transition-colors group-hover:text-primary" aria-hidden />
           <span className="truncate">
-            {sourcePath ? getPathBasename(sourcePath, sourcePath) : "选择待整理目录"}
+            {sourcePath ? getPathBasename(sourcePath, sourcePath) : "选择目录"}
           </span>
           <span className="shrink-0 text-[10px] font-bold text-on-surface-variant/40 group-hover:text-primary/60">更改</span>
         </button>

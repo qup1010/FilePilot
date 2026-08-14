@@ -20,7 +20,7 @@ export function ExecutionProgressView({
 }: ExecutionProgressViewProps) {
   const isRollingBack = mode === "rolling_back";
 
-  const defaultTitle = isRollingBack ? "正在还原文件至原位..." : "正在执行文件整理...";
+  const defaultTitle = isRollingBack ? "正在还原本次整理" : "正在执行整理";
   const defaultDescription = isRollingBack
     ? "正在按记录恢复文件原始路径并清理空目录，请不要关闭窗口。"
     : "正在将文件移动至目标分类目录，完成后将自动打开整理结果。";

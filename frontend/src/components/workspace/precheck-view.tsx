@@ -183,28 +183,30 @@ export function PrecheckView({
                         </div>
  
                         {/* Metrics Bar - High Density Grid */}
-                        <div className="grid grid-cols-3 gap-2">
+                        <div className="grid grid-cols-3 gap-2.5">
                             {[
-                                { label: "将移动", value: summary.move_preview.length, icon: ArrowRight, color: "text-primary", bg: "bg-primary/5", iconRotate: "-45deg" },
-                                { label: "将新建目录", value: summary.mkdir_preview.length, icon: FolderPlus, color: "text-sky-500", bg: "bg-sky-500/5" },
+                                { label: "将移动", value: summary.move_preview.length, icon: ArrowRight, color: "text-primary", bg: "bg-primary/8", iconRotate: "-45deg" },
+                                { label: "将新建目录", value: summary.mkdir_preview.length, icon: FolderPlus, color: "text-sky-500", bg: "bg-sky-500/8" },
                                 stayInPlaceCount > 0
-                                    ? { label: "保留在原地", value: stayInPlaceCount, icon: ShieldCheck, color: "text-emerald-500", bg: "bg-emerald-500/5" }
-                                    : { label: "待确认", value: reviewCount, icon: AlertCircle, color: reviewCount > 0 ? "text-warning" : "text-success-dim", bg: reviewCount > 0 ? "bg-warning/5" : "bg-success/5" }
+                                    ? { label: "保留在原地", value: stayInPlaceCount, icon: ShieldCheck, color: "text-emerald-500", bg: "bg-emerald-500/8" }
+                                    : { label: "待确认", value: reviewCount, icon: AlertCircle, color: reviewCount > 0 ? "text-warning" : "text-success-dim", bg: reviewCount > 0 ? "bg-warning/8" : "bg-success/8" }
                             ].map((stat, i) => (
                                 <motion.div 
                                     key={i}
-                                    initial={{ opacity: 0, scale: 0.95, y: 4 }}
+                                    initial={{ opacity: 0, scale: 0.96, y: 4 }}
                                     animate={{ opacity: 1, scale: 1, y: 0 }}
                                     transition={{ type: "spring", stiffness: 350, damping: 28, delay: i * 0.05 }}
-                                    className="flex flex-col gap-1 rounded-md border border-on-surface/5 bg-on-surface/[0.02] p-3 transition-colors hover:bg-on-surface/[0.04]"
+                                    className="flex flex-col gap-1.5 rounded-xl border border-on-surface/8 bg-surface-container-lowest p-3.5 shadow-sm transition-all hover:border-on-surface/16"
                                 >
                                     <div className="flex items-center justify-between">
-                                        <stat.icon className={cn("h-3 w-3 opacity-60", stat.color)} style={{ transform: stat.iconRotate ? `rotate(${stat.iconRotate})` : undefined }} />
-                                        <div className={cn("text-[16px] font-black tabular-nums leading-none", stat.color)}>
+                                        <div className={cn("flex h-7 w-7 items-center justify-center rounded-lg", stat.bg)}>
+                                            <stat.icon className={cn("h-3.5 w-3.5", stat.color)} style={{ transform: stat.iconRotate ? `rotate(${stat.iconRotate})` : undefined }} />
+                                        </div>
+                                        <div className={cn("font-mono text-[18px] font-black tabular-nums leading-none", stat.color)}>
                                             {stat.value}
                                         </div>
                                     </div>
-                                    <div className="text-[11px] font-black uppercase tracking-widest text-ui-muted opacity-40">
+                                    <div className="text-[11px] font-bold tracking-wider text-ui-muted/70">
                                         {stat.label}
                                     </div>
                                 </motion.div>

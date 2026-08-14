@@ -185,14 +185,12 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
   const [scanAbortConfirmOpen, setScanAbortConfirmOpen] = useState(false);
   const [scanAborting, setScanAborting] = useState(false);
   const [_showExitMenu, setShowExitMenu] = useState(false);
-  const [dividerLeft, setDividerLeft] = useState<number | null>(null);
   const [previewFocusRequest, setPreviewFocusRequest] = useState<PreviewFocusRequest | null>(null);
   const [scanPreviewHoldUntil, setScanPreviewHoldUntil] = useState<number | null>(null);
   const [isCompactLayout, setIsCompactLayout] = useState(false);
   const [compactConversationOpen, setCompactConversationOpen] = useState(false);
   const [isChatCollapsed, setIsChatCollapsed] = useState(false);
   const [initialAutoPlanUiState, setInitialAutoPlanUiState] = useState<InitialAutoPlanUiState>("idle");
-  const [initialAutoPlanRevealMessageId, setInitialAutoPlanRevealMessageId] = useState<string | null>(null);
   const containerRef = React.useRef<HTMLDivElement>(null);
   const dividerRef = React.useRef<HTMLDivElement>(null);
   const leftPaneRef = React.useRef<HTMLElement>(null);
@@ -214,7 +212,6 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
   React.useEffect(() => {
     autoScanRequestedRef.current = false;
     setInitialAutoPlanUiState("idle");
-    setInitialAutoPlanRevealMessageId(null);
   }, [sessionIdParam]);
 
   React.useEffect(() => {
@@ -452,8 +449,9 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
     }
     setScanPreviewHoldUntil(Date.now() + SCAN_PREVIEW_GRACE_MS);
   }, []);
+  const isAutoScanPending = Boolean(autoStartScan && !isReadOnly && (stageView.isDraftLike || !snapshot));
   const shouldShowScanningPreview = !stageView.isRecovery && !stageView.isInactive && (
-    stageView.isScanning || shouldHoldInitialAutoPlanUi || isInitialAutoPlanGraceActive
+    stageView.isScanning || shouldHoldInitialAutoPlanUi || isInitialAutoPlanGraceActive || isAutoScanPending
   );
 
   const handleMouseMove = React.useCallback((event: MouseEvent) => {
@@ -483,7 +481,7 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
     }
     
     if (dividerRef.current) {
-      dividerRef.current.style.left = `${boundedX - 1.25}px`;
+      dividerRef.current.style.left = `${newWidth}%`;
     }
     
     draggedWidthRef.current = newWidth;
@@ -513,6 +511,20 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
     document.body.style.webkitUserSelect = "none";
   };
 
+  const handleResetWidth = React.useCallback((event: React.MouseEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setLeftWidth(DEFAULT_LEFT_WIDTH);
+    saveWidth(DEFAULT_LEFT_WIDTH);
+    if (leftPaneRef.current && rightPaneRef.current) {
+      leftPaneRef.current.style.width = `${DEFAULT_LEFT_WIDTH}%`;
+      rightPaneRef.current.style.width = `${100 - DEFAULT_LEFT_WIDTH}%`;
+    }
+    if (dividerRef.current) {
+      dividerRef.current.style.left = `${DEFAULT_LEFT_WIDTH}%`;
+    }
+  }, [saveWidth]);
+
   React.useEffect(() => {
     // 拖拽分栏期间组件被卸载（如 SSE 触发路由跳转）时，document 上的监听与光标样式会残留。
     return () => {
@@ -535,7 +547,6 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
     const content = messageInput;
     setMessageInput("");
     setInitialAutoPlanUiState("done");
-    setInitialAutoPlanRevealMessageId(null);
     await sendMessage(content);
   };
 
@@ -579,7 +590,6 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
 
   const handleOpenConversation = React.useCallback(() => {
     setInitialAutoPlanUiState("done");
-    setInitialAutoPlanRevealMessageId(null);
     setIsChatCollapsed(false);
     setCompactConversationOpen(true);
   }, []);
@@ -594,7 +604,6 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
       const next = !current;
       if (next) {
         setInitialAutoPlanUiState("done");
-        setInitialAutoPlanRevealMessageId(null);
       }
       return next;
     });
@@ -624,7 +633,7 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
     });
 
     if (typeof window !== "undefined") {
-      const isInactive = stageView.isInactive;
+      const isInactive = stageView.isInactive || stageView.isCompleted;
       const shouldClear = isReadOnly || isInactive;
 
       if (shouldClear) {
@@ -671,17 +680,6 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
         lastPlanStartedAt: planStartedAt,
       };
       return;
-    }
-
-    if (current.wasScanning && !isScanningNow && isPlanningNow) {
-      const totalCount = Number(snapshot.scanner_progress?.total_count || 0);
-      const processedCount = Number(snapshot.scanner_progress?.processed_count || 0);
-      const countLabel = totalCount > 0 ? `已读取 ${processedCount || totalCount}/${totalCount} 项。` : "已完成目录读取。";
-      notifyWorkspaceWhenAway(
-        "FilePilot 正在生成方案",
-        `${countLabel}正在生成第一版整理建议。`,
-        `filepilot-scan-planning-${sessionIdParam}`,
-      );
     }
 
     if (current.wasScanning && !isScanningNow && !isPlanningNow) {
@@ -875,7 +873,6 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
           const next = !prev;
           if (!next) {
             setInitialAutoPlanUiState("done");
-            setInitialAutoPlanRevealMessageId(null);
           }
           return next;
         });
@@ -902,7 +899,6 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
     if (stageView.isRecovery || stageView.isInactive || stageView.isCompleted || stageView.isReadyToExecute) {
       if (initialAutoPlanUiState !== "idle") {
         setInitialAutoPlanUiState("idle");
-        setInitialAutoPlanRevealMessageId(null);
       }
       setScanPreviewHoldUntil(null);
       return;
@@ -921,14 +917,12 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
     if (shouldEnterInitialAutoPlan) {
       if (initialAutoPlanUiState !== "pending") {
         setInitialAutoPlanUiState("pending");
-        setInitialAutoPlanRevealMessageId(null);
       }
       return;
     }
 
     if (hasStrandedInitialAutoPlan && initialAutoPlanUiState === "pending") {
       setInitialAutoPlanUiState("done");
-      setInitialAutoPlanRevealMessageId(null);
       return;
     }
 
@@ -940,9 +934,9 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
       initialAutoPlanHasResult
     ) {
       setInitialAutoPlanUiState("done");
-      setInitialAutoPlanRevealMessageId(null);
     }
   }, [
+    chatMessages,
     initialAutoPlanHasResult,
     initialAutoPlanUiState,
     hasStrandedInitialAutoPlan,
@@ -998,33 +992,7 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
     };
   }, []);
 
-  React.useEffect(() => {
-    if (!showConversationPane || isCompactLayout) {
-      setDividerLeft(null);
-      return;
-    }
 
-    const container = containerRef.current;
-    const leftPane = leftPaneRef.current;
-    if (!container || !leftPane) {
-      return;
-    }
-
-    const updateDivider = () => {
-      if (isResizing.current) return;
-      setDividerLeft(leftPane.getBoundingClientRect().width);
-    };
-
-    updateDivider();
-    const observer = new ResizeObserver(() => {
-      updateDivider();
-    });
-    observer.observe(container);
-    observer.observe(leftPane);
-    return () => {
-      observer.disconnect();
-    };
-  }, [isCompactLayout, showConversationPane, leftWidth]);
 
   React.useEffect(() => {
     if (typeof window === "undefined") {
@@ -1094,7 +1062,7 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
     if (typeof window === "undefined" || !sessionIdParam) {
       return;
     }
-    const canRememberWorkspaceRoute = !isReadOnly && !stageView.isInactive;
+    const canRememberWorkspaceRoute = !isReadOnly && !stageView.isInactive && !stageView.isCompleted;
     if (canRememberWorkspaceRoute) {
       const params = new URLSearchParams(window.location.search);
       params.delete("auto_scan");
@@ -1103,7 +1071,7 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
       return;
     }
     clearActiveWorkspaceRouteForSession(sessionIdParam);
-  }, [isReadOnly, sessionIdParam, stageView.isInactive, view]);
+  }, [isReadOnly, sessionIdParam, stageView.isCompleted, stageView.isInactive, view]);
 
   const focusPreviewItems = React.useCallback((itemIds: string[], filter?: PreviewFilter) => {
     setPreviewFocusRequest({
@@ -1455,7 +1423,7 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
               );
             }
 
-            if (stageView.isDraftLike) {
+            if (stageView.isDraftLike && !isAutoScanPending) {
               return (
                 <EmptyState
                   illustration={FileRadarIllustration}
@@ -1580,7 +1548,6 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
       isComposerLocked={isComposerLocked}
       composerStatus={composerStatus}
       plannerStatus={plannerStatus}
-      revealMessageId={initialAutoPlanUiState === "revealing" ? initialAutoPlanRevealMessageId : null}
       stage={stage}
       messageInput={messageInput}
       setMessageInput={setMessageInput}
@@ -1713,21 +1680,32 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
         <div
           ref={dividerRef}
           onMouseDown={handleStartResizing}
+          onDoubleClick={handleResetWidth}
           className={cn(
-            "absolute top-0 bottom-0 w-2.5 z-40 transition-all duration-300 cursor-col-resize flex items-center justify-center select-none group",
-            isResizingState ? "bg-primary/[0.02]" : "hover:bg-primary/[0.04]",
+            "absolute top-0 bottom-0 w-3.5 -translate-x-1/2 z-40 cursor-col-resize flex items-center justify-center select-none group",
+            isResizingState ? "bg-primary/[0.04]" : "hover:bg-primary/[0.02]",
           )}
-          style={{ left: dividerLeft !== null ? `${dividerLeft - 1.25}px` : `calc(${leftWidth}% - 1.25px)` }}
+          style={{ left: `${leftWidth}%` }}
+          title="拖拽调整左右分栏比例，双击恢复默认"
         >
-          <div className={cn("w-[1px] h-full transition-all duration-300", isResizingState ? "bg-primary/20" : "bg-transparent")} />
+          {/* 中线高亮指示 */}
           <div
             className={cn(
-              "absolute top-1/2 flex h-9 w-5 -translate-y-1/2 flex-col items-center justify-center gap-0.5 rounded-[8px] border border-on-surface/12 bg-surface-container-lowest transition-all duration-200",
-              isResizingState ? "scale-110 border-primary/20 opacity-100" : "opacity-0 group-hover:opacity-100 scale-100",
+              "w-[1px] h-full transition-colors duration-150",
+              isResizingState ? "bg-primary" : "bg-transparent group-hover:bg-primary/40",
+            )}
+          />
+          {/* 居中拖拽胶囊手柄 */}
+          <div
+            className={cn(
+              "absolute top-1/2 flex h-8 w-4 -translate-y-1/2 flex-col items-center justify-center gap-0.5 rounded-full border bg-surface shadow-sm transition-all duration-150 pointer-events-none",
+              isResizingState
+                ? "scale-105 border-primary/40 ring-2 ring-primary/15 opacity-100 shadow-md"
+                : "border-on-surface/12 opacity-0 group-hover:opacity-100 scale-95 group-hover:scale-100",
             )}
           >
-            <div className={cn("w-[1.5px] h-3 rounded-sm transition-colors", isResizingState ? "bg-primary/40" : "bg-on-surface/15")} />
-            <div className={cn("w-[1.5px] h-3 rounded-sm transition-colors", isResizingState ? "bg-primary/40" : "bg-on-surface/15")} />
+            <div className={cn("w-[1.5px] h-2.5 rounded-full transition-colors", isResizingState ? "bg-primary" : "bg-on-surface/30")} />
+            <div className={cn("w-[1.5px] h-2.5 rounded-full transition-colors", isResizingState ? "bg-primary" : "bg-on-surface/30")} />
           </div>
         </div>
       )}

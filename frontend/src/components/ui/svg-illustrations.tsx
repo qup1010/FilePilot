@@ -8,8 +8,8 @@ interface IllustrationProps {
 }
 
 /**
- * 具有三维雷达扫掠和数据连接节点的机械工程风格 SVG 雷达扫描插画
- * 适用于空状态、等待扫描或无内容面板
+ * 现代简约风格的文件夹雷达扫描插画
+ * 适用于等待扫描、空状态或探索准备阶段
  */
 export function FileRadarIllustration({ className }: IllustrationProps) {
   return (
@@ -17,136 +17,113 @@ export function FileRadarIllustration({ className }: IllustrationProps) {
       <svg
         width="100%"
         height="100%"
-        viewBox="0 0 240 240"
+        viewBox="0 0 200 200"
         fill="none"
         xmlns="http://www.w3.org/2000/svg"
         className="overflow-visible"
       >
         <defs>
-          {/* 雷达扫描渐变 */}
-          <radialGradient id="radarSweepGrad" cx="50%" cy="50%" r="50%">
-            <stop offset="0%" stopColor="var(--md-sys-color-primary, #0066ff)" stopOpacity="0.15" />
-            <stop offset="70%" stopColor="var(--md-sys-color-primary, #0066ff)" stopOpacity="0.04" />
-            <stop offset="100%" stopColor="var(--md-sys-color-primary, #0066ff)" stopOpacity="0" />
+          {/* 中心柔光渐变 */}
+          <radialGradient id="radarCenterGlow" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stopColor="var(--primary, #0078d4)" stopOpacity="0.12" />
+            <stop offset="60%" stopColor="var(--primary, #0078d4)" stopOpacity="0.03" />
+            <stop offset="100%" stopColor="var(--primary, #0078d4)" stopOpacity="0" />
           </radialGradient>
 
-          {/* 网格图案 */}
-          <pattern id="radarGrid" width="20" height="20" patternUnits="userSpaceOnUse">
-            <path
-              d="M 20 0 L 0 0 0 20"
-              fill="none"
-              stroke="var(--md-sys-color-on-surface, #000)"
-              strokeOpacity="0.03"
-              strokeWidth="1"
-            />
-          </pattern>
-
-          {/* 节点外层呼吸环发光滤镜 */}
-          <filter id="nodeGlow" x="-20%" y="-20%" width="140%" height="140%">
-            <feGaussianBlur stdDeviation="2" result="blur" />
-            <feComposite in="SourceGraphic" in2="blur" operator="over" />
-          </filter>
+          {/* 扫掠弧光渐变 */}
+          <linearGradient id="sweepArcGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="var(--primary, #0078d4)" stopOpacity="0.6" />
+            <stop offset="100%" stopColor="var(--primary, #0078d4)" stopOpacity="0" />
+          </linearGradient>
         </defs>
 
-        {/* 1. 网格底板 */}
-        <rect x="10" y="10" width="220" height="220" fill="url(#radarGrid)" rx="8" />
-        
-        {/* 2. 背景十字准星与辅助刻度 */}
-        <line x1="120" y1="10" x2="120" y2="230" stroke="var(--md-sys-color-on-surface, #000)" strokeOpacity="0.06" strokeWidth="1" strokeDasharray="4 4" />
-        <line x1="10" y1="120" x2="230" y2="120" stroke="var(--md-sys-color-on-surface, #000)" strokeOpacity="0.06" strokeWidth="1" strokeDasharray="4 4" />
+        {/* 1. 背景柔光晕 */}
+        <circle cx="100" cy="100" r="90" fill="url(#radarCenterGlow)" />
 
-        {/* 3. 同心圆测量轨 */}
-        <circle cx="120" cy="120" r="100" stroke="var(--md-sys-color-on-surface, #000)" strokeOpacity="0.04" strokeWidth="1.5" />
-        <circle cx="120" cy="120" r="70" stroke="var(--md-sys-color-on-surface, #000)" strokeOpacity="0.06" strokeWidth="1" strokeDasharray="3 3" />
-        <circle cx="120" cy="120" r="40" stroke="var(--md-sys-color-on-surface, #000)" strokeOpacity="0.08" strokeWidth="1" />
-        <circle cx="120" cy="120" r="10" stroke="var(--md-sys-color-primary, #0066ff)" strokeOpacity="0.2" strokeWidth="1" />
+        {/* 2. 静态参考同心圆轨 */}
+        <circle cx="100" cy="100" r="80" stroke="var(--on-surface, #1a1c1e)" strokeOpacity="0.04" strokeWidth="1" />
+        <circle cx="100" cy="100" r="56" stroke="var(--on-surface, #1a1c1e)" strokeOpacity="0.06" strokeWidth="1" strokeDasharray="3 3" />
+        <circle cx="100" cy="100" r="34" stroke="var(--primary, #0078d4)" strokeOpacity="0.1" strokeWidth="1" />
 
-        {/* 4. 雷达动态扫描扇区 */}
+        {/* 3. 柔和向外扩散的同心脉冲涟漪 */}
         <motion.circle
-          cx="120"
-          cy="120"
-          r="100"
-          fill="url(#radarSweepGrad)"
-          style={{ originX: "120px", originY: "120px" }}
-          animate={{ rotate: 360 }}
-          transition={{
-            repeat: Infinity,
-            duration: 6,
-            ease: "linear",
-          }}
-        />
-
-        {/* 5. 动态扫掠的刻度指针 */}
-        <motion.line
-          x1="120"
-          y1="120"
-          x2="120"
-          y2="20"
-          stroke="var(--md-sys-color-primary, #0066ff)"
-          strokeOpacity="0.4"
+          cx="100"
+          cy="100"
+          r="45"
+          stroke="var(--primary, #0078d4)"
           strokeWidth="1.5"
-          style={{ originX: "120px", originY: "120px" }}
+          fill="none"
+          initial={{ scale: 0.8, opacity: 0.4 }}
+          animate={{ scale: [0.8, 1.75], opacity: [0.45, 0] }}
+          transition={{
+            repeat: Infinity,
+            duration: 3.2,
+            ease: "easeOut",
+          }}
+          style={{ transformOrigin: "100px 100px" }}
+        />
+        <motion.circle
+          cx="100"
+          cy="100"
+          r="45"
+          stroke="var(--primary, #0078d4)"
+          strokeWidth="1"
+          fill="none"
+          initial={{ scale: 0.8, opacity: 0.4 }}
+          animate={{ scale: [0.8, 1.75], opacity: [0.45, 0] }}
+          transition={{
+            repeat: Infinity,
+            duration: 3.2,
+            delay: 1.6,
+            ease: "easeOut",
+          }}
+          style={{ transformOrigin: "100px 100px" }}
+        />
+
+        {/* 4. 平滑旋转的轻量扫描弧 */}
+        <motion.path
+          d="M 100 24 A 76 76 0 0 1 176 100"
+          stroke="url(#sweepArcGrad)"
+          strokeWidth="2"
+          strokeLinecap="round"
+          fill="none"
           animate={{ rotate: 360 }}
           transition={{
             repeat: Infinity,
-            duration: 6,
+            duration: 4,
             ease: "linear",
           }}
+          style={{ transformOrigin: "100px 100px" }}
         />
 
-        {/* 6. 数据分支连接线 (机械分支感) */}
-        <path
-          d="M 120 120 L 70 80 L 40 80 M 120 120 L 170 160 L 190 160 M 120 120 L 160 70 M 120 120 L 80 170"
-          stroke="var(--md-sys-color-on-surface, #000)"
-          strokeOpacity="0.08"
-          strokeWidth="1"
-        />
-
-        {/* 7. 雷达中检测到的数据节点 (带点按脉冲和发光效果) */}
-        
-        {/* 节点 A: 绿蓝色成功数据点 */}
-        <g>
-          <motion.circle
-            cx="70"
-            cy="80"
-            r="12"
-            fill="var(--md-sys-color-primary, #0066ff)"
-            fillOpacity="0.08"
-            animate={{ scale: [1, 1.4, 1] }}
-            transition={{ repeat: Infinity, duration: 2, ease: "easeInOut" }}
+        {/* 5. 中心轻量文件夹底座与主体 */}
+        <g transform="translate(76, 76)">
+          {/* 文件夹底板阴影与微光 */}
+          <rect
+            x="0"
+            y="0"
+            width="48"
+            height="48"
+            rx="12"
+            fill="var(--surface-container-lowest, #ffffff)"
+            stroke="var(--on-surface, #1a1c1e)"
+            strokeOpacity="0.08"
+            strokeWidth="1"
           />
-          <circle cx="70" cy="80" r="4" fill="var(--md-sys-color-primary, #0066ff)" filter="url(#nodeGlow)" />
-        </g>
 
-        {/* 节点 B: 橙黄色待确认数据点 */}
-        <g>
-          <motion.circle
-            cx="170"
-            cy="160"
-            r="16"
-            fill="var(--md-sys-color-secondary, #ff9900)"
-            fillOpacity="0.06"
-            animate={{ scale: [1, 1.3, 1] }}
-            transition={{ repeat: Infinity, duration: 2.5, ease: "easeInOut", delay: 0.5 }}
+          {/* 文件夹图标 */}
+          <path
+            d="M 12 17 L 20 17 L 23 20 L 36 20 C 37.1 20 38 20.9 38 22 L 38 33 C 38 34.1 37.1 35 36 35 L 12 35 C 10.9 35 10 34.1 10 33 L 10 19 C 10 17.9 10.9 17 12 17 Z"
+            fill="var(--primary, #0078d4)"
+            fillOpacity="0.1"
+            stroke="var(--primary, #0078d4)"
+            strokeWidth="1.75"
+            strokeLinejoin="round"
           />
-          <circle cx="170" cy="160" r="3" fill="var(--md-sys-color-secondary, #ff9900)" />
-        </g>
 
-        {/* 节点 C: 边缘小检测点 */}
-        <g>
-          <circle cx="40" cy="80" r="2.5" fill="var(--md-sys-color-on-surface, #000)" fillOpacity="0.3" />
+          {/* 文件夹内部微光点 */}
+          <circle cx="24" cy="27.5" r="2" fill="var(--primary, #0078d4)" />
         </g>
-
-        {/* 节点 D: 边缘小检测点 */}
-        <g>
-          <circle cx="190" cy="160" r="2.5" fill="var(--md-sys-color-on-surface, #000)" fillOpacity="0.3" />
-        </g>
-
-        {/* 8. 四角机械包角装饰 (体现 Workbench 工业质感) */}
-        <path d="M 10 25 L 10 10 L 25 10" stroke="var(--md-sys-color-on-surface, #000)" strokeOpacity="0.25" strokeWidth="1.5" fill="none" />
-        <path d="M 230 25 L 230 10 L 215 10" stroke="var(--md-sys-color-on-surface, #000)" strokeOpacity="0.25" strokeWidth="1.5" fill="none" />
-        <path d="M 10 215 L 10 230 L 25 230" stroke="var(--md-sys-color-on-surface, #000)" strokeOpacity="0.25" strokeWidth="1.5" fill="none" />
-        <path d="M 230 215 L 230 230 L 215 230" stroke="var(--md-sys-color-on-surface, #000)" strokeOpacity="0.25" strokeWidth="1.5" fill="none" />
       </svg>
     </div>
   );

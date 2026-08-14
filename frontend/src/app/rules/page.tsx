@@ -674,7 +674,7 @@ export default function RulesPage() {
           </div>
         ) : (
           <>
-            <div className="mt-5 rounded-[10px] border border-on-surface/8 bg-surface-container-lowest p-4">
+            <div className="mt-5 rounded-xl border border-on-surface/8 bg-surface-container-lowest p-4 shadow-sm">
               <div className="flex flex-wrap items-end gap-3">
                 <label className="min-w-[200px] flex-1">
                   <span className="mb-1 block text-[11px] font-bold text-on-surface-variant/60">当前规则配置</span>
@@ -682,7 +682,7 @@ export default function RulesPage() {
                     value={selectedProfile?.profile_id || ""}
                     onChange={(event) => selectProfile(event.target.value)}
                     disabled={!profiles.length || busy}
-                    className="h-10 w-full rounded-[8px] border border-on-surface/10 bg-surface px-3 text-[13px] font-bold text-on-surface outline-none transition-colors focus:border-primary/40 disabled:opacity-60"
+                    className="h-10 w-full rounded-lg border border-on-surface/10 bg-surface px-3 text-[13px] font-bold text-on-surface outline-none transition-colors focus:border-primary/40 focus:ring-2 focus:ring-primary/10 disabled:opacity-60"
                   >
                     {profiles.map((profile) => {
                       const done = ruleCompletion(profile);
@@ -704,7 +704,7 @@ export default function RulesPage() {
                     if (!creating) setNewProfileName("");
                   }}
                   disabled={busy}
-                  className="flex h-10 items-center gap-1.5 rounded-[8px] border border-on-surface/10 px-3 text-[12px] font-bold text-on-surface transition-colors hover:border-primary/30 hover:text-primary disabled:opacity-50"
+                  className="flex h-10 items-center gap-1.5 rounded-lg border border-on-surface/10 bg-surface px-3.5 text-[12px] font-bold text-on-surface transition-all hover:border-primary/30 hover:text-primary active:scale-95 disabled:opacity-50"
                 >
                   <Plus className="h-3.5 w-3.5" aria-hidden />
                   新建
@@ -714,10 +714,10 @@ export default function RulesPage() {
                   onClick={() => void handleSetDefault()}
                   disabled={!selectedProfile || busy}
                   className={cn(
-                    "flex h-10 items-center gap-1.5 rounded-[8px] border px-3 text-[12px] font-bold transition-colors disabled:opacity-50",
+                    "flex h-10 items-center gap-1.5 rounded-lg border px-3.5 text-[12px] font-bold transition-all active:scale-95 disabled:opacity-50",
                     isDefault
-                      ? "border-primary/30 bg-primary/5 text-primary"
-                      : "border-on-surface/10 text-on-surface hover:border-primary/30 hover:text-primary",
+                      ? "border-primary/30 bg-primary/8 text-primary font-black"
+                      : "border-on-surface/10 bg-surface text-on-surface hover:border-primary/30 hover:text-primary",
                   )}
                 >
                   <Star className={cn("h-3.5 w-3.5", isDefault && "fill-current")} aria-hidden />
@@ -727,7 +727,7 @@ export default function RulesPage() {
                   type="button"
                   onClick={() => void handleDeleteProfile()}
                   disabled={!selectedProfile || busy}
-                  className="flex h-10 items-center gap-1.5 rounded-[8px] border border-error/20 px-3 text-[12px] font-bold text-error transition-colors hover:bg-error/5 disabled:opacity-50"
+                  className="flex h-10 items-center gap-1.5 rounded-lg border border-error/20 bg-surface px-3.5 text-[12px] font-bold text-error transition-all hover:bg-error/5 active:scale-95 disabled:opacity-50"
                 >
                   <Trash2 className="h-3.5 w-3.5" aria-hidden />
                   删除
@@ -735,18 +735,18 @@ export default function RulesPage() {
               </div>
 
               {creating ? (
-                <div className="mt-3 flex flex-wrap items-center gap-2 rounded-[8px] border border-primary/15 bg-primary/5 p-3">
+                <div className="mt-3 flex flex-wrap items-center gap-2 rounded-lg border border-primary/15 bg-primary/5 p-3">
                   <input
                     value={newProfileName}
                     onChange={(event) => setNewProfileName(event.target.value)}
                     placeholder="新配置名称，例如：下载常用"
-                    className="h-9 min-w-[200px] flex-1 rounded-[8px] border border-on-surface/10 bg-surface px-3 text-[13px] font-semibold text-on-surface outline-none focus:border-primary/40"
+                    className="h-9 min-w-[200px] flex-1 rounded-lg border border-on-surface/10 bg-surface px-3 text-[13px] font-semibold text-on-surface outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10"
                   />
                   <button
                     type="button"
                     onClick={() => void handleCreateProfile()}
                     disabled={busy}
-                    className="h-9 rounded-[8px] bg-primary px-3 text-[12px] font-bold text-on-primary disabled:opacity-50"
+                    className="h-9 rounded-lg bg-primary px-3.5 text-[12px] font-bold text-on-primary shadow-sm hover:bg-primary-dim active:scale-95 disabled:opacity-50"
                   >
                     {busy ? "创建中…" : "创建"}
                   </button>
@@ -756,7 +756,7 @@ export default function RulesPage() {
                       setCreating(false);
                       setNewProfileName("");
                     }}
-                    className="h-9 rounded-[8px] border border-on-surface/10 px-3 text-[12px] font-bold text-on-surface-variant"
+                    className="h-9 rounded-lg border border-on-surface/10 bg-surface px-3 text-[12px] font-bold text-on-surface-variant hover:bg-on-surface/5"
                   >
                     取消
                   </button>
@@ -770,13 +770,13 @@ export default function RulesPage() {
                     <input
                       value={profileName}
                       onChange={(event) => setEditedName(event.target.value)}
-                      className="h-9 w-full rounded-[8px] border border-on-surface/10 bg-surface px-3 text-[13px] font-semibold text-on-surface outline-none focus:border-primary/40"
+                      className="h-9 w-full rounded-lg border border-on-surface/10 bg-surface px-3 text-[13px] font-semibold text-on-surface outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10"
                     />
                   </label>
                   <div className="flex items-center gap-2 pt-5">
                     <span
                       className={cn(
-                        "rounded-full px-2 py-0.5 text-[11px] font-bold",
+                        "rounded-full px-2.5 py-0.5 text-[11px] font-bold",
                         isComplete ? "bg-primary/10 text-primary" : "bg-on-surface/5 text-on-surface-variant/70",
                       )}
                     >
@@ -786,7 +786,7 @@ export default function RulesPage() {
                       <span className="text-[11px] font-semibold text-on-surface-variant/60">补全后才能一键整理</span>
                     ) : null}
                     {isDefault ? (
-                      <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-bold text-primary">一键默认</span>
+                      <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-[11px] font-bold text-primary">一键默认</span>
                     ) : null}
                   </div>
                 </div>
@@ -801,7 +801,7 @@ export default function RulesPage() {
                 onDragLeave={(event) => handleDropZoneDragLeave(event)}
                 onDrop={(event) => void handleDropZoneDrop(event)}
                 className={cn(
-                  "relative mt-4 overflow-hidden rounded-[10px] border p-4 transition-all duration-200",
+                  "relative mt-4 overflow-hidden rounded-xl border p-4 shadow-sm transition-all duration-200",
                   isDropActive
                     ? "border-primary bg-primary/[0.04] ring-2 ring-primary/20"
                     : "border-on-surface/8 bg-surface-container-lowest",
@@ -844,7 +844,7 @@ export default function RulesPage() {
                       type="button"
                       onClick={() => void handleAddDirectories()}
                       disabled={busy || draftState.loading}
-                      className="flex items-center gap-1.5 rounded-[8px] border border-on-surface/10 px-3 py-1.5 text-[12px] font-bold text-on-surface transition-colors hover:border-primary/30 hover:text-primary disabled:opacity-50"
+                      className="flex items-center gap-1.5 rounded-lg border border-on-surface/10 bg-surface px-3 py-1.5 text-[12px] font-bold text-on-surface transition-all hover:border-primary/30 hover:text-primary active:scale-95 disabled:opacity-50"
                     >
                       <FolderPlus className="h-3.5 w-3.5" aria-hidden />
                       添加目录
@@ -853,7 +853,7 @@ export default function RulesPage() {
                       type="button"
                       onClick={() => void handleGenerateDrafts()}
                       disabled={busy || draftState.loading || selectedProfile.directories.length === 0}
-                      className="flex items-center gap-1.5 rounded-[8px] border border-primary/30 px-3 py-1.5 text-[12px] font-bold text-primary transition-colors hover:bg-primary/5 disabled:opacity-50"
+                      className="flex items-center gap-1.5 rounded-lg border border-primary/30 bg-primary/5 px-3 py-1.5 text-[12px] font-bold text-primary transition-all hover:bg-primary/10 active:scale-95 disabled:opacity-50"
                     >
                       {draftState.loading && !draftState.loadingPath ? (
                         <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
@@ -867,7 +867,7 @@ export default function RulesPage() {
                         type="button"
                         onClick={acceptAllDrafts}
                         disabled={busy}
-                        className="flex items-center gap-1.5 rounded-[8px] border border-primary/40 bg-primary/8 px-3 py-1.5 text-[12px] font-bold text-primary transition-colors hover:bg-primary/15 disabled:opacity-50"
+                        className="flex items-center gap-1.5 rounded-lg border border-primary/40 bg-primary/10 px-3 py-1.5 text-[12px] font-bold text-primary transition-all hover:bg-primary/20 active:scale-95 disabled:opacity-50"
                       >
                         <Check className="h-3.5 w-3.5" aria-hidden />
                         全部采纳
@@ -877,7 +877,7 @@ export default function RulesPage() {
                       type="button"
                       onClick={() => void handleSave()}
                       disabled={saving || busy || !hasEdits}
-                      className="flex items-center gap-1.5 rounded-[8px] bg-primary px-3 py-1.5 text-[12px] font-bold text-on-primary transition-opacity hover:opacity-90 disabled:opacity-40"
+                      className="flex items-center gap-1.5 rounded-lg bg-primary px-3.5 py-1.5 text-[12px] font-bold text-on-primary shadow-sm transition-all hover:bg-primary-dim active:scale-95 disabled:opacity-40"
                     >
                       {saving ? (
                         <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
@@ -894,7 +894,7 @@ export default function RulesPage() {
                 ) : null}
 
                 {selectedProfile.directories.length === 0 ? (
-                  <div className="mt-4 rounded-[8px] border border-dashed border-on-surface/15 px-4 py-8 text-center">
+                  <div className="mt-4 rounded-xl border border-dashed border-on-surface/15 px-4 py-8 text-center">
                     <p className="text-[13px] font-bold text-on-surface">还没有目标目录</p>
                     <p className="mt-1 text-[12px] text-on-surface-variant/65">
                       拖入文件夹，或点击按钮添加；再为每个目录写规则。
@@ -903,7 +903,7 @@ export default function RulesPage() {
                       type="button"
                       onClick={() => void handleAddDirectories()}
                       disabled={busy}
-                      className="mt-3 inline-flex items-center gap-1.5 rounded-[8px] bg-primary px-3 py-1.5 text-[12px] font-bold text-on-primary disabled:opacity-50"
+                      className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-primary px-3.5 py-2 text-[12px] font-bold text-on-primary shadow-sm hover:bg-primary-dim active:scale-95 disabled:opacity-50"
                     >
                       <FolderPlus className="h-3.5 w-3.5" aria-hidden />
                       添加目录
@@ -917,7 +917,7 @@ export default function RulesPage() {
                       const pathLoading = draftState.loading && draftState.loadingPath === directory.path;
                       const batchLoading = draftState.loading && !draftState.loadingPath;
                       return (
-                        <div key={directory.path} className="rounded-[8px] border border-on-surface/8 bg-surface p-3">
+                        <div key={directory.path} className="rounded-xl border border-on-surface/8 bg-surface p-3.5 shadow-sm transition-all hover:border-on-surface/16">
                           <div className="flex flex-wrap items-center gap-2">
                             <Folder className="h-4 w-4 shrink-0 text-on-surface-variant/50" aria-hidden />
                             <span className="text-[13px] font-bold text-on-surface">{directoryTitle(directory)}</span>

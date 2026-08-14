@@ -250,13 +250,13 @@ export function CompletionView({
         >
         {/* Status Header - Workbench Style */}
         <div className={cn(
-            "flex items-center gap-4 rounded-lg border px-5 py-2.5",
+            "flex items-center gap-4 rounded-xl border px-5 py-3 shadow-sm",
             isPartial 
-                ? "border-error/15 bg-error/[0.02] text-error" 
-                : "border-success/15 bg-success/[0.02] text-success-dim"
+                ? "border-error/20 bg-error/[0.03] text-error" 
+                : "border-success/20 bg-success/[0.03] text-success-dim"
         )}>
             <div className={cn(
-                "flex h-8 w-8 shrink-0 items-center justify-center rounded-md font-black",
+                "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg font-black",
                 isPartial ? "bg-error text-white" : "bg-success text-white"
             )}>
                 {isPartial ? <AlertTriangle className="h-4 w-4" /> : <ShieldCheck className="h-4 w-4" />}
@@ -267,40 +267,42 @@ export function CompletionView({
                 </h2>
             </div>
             <div className="hidden shrink-0 flex-col items-end gap-1 sm:flex">
-                <div className="flex items-center gap-2 rounded bg-on-surface/[0.04] px-2 py-0.5 border border-on-surface/5">
-                    <Folder className="h-2.5 w-2.5 opacity-30 text-primary" />
-                    <span className="max-w-[200px] truncate font-mono text-[11px] font-bold text-on-surface/60" title={targetDir}>{targetDir}</span>
+                <div className="flex items-center gap-2 rounded-md bg-on-surface/[0.03] px-2.5 py-1 border border-on-surface/8">
+                    <Folder className="h-3 w-3 opacity-40 text-primary" />
+                    <span className="max-w-[200px] truncate font-mono text-[11px] font-bold text-on-surface/70" title={targetDir}>{targetDir}</span>
                 </div>
             </div>
         </div>
 
         {/* Metrics Grid - High Density */}
-        <div className={cn("grid grid-cols-2 gap-2", (skippedItems.length > 0 || reviewItems.length > 0) ? "sm:grid-cols-4" : "sm:grid-cols-3")}>
+        <div className={cn("grid grid-cols-2 gap-2.5", (skippedItems.length > 0 || reviewItems.length > 0) ? "sm:grid-cols-4" : "sm:grid-cols-3")}>
             {[
-                { label: "成功移动", count: journal.success_count || 0, icon: CheckCircle2, color: "text-success-dim", bg: "bg-success/5" },
+                { label: "成功移动", count: journal.success_count || 0, icon: CheckCircle2, color: "text-success-dim", bg: "bg-success/8" },
                 ...(skippedItems.length > 0
-                  ? [{ label: "留在原地", count: skippedItems.length, icon: ShieldCheck, color: "text-emerald-500", bg: "bg-emerald-500/5" }]
+                  ? [{ label: "留在原地", count: skippedItems.length, icon: ShieldCheck, color: "text-emerald-500", bg: "bg-emerald-500/8" }]
                   : []),
                 ...(reviewItems.length > 0 && organizeMethod !== "assign_into_existing_categories"
-                  ? [{ label: "待确认区", count: reviewItems.length, icon: Layers, color: "text-warning", bg: "bg-warning/5" }]
+                  ? [{ label: "待确认区", count: reviewItems.length, icon: Layers, color: "text-warning", bg: "bg-warning/8" }]
                   : []),
-                { label: "执行失败", count: journal.failure_count || 0, icon: AlertTriangle, color: isPartial ? "text-error" : "text-ui-muted", bg: isPartial ? "bg-error/5" : "bg-on-surface/5" },
-                { label: "处理总数", count: journal.item_count || 0, icon: History, color: "text-primary", bg: "bg-primary/5" },
+                { label: "执行失败", count: journal.failure_count || 0, icon: AlertTriangle, color: isPartial ? "text-error" : "text-ui-muted", bg: isPartial ? "bg-error/8" : "bg-on-surface/8" },
+                { label: "处理总数", count: journal.item_count || 0, icon: History, color: "text-primary", bg: "bg-primary/8" },
             ].map((stat, i) => (
                 <motion.div 
                     key={i} 
-                    initial={{ opacity: 0, scale: 0.95, y: 4 }}
+                    initial={{ opacity: 0, scale: 0.96, y: 4 }}
                     animate={{ opacity: 1, scale: 1, y: 0 }}
                     transition={{ type: "spring", stiffness: 350, damping: 28, delay: i * 0.05 }}
-                    className="flex flex-col gap-0.5 rounded-lg border border-on-surface/6 bg-on-surface/[0.015] p-2.5 transition-all hover:bg-on-surface/[0.03]"
+                    className="flex flex-col gap-1.5 rounded-xl border border-on-surface/8 bg-surface-container-lowest p-3 shadow-sm transition-all hover:border-on-surface/16"
                 >
                     <div className="flex items-center justify-between">
-                        <stat.icon className={cn("h-3 w-3 opacity-40", stat.color)} />
-                        <div className={cn("text-[16px] font-black tabular-nums leading-none tracking-tighter", stat.color)}>
+                        <div className={cn("flex h-6 w-6 items-center justify-center rounded-md", stat.bg)}>
+                            <stat.icon className={cn("h-3 w-3", stat.color)} />
+                        </div>
+                        <div className={cn("font-mono text-[17px] font-black tabular-nums leading-none", stat.color)}>
                             {stat.count}
                         </div>
                     </div>
-                    <div className="text-[11px] font-black uppercase tracking-widest text-ui-muted opacity-40">
+                    <div className="text-[11px] font-bold tracking-wider text-ui-muted/70">
                         {stat.label}
                     </div>
                 </motion.div>

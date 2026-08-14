@@ -454,15 +454,15 @@ export function SessionLauncherShell() {
   const stepItems = skipStrategyPrompt
     ? [{ id: 1 as const, title: "选择整理来源" }]
     : [
-      { id: 1 as const, title: "选择整理方式" },
-      { id: 2 as const, title: "选择整理来源" },
+      { id: 1 as const, title: "选择整理来源" },
+      { id: 2 as const, title: "选择整理方式" },
       { id: 3 as const, title: "填写必要信息" },
     ];
   const primaryLaunchLabel = isAssignExisting ? "读取目录并开始规划" : "读取目录并生成建议";
   const fastStartLabel = "按默认配置开始整理";
   const displayPath = isFullCategorize ? effectiveOutputDir || firstSourcePath(sources) : firstSourcePath(sources);
-  // Step 1 归入现有目录但无 Profile 时阻断
-  const step1BlockedByNoProfile = isAssignExisting && !hasProfiles && !targetProfilesLoading;
+  // Step 2 归入现有目录但无 Profile 时阻断
+  const step2BlockedByNoProfile = isAssignExisting && !hasProfiles && !targetProfilesLoading;
 
   useEffect(() => {
     if (skipStrategyPrompt && step !== 1) {
@@ -1277,9 +1277,9 @@ export function SessionLauncherShell() {
     return true;
   }
 
-  // Step 1（选方式）-> Step 2（选来源）的前置校验
+  // Step 2（选方式）-> Step 3（填信息）的前置校验
   function validateStepMethod(): boolean {
-    if (step1BlockedByNoProfile) {
+    if (step2BlockedByNoProfile) {
       setError("请先在「分类规则」页面创建一套分类规则，才能使用「归入现有目录」模式。");
       return false;
     }
@@ -1484,16 +1484,16 @@ export function SessionLauncherShell() {
     setIsTargetDropActive(false);
   }
 
-  // Step 1（选方式）-> Step 2（选来源）
+  // Step 1（选来源）-> Step 2（选方式）
   function goToStepTwo() {
-    if (!validateStepMethod()) return;
+    if (!validateStepOne()) return;
     setError(null);
     setStep(2);
   }
 
-  // Step 2（选来源）-> Step 3（填信息）
+  // Step 2（选方式）-> Step 3（填信息）
   function goToStepThree() {
-    if (!validateStepOne()) return;
+    if (!validateStepMethod()) return;
     setError(null);
     setStep(3);
   }
@@ -1508,18 +1508,18 @@ export function SessionLauncherShell() {
       return;
     }
 
-    // 从 Step 1 前进：校验整理方式（有无 Profile）
-    if (step === 1 && !validateStepMethod()) return;
-    // 从 Step 2 前进：校验来源不为空
-    if (step === 2 && !validateStepOne()) return;
+    // 从 Step 1 前进：校验来源不为空
+    if (step === 1 && !validateStepOne()) return;
+    // 从 Step 2 前进：校验整理方式
+    if (step === 2 && !validateStepMethod()) return;
 
     setError(null);
     setStep(targetId);
   }
 
   const renderLaunchWorkbench = () => (
-    <section className="rounded-lg border border-on-surface/8 bg-surface-container-lowest px-5 py-4">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-on-surface/6 pb-3">
+    <section className="rounded-2xl border border-on-surface/8 bg-surface-container-lowest p-6 shadow-sm">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-on-surface/6 pb-4">
         <div className="min-w-0">
           <h2 className="text-[16px] font-black tracking-tight text-on-surface">
             继续手头任务，或开始一次新的整理
@@ -1529,19 +1529,19 @@ export function SessionLauncherShell() {
           <Button
             variant="secondary"
             onClick={() => router.push("/settings?tab=text")}
-            className="h-8 rounded-[8px] px-3 text-[11px] font-black uppercase tracking-wider"
+            className="h-8 rounded-lg px-3.5 text-[11px] font-bold tracking-wider"
           >
             模型设置
           </Button>
         </div>
       </div>
 
-      <div className="grid gap-4 pt-4">
-        <div className="space-y-3">
+      <div className="grid gap-5 pt-5">
+        <div className="space-y-3.5">
           {backendUnavailable ? (
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-error/20 bg-error/[0.03] px-4 py-3">
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-error/20 bg-error/[0.03] px-4 py-3 shadow-sm">
               <div className="flex min-w-0 items-center gap-3">
-                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-error/10 text-error">
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-error/10 text-error">
                   <AlertCircle className="h-4 w-4" />
                 </span>
                 <div className="min-w-0">
@@ -1554,7 +1554,7 @@ export function SessionLauncherShell() {
               <button
                 type="button"
                 onClick={() => setBackendReloadNonce((nonce) => nonce + 1)}
-                className="shrink-0 rounded-[8px] border border-error/20 bg-surface px-3 py-1.5 text-[11px] font-bold text-error transition-colors hover:bg-error/5"
+                className="shrink-0 rounded-lg border border-error/20 bg-surface px-3 py-1.5 text-[11px] font-bold text-error transition-colors hover:bg-error/5"
               >
                 重新连接
               </button>
@@ -1564,25 +1564,24 @@ export function SessionLauncherShell() {
             <button
               type="button"
               onClick={() => router.push(activeWorkspaceTask.route)}
-              className="group grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3.5 rounded-lg border border-primary/20 bg-primary/[0.03] px-4 py-3 text-left transition-all hover:bg-primary/[0.06] hover:shadow-[0_4px_12px_rgba(var(--primary-rgb),0.03)]"
+              className="group grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3.5 rounded-xl border border-primary/20 bg-primary/[0.035] px-4 py-3.5 text-left transition-all hover:border-primary/40 hover:bg-primary/[0.06] hover:shadow-sm"
             >
               <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary text-white shadow-sm transition-transform group-hover:scale-105">
                 <Activity className="h-4.5 w-4.5 animate-pulse" />
               </span>
               <div className="min-w-0">
                 <p className="text-[13px] font-black text-on-surface">返回挂起中的任务</p>
-                <p className="mt-0.5 block max-w-full truncate text-[12px] font-medium text-ui-muted/60" title={activeWorkspaceTask.route}>
+                <p className="mt-0.5 block max-w-full truncate text-[12px] font-medium text-ui-muted/70" title={activeWorkspaceTask.route}>
                   {describeWorkspaceTask(activeWorkspaceTask)}
                 </p>
               </div>
-              <span className="shrink-0 flex items-center justify-center h-7 rounded-md bg-primary px-3 text-[11px] font-black text-white uppercase tracking-wider transition-transform group-hover:translate-x-0.5">
+              <span className="shrink-0 flex items-center justify-center h-8 rounded-lg bg-primary px-3.5 text-[11px] font-black text-white uppercase tracking-wider transition-all group-hover:bg-primary-dim active:scale-95">
                 继续执行
               </span>
             </button>
           ) : (
-            <div className="flex items-center gap-3.5 rounded-lg border border-on-surface/6 bg-on-surface/[0.012] px-4 py-3 relative overflow-hidden select-none">
-              <div className="absolute inset-0 bg-[radial-gradient(#00000003_1px,transparent_1px)] [background-size:12px_12px] opacity-40 pointer-events-none" />
-              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-on-surface/5 text-on-surface/30">
+            <div className="flex items-center gap-3.5 rounded-xl border border-on-surface/6 bg-on-surface/[0.015] px-4 py-3 relative overflow-hidden select-none">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-on-surface/5 text-on-surface/35">
                 <Activity className="h-4.5 w-4.5 opacity-60" />
               </span>
               <div>
@@ -1592,7 +1591,7 @@ export function SessionLauncherShell() {
             </div>
           )}
 
-          <div className="grid gap-3 sm:grid-cols-3">
+          <div className="grid gap-3.5 sm:grid-cols-3">
             <button
               type="button"
               onClick={() => {
@@ -1600,35 +1599,35 @@ export function SessionLauncherShell() {
                 setShowManualInput(false);
                 setLaunchFlowOpen(true);
               }}
-              className="group relative flex flex-col items-start rounded-lg border border-on-surface/8 bg-surface p-4 text-left transition-all hover:border-primary/20 hover:bg-on-surface/[0.01] hover:shadow-[0_4px_16px_rgba(0,0,0,0.02)] active:scale-[0.98]"
+              className="group relative flex flex-col items-start rounded-xl border border-on-surface/8 bg-surface p-4 text-left transition-all hover:border-primary/30 hover:bg-on-surface/[0.01] hover:shadow-sm active:scale-[0.98]"
             >
-              <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary/8 text-primary transition-all group-hover:scale-110 group-hover:bg-primary/12">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary transition-all group-hover:scale-110 group-hover:bg-primary/15">
                 <Plus className="h-4.5 w-4.5" />
               </div>
               <p className="mt-3 text-[13px] font-black text-on-surface tracking-tight">新建整理</p>
-              <p className="mt-1 text-[12px] font-medium leading-relaxed text-ui-muted/60">拖入文件或文件夹，AI 自动推导分类结构。</p>
+              <p className="mt-1 text-[12px] font-medium leading-relaxed text-ui-muted/65">拖入文件或文件夹，AI 自动推导分类结构。</p>
             </button>
             <button
               type="button"
               onClick={() => router.push("/history")}
-              className="group relative flex flex-col items-start rounded-lg border border-on-surface/8 bg-surface p-4 text-left transition-all hover:border-primary/20 hover:bg-on-surface/[0.01] hover:shadow-[0_4px_16px_rgba(0,0,0,0.02)] active:scale-[0.98]"
+              className="group relative flex flex-col items-start rounded-xl border border-on-surface/8 bg-surface p-4 text-left transition-all hover:border-sky-500/30 hover:bg-on-surface/[0.01] hover:shadow-sm active:scale-[0.98]"
             >
-              <div className="flex h-8 w-8 items-center justify-center rounded-md bg-sky-500/8 text-sky-600 transition-all group-hover:scale-110 group-hover:bg-sky-500/12 dark:text-sky-400">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sky-500/10 text-sky-600 transition-all group-hover:scale-110 group-hover:bg-sky-500/15 dark:text-sky-400">
                 <History className="h-4.5 w-4.5" />
               </div>
               <p className="mt-3 text-[13px] font-black text-on-surface tracking-tight">整理历史</p>
-              <p className="mt-1 text-[12px] font-medium leading-relaxed text-ui-muted/60">查看历史整理记录，可一键安全回退。</p>
+              <p className="mt-1 text-[12px] font-medium leading-relaxed text-ui-muted/65">查看历史整理记录，可一键安全回退。</p>
             </button>
             <button
               type="button"
               onClick={() => router.push("/icons")}
-              className="group relative flex flex-col items-start rounded-lg border border-on-surface/8 bg-surface p-4 text-left transition-all hover:border-primary/20 hover:bg-on-surface/[0.01] hover:shadow-[0_4px_16px_rgba(0,0,0,0.02)] active:scale-[0.98]"
+              className="group relative flex flex-col items-start rounded-xl border border-on-surface/8 bg-surface p-4 text-left transition-all hover:border-amber-500/30 hover:bg-on-surface/[0.01] hover:shadow-sm active:scale-[0.98]"
             >
-              <div className="flex h-8 w-8 items-center justify-center rounded-md bg-amber-500/8 text-amber-600 transition-all group-hover:scale-110 group-hover:bg-amber-500/12 dark:text-amber-400">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-500/10 text-amber-600 transition-all group-hover:scale-110 group-hover:bg-amber-500/15 dark:text-amber-400">
                 <Sparkles className="h-4.5 w-4.5" />
               </div>
               <p className="mt-3 text-[13px] font-black text-on-surface tracking-tight">图标工坊</p>
-              <p className="mt-1 text-[12px] font-medium leading-relaxed text-ui-muted/60">为文件夹匹配并应用图标，提升辨识度。</p>
+              <p className="mt-1 text-[12px] font-medium leading-relaxed text-ui-muted/65">为文件夹匹配并应用图标，提升辨识度。</p>
             </button>
           </div>
         </div>
@@ -1802,6 +1801,39 @@ export function SessionLauncherShell() {
                 <div className="flex-1 space-y-4">
                   <div className="space-y-4">
                     {step === 1 ? (
+                      <SourceStep
+                        sourceDropZoneRef={sourceDropZoneRef}
+                        loading={loading}
+                        isDropActive={isDropActive}
+                        isDraggingGlobal={isDraggingGlobal}
+                        isDesktopEnvironment={isDesktopEnvironment}
+                        isSourceDropdownOpen={isSourceDropdownOpen}
+                        onSetSourceDropdownOpen={setIsSourceDropdownOpen}
+                        showManualInput={showManualInput}
+                        onSetShowManualInput={setShowManualInput}
+                        commonDirs={commonDirs}
+                        sourceDraftType={sourceDraftType}
+                        onSetSourceDraftType={setSourceDraftType}
+                        sourceDraftPath={sourceDraftPath}
+                        onSetSourceDraftPath={setSourceDraftPath}
+                        onAddManualSource={addManualSource}
+                        onImportDirectoryEntries={() => void handleImportDirectoryEntries()}
+                        onChooseDirectories={() => void handleChooseDirectories()}
+                        onChooseFiles={() => void handleChooseFiles()}
+                        onImportCommonDir={(path) => void importDirectoryEntries(path)}
+                        listItems={sourceListItems}
+                        sourceStats={sourceStats}
+                        showClearConfirm={showClearConfirm}
+                        onClearSources={handleClearSourcesWithConfirm}
+                        onRemoveSource={removeSource}
+                        onImportInternal={handleImportInternal}
+                        onSetAtomicMode={setSourceAtomicMode}
+                        onToggleGroupExpanded={toggleImportGroupExpanded}
+                        onRemoveGroup={removeImportGroup}
+                      />
+                    ) : null}
+
+                    {step === 2 ? (
                       <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
                         <div className="flex items-center gap-2">
                           <div className="flex h-6 w-6 items-center justify-center rounded-[4px] bg-primary/10 text-primary">
@@ -1869,7 +1901,7 @@ export function SessionLauncherShell() {
                         {renderMethodExplanation()}
 
                         {/* 归入现有目录但无 Profile 时的阻断提示 */}
-                        {step1BlockedByNoProfile ? (
+                        {step2BlockedByNoProfile ? (
                           <div className="animate-in fade-in duration-200 rounded-xl border border-warning/30 bg-warning/[0.04] px-4 py-3.5">
                             <div className="flex flex-wrap items-start justify-between gap-3">
                               <div className="min-w-0">
@@ -1891,75 +1923,8 @@ export function SessionLauncherShell() {
                       </div>
                     ) : null}
 
-                    {step === 2 ? (
-                      <SourceStep
-                        sourceDropZoneRef={sourceDropZoneRef}
-                        loading={loading}
-                        isDropActive={isDropActive}
-                        isDraggingGlobal={isDraggingGlobal}
-                        isDesktopEnvironment={isDesktopEnvironment}
-                        isSourceDropdownOpen={isSourceDropdownOpen}
-                        onSetSourceDropdownOpen={setIsSourceDropdownOpen}
-                        showManualInput={showManualInput}
-                        onSetShowManualInput={setShowManualInput}
-                        commonDirs={commonDirs}
-                        sourceDraftType={sourceDraftType}
-                        onSetSourceDraftType={setSourceDraftType}
-                        sourceDraftPath={sourceDraftPath}
-                        onSetSourceDraftPath={setSourceDraftPath}
-                        onAddManualSource={addManualSource}
-                        onImportDirectoryEntries={() => void handleImportDirectoryEntries()}
-                        onChooseDirectories={() => void handleChooseDirectories()}
-                        onChooseFiles={() => void handleChooseFiles()}
-                        onImportCommonDir={(path) => void importDirectoryEntries(path)}
-                        listItems={sourceListItems}
-                        sourceStats={sourceStats}
-                        showClearConfirm={showClearConfirm}
-                        onClearSources={handleClearSourcesWithConfirm}
-                        onRemoveSource={removeSource}
-                        onImportInternal={handleImportInternal}
-                        onSetAtomicMode={setSourceAtomicMode}
-                        onToggleGroupExpanded={toggleImportGroupExpanded}
-                        onRemoveGroup={removeImportGroup}
-                      />
-                    ) : null}
-
                     {step === 3 ? (
                       <div className="space-y-5 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                        {!isAssignExisting ? (
-                          <div className="space-y-4 rounded-xl border border-on-surface/8 bg-surface-container-low/30 p-5">
-                            <div className="flex items-center gap-2 border-b border-on-surface/10 pb-3">
-                              <div className="flex h-6 w-6 items-center justify-center rounded-[4px] bg-primary/10 text-primary">
-                                <FolderOpen className="h-3.5 w-3.5" />
-                              </div>
-                              <h2 className="text-[14px] font-bold text-on-surface">新目录生成位置</h2>
-                            </div>
-
-                            <div className="rounded-[8px] border border-on-surface/8 bg-surface-container-lowest p-3.5 transition-all focus-within:border-primary/30">
-                              <div className="flex gap-2">
-                                <input
-                                  value={newDirectoryRoot}
-                                  onChange={(event) => setNewDirectoryRoot(event.target.value)}
-                                  disabled={loading}
-                                  placeholder={placementConfig.defaultNewDirectoryRoot || "新目录生成路径"}
-                                  className="h-9 flex-1 rounded-[6px] border border-transparent bg-on-surface/[0.03] px-2.5 text-[13px] font-medium text-on-surface outline-none transition-all placeholder:text-on-surface-variant/35 focus:border-primary/30 focus:bg-surface focus:ring-2 focus:ring-primary/5"
-                                />
-                                <button
-                                  type="button"
-                                  onClick={() => void handleSelectPlacementRoot("new")}
-                                  disabled={loading}
-                                  className="h-9 rounded-[6px] border border-on-surface/8 bg-surface px-3 text-[12px] font-bold text-on-surface transition-colors hover:border-primary/20 hover:text-primary disabled:opacity-50"
-                                >
-                                  选择目录
-                                </button>
-                              </div>
-                              <p className="mt-2 text-[11px] font-medium leading-relaxed text-ui-muted opacity-80">
-                                留空则默认在整理来源目录下新建分类结构。
-                              </p>
-                            </div>
-                          </div>
-                        ) : null}
-
                         <div className="space-y-3">
                           <div className="flex items-center gap-2 border-b border-on-surface/10 pb-3">
                             <div className="flex h-6 w-6 items-center justify-center rounded-[4px] bg-primary/10 text-primary">
@@ -2318,16 +2283,16 @@ export function SessionLauncherShell() {
                         <Button
                           variant="primary"
                           onClick={skipStrategyPrompt ? () => void launchCurrentRequest(true, { directStart: true }) : goToStepTwo}
-                          disabled={loading || step1BlockedByNoProfile || targetProfilesLoading}
+                          disabled={loading || sources.length === 0}
                           className="pointer-events-auto h-10 px-8 font-bold border border-primary/20 bg-primary"
                         >
-                          {loading ? "正在启动..." : skipStrategyPrompt ? fastStartLabel : "下一步：选择整理来源"}
+                          {loading ? "正在启动..." : skipStrategyPrompt ? fastStartLabel : "下一步：选择整理方式"}
                         </Button>
                       ) : step === 2 ? (
                         <Button
                           variant="primary"
                           onClick={goToStepThree}
-                          disabled={loading || sources.length === 0}
+                          disabled={loading || step2BlockedByNoProfile || targetProfilesLoading}
                           className="pointer-events-auto h-10 px-8 font-bold border border-primary/20 bg-primary"
                         >
                           下一步：填写必要信息
