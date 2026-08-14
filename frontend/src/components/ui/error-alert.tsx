@@ -1,6 +1,6 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { motion } from "motion/react";
 import { AlertTriangle } from "lucide-react";
 
 interface ErrorAlertProps {
@@ -21,7 +21,7 @@ export function ErrorAlert({ title = "系统指令异常中断", message, onClos
       </div>
       <div className="min-w-0 flex-1 space-y-0.5">
         <div className="flex items-center justify-between">
-          <p className="text-[10px] font-black uppercase tracking-[0.25em] text-error/60 leading-none">
+          <p className="text-[11px] font-black uppercase tracking-[0.25em] text-error/60 leading-none">
             {title}
           </p>
           {onClose && (

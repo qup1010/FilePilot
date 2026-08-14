@@ -50,10 +50,16 @@ export async function listenToTauriDragDrop(
 
   try {
     const { getCurrentWindow } = await import("@tauri-apps/api/window");
-    return await getCurrentWindow().onDragDropEvent((event) => {
-      handler(event as TauriDragDropEvent);
+    const unlisten = await getCurrentWindow().onDragDropEvent((event) => {
+      try {
+        handler(event as TauriDragDropEvent);
+      } catch (err) {
+        console.warn("Drag drop event handler error:", err);
+      }
     });
-  } catch {
+    return unlisten;
+  } catch (err) {
+    console.warn("Failed to attach Tauri drag drop listener:", err);
     return null;
   }
 }

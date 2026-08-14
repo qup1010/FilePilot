@@ -60,10 +60,13 @@ function resolve(mode: ThemeMode): "light" | "dark" {
 }
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [mode, setModeState] = useState<ThemeMode>("system");
-  const [resolved, setResolved] = useState<"light" | "dark">("light");
+  // 懒初始化：客户端首次渲染即读取持久化偏好，与 layout.tsx 中的
+  // 阻塞式内联脚本保持一致，避免深色模式启动闪烁（FOUC）。
+  // getStoredMode / resolve 内部已做 SSR 保护（window 不存在时返回默认值）。
+  const [mode, setModeState] = useState<ThemeMode>(() => getStoredMode());
+  const [resolved, setResolved] = useState<"light" | "dark">(() => resolve(getStoredMode()));
 
-  // 初始化：读取持久化偏好并立即应用
+  // 挂载后确保 DOM 状态与 React 状态一致（内联脚本通常已提前应用）
   useEffect(() => {
     const stored = getStoredMode();
     const r = resolve(stored);

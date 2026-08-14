@@ -1,9 +1,6 @@
 "use client";
-
-import React from "react";
 import { FolderPlus, History, Settings2, Sparkles, Trash2 } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 interface IconWorkbenchToolbarProps {
@@ -25,10 +22,11 @@ export function IconWorkbenchToolbar({
   onOpenHistory,
   onOpenStylePanel,
   onOpenTemplateDrawer,
-  selectedTemplateName = "请先选择风格模板",
+  selectedTemplateName = "请选择风格模板",
 }: IconWorkbenchToolbarProps) {
-  const targetSummary = targetCount > 0 ? `${targetCount} 个选定目标` : "未选择目标";
-  const targetDetail = targetCount > 0
+  const isNoStyleSelected = !selectedTemplateName || selectedTemplateName === "请选择风格模板" || selectedTemplateName === "请选择风格" || selectedTemplateName === "请先选择风格模板";
+  const targetSummary = targetCount > 0 ? `${targetCount} 个文件夹` : "未选择文件夹";
+  const _targetDetail = targetCount > 0
     ? latestTargetPath || "继续添加文件夹..."
     : "支持一次性选择并分类多个目标。";
 
@@ -56,7 +54,7 @@ export function IconWorkbenchToolbar({
             <button
               onClick={onClearTargets}
               className="flex h-7.5 w-7.5 items-center justify-center rounded-lg border border-on-surface/8 bg-on-surface/[0.03] text-ui-muted/40 transition-all hover:bg-error/10 hover:text-error active:scale-90"
-              title="清空所有目标"
+              title="清空文件夹列表"
             >
               <Trash2 className="h-3.5 w-3.5" />
             </button>
@@ -66,13 +64,9 @@ export function IconWorkbenchToolbar({
         <div className="flex items-center gap-3 overflow-hidden">
           <div className="h-3 w-px bg-on-surface/10" />
           <div className="min-w-0">
-             <div className="flex items-center gap-2.5">
-                <span className="text-[10px] font-black uppercase tracking-[0.25em] text-ui-muted/30">ICON WORKBENCH</span>
-                <span className="h-1 w-1 rounded-full bg-on-surface/10" />
-                <p className="truncate text-[12px] font-bold text-on-surface/60 leading-none" title={targetSummary}>
-                  {targetSummary}
-                </p>
-             </div>
+             <p className="truncate text-[12px] font-bold text-on-surface/60 leading-none" title={targetSummary}>
+               {targetSummary}
+             </p>
           </div>
         </div>
       </div>
@@ -82,22 +76,22 @@ export function IconWorkbenchToolbar({
           onClick={onOpenStylePanel}
           className={cn(
             "group flex items-center gap-3 rounded-lg border px-2.5 py-1 transition-all active:scale-[0.98]",
-            selectedTemplateName === "请选择风格"
+            isNoStyleSelected
               ? "border-primary/30 bg-primary/[0.04] animate-pulse hover:bg-primary/[0.08] hover:border-primary/45"
               : "border-on-surface/5 bg-on-surface/[0.03] hover:border-primary/20 hover:bg-on-surface/[0.05]"
           )}
         >
           <div className={cn(
             "flex h-6.5 w-6.5 items-center justify-center rounded-md border transition-all",
-            selectedTemplateName === "请选择风格"
+            isNoStyleSelected
               ? "bg-primary/20 text-primary border-primary/30 ring-1 ring-primary/30"
               : "bg-primary/10 text-primary border-primary/20 ring-1 ring-primary/20"
           )}>
             <Sparkles className="h-3 w-3" />
           </div>
           <div className="flex flex-col items-start text-left">
-            <span className="text-[8px] font-black uppercase tracking-[0.2em] text-ui-muted/40 leading-tight">Template</span>
-            <span className="max-w-[120px] truncate text-[11.5px] font-black tracking-tight text-on-surface/80 leading-none">
+            <span className="text-[11px] font-black text-ui-muted/40 leading-tight">风格模板</span>
+            <span className="max-w-[120px] truncate text-[12px] font-black tracking-tight text-on-surface/80 leading-none">
               {selectedTemplateName}
             </span>
           </div>

@@ -81,6 +81,9 @@ class PendingPlan:
             summary=self.summary,
         )
 
+    def is_empty(self) -> bool:
+        return not bool(self.moves or self.directories)
+
 
 @dataclass
 class FinalPlan:

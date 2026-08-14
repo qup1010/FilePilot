@@ -1,4 +1,4 @@
-import type { FolderIconCandidate, IconPreviewVersion, IconWorkbenchSession } from "@/types/icon-workbench";
+import type { FolderIconCandidate, IconPreviewVersion, } from "@/types/icon-workbench";
 
 export type GenerateFlowStage = "analyzing" | "applying_template" | "generating";
 export interface GenerateFlowStepItem {

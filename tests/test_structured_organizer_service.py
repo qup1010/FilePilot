@@ -1,14 +1,14 @@
-import unittest
 import json
 import os
 import shutil
 import threading
+import unittest
 from pathlib import Path
 from types import SimpleNamespace
 from unittest import mock
 
-from file_pilot.organize.models import FinalPlan, PendingPlan, PlanMove
 from file_pilot.organize import service as organizer_service
+from file_pilot.organize.models import FinalPlan, PendingPlan, PlanMove
 
 
 class StructuredOrganizerServiceTests(unittest.TestCase):
@@ -74,7 +74,7 @@ class StructuredOrganizerServiceTests(unittest.TestCase):
             },
         )
         self.assertEqual(updated.unresolved_items, ["合同.pdf"])
-        self.assertEqual(updated.summary, "已分类 1 项，调整 2 项，仍剩 1 项待定")
+        self.assertEqual(updated.summary, "已分类 1 项，待移动 2 项，待确认 1 项")
         self.assertTrue(any("Bills" in item for item in diff_summary))
         self.assertTrue(any("Screenshots/截图1.png" in item for item in diff_summary))
 
@@ -96,7 +96,7 @@ class StructuredOrganizerServiceTests(unittest.TestCase):
 
         self.assertEqual(content, organizer_service.SYNTHETIC_PLAN_REPLY)
         self.assertFalse(result["is_valid"])
-        self.assertEqual(result["display_plan"], {"focus": "summary", "summary": "已分类 1 项，调整 2 项，仍剩 1 项待定", "reason": ""})
+        self.assertEqual(result["display_plan"], {"focus": "summary", "summary": "已分类 1 项，待移动 2 项，待确认 1 项", "reason": ""})
         self.assertEqual(result["assistant_message"]["content"], organizer_service.SYNTHETIC_PLAN_REPLY)
         self.assertEqual(result["pending_plan"].directories, ["Review", "Study"])
         self.assertEqual(

@@ -3,48 +3,24 @@
 import React, { ReactNode } from "react";
 import { PageTransition } from "@/components/page-transition";
 import { usePathname, useSearchParams } from "next/navigation";
-import { motion } from "framer-motion";
+import { motion } from "motion/react";
 
 // ... (existing imports)
 import Link from "next/link";
-import { LayoutGrid, History, Settings, Palette, Sun, Moon, Monitor, CheckCircle2 } from "lucide-react";
+import { BookOpenCheck, LayoutGrid, History, Settings, Palette, Sun, Moon, Monitor, CheckCircle2 } from "lucide-react";
 import { WindowControls } from "./ui/window-controls";
 import { GlobalTaskIndicator } from "./global-task-indicator";
 import { useTheme } from "@/lib/theme";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
+import { getPathBasename } from "@/lib/path-normalization";
+import { APP_CONTEXT_EVENT, WORKSPACE_CONTEXT_KEY, RULES_CONTEXT_KEY, HISTORY_CONTEXT_KEY, readActiveWorkspaceRoute } from "@/lib/app-context-store";
 
-const WORKSPACE_CONTEXT_KEY = "workspace_header_context";
 const SETTINGS_CONTEXT_KEY = "settings_header_context";
-const HISTORY_CONTEXT_KEY = "history_header_context";
 const ICONS_CONTEXT_KEY = "icons_header_context";
-const APP_CONTEXT_EVENT = "file-pilot-context-change";
-const ACTIVE_WORKSPACE_ROUTE_KEY = "workspace_active_route";
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
-}
-
-function formatDirName(path: string | null | undefined): string {
-  const trimmed = String(path || "").trim();
-  if (!trimmed) {
-    return "当前任务";
-  }
-  try {
-    const decoded = decodeURIComponent(trimmed);
-    if (/^[a-zA-Z]:[\\/]?$/.test(decoded)) {
-      const letter = decoded[0].toUpperCase();
-      return `${letter}:\\`;
-    }
-    if (decoded === "/" || decoded === "\\") {
-      return "/";
-    }
-    const normalized = decoded.replace(/[\\/]$/, "");
-    return normalized.split(/[\\/]/).pop() || "当前任务";
-  } catch {
-    const normalized = trimmed.replace(/[\\/]$/, "");
-    return normalized.split(/[\\/]/).pop() || "当前任务";
-  }
 }
 
 function readStoredContext(key: string) {
@@ -77,10 +53,16 @@ function getWorkspaceLoadingLabel() {
 }
 
 function getBaseModuleLabel(pathname: string, searchParams: URLSearchParams) {
+  if (pathname === "/rules") {
+    return {
+      title: "分类规则",
+      detail: "规则配置",
+    };
+  }
   if (pathname === "/history") {
     return {
       title: "整理历史",
-      detail: "会话与执行档案",
+      detail: "历史记录",
     };
   }
   if (pathname === "/settings") {
@@ -92,7 +74,7 @@ function getBaseModuleLabel(pathname: string, searchParams: URLSearchParams) {
   if (pathname === "/icons") {
     return {
       title: "图标工坊",
-      detail: "选择目标文件夹并生成图标",
+      detail: "图标生成",
     };
   }
   if (pathname.startsWith("/workspace")) {
@@ -101,23 +83,28 @@ function getBaseModuleLabel(pathname: string, searchParams: URLSearchParams) {
     if (sessionId && !dirParam) {
       return getWorkspaceLoadingLabel();
     }
-    const dirName = formatDirName(dirParam); /*
-      ? decodeURIComponent(dirParam).replace(/[\\/]$/, "").split(/[\\/]/).pop() || "当前任务"
-      : "当前任务"; */
+    const dirName = getPathBasename(dirParam, "当前任务");
     return {
       title: dirName,
       detail: "当前整理任务",
     };
   }
-  return { title: "开始整理", detail: "选择目录并开始新的整理任务" };
+  return { title: "开始整理", detail: "新建整理任务" };
 }
 
 function getStoredModuleLabel(pathname: string, searchParams: URLSearchParams) {
+  if (pathname === "/rules") {
+    const stored = readStoredContext(RULES_CONTEXT_KEY);
+    return {
+      title: "分类规则",
+      detail: stored?.detail || "规则配置",
+    };
+  }
   if (pathname === "/history") {
     const stored = readStoredContext(HISTORY_CONTEXT_KEY);
     return {
       title: "整理历史",
-      detail: stored?.detail || "会话与执行档案",
+      detail: stored?.detail || "历史记录",
     };
   }
   if (pathname === "/settings") {
@@ -131,7 +118,7 @@ function getStoredModuleLabel(pathname: string, searchParams: URLSearchParams) {
     const stored = readStoredContext(ICONS_CONTEXT_KEY);
     return {
       title: "图标工坊",
-      detail: stored?.detail || "选择目标文件夹并生成图标",
+      detail: stored?.detail || "图标生成",
     };
   }
   if (pathname.startsWith("/workspace")) {
@@ -139,7 +126,7 @@ function getStoredModuleLabel(pathname: string, searchParams: URLSearchParams) {
     const dirParam = searchParams.get("dir");
     const sessionId = searchParams.get("session_id");
     if (dirParam) {
-      const dirName = formatDirName(dirParam);
+      const dirName = getPathBasename(dirParam, "当前任务");
       return {
         title: dirName,
         detail: stored?.stage || "当前整理任务",
@@ -159,7 +146,7 @@ function getStoredModuleLabel(pathname: string, searchParams: URLSearchParams) {
       detail: stored?.stage || "当前整理任务",
     };
   }
-  return { title: "开始整理", detail: "选择目录并开始新的整理任务" };
+  return { title: "开始整理", detail: "新建整理任务" };
 }
 
 function getWorkspaceRoute(pathname: string, searchParams: URLSearchParams) {
@@ -172,28 +159,35 @@ function getWorkspaceRoute(pathname: string, searchParams: URLSearchParams) {
   if (typeof window === "undefined") {
     return "/";
   }
-  return window.localStorage.getItem(ACTIVE_WORKSPACE_ROUTE_KEY) || "/";
+  return readActiveWorkspaceRoute() || "/";
 }
 
 function ThemeToggle() {
   const { mode, setMode } = useTheme();
+  // 主题模式来自 localStorage 懒初始化，SSR 首帧与客户端可能不同；挂载后再渲染具体状态避免水合不一致。
+  const [mounted, setMounted] = React.useState(false);
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const cycle = () => {
     const next = mode === "light" ? "dark" : mode === "dark" ? "system" : "light";
     setMode(next);
   };
 
-  const Icon = mode === "light" ? Sun : mode === "dark" ? Moon : Monitor;
-  const label = mode === "light" ? "浅色" : mode === "dark" ? "深色" : "跟随系统";
+  const Icon = !mounted ? Monitor : mode === "light" ? Sun : mode === "dark" ? Moon : Monitor;
+  const label = !mounted ? "主题" : mode === "light" ? "浅色" : mode === "dark" ? "深色" : "跟随系统";
 
   return (
     <button
       type="button"
       onClick={cycle}
       title={`当前：${label}，点击切换`}
-      className="flex h-7 w-7 items-center justify-center rounded-[4px] text-on-surface-variant/50 transition-colors hover:bg-on-surface/5 hover:text-on-surface active:scale-90"
+      suppressHydrationWarning
+      className="flex h-7 items-center gap-1.5 rounded-[4px] px-2 text-[11px] font-bold text-on-surface-variant/60 transition-colors hover:bg-on-surface/5 hover:text-on-surface active:scale-95"
     >
       <Icon className="h-3.5 w-3.5" />
+      <span className="hidden lg:inline" suppressHydrationWarning>{label}</span>
     </button>
   );
 }
@@ -204,7 +198,7 @@ function ModuleStatusBadge({ detail }: { detail: string }) {
   return (
     <span
       className={cn(
-        "inline-flex h-5 max-w-[160px] shrink-0 items-center gap-1.5 rounded-[5px] px-2 text-[10.5px] font-black leading-none",
+        "hidden md:inline-flex h-5 max-w-[160px] shrink-0 items-center gap-1.5 rounded-[6px] px-2 text-[11px] font-black leading-none",
         isSuccess
           ? "bg-emerald-500/8 text-emerald-700 ring-1 ring-emerald-500/15 dark:text-emerald-300"
           : "bg-on-surface/[0.04] text-on-surface/45 ring-1 ring-on-surface/[0.05]",
@@ -264,6 +258,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   const navItems = [
     { href: workspaceRoute, icon: LayoutGrid, label: workspaceRoute === "/" ? "开始整理" : "当前任务" },
+    { href: "/rules", icon: BookOpenCheck, label: "分类规则" },
     { href: "/history", icon: History, label: "整理历史" },
     { href: "/icons", icon: Palette, label: "图标工坊" },
     { href: "/settings", icon: Settings, label: "设置" },
@@ -287,8 +282,8 @@ export function AppShell({ children }: { children: ReactNode }) {
           <div className="flex shrink-0 items-center gap-2.5">
             <img src="/app-icon.png" alt="FilePilot" className="h-5 w-5 object-contain active:scale-95 transition-transform" />
             <div className="flex items-baseline tracking-[-0.04em] pointer-events-none select-none">
-              <span className="text-[14.5px] font-black text-on-surface">File</span>
-              <span className="ml-0.5 text-[15.5px] font-black text-primary">Pilot</span>
+              <span className="text-[14px] font-black text-on-surface">File</span>
+              <span className="ml-0.5 text-[15px] font-black text-primary">Pilot</span>
               <span className="ml-0.5 h-1 w-1 rounded-full bg-primary" />
             </div>
 
@@ -296,14 +291,14 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
 
           <div className="flex min-w-0 items-center gap-2 overflow-hidden pointer-events-none">
-            <p className="max-w-[180px] truncate text-[14px] font-black tracking-[-0.025em] text-on-surface/88 sm:max-w-[260px] xl:max-w-[360px]">
+            <p className="min-w-0 truncate text-[14px] font-black tracking-[-0.025em] text-on-surface/88">
               {moduleCopy.title}
             </p>
             <ModuleStatusBadge detail={moduleCopy.detail} />
           </div>
         </div>
 
-        <nav className="flex items-center justify-center rounded-[10px] bg-on-surface/[0.035] p-1 relative">
+        <nav className="flex items-center justify-center rounded-[8px] bg-on-surface/[0.035] p-1 relative">
           {navItems.map((item) => {
             const isActive = isNavActive(item.href);
             return (
@@ -311,7 +306,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                 key={item.href}
                 href={item.href}
                 className={cn(
-                  "relative inline-flex h-7.5 items-center gap-2 rounded-[7px] px-3 text-[11.5px] font-black tracking-tight transition-colors duration-200 z-10 select-none",
+                  "relative inline-flex h-7.5 items-center gap-2 rounded-[8px] px-3 text-[12px] font-black tracking-tight transition-colors duration-200 z-10 select-none",
                   isActive
                     ? "text-primary font-black"
                     : "text-on-surface/40 hover:text-on-surface/80",
@@ -320,7 +315,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                 {isActive && (
                   <motion.span
                     layoutId="app-shell-active-pill"
-                    className="absolute inset-0 rounded-[7px] bg-surface-container-lowest shadow-[0_1px_3px_rgba(0,0,0,0.06)] -z-10"
+                    className="absolute inset-0 rounded-[8px] bg-surface-container-lowest shadow-[0_1px_3px_rgba(0,0,0,0.06)] -z-10"
                     transition={{ type: "spring", stiffness: 380, damping: 30 }}
                   />
                 )}

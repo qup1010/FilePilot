@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from file_pilot.app.models import SessionMutationResult
-from file_pilot.app.safety import risky_move_reason
+from file_pilot.app.safety import RISKY_MOVE_REASON_COPY, risky_move_reason
 from file_pilot.app.session_constants import (
     REVIEW_DISPLAY_NAME,
     REVIEW_SLOT_ID,
@@ -143,7 +143,6 @@ class ExecutionAppService:
         source_by_id = {item.ref_id: item for item in task.sources}
         target_by_id = {item.slot_id: item for item in task.targets}
         planner_by_source = self.helpers._planner_items_by_source(session)
-        mapping_by_source_id = {mapping.source_ref_id: mapping for mapping in task.mappings}
         plan_target_name_by_source = {
             str(move.source or "").replace("\\", "/").strip(): Path(str(move.target or "")).name
             for move in (final_plan.moves or [])
@@ -154,8 +153,15 @@ class ExecutionAppService:
         known_mkdir_targets: set[str] = set()
 
         move_actions: list[MappedExecutionAction] = []
+        # 增量/归档模式：拿不准的条目留在原地（不生成任何 move），在总结中呈现；
+        # 物理待确认区只属于大扫除模式
+        leave_unresolved_in_place = self.helpers._normalize_organize_mode(session.organize_mode) == "incremental"
         for mapping in task.mappings:
             if mapping.target_slot_id in {"", None}:
+                continue
+            # 同时按 status 过滤：模型可能把条目标为 unresolved 却给出池内目标，
+            # 「拿不准的留在原地」承诺必须覆盖这种情况
+            if leave_unresolved_in_place and (mapping.target_slot_id == REVIEW_SLOT_ID or mapping.status == "unresolved"):
                 continue
             source = source_by_id.get(mapping.source_ref_id)
             if source is None:
@@ -212,11 +218,14 @@ class ExecutionAppService:
                     target_slot_id=str(mapping.target_slot_id or ""),
                     display_name=display_name,
                     status=mapping.status,
+                    decision_basis="user" if mapping.user_overridden else "ai",
                 )
             )
 
         mkdir_actions.sort(key=lambda action: action.target_path.as_posix())
-        move_actions.sort(key=lambda action: action.item_id)
+        # 与 execution_service.sort_move_actions 保持一致：深度降序，避免祖先目录
+        # 先于其内部条目被移走。预览里的编号顺序即真实执行顺序。
+        move_actions.sort(key=lambda action: execution_service.move_execution_order_key(action.source_path, action.item_id))
         return MappedExecutionPlan(
             base_dir=base_dir,
             mkdir_actions=mkdir_actions,
@@ -233,7 +242,6 @@ class ExecutionAppService:
         task, registry = self.helpers._build_organize_task(session, final_plan)
         planner_by_source = self.helpers._planner_items_by_source(session)
         source_by_id = {item.ref_id: item for item in task.sources}
-        source_id_by_relpath = {item.relpath: item.ref_id for item in task.sources}
         target_by_id = {item.slot_id: item for item in task.targets}
         missing_target_errors = []
         for mapping in task.mappings:
@@ -280,10 +288,13 @@ class ExecutionAppService:
                 continue
             source_label = self._display_path(action.source_path, mapped_plan.base_dir)
             target_label = self._display_path(action.target_path, mapped_plan.base_dir)
-            reason = risky_move_reason(source_label, target_label)
-            if reason:
+            reason_code = risky_move_reason(source_label, target_label)
+            if reason_code:
+                reason_text = RISKY_MOVE_REASON_COPY.get(reason_code, reason_code)
                 display_name = action.display_name or action.item_id or self._display_path(action.source_path, mapped_plan.base_dir)
-                safety_warnings.append(f"高影响移动：{display_name}（{reason}，来源：{source_label}）")
+                # 注意：「高影响移动」前缀与「来源：{source_label}」后缀是前端匹配契约，
+                # 见 precheck-view.tsx 与 _related_item_ids_for_message，勿改格式。
+                safety_warnings.append(f"高影响移动：{display_name}（{reason_text}，来源：{source_label}）")
         if missing_target_errors:
             precheck.can_execute = False
             precheck.blocking_errors = list(precheck.blocking_errors) + missing_target_errors
@@ -307,16 +318,18 @@ class ExecutionAppService:
                     "is_review": action.target_slot_id == REVIEW_SLOT_ID,
                 }
             )
+        item_skip_messages = [f"将跳过（留在原地）：{skip.message}" for skip in precheck.item_skips]
         session.precheck_summary = {
             "can_execute": precheck.can_execute,
             "blocking_errors": list(precheck.blocking_errors),
             "warnings": list(precheck.warnings),
+            "item_skips": [skip.to_dict() for skip in precheck.item_skips],
             "mkdir_preview": [self._display_path(action.target_path, plan.base_dir) for action in mapped_plan.mkdir_actions],
             "move_preview": move_preview,
             "target_conflict_suggestions": target_conflict_suggestions,
             "issues": self.helpers._precheck_issues(
                 list(precheck.blocking_errors),
-                list(precheck.warnings),
+                list(precheck.warnings) + item_skip_messages,
                 final_plan.moves,
                 planner_by_source,
             ),
@@ -330,6 +343,7 @@ class ExecutionAppService:
             can_execute=precheck.can_execute,
             blocking_error_count=len(precheck.blocking_errors),
             warning_count=len(precheck.warnings),
+            item_skip_count=len(precheck.item_skips),
         )
         self.helpers._write_session_debug_event(
             "precheck.completed",
@@ -338,6 +352,18 @@ class ExecutionAppService:
         )
         self.helpers._record_event("precheck.ready", session)
         return SessionMutationResult(session_snapshot=self.helpers._build_snapshot(session))
+
+    @staticmethod
+    def _rule_snapshot_for_session(session) -> dict | None:
+        """执行时刻的规则快照：规则会演进，回看历史必须还能理解当时的分类依据。"""
+        details = list(session.selected_target_directory_details or [])
+        if not details:
+            return None
+        return {
+            "profile_id": str(session.target_profile_id or "").strip() or None,
+            "unattended": bool(getattr(session, "unattended", False)),
+            "directories": [item.to_dict() if hasattr(item, "to_dict") else dict(item) for item in details],
+        }
 
     def return_to_planning(self, session_id: str) -> SessionMutationResult:
         session = self.helpers._load_or_raise(session_id)
@@ -355,6 +381,16 @@ class ExecutionAppService:
         if not confirm:
             raise ValueError("confirmation_required")
 
+        guard = self.helpers._execution_guard(session_id)
+        if not guard.acquire(blocking=False):
+            raise RuntimeError("SESSION_LOCKED")
+        try:
+            return self._execute_locked(session_id)
+        finally:
+            guard.release()
+
+    def _execute_locked(self, session_id: str) -> SessionMutationResult:
+        # stage 检查必须在互斥锁内重新加载后进行，否则两个触发者都能通过检查
         session = self.helpers._load_or_raise(session_id)
         ensure_stage(session.stage, STAGE_READY_TO_EXECUTE)
 
@@ -371,8 +407,9 @@ class ExecutionAppService:
             task, registry = self.helpers._build_organize_task(session, final_plan)
             mapped_plan = self._build_mapped_execution_plan(session, final_plan, task, registry)
             plan = execution_service.build_execution_plan_from_mapped(mapped_plan)
+            rule_snapshot = self._rule_snapshot_for_session(session)
             try:
-                report = execution_service.execute_plan(plan)
+                report = execution_service.execute_plan(plan, rule_snapshot=rule_snapshot)
             except Exception as exc:
                 session.stage = STAGE_INTERRUPTED
                 session.last_error = str(exc)
@@ -408,6 +445,7 @@ class ExecutionAppService:
                 "journal_id": journal_id,
                 "success_count": report.success_count,
                 "failure_count": report.failure_count,
+                "skipped_count": report.skipped_count,
                 "status": "success" if report.failure_count == 0 else "partial_failure",
                 "has_cleanup_candidates": False,
                 "cleanup_candidate_count": 0,
@@ -455,7 +493,8 @@ class ExecutionAppService:
                 raise KeyError(f"Session {session_id} not found")
             return self.rollback_execution_journal(journal)
 
-        ensure_stage_in(session.stage, {STAGE_COMPLETED, STAGE_INTERRUPTED})
+        # STAGE_STALE：部分回退后会话已置 stale，允许用户处理占用后再次回退
+        ensure_stage_in(session.stage, {STAGE_COMPLETED, STAGE_INTERRUPTED, STAGE_STALE})
 
         lock_result = self.helpers.store.acquire_directory_lock(Path(session.target_dir), session.session_id)
         if not lock_result.acquired:
@@ -498,7 +537,8 @@ class ExecutionAppService:
             "restored_from_execution_id": journal.execution_id,
             "success_count": report.success_count,
             "failure_count": report.failure_count,
-            "status": "success" if report.failure_count == 0 else "partial_failure",
+            "skipped_count": report.skipped_count,
+            "status": "success" if report.failure_count == 0 and report.skipped_count == 0 else "partial_failure",
         }
         session.last_journal_id = journal.execution_id
         session.stage = STAGE_STALE
@@ -556,6 +596,7 @@ class ExecutionAppService:
         return {
             "can_execute": bool(precheck.can_execute),
             "blocking_errors": list(precheck.blocking_errors or []),
+            "item_skips": [skip.to_dict() for skip in (precheck.item_skips or [])],
             "actions": [
                 {
                     "type": action.type,
@@ -574,7 +615,8 @@ class ExecutionAppService:
         }
 
     def rollback_execution_journal(self, journal) -> SessionMutationResult:
-        if journal.status not in {"completed", "partial_failure"}:
+        # rollback_partial_failure 允许重试：用户处理完占用后再来一次
+        if journal.status not in {"completed", "partial_failure", "rollback_partial_failure"}:
             raise RuntimeError(SESSION_STAGE_CONFLICT)
 
         target_dir = Path(journal.target_dir)
@@ -606,7 +648,8 @@ class ExecutionAppService:
                     "restored_from_execution_id": journal.execution_id,
                     "success_count": report.success_count,
                     "failure_count": report.failure_count,
-                    "status": "success" if report.failure_count == 0 else "partial_failure",
+                    "skipped_count": report.skipped_count,
+                    "status": "success" if report.failure_count == 0 and report.skipped_count == 0 else "partial_failure",
                 },
                 "integrity_flags": {
                     "is_stale": True,

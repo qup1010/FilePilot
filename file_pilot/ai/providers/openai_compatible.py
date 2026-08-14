@@ -4,7 +4,7 @@ import json
 from types import SimpleNamespace
 from typing import Any
 
-from file_pilot.ai.models import ChatRequest, ChatResponse, DEFAULT_CAPABILITIES, ProviderCapabilities
+from file_pilot.ai.models import DEFAULT_CAPABILITIES, ChatRequest, ChatResponse, ProviderCapabilities
 from file_pilot.ai.providers.base import ProviderAdapter
 
 SPOOF_HEADERS = {

@@ -8,8 +8,8 @@ from file_pilot.app.models import PlanTargetSlotPayload
 from file_pilot.domain.models import TargetSlot
 
 if TYPE_CHECKING:
-    from file_pilot.app.session_service import OrganizerSessionService
     from file_pilot.app.models import OrganizerSession
+    from file_pilot.app.session_service import OrganizerSessionService
     from file_pilot.domain.models import OrganizeTask
 
 
@@ -196,9 +196,6 @@ class TargetManager:
                 continue
             filtered_lines.append(line)
         return "\n".join(filtered_lines)
-
-    def validate_incremental_target_dir(self, session: "OrganizerSession", target_dir: str, selection: dict | None) -> bool:
-        return self.helpers.target_resolver.validate_incremental_target_dir(session, target_dir, selection)
 
     def set_incremental_selection_pending(self, session: "OrganizerSession", scan_lines: str) -> None:
         if self.helpers._normalize_organize_mode(session.organize_mode) != "incremental":

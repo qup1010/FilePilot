@@ -9,8 +9,8 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 export const FRIENDLY_STATUS_MAP: Record<string, string> = {
-  completed: "已完成",
-  success: "已完成",
+  completed: "整理完成",
+  success: "整理完成",
   partial_failure: "部分失败",
   rolled_back: "已回退",
   rollback_partial_failure: "回退部分失败",
@@ -42,7 +42,7 @@ export function formatDisplayDate(dateStr: string) {
       hour: '2-digit',
       minute: '2-digit'
     });
-  } catch (e) {
+  } catch (_e) {
     return dateStr;
   }
 }

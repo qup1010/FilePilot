@@ -31,6 +31,27 @@ export function normalizeFilesystemPath(value: string): string {
   return normalizeDrivePath(trimmed);
 }
 
+export function getPathBasename(path: string | null | undefined, fallback = ""): string {
+  const trimmed = String(path ?? "").trim();
+  if (!trimmed) {
+    return fallback;
+  }
+  let decoded = trimmed;
+  try {
+    decoded = decodeURIComponent(trimmed);
+  } catch {
+    decoded = trimmed;
+  }
+  if (/^[a-zA-Z]:[\\/]?$/.test(decoded)) {
+    return `${decoded[0].toUpperCase()}:\\`;
+  }
+  if (/^[\\/]+$/.test(decoded)) {
+    return "/";
+  }
+  const normalized = decoded.replace(/[\\/]+$/, "");
+  return normalized.split(/[\\/]/).pop() || fallback;
+}
+
 export function getPathParent(path: string): string {
   const normalized = normalizeFilesystemPath(path);
   if (!normalized) return "";

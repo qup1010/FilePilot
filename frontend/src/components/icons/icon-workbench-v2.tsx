@@ -1,18 +1,16 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
 import { AlertCircle, FolderOpen, LoaderCircle, Sparkles, X } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence } from "motion/react";
 
-import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { ErrorAlert } from "@/components/ui/error-alert";
 import { ModelConfigBanner } from "@/components/ui/model-config-banner";
 import { createApiClient } from "@/lib/api";
+import { notifyAppContextChange } from "@/lib/app-context-store";
 import { createIconWorkbenchApiClient } from "@/lib/icon-workbench-api";
 import { createIconWorkbenchEventStream, type IconWorkbenchEventStream } from "@/lib/icon-workbench-sse";
-import { getApiBaseUrl, getApiToken, inspectPathsWithTauri, invokeTauriCommand, isTauriDesktop, openDirectoryWithTauri, pickDirectoriesWithTauri } from "@/lib/runtime";
+import { getApiBaseUrl, getApiToken, invokeTauriCommand, isTauriDesktop, openDirectoryWithTauri, pickDirectoriesWithTauri } from "@/lib/runtime";
 import {
   findDropZoneForPosition,
   isTauriDragDropPayload,
@@ -20,6 +18,7 @@ import {
   isTauriDragOverPayload,
   listenToTauriDragDrop,
 } from "@/lib/tauri-drag-drop";
+import { localizeUserFacingError } from "@/lib/user-facing-copy";
 import { cn } from "@/lib/utils";
 import type {
   ApplyIconResult,
@@ -48,7 +47,6 @@ import {
 import { useBackgroundRemoval } from "./use-background-removal";
 import { useIconTemplates } from "./use-icon-templates";
 
-const APP_CONTEXT_EVENT = "file-pilot-context-change";
 const ICONS_CONTEXT_KEY = "icons_header_context";
 const ICONS_WORKSPACE_STATE_KEY = "icons_workspace_state";
 type IconWorkbenchStreamStatus = "connecting" | "connected" | "reconnecting" | "offline";
@@ -63,6 +61,25 @@ interface NoticeState {
   message: string;
   detail: string | null;
   actionPath?: string | null;
+}
+
+const NETWORK_UNREACHABLE_MESSAGE = "无法连接到后端服务，请确认应用已正常启动。";
+
+function isNetworkFetchError(err: unknown): boolean {
+  if (!(err instanceof Error)) return false;
+  const normalized = err.message.toLowerCase();
+  return (
+    normalized.includes("failed to fetch")
+    || normalized.includes("networkerror")
+    || normalized.includes("load failed")
+  );
+}
+
+function describeWorkbenchError(err: unknown, fallback: string): string {
+  if (isNetworkFetchError(err)) {
+    return NETWORK_UNREACHABLE_MESSAGE;
+  }
+  return localizeUserFacingError(err, fallback);
 }
 
 export default function IconWorkbenchV2() {
@@ -106,15 +123,12 @@ export default function IconWorkbenchV2() {
   const noticeDismissTimerRef = useRef<number | null>(null);
   const hasConnectedRef = useRef(false);
   const hasUserInteractedRef = useRef(false);
+  const disconnectNoticeShownRef = useRef(false);
   const [streamStatus, setStreamStatus] = useState<IconWorkbenchStreamStatus>("offline");
   const [isNoticeFading, setIsNoticeFading] = useState(false);
   const [isTargetDropActive, setIsTargetDropActive] = useState(false);
-  const [isDraggingGlobal, setIsDraggingGlobal] = useState(false);
+  const [_isDraggingGlobal, setIsDraggingGlobal] = useState(false);
   const targetDropZoneRef = useRef<HTMLDivElement | null>(null);
-  const handledImportPathsRef = useRef<string | null>(null);
-
-  const searchParams = useSearchParams();
-  const router = useRouter();
 
   const clearNoticeTimers = useCallback(() => {
     if (noticeFadeTimerRef.current !== null) {
@@ -241,9 +255,9 @@ export default function IconWorkbenchV2() {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const detail = hasTargets ? `工作区 · ${targetCount} 个目标` : "准备就绪";
+    const detail = hasTargets ? `${targetCount} 个目标` : "图标生成";
     window.localStorage.setItem(ICONS_CONTEXT_KEY, JSON.stringify({ detail }));
-    window.dispatchEvent(new Event(APP_CONTEXT_EVENT));
+    notifyAppContextChange();
   }, [hasTargets, targetCount]);
 
   const hasSelectedStyle = Boolean(selectedTemplate);
@@ -289,7 +303,7 @@ export default function IconWorkbenchV2() {
     try {
       setHistoryItems(await iconApi.listSessions());
     } catch (err) {
-      setHistoryError(err instanceof Error ? err.message : "读取历史工作区失败");
+      setHistoryError(describeWorkbenchError(err, "读取历史工作区失败"));
     } finally {
       setHistoryLoading(false);
     }
@@ -309,7 +323,7 @@ export default function IconWorkbenchV2() {
       setHistoryOpen(false);
       showNotice("已打开历史图标工作区。");
     } catch (err) {
-      setHistoryError(err instanceof Error ? err.message : "打开历史工作区失败");
+      setHistoryError(describeWorkbenchError(err, "打开历史工作区失败"));
     } finally {
       setOpeningHistorySessionId(null);
     }
@@ -329,7 +343,7 @@ export default function IconWorkbenchV2() {
       }
       return true;
     } catch (err) {
-      setHistoryError(err instanceof Error ? err.message : "删除历史工作区失败");
+      setHistoryError(describeWorkbenchError(err, "删除历史工作区失败"));
       return false;
     } finally {
       setDeletingHistorySessionId(null);
@@ -368,6 +382,7 @@ export default function IconWorkbenchV2() {
   const handleWorkbenchEvent = useCallback((event: IconWorkbenchEvent) => {
     clearOfflineTimer();
     hasConnectedRef.current = true;
+    disconnectNoticeShownRef.current = false;
     setStreamStatus("connected");
     if (event.session_snapshot) applySession(event.session_snapshot);
     if (event.progress) {
@@ -414,8 +429,22 @@ export default function IconWorkbenchV2() {
     if (!session?.session_id) { closeEventStream(); setStreamStatus("offline"); return; }
     closeEventStream();
     setStreamStatus("connecting");
+    disconnectNoticeShownRef.current = false;
     scheduleOfflineState();
-    streamRef.current = createIconWorkbenchEventStream({ baseUrl, sessionId: session.session_id, accessToken: apiToken, onEvent: handleWorkbenchEvent, onError: () => { setStreamStatus("reconnecting"); showNotice("图标工坊实时连接已断开，当前进度可能不是最新状态。"); scheduleOfflineState(); } });
+    streamRef.current = createIconWorkbenchEventStream({
+      baseUrl,
+      sessionId: session.session_id,
+      accessToken: apiToken,
+      onEvent: handleWorkbenchEvent,
+      onError: () => {
+        setStreamStatus("reconnecting");
+        if (!disconnectNoticeShownRef.current) {
+          disconnectNoticeShownRef.current = true;
+          showNotice("图标工坊实时连接已断开，当前进度可能不是最新状态。");
+        }
+        scheduleOfflineState();
+      },
+    });
     return closeEventStream;
   }, [apiToken, baseUrl, closeEventStream, handleWorkbenchEvent, scheduleOfflineState, session?.session_id]);
 
@@ -430,7 +459,7 @@ export default function IconWorkbenchV2() {
       const nextSession = session ? await iconApi.updateTargets(session.session_id, { target_paths: nextTargetPaths, mode: "append" }) : await iconApi.createSession(nextTargetPaths);
       applySession(nextSession);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "载入文件夹失败");
+      setError(describeWorkbenchError(err, "载入文件夹失败"));
     } finally { setActionLabel(null); }
   }, [applySession, iconApi, session]);
 
@@ -441,14 +470,23 @@ export default function IconWorkbenchV2() {
       const selectedPath = desktopReady ? null : (await systemApi.selectDir()).path;
       const paths = selectedPaths ?? (selectedPath ? [selectedPath] : []);
       if (paths?.length) await appendTargetPaths(paths);
-    } catch (err) { setError(err instanceof Error ? err.message : "选择目标失败"); }
+    } catch (err) { setError(describeWorkbenchError(err, "选择目标失败")); }
   }, [appendTargetPaths, desktopReady, systemApi]);
 
   const handleTargetDrop = useCallback(async (event: React.DragEvent) => {
     event.preventDefault(); setIsTargetDropActive(false);
-    const paths = Array.from(event.dataTransfer.files).map((f) => (f as any).path || f.name).filter(Boolean);
+    const files = Array.from(event.dataTransfer.files);
+    const paths = files
+      .map((file) => (file as File & { path?: string }).path)
+      .filter((path): path is string => Boolean(path));
+    if (files.length > 0 && paths.length === 0) {
+      if (!desktopReady) {
+        showNotice("网页模式暂不支持拖入文件夹，请使用选择按钮。");
+      }
+      return;
+    }
     if (paths.length) await appendTargetPaths(paths);
-  }, [appendTargetPaths]);
+  }, [appendTargetPaths, desktopReady, showNotice]);
 
   const appendTargetPathsRef = useRef(appendTargetPaths);
   useEffect(() => {
@@ -516,7 +554,7 @@ export default function IconWorkbenchV2() {
       applySession(await iconApi.updateTargets(session.session_id, { target_paths: [], mode: "replace" }));
       setResetConfirmOpen(false);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "重置工作台失败");
+      setError(describeWorkbenchError(err, "重置工作台失败"));
     } finally {
       setActionLabel(null);
     }
@@ -552,11 +590,11 @@ export default function IconWorkbenchV2() {
       });
       const failedCount = failedFolders.length;
       const skippedCount = Math.max(0, folderIds.length - successCount - failedCount);
-      const failedDetail = failedFolders.length
-        ? `生成失败：${failedFolders.map((folder) => `「${folder.folder_name}」`).join("、")}。`
-        : null;
-      showNotice(`图标生成已完成：成功 ${successCount}，失败 ${failedCount}，跳过 ${skippedCount}。`, failedDetail);
-    } catch (err) { setError(err instanceof Error ? err.message : "生成失败"); } finally { setGenerateProgress(null); }
+      if (failedFolders.length > 0) {
+        setError(`生成失败：${failedFolders.map((folder) => `「${folder.folder_name}」`).join("、")}。`);
+      }
+      showNotice(`图标生成已完成：成功 ${successCount}，失败 ${failedCount}，跳过 ${skippedCount}。`);
+    } catch (err) { setError(describeWorkbenchError(err, "生成失败")); } finally { setGenerateProgress(null); }
   };
 
   const reportClientAction = async (
@@ -583,7 +621,7 @@ export default function IconWorkbenchV2() {
       showNotice(successMessage, "服务端动作记录失败，已重新扫描当前工作区。", actionPath ?? null);
       return syncedSession;
     } catch (err) {
-      const detail = err instanceof Error ? err.message : "重新同步失败";
+      const detail = describeWorkbenchError(err, "重新同步失败");
       setError(`${failureMessage}：${detail}`);
       return null;
     }
@@ -605,7 +643,7 @@ export default function IconWorkbenchV2() {
         applySession(syncedSession);
         showNotice(`「${folder.folder_name}」图标已应用，工作区状态已重新同步。`, null, folder.folder_path);
       }
-    } catch (err) { setError(err instanceof Error ? err.message : "应用失败"); } finally { setActiveProcessingId(null); setIsApplyingId(null); }
+    } catch (err) { setError(describeWorkbenchError(err, "应用失败")); } finally { setActiveProcessingId(null); setIsApplyingId(null); }
   };
 
   const handleRemoveTarget = async (folderId: string) => {
@@ -613,7 +651,7 @@ export default function IconWorkbenchV2() {
     setActionLabel("正在移除...");
     try {
       applySession(await iconApi.removeTarget(session.session_id, folderId));
-    } catch (err) { setError(err instanceof Error ? err.message : "移除失败"); } finally { setActionLabel(null); }
+    } catch (err) { setError(describeWorkbenchError(err, "移除失败")); } finally { setActionLabel(null); }
   };
 
   const handleDeleteVersion = async (folderId: string, versionId: string) => {
@@ -622,7 +660,7 @@ export default function IconWorkbenchV2() {
     try {
       applySession(await iconApi.deleteVersion(session.session_id, folderId, versionId));
       showNotice("已删除该图标版本");
-    } catch (err) { setError(err instanceof Error ? err.message : "删除失败"); } finally { setActionLabel(null); }
+    } catch (err) { setError(describeWorkbenchError(err, "删除失败")); } finally { setActionLabel(null); }
   };
 
   const handleSelectVersion = async (folderId: string, versionId: string) => {
@@ -632,7 +670,7 @@ export default function IconWorkbenchV2() {
     try {
       applySession(await iconApi.selectVersion(session.session_id, folderId, versionId));
     } catch (err) {
-      setError(err instanceof Error ? err.message : "切换版本失败");
+      setError(describeWorkbenchError(err, "切换版本失败"));
     } finally {
       setActionLabel(null);
     }
@@ -656,7 +694,7 @@ export default function IconWorkbenchV2() {
         );
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "恢复失败");
+      setError(describeWorkbenchError(err, "恢复失败"));
     } finally {
       setActionLabel(null);
     }
@@ -696,7 +734,7 @@ export default function IconWorkbenchV2() {
         );
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "批量应用失败");
+      setError(describeWorkbenchError(err, "批量应用失败"));
     } finally {
       setBatchApplyLoading(false);
     }
@@ -718,8 +756,9 @@ export default function IconWorkbenchV2() {
         <div className="flex h-8 items-center justify-between gap-4 border-b bg-error/5 px-5 text-error">
           <div className="flex min-w-0 items-center gap-2">
             <AlertCircle className="h-3 w-3 shrink-0" />
-            <p className="truncate text-[11px] font-bold">{error}</p>
+            <p className="truncate text-[11px] font-bold" title={error}>{error}</p>
           </div>
+          <button onClick={() => setError(null)} className="shrink-0 text-error/50 hover:text-error" title="关闭错误提示"><X className="h-3 w-3" /></button>
         </div>
       ) : generationConfigBlockedReason && generationConfigBannerProps ? (
         <div className="border-b border-on-surface/8 bg-surface px-5 py-3">
@@ -730,9 +769,9 @@ export default function IconWorkbenchV2() {
         <div className={cn("flex h-7 items-center justify-between border-b px-5 bg-on-surface/[0.02]")}>
           <div className="flex items-center gap-2">
             <div className={cn("h-1 w-1 rounded-full", streamStatus === "reconnecting" ? "animate-pulse bg-warning" : "bg-on-surface/20")} />
-            <p className="text-[10px] font-medium text-on-surface/40 uppercase tracking-tight">{streamStatus === "connecting" ? "连接中" : streamStatus === "reconnecting" ? "重连中" : "离线模式"}</p>
+            <p className="text-[11px] font-medium text-on-surface/40 uppercase tracking-tight">{streamStatus === "connecting" ? "连接中" : streamStatus === "reconnecting" ? "重连中" : "离线模式"}</p>
           </div>
-          <button onClick={retryEventStream} className="text-[9px] font-black uppercase tracking-widest text-primary/60">重新连接</button>
+          <button onClick={retryEventStream} className="text-[11px] font-black uppercase tracking-widest text-primary/60">重新连接</button>
         </div>
       )}
       {shouldShowNotice && (
@@ -745,7 +784,7 @@ export default function IconWorkbenchV2() {
           {desktopReady && notice?.actionPath ? (
             <button
               onClick={() => openDirectoryWithTauri(notice.actionPath || "")}
-              className="flex h-5 shrink-0 items-center gap-1 rounded bg-primary/10 px-2 text-[9px] font-black uppercase text-primary hover:bg-primary/20"
+              className="flex h-5 shrink-0 items-center gap-1 rounded bg-primary/10 px-2 text-[11px] font-black uppercase text-primary hover:bg-primary/20"
             >
               <FolderOpen className="h-3 w-3" />
               打开查看
@@ -763,18 +802,18 @@ export default function IconWorkbenchV2() {
         <div className="flex min-w-0 flex-1 items-center gap-3">
           <LoaderCircle className="h-3 w-3 animate-spin text-primary" />
           <div className="min-w-0 flex-1 flex items-center gap-2">
-            <span className="text-[9px] font-black uppercase tracking-widest text-primary/40 shrink-0">正在生成</span>
-            <p className="truncate text-[11.5px] font-black text-on-surface/80">{generatePresentation.title}</p>
-            <span className="text-[10px] font-medium text-ui-muted/40 truncate shrink-0">{generatePresentation.detail}</span>
+            <span className="text-[11px] font-black uppercase tracking-widest text-primary/40 shrink-0">正在生成</span>
+            <p className="truncate text-[12px] font-black text-on-surface/80">{generatePresentation.title}</p>
+            <span className="text-[11px] font-medium text-ui-muted/40 truncate shrink-0">{generatePresentation.detail}</span>
             {generatePresentation.steps.map((step) => (
-              <span key={step.key} className="text-[9px] font-bold text-ui-muted/35">
+              <span key={step.key} className="text-[11px] font-bold text-ui-muted/35">
                 {step.label}
               </span>
             ))}
           </div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          <span className="text-[9.5px] font-bold tabular-nums text-primary/60">{generatePresentation.counter}</span>
+          <span className="text-[11px] font-bold tabular-nums text-primary/60">{generatePresentation.counter}</span>
           <div className="h-1 w-16 overflow-hidden rounded-full bg-primary/10">
             <div className="h-full bg-primary transition-all duration-700 ease-out" style={{ width: `${generatePresentation.percent}%` }} />
           </div>
@@ -784,7 +823,7 @@ export default function IconWorkbenchV2() {
   ) : actionLabel ? (
     <div className="flex h-7 items-center gap-2 bg-primary/[0.04] border-b border-primary/8 px-5">
       <LoaderCircle className="h-2.5 w-2.5 animate-spin text-primary" />
-      <span className="text-[9px] font-black uppercase tracking-[0.2em] text-primary/70">{actionLabel}</span>
+      <span className="text-[11px] font-black uppercase tracking-[0.2em] text-primary/70">{actionLabel}</span>
     </div>
   ) : null;
   const isLoading = (!templatesInitialized && templatesLoading) || restoringSession;

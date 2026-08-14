@@ -3,16 +3,6 @@ import { describe, expect, it, vi } from "vitest";
 
 import { ResumePromptDialog } from "./resume-prompt-dialog";
 
-vi.mock("framer-motion", () => ({
-  AnimatePresence: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-  motion: {
-    div: ({ children, ...props }: React.ComponentProps<"div">) => <div {...props}>{children}</div>,
-    button: ({ children, whileTap: _whileTap, ...props }: React.ComponentProps<"button"> & { whileTap?: unknown }) => (
-      <button {...props}>{children}</button>
-    ),
-  },
-}));
-
 const baseProps = {
   open: true,
   targetDir: "D:/download",
@@ -73,6 +63,7 @@ describe("ResumePromptDialog", () => {
   it("uses readonly result viewing as the primary action for completed sessions", () => {
     render(<ResumePromptDialog {...baseProps} isCompletedResume />);
 
+    expect(screen.getByRole("dialog", { name: "发现之前的整理记录" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "查看整理结果" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "只读打开" })).not.toBeInTheDocument();
   });

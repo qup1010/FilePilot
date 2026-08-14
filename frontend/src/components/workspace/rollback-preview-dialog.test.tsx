@@ -4,7 +4,7 @@ import type React from "react";
 
 import { RollbackPreviewDialog } from "./rollback-preview-dialog";
 
-vi.mock("framer-motion", () => ({
+vi.mock("motion/react", () => ({
   motion: {
     div: ({
       children,

@@ -1,5 +1,4 @@
-import { waitForRuntimeConfig } from "@/lib/runtime";
-import { createUserFacingRequestError } from "@/lib/user-facing-copy";
+import { requestJson } from "@/lib/http";
 import type {
   ApplyReadyPreparation,
   IconTemplate,
@@ -10,46 +9,6 @@ import type {
   IconWorkbenchSession,
   IconWorkbenchTargetUpdatePayload,
 } from "@/types/icon-workbench";
-
-function joinUrl(baseUrl: string, path: string): string {
-  return new URL(path.replace(/^\//, ""), `${baseUrl.replace(/\/$/, "")}/`).toString();
-}
-
-function buildAuthHeaders(apiToken?: string, headers?: HeadersInit): Headers {
-  const nextHeaders = new Headers(headers);
-  if (apiToken) {
-    nextHeaders.set("Authorization", `Bearer ${apiToken}`);
-  }
-  return nextHeaders;
-}
-
-async function resolveRequestRuntime(baseUrl: string, apiToken?: string) {
-  const runtime = await waitForRuntimeConfig();
-  return {
-    baseUrl: runtime.base_url?.trim() || baseUrl,
-    apiToken: runtime.api_token?.trim() || apiToken || "",
-  };
-}
-
-async function requestJson<T>(
-  baseUrl: string,
-  path: string,
-  init: RequestInit = {},
-  apiToken?: string,
-): Promise<T> {
-  const runtime = await resolveRequestRuntime(baseUrl, apiToken);
-  const response = await fetch(joinUrl(runtime.baseUrl, path), {
-    ...init,
-    headers: buildAuthHeaders(runtime.apiToken, init.headers),
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw createUserFacingRequestError(response.status, response.statusText, errorText);
-  }
-
-  return (await response.json()) as T;
-}
 
 export interface IconWorkbenchApiClient {
   createSession(target_paths: string[]): Promise<IconWorkbenchSession>;

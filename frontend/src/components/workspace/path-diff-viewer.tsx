@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useMemo } from "react";
-import { ArrowRight, Folder } from "lucide-react";
+import { useMemo } from "react";
+import { Folder } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface PathDiffViewerProps {
@@ -92,7 +92,7 @@ export function PathDiffViewer({ source, target, compact = false, targetKind, is
       <div className="flex flex-col gap-1 w-full text-[11px] font-mono leading-normal">
         {/* 源路径 */}
         <div className="flex items-center gap-1.5 text-on-surface/40 min-w-0" title={source}>
-          <span className="shrink-0 w-8 text-[9px] font-black uppercase tracking-wider text-ui-muted/50">FROM</span>
+          <span className="shrink-0 w-8 text-[11px] font-black text-ui-muted/50">原</span>
           <div className="truncate flex items-center">
             {displayCommonRoot && (
               <span className="opacity-60 select-none truncate max-w-[120px]">{displayCommonRoot}</span>
@@ -100,7 +100,7 @@ export function PathDiffViewer({ source, target, compact = false, targetKind, is
             {sourceFolders.map((folder, idx) => (
               <span
                 key={idx}
-                className="shrink-0 rounded-[3px] bg-error/5 text-error/80 px-1 py-0.5 mx-0.5 border border-error/5"
+                className="shrink-0 rounded-[4px] bg-error/5 text-error/80 px-1 py-0.5 mx-0.5 border border-error/5"
               >
                 {folder}
               </span>
@@ -112,18 +112,18 @@ export function PathDiffViewer({ source, target, compact = false, targetKind, is
 
         {/* 目标路径 */}
         <div className="flex items-center gap-1.5 min-w-0" title={target}>
-          <span className="shrink-0 w-8 text-[9px] font-black uppercase tracking-wider text-primary/65">TO</span>
+          <span className="shrink-0 w-8 text-[11px] font-black text-primary/65">新</span>
           <div className="truncate flex items-center">
             {displayCommonRoot && (
               <span className="opacity-30 select-none truncate max-w-[120px]">{displayCommonRoot}</span>
             )}
             {targetFolders.map((folder, idx) => {
-              const isReviewSegment = folder.toLowerCase() === "review";
+              const isReviewSegment = folder.toLowerCase() === "review" || (targetIsReview && idx === targetFolders.length - 1);
               return (
                 <span
                   key={idx}
                   className={cn(
-                    "shrink-0 rounded-[3px] px-1 py-0.5 mx-0.5 border",
+                    "shrink-0 rounded-[4px] px-1 py-0.5 mx-0.5 border",
                     isReviewSegment
                       ? "bg-warning/10 text-warning border-warning/15 font-black"
                       : "bg-success/5 text-success-dim border-success/10"
@@ -145,15 +145,15 @@ export function PathDiffViewer({ source, target, compact = false, targetKind, is
 
   // 预检页面的对等分栏/高密度宽版排版
   return (
-    <div className="grid gap-4 sm:grid-cols-2 w-full text-[11.5px] font-mono leading-relaxed">
+    <div className="grid gap-4 sm:grid-cols-2 w-full text-[12px] font-mono leading-relaxed">
       {/* 原始位置 */}
       <div className="flex items-start gap-2 rounded-md border border-on-surface/5 bg-on-surface/[0.01] p-2.5 min-w-0" title={source}>
         <div className="mt-0.5 flex h-4.5 w-4.5 shrink-0 items-center justify-center rounded bg-error/10 text-error">
           <Folder className="h-3 w-3" />
         </div>
         <div className="flex-1 min-w-0">
-          <span className="block text-[8.5px] font-black uppercase tracking-widest text-ui-muted opacity-40 mb-1 leading-none">
-            源路径 (FROM)
+          <span className="block text-[11px] font-black text-ui-muted opacity-40 mb-1 leading-none">
+            源路径
           </span>
           <div className="flex flex-wrap items-center text-on-surface/70">
             {displayCommonRoot && (
@@ -162,7 +162,7 @@ export function PathDiffViewer({ source, target, compact = false, targetKind, is
             {sourceFolders.map((folder, idx) => (
               <span
                 key={idx}
-                className="rounded-[3px] bg-error/5 text-error/80 px-1 py-0.5 mx-0.5 my-0.5 border border-error/5 text-[10.5px]"
+                className="rounded-[4px] bg-error/5 text-error/80 px-1 py-0.5 mx-0.5 my-0.5 border border-error/5 text-[11px]"
               >
                 {folder}
               </span>
@@ -192,20 +192,20 @@ export function PathDiffViewer({ source, target, compact = false, targetKind, is
           <Folder className="h-3 w-3" />
         </div>
         <div className="flex-1 min-w-0">
-          <span className="block text-[8.5px] font-black uppercase tracking-widest text-ui-muted opacity-40 mb-1 leading-none">
-            目标路径 (TO)
+          <span className="block text-[11px] font-black text-ui-muted opacity-40 mb-1 leading-none">
+            目标路径
           </span>
           <div className="flex flex-wrap items-center">
             {displayCommonRoot && (
               <span className="opacity-30 select-none whitespace-nowrap">{displayCommonRoot}</span>
             )}
             {targetFolders.map((folder, idx) => {
-              const isReviewSegment = folder.toLowerCase() === "review";
+              const isReviewSegment = folder.toLowerCase() === "review" || (targetIsReview && idx === targetFolders.length - 1);
               return (
                 <span
                   key={idx}
                   className={cn(
-                    "rounded-[3px] px-1 py-0.5 mx-0.5 my-0.5 border text-[10.5px] font-medium",
+                    "rounded-[4px] px-1 py-0.5 mx-0.5 my-0.5 border text-[11px] font-medium",
                     isReviewSegment
                       ? "bg-warning/10 text-warning border-warning/15 font-black"
                       : "bg-success/5 text-success-dim border-success/10"

@@ -1,7 +1,13 @@
 from typing import TYPE_CHECKING
 
 from file_pilot.app.models import SessionMutationResult
-from file_pilot.app.session_constants import SESSION_STAGE_CONFLICT, STAGE_SELECTING_INCREMENTAL_SCOPE, is_stage
+from file_pilot.app.session_constants import (
+    SESSION_STAGE_CONFLICT,
+    STAGE_PLANNING,
+    STAGE_READY_TO_EXECUTE,
+    STAGE_SELECTING_INCREMENTAL_SCOPE,
+    is_stage,
+)
 
 if TYPE_CHECKING:
     from file_pilot.app.session_service import OrganizerSessionService
@@ -146,7 +152,12 @@ class PlanningConversationService:
 
     def apply_target_conflict_suggestions(self, session_id: str) -> SessionMutationResult:
         session = self.helpers._load_or_raise(session_id)
-        self.helpers._ensure_mutable_stage(session)
+        if is_stage(session.stage, STAGE_READY_TO_EXECUTE):
+            # 单项冲突不再阻断预检，会话可能已推进到 ready_to_execute；
+            # 从预检结果页应用改名建议等价于「回到规划改方案再预检」
+            session.stage = STAGE_PLANNING
+        else:
+            self.helpers._ensure_mutable_stage(session)
 
         precheck_summary = session.precheck_summary or {}
         suggestions = precheck_summary.get("target_conflict_suggestions") if isinstance(precheck_summary, dict) else None

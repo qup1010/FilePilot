@@ -1,15 +1,18 @@
+import { createEventStream } from "@/lib/sse";
 import type { IconWorkbenchEvent } from "@/types/icon-workbench";
 
-function buildEventsUrl(baseUrl: string, sessionId: string, accessToken?: string): string {
-  const url = new URL(
-    `/api/icon-workbench/sessions/${sessionId}/events`,
-    baseUrl.replace(/\/$/, "") + "/",
-  );
-  if (accessToken) {
-    url.searchParams.set("access_token", accessToken);
-  }
-  return url.toString();
-}
+export const ICON_WORKBENCH_EVENT_TYPES = [
+  "icon.session.snapshot",
+  "icon.session.created",
+  "icon.targets.updated",
+  "icon.analysis.started",
+  "icon.analysis.progress",
+  "icon.analysis.completed",
+  "icon.generation.started",
+  "icon.generation.progress",
+  "icon.generation.completed",
+  "icon.version.deleted",
+] as const;
 
 export interface IconWorkbenchEventStream {
   close(): void;
@@ -26,50 +29,12 @@ export interface CreateIconWorkbenchEventStreamOptions {
 export function createIconWorkbenchEventStream(
   options: CreateIconWorkbenchEventStreamOptions,
 ): IconWorkbenchEventStream {
-  if (typeof window === "undefined" || typeof window.EventSource === "undefined") {
-    return {
-      close() {
-        return;
-      },
-    };
-  }
-
-  const source = new EventSource(buildEventsUrl(options.baseUrl, options.sessionId, options.accessToken));
-  const eventTypes = [
-    "icon.session.snapshot",
-    "icon.session.created",
-    "icon.targets.updated",
-    "icon.analysis.started",
-    "icon.analysis.progress",
-    "icon.analysis.completed",
-    "icon.generation.started",
-    "icon.generation.progress",
-    "icon.generation.completed",
-    "icon.version.deleted",
-  ];
-
-  const handleMessage = (message: MessageEvent<string>) => {
-    try {
-      const event = JSON.parse(message.data) as IconWorkbenchEvent;
-      options.onEvent(event);
-    } catch {
-      return;
-    }
-  };
-
-  source.onmessage = handleMessage;
-  eventTypes.forEach((eventType) => {
-    source.addEventListener(eventType, (message) => {
-      handleMessage(message as MessageEvent<string>);
-    });
+  return createEventStream<IconWorkbenchEvent>({
+    baseUrl: options.baseUrl,
+    path: `/api/icon-workbench/sessions/${options.sessionId}/events`,
+    accessToken: options.accessToken,
+    eventTypes: ICON_WORKBENCH_EVENT_TYPES,
+    onEvent: options.onEvent,
+    onError: options.onError,
   });
-  source.onerror = (event) => {
-    options.onError?.(event);
-  };
-
-  return {
-    close() {
-      source.close();
-    },
-  };
 }

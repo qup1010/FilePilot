@@ -45,7 +45,12 @@ class TargetSlotRegistry:
                 return self.normalize_relpath(Path(target.real_path).resolve().as_posix())
         return ""
 
-    def ensure_slot(self, target_dir: str) -> str:
+    def ensure_slot(self, target_dir: str, *, strict: bool = False) -> str:
+        """解析目录到 slot；strict 模式下池外目标返回空串而不是扩池。
+
+        归档/一键模式的安全前提是「分类结果只落在用户给的目录池内」，
+        strict 把这个前提从提示词约定变成机制保证。
+        """
         normalized_target_dir = self.normalize_relpath(target_dir)
         if not normalized_target_dir:
             return ""
@@ -55,6 +60,8 @@ class TargetSlotRegistry:
         for target in self.targets:
             if Path(target.real_path).resolve() == desired_real_path:
                 return str(target.slot_id or "")
+        if strict:
+            return ""
         next_number = max((self.slot_number(target.slot_id) for target in self.targets), default=0) + 1
         slot_id = f"D{next_number:03d}"
         try:

@@ -1,4 +1,4 @@
-import { waitForRuntimeConfig } from "@/lib/runtime";
+import { buildAuthHeaders, joinUrl, requestJson, resolveRequestRuntime } from "@/lib/http";
 import { createUserFacingRequestError } from "@/lib/user-facing-copy";
 import type {
   CleanupResponse,
@@ -7,14 +7,17 @@ import type {
   CreateSessionRequest,
   CreateSessionResponse,
   ExecuteResponse,
+  FileHistorySearchResult,
   GetSessionResponse,
   HistoryItem,
   JournalSummary,
   MessageResponse,
   PrecheckResponse,
+  ProfileRuleDraftsResult,
   ResumeSessionResponse,
   RollbackResponse,
   ScanAcceptedResponse,
+  SessionRuleDraftsResult,
   SessionSnapshot,
   TargetProfile,
   UpdateItemRequest,
@@ -26,46 +29,6 @@ import type {
   SettingsTestResult,
   SettingsUpdatePayload,
 } from "@/types/settings";
-
-function joinUrl(baseUrl: string, path: string): string {
-  return new URL(path.replace(/^\//, ""), `${baseUrl.replace(/\/$/, "")}/`).toString();
-}
-
-function buildAuthHeaders(apiToken?: string, headers?: HeadersInit): Headers {
-  const nextHeaders = new Headers(headers);
-  if (apiToken) {
-    nextHeaders.set("Authorization", `Bearer ${apiToken}`);
-  }
-  return nextHeaders;
-}
-
-async function resolveRequestRuntime(baseUrl: string, apiToken?: string) {
-  const runtime = await waitForRuntimeConfig();
-  return {
-    baseUrl: runtime.base_url?.trim() || baseUrl,
-    apiToken: runtime.api_token?.trim() || apiToken || "",
-  };
-}
-
-async function requestJson<T>(
-  baseUrl: string,
-  path: string,
-  init: RequestInit = {},
-  apiToken?: string,
-): Promise<T> {
-  const runtime = await resolveRequestRuntime(baseUrl, apiToken);
-  const response = await fetch(joinUrl(runtime.baseUrl, path), {
-    ...init,
-    headers: buildAuthHeaders(runtime.apiToken, init.headers),
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw createUserFacingRequestError(response.status, response.statusText, errorText);
-  }
-
-  return (await response.json()) as T;
-}
 
 export interface ApiClient {
   createSession(payload: CreateSessionRequest): Promise<CreateSessionResponse>;
@@ -89,11 +52,14 @@ export interface ApiClient {
   selectDir(): Promise<{ path: string | null }>;
   getCommonDirs(): Promise<{ label: string; path: string }[]>;
   getHistory(): Promise<HistoryItem[]>;
+  searchFileHistory(query: string, limit?: number): Promise<FileHistorySearchResult>;
   deleteHistoryEntry(entry_id: string): Promise<{ status: string; entry_id: string; entry_type: string }>;
   getTargetProfiles(): Promise<TargetProfile[]>;
   createTargetProfile(payload: { name: string; directories: Array<{ path: string; label?: string; description?: string }> }): Promise<TargetProfile>;
   updateTargetProfile(profile_id: string, payload: { name?: string; directories?: Array<{ path: string; label?: string; description?: string }> }): Promise<TargetProfile>;
   deleteTargetProfile(profile_id: string): Promise<{ status: string; profile_id: string }>;
+  generateProfileRuleDrafts(profile_id: string, paths?: string[]): Promise<ProfileRuleDraftsResult>;
+  generateSessionRuleDrafts(session_id: string): Promise<SessionRuleDraftsResult>;
   getSettings(): Promise<SettingsSnapshot>;
   getSettingsRuntime<T = Record<string, unknown>>(family: string): Promise<T>;
   updateSettings(payload: SettingsUpdatePayload): Promise<SettingsSnapshot>;
@@ -105,6 +71,8 @@ export interface ApiClient {
 }
 
 export function createApiClient(baseUrl: string, apiToken?: string): ApiClient {
+  const enc = (v: string) => encodeURIComponent(v || "");
+
   return {
     async createSession(payload) {
       return requestJson<CreateSessionResponse>(
@@ -119,12 +87,12 @@ export function createApiClient(baseUrl: string, apiToken?: string): ApiClient {
       );
     },
     async getSession(session_id) {
-      return requestJson<GetSessionResponse>(baseUrl, `/api/sessions/${session_id}`, {}, apiToken);
+      return requestJson<GetSessionResponse>(baseUrl, `/api/sessions/${enc(session_id)}`, {}, apiToken);
     },
     async resumeSession(session_id) {
       return requestJson<ResumeSessionResponse>(
         baseUrl,
-        `/api/sessions/${session_id}/resume`,
+        `/api/sessions/${enc(session_id)}/resume`,
         { method: "POST" },
         apiToken,
       );
@@ -132,7 +100,7 @@ export function createApiClient(baseUrl: string, apiToken?: string): ApiClient {
     async abandonSession(session_id) {
       return requestJson<{ session_id: string; session_snapshot: SessionSnapshot }>(
         baseUrl,
-        `/api/sessions/${session_id}/abandon`,
+        `/api/sessions/${enc(session_id)}/abandon`,
         { method: "POST" },
         apiToken,
       );
@@ -140,7 +108,7 @@ export function createApiClient(baseUrl: string, apiToken?: string): ApiClient {
     async scanSession(session_id) {
       return requestJson<ScanAcceptedResponse>(
         baseUrl,
-        `/api/sessions/${session_id}/scan`,
+        `/api/sessions/${enc(session_id)}/scan`,
         { method: "POST" },
         apiToken,
       );
@@ -148,7 +116,7 @@ export function createApiClient(baseUrl: string, apiToken?: string): ApiClient {
     async refreshSession(session_id) {
       return requestJson<ScanAcceptedResponse>(
         baseUrl,
-        `/api/sessions/${session_id}/refresh`,
+        `/api/sessions/${enc(session_id)}/refresh`,
         { method: "POST" },
         apiToken,
       );
@@ -156,7 +124,7 @@ export function createApiClient(baseUrl: string, apiToken?: string): ApiClient {
     async confirmTargetDirectories(session_id, payload) {
       return requestJson<ConfirmTargetsResponse>(
         baseUrl,
-        `/api/sessions/${session_id}/incremental-selection`,
+        `/api/sessions/${enc(session_id)}/incremental-selection`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -168,7 +136,7 @@ export function createApiClient(baseUrl: string, apiToken?: string): ApiClient {
     async sendMessage(session_id, content) {
       return requestJson<MessageResponse>(
         baseUrl,
-        `/api/sessions/${session_id}/messages`,
+        `/api/sessions/${enc(session_id)}/messages`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -180,7 +148,7 @@ export function createApiClient(baseUrl: string, apiToken?: string): ApiClient {
     async updateItem(session_id, payload) {
       return requestJson<{ session_id: string; session_snapshot: SessionSnapshot }>(
         baseUrl,
-        `/api/sessions/${session_id}/update-item`,
+        `/api/sessions/${enc(session_id)}/update-item`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -192,7 +160,7 @@ export function createApiClient(baseUrl: string, apiToken?: string): ApiClient {
     async restoreAiSuggestion(session_id, item_id) {
       return requestJson<{ session_id: string; session_snapshot: SessionSnapshot }>(
         baseUrl,
-        `/api/sessions/${session_id}/restore-ai-suggestion`,
+        `/api/sessions/${enc(session_id)}/restore-ai-suggestion`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -204,7 +172,7 @@ export function createApiClient(baseUrl: string, apiToken?: string): ApiClient {
     async applyTargetConflictSuggestions(session_id) {
       return requestJson<PrecheckResponse>(
         baseUrl,
-        `/api/sessions/${session_id}/apply-target-conflict-suggestions`,
+        `/api/sessions/${enc(session_id)}/apply-target-conflict-suggestions`,
         { method: "POST" },
         apiToken,
       );
@@ -212,7 +180,7 @@ export function createApiClient(baseUrl: string, apiToken?: string): ApiClient {
     async runPrecheck(session_id) {
       return requestJson<PrecheckResponse>(
         baseUrl,
-        `/api/sessions/${session_id}/precheck`,
+        `/api/sessions/${enc(session_id)}/precheck`,
         { method: "POST" },
         apiToken,
       );
@@ -220,7 +188,7 @@ export function createApiClient(baseUrl: string, apiToken?: string): ApiClient {
     async returnToPlanning(session_id) {
       return requestJson<{ session_id: string; session_snapshot: SessionSnapshot }>(
         baseUrl,
-        `/api/sessions/${session_id}/return-to-planning`,
+        `/api/sessions/${enc(session_id)}/return-to-planning`,
         { method: "POST" },
         apiToken,
       );
@@ -228,7 +196,7 @@ export function createApiClient(baseUrl: string, apiToken?: string): ApiClient {
     async execute(session_id, confirm = true) {
       return requestJson<ExecuteResponse>(
         baseUrl,
-        `/api/sessions/${session_id}/execute`,
+        `/api/sessions/${enc(session_id)}/execute`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -240,7 +208,7 @@ export function createApiClient(baseUrl: string, apiToken?: string): ApiClient {
     async cleanupEmptyDirs(session_id) {
       return requestJson<CleanupResponse>(
         baseUrl,
-        `/api/sessions/${session_id}/cleanup-empty-dirs`,
+        `/api/sessions/${enc(session_id)}/cleanup-empty-dirs`,
         { method: "POST" },
         apiToken,
       );
@@ -248,7 +216,7 @@ export function createApiClient(baseUrl: string, apiToken?: string): ApiClient {
     async rollback(session_id, confirm = true) {
       return requestJson<RollbackResponse>(
         baseUrl,
-        `/api/sessions/${session_id}/rollback`,
+        `/api/sessions/${enc(session_id)}/rollback`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -258,7 +226,7 @@ export function createApiClient(baseUrl: string, apiToken?: string): ApiClient {
       );
     },
     async getJournal(session_id) {
-      return requestJson<JournalSummary>(baseUrl, `/api/sessions/${session_id}/journal`, {}, apiToken);
+      return requestJson<JournalSummary>(baseUrl, `/api/sessions/${enc(session_id)}/journal`, {}, apiToken);
     },
     async openDir(path) {
       return requestJson<{ status: string }>(
@@ -286,10 +254,14 @@ export function createApiClient(baseUrl: string, apiToken?: string): ApiClient {
     async getHistory() {
       return requestJson<HistoryItem[]>(baseUrl, "/api/history", {}, apiToken);
     },
+    async searchFileHistory(query, limit = 50) {
+      const params = new URLSearchParams({ q: query, limit: String(limit) });
+      return requestJson<FileHistorySearchResult>(baseUrl, `/api/history/search?${params.toString()}`, {}, apiToken);
+    },
     async deleteHistoryEntry(entry_id) {
       return requestJson<{ status: string; entry_id: string; entry_type: string }>(
         baseUrl,
-        `/api/history/${entry_id}`,
+        `/api/history/${enc(entry_id)}`,
         { method: "DELETE" },
         apiToken,
       );
@@ -314,7 +286,7 @@ export function createApiClient(baseUrl: string, apiToken?: string): ApiClient {
     async updateTargetProfile(profile_id, payload) {
       const response = await requestJson<{ item: TargetProfile }>(
         baseUrl,
-        `/api/target-profiles/${profile_id}`,
+        `/api/target-profiles/${enc(profile_id)}`,
         {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
@@ -327,8 +299,29 @@ export function createApiClient(baseUrl: string, apiToken?: string): ApiClient {
     async deleteTargetProfile(profile_id) {
       return requestJson<{ status: string; profile_id: string }>(
         baseUrl,
-        `/api/target-profiles/${profile_id}`,
+        `/api/target-profiles/${enc(profile_id)}`,
         { method: "DELETE" },
+        apiToken,
+      );
+    },
+    async generateProfileRuleDrafts(profile_id, paths) {
+      const body = paths?.length ? { paths } : {};
+      return requestJson<ProfileRuleDraftsResult>(
+        baseUrl,
+        `/api/target-profiles/${enc(profile_id)}/rule-drafts`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        },
+        apiToken,
+      );
+    },
+    async generateSessionRuleDrafts(session_id) {
+      return requestJson<SessionRuleDraftsResult>(
+        baseUrl,
+        `/api/sessions/${enc(session_id)}/rule-drafts`,
+        { method: "POST" },
         apiToken,
       );
     },
@@ -336,7 +329,7 @@ export function createApiClient(baseUrl: string, apiToken?: string): ApiClient {
       return requestJson<SettingsSnapshot>(baseUrl, "/api/settings", {}, apiToken);
     },
     async getSettingsRuntime(family) {
-      return requestJson(baseUrl, `/api/settings/runtime/${family}`, {}, apiToken);
+      return requestJson(baseUrl, `/api/settings/runtime/${enc(family)}`, {}, apiToken);
     },
     async updateSettings(payload) {
       return requestJson<SettingsSnapshot>(
@@ -353,7 +346,7 @@ export function createApiClient(baseUrl: string, apiToken?: string): ApiClient {
     async activateSettingsPreset(family, id) {
       return requestJson<{ status: string }>(
         baseUrl,
-        `/api/settings/presets/${family}/${id}/activate`,
+        `/api/settings/presets/${enc(family)}/${enc(id)}/activate`,
         { method: "POST" },
         apiToken,
       );
@@ -361,7 +354,7 @@ export function createApiClient(baseUrl: string, apiToken?: string): ApiClient {
     async createSettingsPreset(family, payload) {
       return requestJson<{ status: string; id: string }>(
         baseUrl,
-        `/api/settings/presets/${family}`,
+        `/api/settings/presets/${enc(family)}`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -373,7 +366,7 @@ export function createApiClient(baseUrl: string, apiToken?: string): ApiClient {
     async deleteSettingsPreset(family, id) {
       return requestJson<{ status: string }>(
         baseUrl,
-        `/api/settings/presets/${family}/${id}`,
+        `/api/settings/presets/${enc(family)}/${enc(id)}`,
         { method: "DELETE" },
         apiToken,
       );

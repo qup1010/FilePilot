@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   FolderOpen,
   ArrowRight,
@@ -8,26 +8,27 @@ import {
   History as HistoryIcon,
   Undo2,
   PlayCircle,
-  Eye,
   Search,
   Trash2,
   ShieldCheck,
-  PanelLeft,
   FileClock,
   CheckCircle2,
   AlertCircle,
-  XCircle,
 } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
-import { cn, formatDisplayDate, getFriendlyStage } from "@/lib/utils";
+import { motion, AnimatePresence } from "motion/react";
+import { useVirtualizer } from "@tanstack/react-virtual";
+import { cn, formatDisplayDate, } from "@/lib/utils";
+import { getPathBasename } from "@/lib/path-normalization";
 import { localizeSessionLastError, localizeUserFacingError } from "@/lib/user-facing-copy";
 import { useRouter, useSearchParams } from "next/navigation";
 
 import type { JournalSummary, HistoryItem, SessionSnapshot, RollbackPrecheckSummary } from "@/types/session";
+import { FileHistorySearch } from "@/components/file-history-search";
 import { RollbackPreviewDialog } from "@/components/workspace/rollback-preview-dialog";
 import { Button } from "@/components/ui/button";
 import { ErrorAlert } from "@/components/ui/error-alert";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { notifyAppContextChange } from "@/lib/app-context-store";
 import {
   clearActiveWorkspaceRouteForSession,
   getHistoryEntryName,
@@ -42,6 +43,9 @@ import {
   isHistorySessionEntry,
   useHistoryList,
 } from "@/lib/use-history-list";
+
+// 变更明细最多直接渲染的行数：超出后仅显示前 N 条并提示用检索缩小范围，避免上千行拖垮渲染。
+const MOVE_ROWS_DISPLAY_LIMIT = 200;
 
 function formatPath(path: string) {
   const segments = path.split(/[\\/]/);
@@ -63,21 +67,6 @@ function formatMovePath(path: string | null, baseDir: string) {
     return relative || ".";
   }
   return formatPath(normalizedPath);
-}
-
-function getDirectoryShortName(path: string | null) {
-  if (!path) return "未指定目录";
-  const segments = path.replace(/[\\/]$/, "").split(/[\\/]/);
-  const last = segments[segments.length - 1];
-  return last || path;
-}
-
-function summarizeMoveNames(items: { display_name: string }[], limit = 3) {
-  const names = items.map((item) => item.display_name).filter(Boolean).slice(0, limit);
-  if (!names.length) {
-    return "";
-  }
-  return names.join("、") + (items.length > limit ? ` 等 ${items.length} 项` : "");
 }
 
 function getSessionRecoveryCopy(entry: HistoryItem | null, detail: SessionSnapshot | null) {
@@ -139,7 +128,6 @@ function getSessionRecoveryCopy(entry: HistoryItem | null, detail: SessionSnapsh
 }
 
 export default function HistoryPage() {
-  const APP_CONTEXT_EVENT = "file-pilot-context-change";
   const HISTORY_CONTEXT_KEY = "history_header_context";
   const searchParams = useSearchParams();
   const requestedEntryId = searchParams.get("entry_id");
@@ -148,8 +136,13 @@ export default function HistoryPage() {
   const [sessionDetail, setSessionDetail] = useState<SessionSnapshot | null>(null);
   const [detailQuery, setDetailQuery] = useState("");
   const [journalLoading, setJournalLoading] = useState(false);
+  const [detailError, setDetailError] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
-  const [rollbackResult, setRollbackResult] = useState<{ successCount: number; failureCount: number } | null>(null);
+  const [rollbackResult, setRollbackResult] = useState<{
+    successCount: number | null;
+    attemptedCount: number | null;
+    failureCount: number;
+  } | null>(null);
   const [rollbackConfirmOpen, setRollbackConfirmOpen] = useState(false);
   const [rollbackPrecheck, setRollbackPrecheck] = useState<RollbackPrecheckSummary | null>(null);
   const requestedEntryHandledRef = useRef<string | null>(null);
@@ -175,6 +168,7 @@ export default function HistoryPage() {
 
   async function loadJournal(id: string, options: { preserveRollbackResult?: boolean } = {}) {
     setJournalLoading(true);
+    setDetailError(null);
     if (!options.preserveRollbackResult) {
       setRollbackResult(null);
     }
@@ -184,6 +178,7 @@ export default function HistoryPage() {
     } catch (err) {
       console.error(err);
       setJournal(null);
+      setDetailError(localizeUserFacingError(err, "读取记录详情失败，请稍后再试。"));
     } finally {
       setJournalLoading(false);
     }
@@ -191,6 +186,7 @@ export default function HistoryPage() {
 
   async function loadSessionDetail(id: string) {
     setJournalLoading(true);
+    setDetailError(null);
     setRollbackResult(null);
     try {
       const data = await api.getSession(id);
@@ -198,6 +194,7 @@ export default function HistoryPage() {
     } catch (err) {
       console.error(err);
       setSessionDetail(null);
+      setDetailError(localizeUserFacingError(err, "读取记录详情失败，请稍后再试。"));
     } finally {
       setJournalLoading(false);
     }
@@ -225,6 +222,7 @@ export default function HistoryPage() {
     setJournal(null);
     setSessionDetail(null);
     setDetailQuery("");
+    setDetailError(null);
     if (isSelectedSession) {
       void loadSessionDetail(selectedSessionId);
       return;
@@ -268,19 +266,19 @@ export default function HistoryPage() {
     if (!selectedEntry) {
       window.localStorage.setItem(
         HISTORY_CONTEXT_KEY,
-        JSON.stringify({ detail: "会话与执行档案" }),
+        JSON.stringify({ detail: "历史记录" }),
       );
-      window.dispatchEvent(new Event(APP_CONTEXT_EVENT));
+      notifyAppContextChange();
       return;
     }
     window.localStorage.setItem(
-        HISTORY_CONTEXT_KEY,
-        JSON.stringify({
-          detail: `${getHistoryEntryName(selectedEntry)} · ${getHistoryEntrySummary(selectedEntry)}`,
-        }),
-      );
-    window.dispatchEvent(new Event(APP_CONTEXT_EVENT));
-  }, [APP_CONTEXT_EVENT, HISTORY_CONTEXT_KEY, selectedEntry]);
+      HISTORY_CONTEXT_KEY,
+      JSON.stringify({
+        detail: getHistoryEntrySummary(selectedEntry),
+      }),
+    );
+    notifyAppContextChange();
+  }, [HISTORY_CONTEXT_KEY, selectedEntry]);
 
   const handleRollback = async (isConfirm: boolean = false) => {
     if (!journal || !selectedSessionId) return;
@@ -295,12 +293,11 @@ export default function HistoryPage() {
       } else {
         setRollbackConfirmOpen(false);
         setRollbackPrecheck(null);
+        const rollbackReport = response.session_snapshot.rollback_report;
         setRollbackResult({
-          successCount:
-            response.session_snapshot.rollback_report?.success_count
-            ?? rollbackPrecheck?.actions.length
-            ?? journal.item_count,
-          failureCount: response.session_snapshot.rollback_report?.failure_count ?? 0,
+          successCount: rollbackReport?.success_count ?? null,
+          attemptedCount: rollbackPrecheck?.actions.length ?? null,
+          failureCount: rollbackReport?.failure_count ?? 0,
         });
         await loadHistory();
         void loadJournal(selectedSessionId, { preserveRollbackResult: true });
@@ -327,6 +324,17 @@ export default function HistoryPage() {
     }
   };
 
+  const retryDetailLoad = () => {
+    if (!selectedSessionId) {
+      return;
+    }
+    if (isSelectedSession) {
+      void loadSessionDetail(selectedSessionId);
+      return;
+    }
+    void loadJournal(selectedSessionId);
+  };
+
   const handleOpenSession = (readOnly = false) => {
     if (!selectedEntry || !isHistorySessionEntry(selectedEntry) || !selectedSessionId) return;
     router.push(readOnly ? getHistoryEntryReadonlyHref(selectedEntry) : getHistoryEntryHref(selectedEntry));
@@ -335,7 +343,6 @@ export default function HistoryPage() {
   const moveRows = journal?.restore_items?.length
     ? journal.restore_items
     : journal?.items?.filter((it) => it.action_type === "MOVE") ?? [];
-  const moveRowsSummary = summarizeMoveNames(moveRows);
 
   const filteredMoveRows = moveRows.filter((item) => {
     if (!detailQuery) return true;
@@ -345,6 +352,16 @@ export default function HistoryPage() {
       item.source?.toLowerCase().includes(q) ||
       item.target?.toLowerCase().includes(q)
     );
+  });
+  const visibleMoveRows = filteredMoveRows.slice(0, MOVE_ROWS_DISPLAY_LIMIT);
+
+  const historyListScrollRef = useRef<HTMLDivElement | null>(null);
+  const historyListVirtualizer = useVirtualizer({
+    count: filteredHistory.length,
+    getScrollElement: () => historyListScrollRef.current,
+    estimateSize: () => 62,
+    getItemKey: (index) => filteredHistory[index]?.execution_id ?? index,
+    overscan: 8,
   });
 
   const activeCount = history.filter((item) => isHistorySessionEntry(item)).length;
@@ -388,12 +405,12 @@ export default function HistoryPage() {
         </div>
       </div>
 
-      <div className="rounded-[9px] border border-primary/12 bg-surface-container-lowest px-4 py-3">
+      <div className="rounded-[8px] border border-primary/12 bg-surface-container-lowest px-4 py-3">
         <div className="flex items-start gap-3">
           <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-primary/70" />
           <div>
             <p className="text-[13px] font-black text-on-surface">推荐下一步</p>
-            <p className="mt-1 text-[12.5px] leading-5 text-ui-muted/75">{sessionRecoveryCopy.description}</p>
+            <p className="mt-1 text-[13px] leading-5 text-ui-muted/75">{sessionRecoveryCopy.description}</p>
           </div>
         </div>
       </div>
@@ -401,10 +418,10 @@ export default function HistoryPage() {
       <div className="grid gap-4 lg:grid-cols-1">
         <div className="rounded-xl border border-on-surface/8 bg-on-surface/[0.02] p-5">
            <div className="mb-2 flex items-center gap-2">
-              <span className="text-[10px] font-black uppercase tracking-[0.2em] text-ui-muted opacity-40">会话摘要</span>
+              <span className="text-[11px] font-black uppercase tracking-[0.2em] text-ui-muted opacity-40">会话摘要</span>
               <div className="h-px flex-1 bg-on-surface/5" />
            </div>
-           <p className="text-[13.5px] font-medium leading-relaxed text-on-surface/80">
+           <p className="text-[13px] font-medium leading-relaxed text-on-surface/80">
              {sessionDetail?.summary || "这是一条未完成的整理记录，你可以继续之前的操作。"}
            </p>
         </div>
@@ -432,10 +449,18 @@ export default function HistoryPage() {
           </div>
           <div className="flex-1">
             <h3 className="text-[13px] font-black text-on-surface">
-              {rollbackResult.failureCount > 0 ? "回退部分完成" : "回退完成"}
+              {rollbackResult.failureCount > 0
+                ? "回退部分完成"
+                : rollbackResult.successCount !== null
+                  ? "回退完成"
+                  : "回退已执行"}
             </h3>
-            <p className="text-[11.5px] font-medium text-ui-muted opacity-70">
-              成功恢复 {rollbackResult.successCount} 项
+            <p className="text-[12px] font-medium text-ui-muted opacity-70">
+              {rollbackResult.successCount !== null
+                ? `成功恢复 ${rollbackResult.successCount} 项`
+                : rollbackResult.attemptedCount !== null
+                  ? `已尝试回退 ${rollbackResult.attemptedCount} 项，请在目录中确认结果`
+                  : "已执行回退，请在目录中确认结果"}
               {rollbackResult.failureCount > 0 ? `，仍有 ${rollbackResult.failureCount} 项失败。` : "。"}
             </p>
           </div>
@@ -444,17 +469,17 @@ export default function HistoryPage() {
 
       <div className="flex flex-wrap items-center gap-6 px-1 py-1">
         <div className="flex items-baseline gap-2">
-          <span className="text-[11.5px] font-bold text-ui-muted/65">已整理项</span>
-          <span className="text-[19px] font-black tabular-nums text-on-surface/90">{journal?.item_count || 0}</span>
+          <span className="text-[12px] font-bold text-ui-muted/65">已整理项</span>
+          <span className="text-[18px] font-black tabular-nums text-on-surface/90">{journal?.item_count || 0}</span>
         </div>
         <div className="flex items-baseline gap-2">
-          <span className="text-[11.5px] font-bold text-ui-muted/65">成功</span>
-          <span className="text-[19px] font-black tabular-nums text-success-dim">{journal?.success_count || 0}</span>
+          <span className="text-[12px] font-bold text-ui-muted/65">成功</span>
+          <span className="text-[18px] font-black tabular-nums text-success-dim">{journal?.success_count || 0}</span>
         </div>
         {Boolean(journal?.failure_count) && (
           <div className="flex items-baseline gap-2">
-            <span className="text-[11.5px] font-bold text-ui-muted/65 text-error/80">失败</span>
-            <span className="text-[19px] font-black tabular-nums text-error">{journal?.failure_count}</span>
+            <span className="text-[12px] font-bold text-ui-muted/65 text-error/80">失败</span>
+            <span className="text-[18px] font-black tabular-nums text-error">{journal?.failure_count}</span>
           </div>
         )}
       </div>
@@ -472,7 +497,7 @@ export default function HistoryPage() {
               onClick={() => void handleRollback(false)}
               disabled={actionLoading}
               loading={actionLoading}
-              className="h-7.5 rounded-md px-4 text-[10.5px] font-black"
+              className="h-7.5 rounded-md px-4 text-[11px] font-black"
             >
               <Undo2 className="h-3 w-3" />
               回退执行
@@ -504,7 +529,7 @@ export default function HistoryPage() {
         <div className="rounded-lg border border-on-surface/8 bg-on-surface/[0.01] overflow-hidden">
           <div className="flex flex-col divide-y divide-on-surface/6">
             {filteredMoveRows.length ? (
-              filteredMoveRows.map((item, index) => {
+              visibleMoveRows.map((item, index) => {
                 const isRolledBack = selectedEntry ? isHistoryRolledBackEntry(selectedEntry) : false;
                 return (
                   <div 
@@ -523,7 +548,7 @@ export default function HistoryPage() {
                           isRolledBack ? "bg-ui-muted/30" : "bg-primary/45"
                         )} />
                         <span className={cn(
-                          "text-[12.5px] font-black truncate",
+                          "text-[13px] font-black truncate",
                           isRolledBack ? "text-ui-muted/80 line-through" : "text-on-surface/90"
                         )} title={item.display_name}>
                           {item.display_name}
@@ -533,25 +558,17 @@ export default function HistoryPage() {
                     
                     <div className="mt-1 pl-3.5 flex items-center justify-between gap-4 text-[11px]">
                       <div className="flex-1 min-w-0 truncate" title={item.source || ""}>
-                        <span className={cn(
-                          "text-[9.5px] font-bold uppercase tracking-wider mr-1.5",
-                          isRolledBack ? "text-ui-muted/30" : "text-ui-muted/45"
-                        )}>FROM:</span>
                         <span className="font-mono text-ui-muted/70">{formatMovePath(item.source, journal?.target_dir || "")}</span>
                       </div>
                       
                       <div className="flex flex-col items-center shrink-0 text-ui-muted/30 px-2 min-w-[75px]">
                         <ArrowRight className="h-3 w-3 transition-transform group-hover:translate-x-0.5 group-hover:text-primary/40" />
                         {isRolledBack && (
-                          <span className="mt-0.5 text-[8.5px] font-black text-ui-muted/40 whitespace-nowrap scale-90 select-none">[已撤销复原]</span>
+                          <span className="mt-0.5 text-[11px] font-black text-ui-muted/40 whitespace-nowrap scale-90 select-none">[已撤销复原]</span>
                         )}
                       </div>
 
                       <div className="flex-1 min-w-0 truncate" title={item.target || ""}>
-                        <span className={cn(
-                          "text-[9.5px] font-bold uppercase tracking-wider mr-1.5",
-                          isRolledBack ? "text-ui-muted/30" : "text-primary/40"
-                        )}>TO:</span>
                         <span className={cn(
                           "font-mono font-bold",
                           isRolledBack ? "text-ui-muted/60" : "text-primary/75"
@@ -572,6 +589,11 @@ export default function HistoryPage() {
                 <p className="text-[12px] font-bold">没有可显示的变更明细</p>
               </div>
             )}
+            {filteredMoveRows.length > MOVE_ROWS_DISPLAY_LIMIT && (
+              <div className="px-3 py-2.5 text-center text-[11px] font-bold text-ui-muted/60">
+                仅显示前 {MOVE_ROWS_DISPLAY_LIMIT} 条，共 {filteredMoveRows.length} 条，可用上方检索缩小范围。
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -585,9 +607,6 @@ export default function HistoryPage() {
           <div className="px-5 py-5">
             <div className="space-y-4">
               <div className="space-y-1.5 px-1">
-                <div className="text-ui-label">
-                  工作区
-                </div>
                 <h1 className="text-ui-h2 tracking-tight text-on-surface">
                   整理历史记录
                 </h1>
@@ -599,16 +618,16 @@ export default function HistoryPage() {
                     key={item.id}
                     onClick={() => setFilter(item.id)}
                     className={cn(
-                      "flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[12px] border transition-all duration-200 outline-none select-none active:scale-[0.96]",
+                      "flex cursor-pointer items-center gap-1.5 rounded-md px-2.5 py-1 text-[12px] border transition-all duration-200 outline-none select-none active:scale-[0.96]",
                       filter === item.id
-                        ? "bg-primary/[0.09] border-primary/35 text-primary shadow-[inset_0_1px_2px_rgba(var(--primary-rgb),0.05),0_2px_6px_rgba(var(--primary-rgb),0.06)]"
-                        : "bg-on-surface/[0.01] border-on-surface/5 hover:bg-on-surface/[0.04] hover:border-on-surface/12 hover:text-on-surface hover:scale-[1.01] text-ui-muted"
+                        ? "bg-primary/10 border-primary text-primary shadow-[inset_0_1px_2px_rgba(var(--primary-rgb),0.05),0_2px_6px_rgba(var(--primary-rgb),0.06)]"
+                        : "bg-on-surface/[0.01] border-on-surface/5 hover:bg-on-surface/[0.04] hover:border-primary/40 hover:text-on-surface hover:scale-[1.01] text-ui-muted"
                     )}
                   >
                     <div className={cn("text-[12px] font-black tabular-nums leading-none", item.color)}>
                       {item.value}
                     </div>
-                    <div className="text-[12px] font-bold text-ui-muted/55">
+                    <div className={cn("text-[12px] font-bold", filter === item.id ? "text-primary/75" : "text-ui-muted/55")}>
                       {item.label}
                     </div>
                   </button>
@@ -625,34 +644,54 @@ export default function HistoryPage() {
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
                   placeholder="搜索时间、路径或记录 ID..."
-                  className="w-full rounded-[6px] border border-on-surface/10 bg-on-surface/[0.02] py-2 pl-[2.25rem] pr-4 text-[12.5px] font-medium text-on-surface outline-none transition-all placeholder:text-ui-muted/50 focus:bg-surface focus:ring-2 focus:ring-primary/5"
+                  className="w-full rounded-[6px] border border-on-surface/10 bg-on-surface/[0.02] py-2 pl-[2.25rem] pr-4 text-[13px] font-medium text-on-surface outline-none transition-all placeholder:text-ui-muted/50 focus:bg-surface focus:ring-2 focus:ring-primary/5"
                 />
               </div>
+              <FileHistorySearch
+                api={api}
+                onSelectExecution={(id) => {
+                  // 目标记录可能被顶部过滤词排除在列表外，被选择校正 effect 抢回第一项：
+                  // 显式选择前先清掉过滤词
+                  setQuery("");
+                  setFilter("all");
+                  setSelectedSessionId(id);
+                }}
+              />
             </div>
           </div>
 
-          <div className="relative flex-1 overflow-y-auto px-2 py-4 scrollbar-thin">
+          <div ref={historyListScrollRef} className="relative flex-1 overflow-y-auto px-2 py-4 scrollbar-thin">
             {loading ? (
               <div className="flex h-full flex-col items-center justify-center gap-3 opacity-30">
                 <Activity className="h-6 w-6 animate-spin text-primary" />
                 <p className="text-[12px] font-bold">正在读取记录...</p>
               </div>
             ) : filteredHistory.length > 0 ? (
-              <div className="space-y-0.5">
-                {filteredHistory.map((entry, idx) => {
+              <div className="relative w-full" style={{ height: `${historyListVirtualizer.getTotalSize()}px` }}>
+                {historyListVirtualizer.getVirtualItems().map((virtualRow) => {
+                  const entry = filteredHistory[virtualRow.index];
+                  if (!entry) {
+                    return null;
+                  }
                   const active = selectedSessionId === entry.execution_id;
                   const sessionLike = isHistorySessionEntry(entry);
                   const isRolledBack = isHistoryRolledBackEntry(entry);
                   const isPartialFailure = isHistoryPartialFailureEntry(entry) || isHistoryRollbackPartialFailureEntry(entry);
                   const statusSummary = getHistoryEntrySummary(entry);
-                  const dirShortName = getDirectoryShortName(entry.target_dir);
+                  const dirShortName = getPathBasename(entry.target_dir, entry.target_dir || "未指定目录");
 
                   return (
-                    <motion.div
+                    <div
                       key={entry.execution_id}
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      transition={{ delay: Math.min(idx * 0.01, 0.2), duration: 0.2 }}
+                      ref={historyListVirtualizer.measureElement}
+                      data-index={virtualRow.index}
+                      className={cn(
+                        "absolute left-0 top-0 w-full",
+                        virtualRow.index < filteredHistory.length - 1 && "pb-0.5",
+                      )}
+                      style={{ transform: `translateY(${virtualRow.start}px)` }}
+                    >
+                    <div
                       role="button"
                       tabIndex={0}
                       onClick={() => setSelectedSessionId(entry.execution_id)}
@@ -682,7 +721,7 @@ export default function HistoryPage() {
                             sessionLike ? "bg-primary" : isRolledBack ? "bg-on-surface/20" : isPartialFailure ? "bg-warning" : "bg-success",
                           )} />
                           <h3 className={cn(
-                            "truncate text-[12.5px] font-black tracking-tight",
+                            "truncate text-[13px] font-black tracking-tight",
                             active ? "text-primary" : "text-on-surface/85",
                             isRolledBack && "text-ui-muted line-through opacity-70"
                           )}>
@@ -691,7 +730,7 @@ export default function HistoryPage() {
                         </div>
                         <div className="flex items-center gap-1.5 shrink-0 transition-all duration-300 ease-out group-hover:opacity-0 group-hover:-translate-x-3 group-hover:scale-95 group-hover:pointer-events-none">
                           <span className={cn(
-                            "rounded-[4px] border px-1.5 py-0.5 text-[10.5px] font-bold",
+                            "rounded-[4px] border px-1.5 py-0.5 text-[11px] font-bold",
                             active
                               ? "bg-primary/10 border-primary/20 text-primary/80"
                               : isPartialFailure
@@ -709,7 +748,7 @@ export default function HistoryPage() {
                         <p className="truncate text-[11px] font-medium text-ui-muted/55 flex-1" title={entry.target_dir}>
                           {formatPath(entry.target_dir)}
                         </p>
-                        <span className="shrink-0 font-mono text-[10.5px] font-medium text-ui-muted/45 transition-all duration-300 ease-out group-hover:opacity-0 group-hover:-translate-x-3 group-hover:pointer-events-none">
+                        <span className="shrink-0 font-mono text-[11px] font-medium text-ui-muted/45 transition-all duration-300 ease-out group-hover:opacity-0 group-hover:-translate-x-3 group-hover:pointer-events-none">
                           {formatDisplayDate(entry.created_at)}
                         </span>
                       </div>
@@ -724,7 +763,8 @@ export default function HistoryPage() {
                       >
                         <Trash2 className="h-3.5 w-3.5" />
                       </button>
-                    </motion.div>
+                    </div>
+                    </div>
                   );
                 })}
               </div>
@@ -739,7 +779,30 @@ export default function HistoryPage() {
 
         <section className="relative flex min-h-0 flex-1 flex-col overflow-hidden bg-surface">
           <AnimatePresence mode="wait">
-            {selectedSessionId && selectedEntry && (isSelectedSession ? sessionDetail : journal) ? (
+            {selectedSessionId && selectedEntry && detailError ? (
+              <motion.div
+                key={`${selectedSessionId}-detail-error`}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.15 }}
+                className="flex h-full min-h-[24rem] flex-col items-center justify-center px-8 text-center"
+              >
+                <AlertCircle className="h-10 w-10 text-error/50" />
+                <h3 className="mt-6 text-[15px] font-black text-on-surface">读取记录详情失败</h3>
+                <p className="mt-2 max-w-xs text-[12px] font-medium leading-relaxed text-ui-muted/70">
+                  {detailError}
+                </p>
+                <Button
+                  variant="secondary"
+                  onClick={retryDetailLoad}
+                  disabled={journalLoading}
+                  className="mt-5 h-8.5 rounded-lg px-5 text-[11px] font-black"
+                >
+                  重试
+                </Button>
+              </motion.div>
+            ) : selectedSessionId && selectedEntry && (isSelectedSession ? sessionDetail : journal) ? (
               <motion.div
                 key={selectedSessionId}
                 initial={{ opacity: 0 }}
@@ -755,7 +818,7 @@ export default function HistoryPage() {
                          "truncate text-[15px] font-black tracking-tight text-on-surface",
                          selectedEntry && isHistoryRolledBackEntry(selectedEntry) && "line-through text-ui-muted/60"
                        )}>
-                         {getDirectoryShortName(selectedEntry.target_dir)}
+                         {getPathBasename(selectedEntry.target_dir, selectedEntry.target_dir || "未指定目录")}
                        </h2>
                        <div className="h-4 w-px bg-on-surface/10 shrink-0" />
                        <div className="flex min-w-0 items-center gap-2">
@@ -777,7 +840,7 @@ export default function HistoryPage() {
                           : false;
                         return (
                           <div className={cn(
-                            "hidden items-center gap-2 rounded-[5px] border px-2 py-1 text-[12px] font-bold sm:flex",
+                            "hidden items-center gap-2 rounded-[6px] border px-2 py-1 text-[12px] font-bold sm:flex",
                             isSelectedSession
                               ? "border-primary/25 bg-primary/5 text-primary"
                               : entryIsRolledBack
@@ -796,7 +859,7 @@ export default function HistoryPage() {
                       })()}
  
                       {!isSelectedSession && (journal?.status === "completed" || journal?.status === "partial_failure") && (
-                        <div className="flex items-center gap-1.5 rounded-[5px] border border-warning/30 bg-warning/5 px-2 py-1 text-[12px] font-bold text-warning">
+                        <div className="flex items-center gap-1.5 rounded-[6px] border border-warning/30 bg-warning/5 px-2 py-1 text-[12px] font-bold text-warning">
                           <ShieldCheck className="h-3 w-3" />
                           <span className="hidden lg:inline">支持回退</span>
                         </div>

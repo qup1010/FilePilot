@@ -88,7 +88,7 @@ class DomainArchitectureTests(unittest.TestCase):
         pending_plan = PendingPlan(
             moves=[PlanMove(source="invoice.pdf", target="Docs/invoice.pdf")],
             unresolved_items=[],
-            summary="已分类 1 项，调整 1 项，仍剩 0 项待定",
+            summary="已分类 1 项，待移动 1 项，待确认 0 项",
         )
 
         task, registry = self.service._build_organize_task(session, pending_plan)

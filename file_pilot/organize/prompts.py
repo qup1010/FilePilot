@@ -1,7 +1,6 @@
 from file_pilot.organize.strategy_templates import build_strategy_prompt_fragment
 from file_pilot.organize.target_slots import directory_target_slots, slot_label
 
-
 PROMPT_TEMPLATE = """你是一位“系统文件整理”专家。你的任务是基于当前规划范围，为用户产出一份可编辑的整理草案。
 
 一、结构化工具
@@ -128,6 +127,19 @@ def _mode_rules(planning_context: dict | None = None) -> str:
                 lines.append(f"- {path}（说明：{description}）")
             else:
                 lines.append(f"- {path}")
+
+        # 条件性注入：仅当目标目录池中存在父子嵌套关系时追加分流规则
+        from file_pilot.organize.rule_advisor import detect_nested_pairs
+        nested = detect_nested_pairs(target_directories)
+        if nested:
+            lines.append("目录层级关系：")
+            for parent, child in nested:
+                lines.append(f"- {parent}（父） ⊃ {child}（子）")
+            lines += [
+                "嵌套分流硬规则：",
+                "- 若文件特征同时满足父目录与子目录，必须优先分配给更具体的子目录（最窄匹配优先）。",
+                "- 父目录仅收录不属于任何特化子目录的通用文件。",
+            ]
     else:
         lines.append("- （当前尚未选定目标目录。）")
     if target_slots:

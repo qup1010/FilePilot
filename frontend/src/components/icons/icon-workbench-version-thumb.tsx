@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { Check, LoaderCircle, AlertCircle, Maximize2, Scissors, Trash2, CheckCircle2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { IconPreviewVersion } from "@/types/icon-workbench";
@@ -83,12 +83,12 @@ export function IconWorkbenchVersionThumb({
 
         {/* 顶部标签 */}
         <div className="absolute left-1 top-1 flex items-center gap-1">
-           <span className="rounded bg-black/60 px-1 py-0.5 text-[8px] font-black text-white/90 backdrop-blur-sm">V{version.version_number}</span>
+           <span className="rounded bg-black/60 px-1 py-0.5 text-[11px] font-black text-white/90 backdrop-blur-sm">V{version.version_number}</span>
            {isSelected && !isApplied && (
-             <span className="rounded bg-primary/80 px-1 py-0.5 text-[8px] font-black text-white/90 backdrop-blur-sm">当前版本</span>
+             <span className="rounded bg-primary/80 px-1 py-0.5 text-[11px] font-black text-white/90 backdrop-blur-sm">当前版本</span>
            )}
            {isApplied && (
-             <span className="rounded bg-primary/80 px-1 py-0.5 text-[8px] font-black text-white/90 backdrop-blur-sm">已应用</span>
+             <span className="rounded bg-primary/80 px-1 py-0.5 text-[11px] font-black text-white/90 backdrop-blur-sm">已应用</span>
            )}
            {isApplied && (
              <div className="bg-primary rounded-full p-0.5 ring-1 ring-white/20">

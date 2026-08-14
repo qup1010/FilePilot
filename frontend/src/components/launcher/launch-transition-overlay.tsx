@@ -1,4 +1,4 @@
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence } from "motion/react";
 import { Loader2 } from "lucide-react";
 
 export function LaunchTransitionOverlay({ open, targetDir }: { open: boolean; targetDir: string }) {
@@ -18,7 +18,7 @@ export function LaunchTransitionOverlay({ open, targetDir }: { open: boolean; ta
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 10, scale: 0.98 }}
             transition={{ duration: 0.24, ease: [0.16, 1, 0.3, 1] }}
-            className="w-full max-w-[420px] overflow-hidden rounded-[18px] border border-on-surface/12 bg-surface/96 p-6"
+            className="w-full max-w-[420px] overflow-hidden rounded-[16px] border border-on-surface/12 bg-surface/96 p-6"
           >
             <div className="flex items-start gap-4">
               <div className="relative flex h-14 w-14 shrink-0 items-center justify-center rounded-[16px] border border-primary/16 bg-primary/8 text-primary">
@@ -39,7 +39,7 @@ export function LaunchTransitionOverlay({ open, targetDir }: { open: boolean; ta
                 <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-primary/72">
                   正在打开整理工作区
                 </p>
-                <h3 className="mt-2 text-[22px] font-black tracking-tight text-on-surface">
+                <h3 className="mt-2 text-[20px] font-black tracking-tight text-on-surface">
                   正在准备读取目录
                 </h3>
                 <p className="mt-2 text-[13px] leading-6 text-on-surface-variant/78">

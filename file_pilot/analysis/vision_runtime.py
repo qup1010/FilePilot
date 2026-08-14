@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 import io
+import json
 import mimetypes
 import os
 import secrets
@@ -14,6 +15,8 @@ from urllib.parse import urljoin, urlparse
 
 from file_pilot.shared.model_response import (
     coerce_response_message as coerce_model_response_message,
+)
+from file_pilot.shared.model_response import (
     extract_message_text as extract_model_message_text,
 )
 

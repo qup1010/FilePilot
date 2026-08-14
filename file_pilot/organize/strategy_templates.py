@@ -5,7 +5,6 @@ from copy import deepcopy
 from functools import lru_cache
 from pathlib import Path
 
-
 _CATALOG_PATH = Path(__file__).resolve().parents[2] / "frontend" / "src" / "lib" / "strategy-catalog.json"
 
 
@@ -337,13 +336,14 @@ def build_strategy_prompt_fragment(selection: dict | None = None) -> str:
     else:
         lines = [
             "当前固定整理策略（必须优先遵守）：",
-            "- 当前任务类型：归入已有目录。只能使用用户显式配置的目标目录；拿不准的条目交给系统放入待确认区，不要重新设计分类体系。",
+            "- 当前任务类型：归入已有目录。只能使用用户显式配置的目标目录；拿不准的条目登记为待补规则项（unresolved_adds），系统不会移动它们，不要重新设计分类体系。",
             "- 父目录不会自动授权子目录；需要子目录作为去向时，用户必须把该子目录单独加入目标目录配置。",
             caution["prompt_fragment"],
         ]
     if normalized["new_directory_root"]:
         lines.append(f"- 新目录生成位置：{normalized['new_directory_root']}")
-    if normalized["review_root"]:
+    # 待确认区（物理 Review 目录）只属于大扫除模式；归入已有目录时拿不准的条目留在原地
+    if normalized["review_root"] and normalized.get("task_type") != TASK_TYPE_ORGANIZE_INTO_EXISTING:
         lines.append(f"- 待确认区目录位置：{normalized['review_root']}")
     if normalized["note"]:
         lines.append(f"用户补充说明：{normalized['note']}")

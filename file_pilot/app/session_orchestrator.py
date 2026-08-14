@@ -1,11 +1,19 @@
 from __future__ import annotations
+
 import logging
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 from file_pilot.app.models import CreateSessionResult, OrganizerSession, SourceCollectionItem
 from file_pilot.app.safety import unsafe_source_path_reason
-from file_pilot.app.session_constants import STAGE_INTERRUPTED, is_locked_stage, is_terminal_stage
+from file_pilot.app.session_constants import (
+    STAGE_INTERRUPTED,
+    STAGE_READY_TO_EXECUTE,
+    is_locked_stage,
+    is_planning_mutable_stage,
+    is_stage,
+    is_terminal_stage,
+)
 from file_pilot.organize import service as organize_service
 from file_pilot.organize.models import PendingPlan
 from file_pilot.organize.strategy_templates import normalize_strategy_selection
@@ -235,6 +243,47 @@ class SessionOrchestrator:
             )
             self.helpers._record_event("plan.updated", session)
 
+    def maybe_auto_advance_unattended(self, session) -> None:
+        """一键整理：规划完成后自动接预检与执行，不在 ready_* 停站。
+
+        unresolved 项留在原地不阻碍推进；预检放不了行（无可执行项等）时
+        停下并如实记录，绝不带病执行。执行失败的会话状态由 execute 自身
+        标记为 interrupted。
+        """
+        if not getattr(session, "unattended", False):
+            return
+        if not is_planning_mutable_stage(session.stage):
+            return
+
+        try:
+            self.helpers._log_runtime_event("unattended.advance_started", session)
+            self.helpers.execution_app.run_precheck(session.session_id)
+            reloaded = self.helpers.store.load(session.session_id)
+            if reloaded is None or not is_stage(reloaded.stage, STAGE_READY_TO_EXECUTE):
+                self.helpers._log_runtime_event(
+                    "unattended.advance_blocked",
+                    reloaded or session,
+                    reason="precheck_not_executable",
+                )
+                return
+            self.helpers.execution_app.execute(session.session_id, confirm=True)
+            completed = self.helpers.store.load(session.session_id)
+            self.helpers._log_runtime_event("unattended.advance_completed", completed or session)
+        except Exception as exc:
+            # execute 内部已把失败会话标记为 interrupted；这里只记录，不再抛出，
+            # 扫描线程不能因此崩溃
+            logger.exception(
+                "unattended.advance_failed session_id=%s target_dir=%s",
+                session.session_id,
+                session.target_dir,
+            )
+            self.helpers._log_runtime_event(
+                "unattended.advance_failed",
+                session,
+                level=logging.ERROR,
+                error=str(exc),
+            )
+
     def create_session(
         self,
         sources: list[dict],
@@ -246,6 +295,7 @@ class SessionOrchestrator:
         target_profile_id: str = "",
         target_directories: list[str] | None = None,
         target_directory_details: list[dict] | None = None,
+        unattended: bool = False,
         new_directory_root: str = "",
         review_root: str = "",
     ) -> CreateSessionResult:
@@ -264,11 +314,14 @@ class SessionOrchestrator:
         normalized_sources = self.helpers._normalize_source_collection(sources)
         if not normalized_sources:
             raise ValueError("SOURCES_REQUIRED")
-        unsafe_reasons = [
-            unsafe_source_path_reason(item.path, source_type=item.source_type)
-            for item in normalized_sources
-        ]
-        first_unsafe_reason = next((reason for reason in unsafe_reasons if reason), None)
+        first_unsafe_reason = next(
+            (
+                reason
+                for item in normalized_sources
+                if (reason := unsafe_source_path_reason(item.path, source_type=item.source_type))
+            ),
+            None,
+        )
         if first_unsafe_reason:
             raise ValueError(first_unsafe_reason)
         requested_target_directories = (
@@ -336,6 +389,19 @@ class SessionOrchestrator:
                 or self.helpers._default_review_root(str(normalized_strategy.get("new_directory_root") or "").strip())
             )
 
+        if unattended:
+            # 一键整理只对「归入已有目录」开放：直通执行的安全论证依赖目录池约束
+            if normalized_strategy["organize_method"] != "assign_into_existing_categories":
+                raise ValueError("UNATTENDED_REQUIRES_EXISTING_CATEGORIES")
+            # 空规则阻止：规则是用户敢于一键的信任来源，缺了就引导去补
+            missing_rule_paths = [
+                str(item.get("path") or "")
+                for item in selected_target_directory_details
+                if not str(item.get("description") or "").strip()
+            ]
+            if missing_rule_paths or not selected_target_directory_details:
+                raise ValueError("TARGET_RULES_INCOMPLETE")
+
         self.helpers.target_resolver.validate_review_root_safety(
             new_directory_root=str(normalized_strategy.get("new_directory_root") or ""),
             review_root=str(normalized_strategy.get("review_root") or ""),
@@ -378,6 +444,7 @@ class SessionOrchestrator:
             review_root=str(normalized_strategy.get("review_root") or ""),
         )
         session.organize_method = self.helpers._normalize_organize_method(normalized_strategy.get("organize_method"))
+        session.unattended = bool(unattended)
         session.output_dir = str(normalized_strategy.get("output_dir") or "").strip()
         session.target_profile_id = str(target_profile_id or normalized_strategy.get("target_profile_id") or "").strip()
         session.selected_target_directories = list(selected_target_directories)

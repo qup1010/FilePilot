@@ -1,7 +1,8 @@
+import json
 import shutil
 import time
 import unittest
-import json
+import unittest.mock
 from pathlib import Path
 
 from file_pilot.app.session_service import OrganizerSessionService
@@ -209,3 +210,156 @@ class HistoryAppServiceTests(unittest.TestCase):
         self.assertEqual(move_item["target_slot_id"], "Review")
         self.assertEqual(move_item["target_kind"], "review")
         self.assertTrue(move_item["is_review"])
+
+    def test_get_journal_summary_by_execution_id_does_not_raise_unbound_local_error(self):
+        (self.target_dir / "a.txt").write_text("hello", encoding="utf-8")
+        created = self.service.create_session(str(self.target_dir), resume_if_exists=False)
+        session = created.session
+        assert session is not None
+        session.stage = "ready_to_execute"
+        session.pending_plan = {
+            "directories": ["Docs"],
+            "moves": [{"source": "a.txt", "target": "Docs/a.txt"}],
+            "unresolved_items": [],
+            "summary": "move to docs",
+        }
+        self.store.save(session)
+        self.service.execute(session.session_id, confirm=True)
+        reloaded = self.store.load(session.session_id)
+        assert reloaded is not None
+        exec_id = reloaded.last_journal_id
+        assert exec_id is not None
+
+        # 直接使用 execution_id（非 session_id）查询，验证不会引发 UnboundLocalError
+        summary = self.service.history_app.get_journal_summary(exec_id)
+        self.assertEqual(summary["execution_id"], exec_id)
+        self.assertEqual(summary["status"], "completed")
+
+
+class FileHistorySearchTests(unittest.TestCase):
+    def setUp(self):
+        self.root = Path("test_temp_history_search")
+        if self.root.exists():
+            shutil.rmtree(self.root, ignore_errors=True)
+        self.executions_dir = self.root / "executions"
+        self.executions_dir.mkdir(parents=True, exist_ok=True)
+        self.store = SessionStore(self.root / "sessions")
+        self.service = OrganizerSessionService(self.store)
+        from file_pilot.shared import config as shared_config
+        self._config_patch = unittest.mock.patch.object(shared_config, "EXECUTION_LOG_DIR", self.executions_dir)
+        self._config_patch.start()
+
+    def tearDown(self):
+        self._config_patch.stop()
+        if self.root.exists():
+            shutil.rmtree(self.root, ignore_errors=True)
+
+    def _write_journal(self, execution_id: str, created_at: str, items: list[dict], rollback_attempts=None):
+        payload = {
+            "execution_id": execution_id,
+            "target_dir": str((self.root / "Inbox").resolve()),
+            "created_at": created_at,
+            "status": "completed",
+            "items": items,
+            "rollback_attempts": rollback_attempts or [],
+        }
+        (self.executions_dir / f"{execution_id}.json").write_text(
+            json.dumps(payload, ensure_ascii=False), encoding="utf-8"
+        )
+
+    def _move_item(self, name: str, source: str, target: str, status: str = "success") -> dict:
+        return {
+            "action_type": "MOVE",
+            "status": status,
+            "message": "",
+            "raw": "",
+            "source_before": source,
+            "target_after": target,
+            "display_name": name,
+            "item_id": None,
+        }
+
+    def test_search_finds_moved_file_by_name_fragment(self):
+        inbox = (self.root / "Inbox").resolve()
+        self._write_journal(
+            "exec1",
+            "2026-07-01T00:00:00+00:00",
+            [
+                self._move_item("Invoice_2024.pdf", str(inbox / "Invoice_2024.pdf"), str(inbox / "Docs" / "Invoice_2024.pdf")),
+                self._move_item("photo.jpg", str(inbox / "photo.jpg"), str(inbox / "Pics" / "photo.jpg")),
+            ],
+        )
+
+        result = self.service.history_app.search_file_history("invoice")
+
+        self.assertEqual(len(result["matches"]), 1)
+        match = result["matches"][0]
+        self.assertEqual(match["display_name"], "Invoice_2024.pdf")
+        self.assertEqual(Path(match["current_path"]), inbox / "Docs" / "Invoice_2024.pdf")
+        self.assertEqual(match["execution_id"], "exec1")
+        self.assertEqual(match["moved_at"], "2026-07-01T00:00:00+00:00")
+        self.assertEqual(match["status"], "success")
+
+    def test_search_skipped_item_stays_at_source(self):
+        inbox = (self.root / "Inbox").resolve()
+        self._write_journal(
+            "exec2",
+            "2026-07-02T00:00:00+00:00",
+            [
+                self._move_item("report.docx", str(inbox / "report.docx"), str(inbox / "Docs" / "report.docx"), status="skipped"),
+            ],
+        )
+
+        result = self.service.history_app.search_file_history("report")
+
+        match = result["matches"][0]
+        self.assertEqual(match["status"], "skipped")
+        self.assertEqual(Path(match["current_path"]), inbox / "report.docx")
+
+    def test_search_reflects_successful_rollback(self):
+        inbox = (self.root / "Inbox").resolve()
+        moved_target = inbox / "Docs" / "notes.md"
+        self._write_journal(
+            "exec3",
+            "2026-07-03T00:00:00+00:00",
+            [self._move_item("notes.md", str(inbox / "notes.md"), str(moved_target))],
+            rollback_attempts=[
+                {
+                    "success_count": 1,
+                    "failure_count": 0,
+                    "results": [
+                        {
+                            "action_type": "MOVE",
+                            "source": moved_target.as_posix(),
+                            "target": (inbox / "notes.md").as_posix(),
+                            "status": "success",
+                        }
+                    ],
+                }
+            ],
+        )
+
+        result = self.service.history_app.search_file_history("notes")
+
+        match = result["matches"][0]
+        self.assertEqual(Path(match["current_path"]), inbox / "notes.md")
+        self.assertEqual(match["status"], "rolled_back")
+
+    def test_search_sorts_newest_first_and_limits(self):
+        inbox = (self.root / "Inbox").resolve()
+        for index in range(3):
+            self._write_journal(
+                f"exec-sort-{index}",
+                f"2026-07-0{index + 1}T00:00:00+00:00",
+                [self._move_item(f"data_{index}.csv", str(inbox / f"data_{index}.csv"), str(inbox / "Data" / f"data_{index}.csv"))],
+            )
+
+        result = self.service.history_app.search_file_history("data", limit=2)
+
+        self.assertEqual(result["total"], 3)
+        self.assertEqual(len(result["matches"]), 2)
+        self.assertEqual(result["matches"][0]["execution_id"], "exec-sort-2")
+
+    def test_search_empty_query_returns_nothing(self):
+        result = self.service.history_app.search_file_history("   ")
+        self.assertEqual(result["matches"], [])

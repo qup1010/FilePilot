@@ -13,7 +13,6 @@ from file_pilot.analysis.file_reader import list_local_files, read_local_file, r
 from file_pilot.analysis.models import AnalysisItem
 from file_pilot.analysis.prompts import build_system_prompt
 from file_pilot.shared.config import (
-    ANALYSIS_MODEL_NAME,
     RESULT_FILE_PATH,
     create_openai_client,
     get_analysis_model_name,
@@ -23,7 +22,7 @@ from file_pilot.shared.config import (
 )
 from file_pilot.shared.events import emit
 from file_pilot.shared.logging_utils import append_debug_event
-from file_pilot.shared.model_response import collect_stream_response, coerce_response_message
+from file_pilot.shared.model_response import coerce_response_message, collect_stream_response
 from file_pilot.shared.path_utils import normalize_entry_name, resolve_tool_path
 
 MAX_ANALYSIS_RETRIES = 3

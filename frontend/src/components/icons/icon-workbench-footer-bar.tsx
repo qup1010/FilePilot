@@ -1,7 +1,5 @@
 "use client";
-
-import React from "react";
-import { FolderDown, Info, LoaderCircle, Sparkles } from "lucide-react";
+import { FolderDown, LoaderCircle, Sparkles } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -59,9 +57,9 @@ export function IconWorkbenchFooterBar({
              {isBusy ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <FolderDown className="h-3.5 w-3.5" />}
            </div>
            <div className="flex items-center gap-2">
-              <span className="text-[12px] font-black text-on-surface/80">{targetCount} 个目标</span>
+              <span className="text-[12px] font-black text-on-surface/80">{targetCount} 个文件夹</span>
               <div className="h-3 w-[1px] bg-on-surface/10 mx-1" />
-              <span className="text-[10px] font-black uppercase tracking-widest text-ui-muted opacity-40 truncate max-w-[200px]">
+              <span className="text-[11px] font-black uppercase tracking-widest text-ui-muted opacity-40 truncate max-w-[200px]">
                 {selectedTemplateName || "等待风格配置"}
               </span>
            </div>
@@ -75,9 +73,9 @@ export function IconWorkbenchFooterBar({
            )}>
              {isGenerating ? (generateProgressHint || "正在分析语义并生成图标方案...") :
               isRemovingBgBatch ? removingBgProgressLabel :
-              isApplying ? "正在将图标配置应用到系统..." :
-              generateBlockedReason === "先选择风格模板" ? "提示：请在右侧选择风格模板以生成预览。" :
-              generateBlockedReason || "预览完成后点击应用。本地接口将修改 Windows 文件夹配置。"}
+              isApplying ? "正在将图标应用至本地文件夹..." :
+              generateBlockedReason === "先选择风格模板" ? "请先在右上角选择风格模板，再开始生成。" :
+              generateBlockedReason || "生成预览满意后点击应用，将自动替换为您电脑上的文件夹图标。"}
            </p>
         </div>
 
@@ -87,14 +85,14 @@ export function IconWorkbenchFooterBar({
               <button
                 onClick={(e) => { e.stopPropagation(); onRemoveBgBatch(); }}
                 disabled={!canRemoveBgBatch || isBusy}
-                className="h-7 rounded px-3 text-[10px] font-black uppercase text-on-surface/60 hover:bg-on-surface/10 disabled:opacity-20 transition-all"
+                className="h-7 rounded px-3 text-[11px] font-black uppercase text-on-surface/60 hover:bg-on-surface/10 disabled:opacity-20 transition-all"
               >
                 批量去背景
               </button>
               <button
                 onClick={(e) => { e.stopPropagation(); onApplyBatch(); }}
                 disabled={!canApplyBatch || isBusy}
-                className="h-7 rounded px-3 text-[10px] font-black uppercase text-on-surface/60 hover:bg-on-surface/10 disabled:opacity-20 transition-all"
+                className="h-7 rounded px-3 text-[11px] font-black uppercase text-on-surface/60 hover:bg-on-surface/10 disabled:opacity-20 transition-all"
               >
                 全部应用
               </button>

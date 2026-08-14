@@ -19,7 +19,7 @@ const updateTargetProfile = vi.fn();
 const deleteTargetProfile = vi.fn();
 let currentSearchParams = new URLSearchParams();
 
-vi.mock("framer-motion", () => ({
+vi.mock("motion/react", () => ({
   AnimatePresence: ({ children }: { children: React.ReactNode }) => <>{children}</>,
   motion: {
     div: ({ children, ...props }: React.ComponentProps<"div">) => <div {...props}>{children}</div>,
@@ -307,7 +307,7 @@ describe("SettingsPage preset flow", () => {
     render(<SettingsPage />);
 
     await waitForSettingsHydrated();
-    await clickSettingsCategory("生图模型配置");
+    await clickSettingsCategory("图标生图配置");
 
     expect(await screen.findByText("双模型依赖")).toBeInTheDocument();
     expect(screen.getByText("文本模型（分析）")).toBeInTheDocument();
@@ -427,7 +427,7 @@ describe("SettingsPage preset flow", () => {
   it("shows launch placement default controls in the launch settings tab", async () => {
     render(<SettingsPage />);
 
-    await clickSettingsCategory("整理策略配置");
+    await clickSettingsCategory("任务默认策略");
     await clickSettingsCategory("放置规则");
 
     expect(await screen.findByText("默认放置规则")).toBeInTheDocument();
@@ -441,7 +441,7 @@ describe("SettingsPage preset flow", () => {
 
     render(<SettingsPage />);
 
-    await clickSettingsCategory("整理策略配置");
+    await clickSettingsCategory("任务默认策略");
     expect(await screen.findByRole("button", { name: /通用整理/ })).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: /项目资料/ }));
@@ -462,44 +462,14 @@ describe("SettingsPage preset flow", () => {
     });
   });
 
-  it("manages explicit target directory profiles in the launch settings tab", async () => {
+  it("shows vision verification result details after running the test via health item click", async () => {
     const user = userEvent.setup();
-    getTargetProfiles.mockResolvedValue([
-      {
-        profile_id: "profile-1",
-        name: "工作资料库",
-        directories: [{ path: "D:/archive/docs", label: "文档", description: "项目文档" }],
-        created_at: "2026-01-01T00:00:00Z",
-        updated_at: "2026-01-01T00:00:00Z",
-      },
-    ]);
-
+    getSettings.mockResolvedValue(createSnapshotWithEditableVisionPreset());
     render(<SettingsPage />);
-
-    await clickSettingsCategory("整理策略配置");
-    await clickSettingsCategory("目标目录");
-
-    expect(await screen.findByText("目标目录配置")).toBeInTheDocument();
-    expect(screen.getByDisplayValue("工作资料库")).toBeInTheDocument();
-    expect(screen.getByText("D:/archive/docs")).toBeInTheDocument();
-
-    await user.type(screen.getByPlaceholderText("目标目录完整路径"), "D:/archive/media");
-    const labelInputs = screen.getAllByPlaceholderText("标签（可选）");
-    await user.type(labelInputs[labelInputs.length - 1], "媒体");
-    await user.click(screen.getByRole("button", { name: "添加目录" }));
-    await user.click(await screen.findByRole("button", { name: "保存当前修改" }));
-
+    await clickSettingsCategory("图片理解");
+    await user.click(await screen.findByRole("button", { name: "测试图片理解能力" }));
     await waitFor(() => {
-      expect(updateTargetProfile).toHaveBeenCalledWith(
-        "profile-1",
-        expect.objectContaining({
-          name: "工作资料库",
-          directories: [
-            { path: "D:/archive/docs", label: "文档", description: "项目文档" },
-            { path: "D:/archive/media", label: "媒体", description: undefined },
-          ],
-        }),
-      );
+      expect(screen.getByText("图片能力已验证")).toBeInTheDocument();
     });
   });
 

@@ -13,6 +13,7 @@
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.15",
     "@tailwindcss/postcss": "^4.2.2",
+    "@tanstack/react-virtual": "^3.14.8",
     "@tauri-apps/api": "^2.10.1",
     "@tauri-apps/plugin-window": "^2.0.0-alpha.1",
     "clsx": "^2.1.1",

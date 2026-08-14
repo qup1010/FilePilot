@@ -193,10 +193,27 @@ class SourceCollectionItem:
 class TargetProfileDirectory:
     path: str
     label: str = ""
+    # 规则主字段：「什么样的文件应该放进这里」，一个目录一条，天然无冲突
     description: str = ""
+    # 可选硬条件（加速层）：命中即确定性分类，不调模型；不是必需层
+    extensions: list[str] = field(default_factory=list)
+    name_patterns: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict:
         return asdict(self)
+
+    @staticmethod
+    def _normalize_str_list(value, *, canonicalize=None) -> list[str]:
+        if not isinstance(value, (list, tuple)):
+            return []
+        items: list[str] = []
+        for entry in value:
+            text = str(entry or "").strip()
+            if canonicalize is not None:
+                text = canonicalize(text)
+            if text and text not in items:
+                items.append(text)
+        return items
 
     @classmethod
     def from_dict(cls, data: dict | "TargetProfileDirectory" | None) -> "TargetProfileDirectory" | None:
@@ -213,6 +230,10 @@ class TargetProfileDirectory:
             path=path,
             label=str(data.get("label") or "").strip(),
             description=str(data.get("description") or "").strip(),
+            extensions=cls._normalize_str_list(
+                data.get("extensions"), canonicalize=lambda text: text.lstrip(".").lower()
+            ),
+            name_patterns=cls._normalize_str_list(data.get("name_patterns")),
         )
 
 
@@ -566,6 +587,8 @@ class OrganizerSession:
     placement: PlacementPayload = field(default_factory=PlacementPayload)
     source_collection: list[SourceCollectionItem] = field(default_factory=list)
     organize_method: str = DEFAULT_ORGANIZE_METHOD
+    # 一键整理：扫描→规划→预检→执行自动推进，不在 ready_* 停站等待前端
+    unattended: bool = False
     output_dir: str = ""
     target_profile_id: str = ""
     selected_target_directories: list[str] = field(default_factory=list)
@@ -751,6 +774,7 @@ class OrganizerSession:
                 if item is not None
             ],
             organize_method=organize_method,
+            unattended=bool(data.get("unattended", False)),
             output_dir=str(data.get("output_dir") or ""),
             target_profile_id=str(data.get("target_profile_id") or ""),
             selected_target_directories=[

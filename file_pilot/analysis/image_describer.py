@@ -5,8 +5,8 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from file_pilot.analysis.vision_runtime import (
-    build_registered_vision_image_url,
     build_data_url_from_path,
+    build_registered_vision_image_url,
     build_vision_request_debug_payload,
     build_vision_request_kwargs,
     coerce_response_message,

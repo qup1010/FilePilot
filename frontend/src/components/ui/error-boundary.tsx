@@ -1,6 +1,6 @@
 "use client";
 
-import React, { Component, ErrorInfo, ReactNode } from "react";
+import { Component, ErrorInfo, ReactNode } from "react";
 import { AlertTriangle } from "lucide-react";
 
 interface Props {
@@ -40,7 +40,7 @@ export class ErrorBoundary extends Component<Props, State> {
           </div>
           <button 
             onClick={() => this.setState({ hasError: false })}
-            className="text-[10px] font-black uppercase tracking-widest text-primary hover:underline"
+            className="text-[11px] font-black uppercase tracking-widest text-primary hover:underline"
           >
             重新加载
           </button>

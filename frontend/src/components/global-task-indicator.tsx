@@ -1,22 +1,20 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence } from "motion/react";
 import { createApiClient } from "@/lib/api";
 import { getApiBaseUrl, getApiToken } from "@/lib/runtime";
 import { cn } from "@/lib/utils";
 import type { SessionSnapshot } from "@/types/session";
 import { getWorkspaceRouteForSnapshot } from "@/lib/workspace-routes";
-
-const ACTIVE_WORKSPACE_ROUTE_KEY = "workspace_active_route";
-
-function getSessionIdFromRoute(route: string | null): string | null {
-  if (!route?.includes("session_id=")) return null;
-  const match = route.match(/session_id=([^&]+)/);
-  return match ? match[1] : null;
-}
+import {
+  clearActiveWorkspaceRoute,
+  getSessionIdFromWorkspaceRoute,
+  readActiveWorkspaceRoute,
+  subscribeAppContext,
+} from "@/lib/app-context-store";
 
 export function GlobalTaskIndicator() {
   const pathname = usePathname();
@@ -29,26 +27,21 @@ export function GlobalTaskIndicator() {
   // 从本地记录中同步当前任务入口。
   useEffect(() => {
     const checkActive = () => {
-      const route = localStorage.getItem(ACTIVE_WORKSPACE_ROUTE_KEY);
-      const sid = getSessionIdFromRoute(route);
+      const route = readActiveWorkspaceRoute();
+      const sid = getSessionIdFromWorkspaceRoute(route);
       setActiveRoute(route);
       setActiveSessionId(sid);
     };
 
     checkActive();
-    window.addEventListener("storage", checkActive);
-    // storage 只会响应其他标签页，这里补充监听应用内上下文刷新。
-    window.addEventListener("file-pilot-context-change", checkActive);
-    
-    return () => {
-      window.removeEventListener("storage", checkActive);
-      window.removeEventListener("file-pilot-context-change", checkActive);
-    };
+    // storage 只会响应其他标签页，subscribeAppContext 会同时监听应用内上下文刷新事件。
+    return subscribeAppContext(checkActive);
   }, []);
 
   // 有当前任务时，定时读取后端快照。
+  // 工作区页面本身已通过 SSE 持有完整快照，此时轮询只是重复开销，直接停掉。
   useEffect(() => {
-    if (!activeSessionId) {
+    if (!activeSessionId || pathname.startsWith("/workspace")) {
       setSnapshot(null);
       setIsVisible(false);
       return;
@@ -64,8 +57,7 @@ export function GlobalTaskIndicator() {
       } catch (err) {
         const status = typeof (err as { status?: unknown })?.status === "number" ? (err as { status: number }).status : null;
         if (status === 404) {
-          localStorage.removeItem(ACTIVE_WORKSPACE_ROUTE_KEY);
-          window.dispatchEvent(new Event("file-pilot-context-change"));
+          clearActiveWorkspaceRoute();
           setActiveRoute(null);
           setActiveSessionId(null);
           setSnapshot(null);
@@ -80,7 +72,7 @@ export function GlobalTaskIndicator() {
     timer = window.setInterval(update, 3000);
 
     return () => window.clearInterval(timer);
-  }, [activeSessionId]);
+  }, [activeSessionId, pathname]);
 
   const taskState = useMemo(() => {
     if (!snapshot) return null;
@@ -171,7 +163,7 @@ export function GlobalTaskIndicator() {
                <span className="truncate text-[12px] font-black tracking-tight text-on-surface leading-none">
                  {taskState.label}
                </span>
-               <span className="mt-1 text-[10px] font-bold uppercase tracking-widest text-primary/60 leading-none">
+               <span className="mt-1 text-[11px] font-bold uppercase tracking-widest text-primary/60 leading-none">
                  后台任务
                </span>
              </div>

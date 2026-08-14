@@ -1,7 +1,7 @@
 ﻿from __future__ import annotations
 
-from pathlib import Path
 import zipfile
+from pathlib import Path
 
 DEFAULT_ARCHIVE_ENTRY_LIMIT = 20
 

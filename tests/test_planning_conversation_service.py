@@ -218,9 +218,10 @@ class PlanningConversationServiceTests(unittest.TestCase):
             "summary": "move reports",
         }
         self.store.save(session)
-        failed_precheck = self.service.execution_app.run_precheck(session.session_id)
-        self.assertEqual(failed_precheck.session_snapshot["stage"], "planning")
-        self.assertFalse(failed_precheck.session_snapshot["precheck_summary"]["can_execute"])
+        first_precheck = self.service.execution_app.run_precheck(session.session_id)
+        # 重名只跳过后来者，不再阻断整批；建议依然可以从 ready_to_execute 应用
+        self.assertEqual(first_precheck.session_snapshot["stage"], "ready_to_execute")
+        self.assertTrue(first_precheck.session_snapshot["precheck_summary"]["can_execute"])
 
         result = self.service.planning_conversation.apply_target_conflict_suggestions(session.session_id)
 

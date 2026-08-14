@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import ReactMarkdown from "react-markdown";
+import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Check, Copy, ExternalLink } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -21,17 +21,17 @@ export function CodeBlock({ children, className }: { children: React.ReactNode; 
       <div className="flex items-center justify-between border-b border-on-surface/8 bg-on-surface/[0.02] px-3 py-1">
         <div className="flex items-center gap-2">
            <div className="h-1.2 w-1.2 rounded-full bg-primary/40" />
-           <span className="text-[9px] font-black uppercase tracking-[0.15em] text-ui-muted opacity-60">Source</span>
+           <span className="text-[11px] font-black uppercase tracking-[0.15em] text-ui-muted opacity-60">Source</span>
         </div>
         <button
           onClick={handleCopy}
-          className="flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-black text-on-surface/40 transition-all hover:bg-on-surface/5 hover:text-primary active:scale-95"
+          className="flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-black text-on-surface/40 transition-all hover:bg-on-surface/5 hover:text-primary active:scale-95"
         >
           {copied ? <Check className="h-3 w-3 text-success-dim" /> : <Copy className="h-3 w-3" />}
           <span className="uppercase tracking-wider">{copied ? "Done" : "Copy"}</span>
         </button>
       </div>
-      <pre className={cn("overflow-x-auto scrollbar-none p-3 font-mono text-[11.5px] leading-relaxed text-on-surface/80", className)}>
+      <pre className={cn("overflow-x-auto scrollbar-none p-3 font-mono text-[12px] leading-relaxed text-on-surface/80", className)}>
         {children}
       </pre>
     </div>
@@ -44,26 +44,25 @@ function CompactCodeBlock({ children }: { children: React.ReactNode }) {
 
   if (singleLine && code.length <= 80) {
     return (
-      <code className="mx-1 rounded-[5px] border border-primary/12 bg-primary/[0.05] px-1.5 py-0.5 font-mono text-[12px] font-bold text-primary">
+      <code className="mx-1 rounded-[6px] border border-primary/12 bg-primary/[0.05] px-1.5 py-0.5 font-mono text-[12px] font-bold text-primary">
         {code}
       </code>
     );
   }
 
   return (
-    <pre className="my-2 max-h-28 overflow-auto rounded-[7px] border border-on-surface/8 bg-surface-container-lowest px-3 py-2 font-mono text-[11px] leading-5 text-on-surface/75 scrollbar-thin">
+    <pre className="my-2 max-h-28 overflow-auto rounded-[8px] border border-on-surface/8 bg-surface-container-lowest px-3 py-2 font-mono text-[11px] leading-5 text-on-surface/75 scrollbar-thin">
       {code}
     </pre>
   );
 }
 
-export function MarkdownProse({ content, density = "default" }: { content: string; density?: MarkdownDensity }) {
-  const compact = density === "compact";
+const REMARK_PLUGINS = [remarkGfm];
 
-  return (
-    <ReactMarkdown
-      remarkPlugins={[remarkGfm]}
-      components={{
+// memo + useMemo：流式输出时对话列表整体重渲染，未变化的历史消息不应重新解析 markdown。
+export const MarkdownProse = React.memo(function MarkdownProse({ content, density = "default" }: { content: string; density?: MarkdownDensity }) {
+  const compact = density === "compact";
+  const components = React.useMemo<Components>(() => ({
         p: ({ node, ...props }) => <div className={cn("mb-1 last:mb-0 text-[13px] text-on-surface/85", compact ? "leading-5" : "leading-6")} {...props} />,
         strong: ({ node, ...props }) => <strong className="font-black text-on-surface tracking-tight" {...props} />,
         em: ({ node, ...props }) => <em className="italic text-on-surface/60 font-medium" {...props} />,
@@ -90,14 +89,14 @@ export function MarkdownProse({ content, density = "default" }: { content: strin
             </div>
           </div>
         ),
-        thead: ({ node, ...props }) => <thead className="bg-on-surface/[0.03] text-[10.5px] font-black uppercase tracking-widest text-ui-muted/70" {...props} />,
+        thead: ({ node, ...props }) => <thead className="bg-on-surface/[0.03] text-[11px] font-black uppercase tracking-widest text-ui-muted/70" {...props} />,
         th: ({ node, ...props }) => <th className="px-3 py-2 border-b border-on-surface/5" {...props} />,
         td: ({ node, ...props }) => <td className="px-3 py-2 border-b border-on-surface/[0.02] leading-relaxed font-medium text-on-surface/70" {...props} />,
         hr: ({ node, ...props }) => <hr className="my-4 border-t border-on-surface/8" {...props} />,
         h1: ({ node, ...props }) => <h1 className="mb-2 mt-3 text-[18px] font-black tracking-tight text-on-surface" {...props} />,
         h2: ({ node, ...props }) => <h2 className="mb-1.5 mt-2.5 text-[15px] font-black tracking-tight text-on-surface border-b border-on-surface/8 pb-1 flex items-center gap-2" {...props} />,
         h3: ({ node, ...props }) => (
-          <h3 className="mb-1 mt-2 flex items-center gap-2 text-[13.5px] font-black tracking-tight text-on-surface/80" {...props} />
+          <h3 className="mb-1 mt-2 flex items-center gap-2 text-[13px] font-black tracking-tight text-on-surface/80" {...props} />
         ),
         blockquote: ({ node, ...props }) => (
           <blockquote className="my-3 rounded-md border-l-4 border-primary/30 bg-primary/[0.01] px-4 py-2 text-[13px] font-medium italic text-on-surface/70 leading-6" {...props} />
@@ -124,9 +123,11 @@ export function MarkdownProse({ content, density = "default" }: { content: strin
           }
           return <input {...props} />;
         },
-      }}
-    >
+  }), [compact]);
+
+  return (
+    <ReactMarkdown remarkPlugins={REMARK_PLUGINS} components={components}>
       {content}
     </ReactMarkdown>
   );
-}
+});

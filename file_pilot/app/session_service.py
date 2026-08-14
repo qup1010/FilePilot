@@ -3,18 +3,40 @@ from __future__ import annotations
 import copy
 import json
 import logging
+import os
 import threading
 import uuid
-from dataclasses import asdict, replace
+from dataclasses import replace
 from datetime import datetime, timezone
-from queue import Queue
 from pathlib import Path
+from queue import Queue
 
 from file_pilot.analysis import service as analysis_service
+from file_pilot.app import source_payloads
 from file_pilot.app.async_scanner import AsyncScanner
-from file_pilot.app.id_registry import IdRegistry
 from file_pilot.app.execution_app_service import ExecutionAppService
 from file_pilot.app.history_app_service import HistoryAppService
+from file_pilot.app.id_registry import IdRegistry
+from file_pilot.app.models import (
+    AIPendingBaseline,
+    ConversationState,
+    CreateSessionResult,
+    ExecutionState,
+    OrganizerSession,
+    PendingPlanPayload,
+    PlacementPayload,
+    PlanMappingPayload,
+    PlanSnapshotItem,
+    PlanSnapshotPayload,
+    PlanTargetSlotPayload,
+    SessionMutationResult,
+    SourceCollectionItem,
+    TargetProfileDirectory,
+    TaskState,
+    utc_now_iso,
+)
+from file_pilot.app.planning_conversation_service import PlanningConversationService
+from file_pilot.app.scan_workflow_service import ScanWorkflowService
 from file_pilot.app.session_constants import (
     REVIEW_SLOT_ID,
     SESSION_STAGE_CONFLICT,
@@ -35,61 +57,36 @@ from file_pilot.app.session_constants import (
     TASK_PHASE_PLANNING,
     TASK_PHASE_REVIEWING,
     TASK_PHASE_SETUP,
+    ensure_stage,
     is_locked_stage,
     is_planning_mutable_stage,
     is_recovery_stage,
     is_stage,
     is_terminal_stage,
 )
-from file_pilot.app.models import (
-    AIPendingBaseline,
-    ConversationState,
-    CreateSessionResult,
-    ExecutionState,
-    OrganizerSession,
-    PendingPlanPayload,
-    PlacementPayload,
-    PlanGroupPayload,
-    PlanMappingPayload,
-    PlanSnapshotItem,
-    PlanSnapshotPayload,
-    PlanTargetSlotPayload,
-    SessionMutationResult,
-    SourceCollectionItem,
-    TaskState,
-    TargetProfile,
-    TargetProfileDirectory,
-    utc_now_iso,
-)
-from file_pilot.app.planning_conversation_service import PlanningConversationService
 from file_pilot.app.session_lifecycle_service import SessionLifecycleService
 from file_pilot.app.session_orchestrator import SessionOrchestrator
-from file_pilot.app.scan_workflow_service import ScanWorkflowService
+from file_pilot.app.session_store import SessionStore
 from file_pilot.app.snapshot_builder import SnapshotBuilder
 from file_pilot.app.source_manager import SourceManager
-from file_pilot.app.session_store import SessionStore
-from file_pilot.app.target_profile_store import TargetProfileStore
 from file_pilot.app.target_manager import TargetManager
+from file_pilot.app.target_profile_store import TargetProfileStore
 from file_pilot.app.target_resolver import TargetResolver
 from file_pilot.app.target_slot_registry import TargetSlotRegistry
 from file_pilot.app.task_planner_adapter import TaskPlannerAdapter
 from file_pilot.domain.models import MappingEntry, OrganizeTask, SourceRef, TargetSlot
-from file_pilot.execution import service as execution_service
 from file_pilot.organize import service as organize_service
 from file_pilot.organize.models import FinalPlan, PendingPlan, PlanMove
 from file_pilot.organize.strategy_templates import (
     build_strategy_prompt_fragment,
-    organize_method_for_organize_mode,
-    organize_mode_for_organize_method,
     normalize_strategy_selection,
-    task_type_for_organize_mode,
+    organize_method_for_organize_mode,
     task_type_for_organize_method,
 )
 from file_pilot.rollback import service as rollback_service
 from file_pilot.shared.config import get_text_stream_max_seconds
 from file_pilot.shared.logging_utils import append_debug_event
 from file_pilot.shared.path_utils import canonical_target_dir
-
 
 logger = logging.getLogger(__name__)
 CURRENT_PLANNING_SCHEMA_VERSION = 5
@@ -109,6 +106,10 @@ class OrganizerSessionService:
         self._active_scan_lock = threading.RLock()
         self._active_locked_sessions: dict[str, str] = {}
         self._active_locked_lock = threading.RLock()
+        # 一键自动推进（扫描线程）与前端请求可能并发触发 execute：
+        # per-session 互斥保证同一会话同一时刻只有一个执行者
+        self._execution_guards: dict[str, threading.Lock] = {}
+        self._execution_guards_lock = threading.Lock()
         self.source_manager = SourceManager(self)
         self.target_resolver = TargetResolver(self)
         self.target_manager = TargetManager(self)
@@ -154,17 +155,10 @@ class OrganizerSessionService:
             return False
         return stage is None or active_stage == str(stage).strip()
 
-    @staticmethod
-    def _planner_id_number(planner_id: str) -> int:
-        text = str(planner_id or "").strip()
-        if len(text) >= 2 and text[0].upper() == "F" and text[1:].isdigit():
-            return int(text[1:])
-        return 0
+    # 与 source_payloads 中的实现保持单一来源，这里仅作方法别名
+    _planner_id_number = staticmethod(source_payloads.planner_id_number)
 
-    @staticmethod
-    def _entry_extension(entry_path: str) -> str:
-        suffix = Path(entry_path or "").suffix.lower().lstrip(".")
-        return suffix or "item"
+    _entry_extension = staticmethod(source_payloads.entry_extension)
 
     @staticmethod
     def _detect_entry_type(target_dir: Path, entry_name: str) -> str:
@@ -222,9 +216,7 @@ class OrganizerSessionService:
             return ""
         return normalized.rsplit("/", 1)[0]
 
-    @staticmethod
-    def _normalize_relpath(value: str | None) -> str:
-        return str(value or "").replace("\\", "/").strip().strip("/")
+    _normalize_relpath = staticmethod(source_payloads.normalize_relpath)
 
     @staticmethod
     def _normalize_organize_mode(value: str | None) -> str:
@@ -353,6 +345,9 @@ class OrganizerSessionService:
                     path=path,
                     label=str(matched.label or "").strip() if matched else "",
                     description=str(matched.description or "").strip() if matched else "",
+                    # 硬条件透传：丢了它们，journal 的规则快照就不完整
+                    extensions=list(matched.extensions) if matched else [],
+                    name_patterns=list(matched.name_patterns) if matched else [],
                 )
             )
         return resolved
@@ -1166,7 +1161,7 @@ class OrganizerSessionService:
         total_moves = len(plan.moves or [])
         unresolved_count = len(plan.unresolved_items or [])
         classified_count = max(0, total_moves - unresolved_count)
-        return f"已分类 {classified_count} 项，调整 {total_moves} 项，仍剩 {unresolved_count} 项待定"
+        return f"已分类 {classified_count} 项，待移动 {total_moves} 项，待确认 {unresolved_count} 项"
 
     def _sync_pending_summary(
         self,
@@ -1229,8 +1224,14 @@ class OrganizerSessionService:
             return PendingPlanPayload.from_dict(self._pending_plan_to_dict(plan)) or PendingPlanPayload()
         return PendingPlanPayload.from_dict(plan or {}) or PendingPlanPayload()
 
+    def _execution_guard(self, session_id: str) -> threading.Lock:
+        with self._execution_guards_lock:
+            return self._execution_guards.setdefault(str(session_id), threading.Lock())
+
     def _task_planner_adapter(self, session: OrganizerSession) -> TaskPlannerAdapter:
-        return TaskPlannerAdapter(session.target_dir)
+        # 归档模式（增量）：AI 只能把条目分到用户显式配置的目录池内
+        strict_targets = self._normalize_organize_mode(session.organize_mode) == "incremental"
+        return TaskPlannerAdapter(session.target_dir, strict_targets=strict_targets)
 
     @staticmethod
     def _task_state_payload(task_state: TaskState | dict | None) -> TaskState:
@@ -1790,6 +1791,7 @@ class OrganizerSessionService:
         target_directory_details: list[dict] | list[TargetProfileDirectory] | None = None,
         new_directory_root: str = "",
         review_root: str = "",
+        unattended: bool = False,
     ) -> CreateSessionResult:
         normalized_sources = sources
         normalized_method = organize_method
@@ -1822,6 +1824,7 @@ class OrganizerSessionService:
             target_profile_id=target_profile_id,
             target_directories=target_directories,
             target_directory_details=target_directory_details,
+            unattended=unattended,
             new_directory_root=new_directory_root,
             review_root=review_root,
         )
@@ -1843,6 +1846,171 @@ class OrganizerSessionService:
 
     def delete_target_profile(self, profile_id: str) -> bool:
         return self.target_profiles.delete(profile_id)
+
+    def generate_rules_from_completed_session(self, session_id: str, *, client=None, model: str | None = None) -> dict:
+        """大扫除完成后反推规则初稿：整理产物本身就是用户分类意图的最好证据。
+
+        读取 journal 中实际移动的目标目录（此刻已装着归好类的文件），
+        生成每目录规则初稿。用户校订后可存为 target profile，
+        从此这个目录结构就能一键整理。
+        """
+        from file_pilot.execution import service as execution_service
+        from file_pilot.organize import rule_advisor
+
+        session = self._load_or_raise(session_id)
+        ensure_stage(session.stage, STAGE_COMPLETED)
+
+        journal_id = session.last_journal_id or self._latest_execution_id(Path(session.target_dir))
+        journal = execution_service.load_execution_journal(journal_id) if journal_id else None
+        if journal is None:
+            raise FileNotFoundError("execution_journal_not_found")
+
+        target_dirs: list[Path] = []
+        seen: set[str] = set()
+        for item in journal.items:
+            if item.action_type != "MOVE" or item.status != "success" or not item.target_after:
+                continue
+            parent = Path(item.target_after).parent
+            key = os.path.normcase(str(parent))
+            if key not in seen:
+                seen.add(key)
+                target_dirs.append(parent)
+
+        profiles = [rule_advisor.collect_directory_content_profile(directory) for directory in target_dirs]
+        drafts = rule_advisor.generate_rule_drafts(profiles, client=client, model=model)
+        drafts_by_path = {draft.path: draft for draft in drafts}
+        return {
+            "session_id": session.session_id,
+            "journal_id": journal.execution_id,
+            "suggested_profile_name": f"{Path(session.target_dir).name} 的目录规则",
+            "items": [
+                {
+                    "path": content_profile.path,
+                    "draft_description": (
+                        drafts_by_path[content_profile.path].draft_description
+                        if content_profile.path in drafts_by_path
+                        else None
+                    ),
+                    "basis": (
+                        drafts_by_path[content_profile.path].basis if content_profile.path in drafts_by_path else None
+                    ),
+                    "total_entries": content_profile.total_entries,
+                    "readable": content_profile.readable,
+                }
+                for content_profile in profiles
+            ],
+        }
+
+    def generate_target_profile_rule_drafts(
+        self,
+        profile_id: str,
+        *,
+        paths: list[str] | None = None,
+        client=None,
+        model: str | None = None,
+    ) -> dict:
+        """为 profile 目录生成规则描述初稿（只返回，不落库；采纳由用户校订决定）。
+
+        paths 非空时只分析指定目录（单目录 AI），并将同一 profile 中其他已有规则的
+        目录作为上下文注入，帮助模型识别边界与潜在冲突。
+        """
+        from file_pilot.organize import rule_advisor
+
+        profile = self.target_profiles.get(profile_id)
+        if profile is None:
+            raise FileNotFoundError(profile_id)
+
+        all_directories = list(profile.directories)
+
+        if paths:
+            wanted = {os.path.normcase(str(Path(item))) for item in paths if str(item or "").strip()}
+            directories = [
+                directory
+                for directory in all_directories
+                if os.path.normcase(str(Path(directory.path))) in wanted
+            ]
+            if not directories:
+                raise ValueError("RULE_DRAFTS_PATHS_NOT_IN_PROFILE")
+
+            # 所有非目标目录全部加入 context（无论 description 是否为空），
+            # 同时标注与目标目录的父子包含关系，帮助模型区分边界。
+            target_paths = {os.path.normcase(str(Path(d.path))) for d in directories}
+            target_resolved = [Path(d.path).resolve() for d in directories]
+            context_entries = []
+            for directory in all_directories:
+                if os.path.normcase(str(Path(directory.path))) in target_paths:
+                    continue
+                dir_resolved = Path(directory.path).resolve()
+                relation = ""
+                for tr in target_resolved:
+                    try:
+                        if tr.is_relative_to(dir_resolved):
+                            relation = "[父目录]"
+                            break
+                        if dir_resolved.is_relative_to(tr):
+                            relation = "[子目录]"
+                            break
+                    except (ValueError, AttributeError):
+                        pass
+                context_entries.append(
+                    rule_advisor.ContextEntry(
+                        path=directory.path,
+                        label=directory.label or "",
+                        description=str(directory.description or "").strip(),
+                        relation=relation,
+                    )
+                )
+        else:
+            directories = all_directories
+            # 全量分析时不注入上下文（批次内模型已能看到所有目录）
+            context_entries = []
+
+        content_profiles = [
+            rule_advisor.collect_directory_content_profile(
+                Path(directory.path),
+                label=directory.label,
+                current_description=directory.description,
+            )
+            for directory in directories
+        ]
+        drafts = rule_advisor.generate_rule_drafts(
+            content_profiles,
+            client=client,
+            model=model,
+            context_entries=context_entries if context_entries else None,
+        )
+        drafts_by_path = {draft.path: draft for draft in drafts}
+        return {
+            "profile_id": profile.profile_id,
+            "items": [
+                {
+                    "path": content_profile.path,
+                    "label": content_profile.label,
+                    "current_description": content_profile.current_description,
+                    "draft_description": (
+                        drafts_by_path[content_profile.path].draft_description
+                        if content_profile.path in drafts_by_path
+                        else None
+                    ),
+                    "basis": (
+                        drafts_by_path[content_profile.path].basis if content_profile.path in drafts_by_path else None
+                    ),
+                    "overlap_paths": (
+                        drafts_by_path[content_profile.path].overlap_paths
+                        if content_profile.path in drafts_by_path
+                        else []
+                    ),
+                    "overlap_note": (
+                        drafts_by_path[content_profile.path].overlap_note
+                        if content_profile.path in drafts_by_path
+                        else ""
+                    ),
+                    "total_entries": content_profile.total_entries,
+                    "readable": content_profile.readable,
+                }
+                for content_profile in content_profiles
+            ],
+        }
 
     def abandon_session(self, session_id: str) -> dict:
         return self.lifecycle.abandon_session(session_id)
@@ -1944,21 +2112,6 @@ class OrganizerSessionService:
         )
         self._ensure_message_ids(session.messages)
 
-    def _run_planner_cycle_for_session(
-        self,
-        session: OrganizerSession,
-        *,
-        source: str,
-        pending_plan: PendingPlan | None = None,
-        preserving_previous_plan: bool | None = None,
-    ) -> None:
-        self.orchestrator.run_planner_cycle_for_session(
-            session,
-            source=source,
-            pending_plan=pending_plan,
-            preserving_previous_plan=preserving_previous_plan,
-        )
-
     def _normalized_target_directory(
         self,
         session: OrganizerSession,
@@ -1975,75 +2128,6 @@ class OrganizerSessionService:
             target_slot=target_slot,
             move_to_review=move_to_review,
         ).normalized_dir
-
-    @staticmethod
-    def _target_relpath_for_source(source_relpath: str, destination_dir: str) -> str:
-        normalized_source = str(source_relpath or "").replace("\\", "/").strip()
-        filename = Path(normalized_source).name
-        normalized_dir = str(destination_dir or "").replace("\\", "/").strip().strip("/")
-        return f"{normalized_dir}/{filename}" if normalized_dir else filename
-
-    def _ensure_pending_move_for_source(
-        self,
-        pending: PendingPlan,
-        source_relpath: str,
-        *,
-        default_target_dir: str = REVIEW_SLOT_ID,
-    ) -> PlanMove:
-        normalized_source = self._normalize_relpath(source_relpath)
-        for move in pending.moves:
-            if self._normalize_relpath(move.source) == normalized_source:
-                return move
-        move = PlanMove(
-            source=normalized_source,
-            target=self._target_relpath_for_source(normalized_source, default_target_dir),
-            raw="",
-        )
-        pending.moves.append(move)
-        return move
-
-    def _apply_pending_item_destination(
-        self,
-        session: OrganizerSession,
-        pending: PendingPlan,
-        source_relpath: str,
-        *,
-        target_dir: str | None = None,
-        target_slot: str | None = None,
-        move_to_review: bool = False,
-        create_if_missing: bool = False,
-        clear_unresolved: bool = True,
-    ) -> dict:
-        normalized_source = self._normalize_relpath(source_relpath)
-        move: PlanMove | None = None
-        for candidate in pending.moves:
-            if self._normalize_relpath(candidate.source) == normalized_source:
-                move = candidate
-                break
-        if move is None and create_if_missing:
-            move = self._ensure_pending_move_for_source(pending, normalized_source)
-        if move is None:
-            raise RuntimeError("ITEM_NOT_FOUND")
-
-        destination_dir = self._normalized_target_directory(
-            session,
-            pending,
-            target_dir=target_dir,
-            target_slot=target_slot,
-            move_to_review=move_to_review,
-        )
-        move.target = self._target_relpath_for_source(normalized_source, destination_dir)
-        if clear_unresolved:
-            pending.unresolved_items = [
-                value for value in pending.unresolved_items if self._normalize_relpath(value) != normalized_source
-            ]
-        pending.directories = self._directories_from_moves(pending.moves)
-        return {
-            "source_relpath": normalized_source,
-            "target_dir": destination_dir,
-            "target_relpath": move.target,
-        }
-
 
     def submit_user_intent(self, session_id: str, content: str) -> SessionMutationResult:
         return self.planning_conversation.submit_user_intent(session_id, content)
@@ -2090,6 +2174,9 @@ class OrganizerSessionService:
 
     def delete_history_entry(self, entry_id: str) -> dict:
         return self.history_app.delete_history_entry(entry_id)
+
+    def search_file_history(self, query: str, limit: int = 50) -> dict:
+        return self.history_app.search_file_history(query, limit=limit)
 
     def get_journal_summary(self, session_id: str) -> dict:
         return self.history_app.get_journal_summary(session_id)
@@ -2698,6 +2785,7 @@ class OrganizerSessionService:
             self._record_event("scan.completed", session)
 
             self.orchestrator.maybe_run_auto_plan_after_scan(session)
+            self.orchestrator.maybe_auto_advance_unattended(session)
         finally:
             self._mark_scan_inactive(session_id)
 
@@ -2826,6 +2914,11 @@ class OrganizerSessionService:
                 payload={"entry_count": len(all_entries), "mode": "sync"},
             )
             self._record_event("scan.completed", session)
+            if session.unattended:
+                # 一键会话在同步扫描路径同样自动接规划与执行；
+                # 有人值守的同步扫描保持原行为（规划由调用方驱动）
+                self.orchestrator.maybe_run_auto_plan_after_scan(session)
+                self.orchestrator.maybe_auto_advance_unattended(session)
             return result
         finally:
             self._mark_scan_inactive(session.session_id)
@@ -3243,6 +3336,8 @@ class OrganizerSessionService:
         return FinalPlan(
             directories=pending.directories,
             moves=pending.moves,
+            # unresolved 信号必须活到执行期：归档模式靠它把「拿不准的」留在原地
+            unresolved_items=list(pending.unresolved_items or []),
         )
 
     def _target_slot_payloads_from_task(self, session: OrganizerSession, task: OrganizeTask) -> list[PlanTargetSlotPayload]:

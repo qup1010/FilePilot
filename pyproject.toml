@@ -1,0 +1,49 @@
+# 仅承载工具配置。本项目后端不是 pip 安装的发行包：
+# 开发/桌面模式靠 `python -m file_pilot.api`（cwd = 项目根）解析导入，
+# 生产模式由 PyInstaller 冻结（见 scripts/build_bundled_backend.ps1）。
+# 因此这里刻意不写 [build-system] / [project]，避免误导成可安装包。
+
+[tool.ruff]
+target-version = "py311"
+line-length = 120
+extend-exclude = [".venv", "dist", "output", "frontend", "desktop", "logs"]
+
+[tool.ruff.lint]
+# 从可落地的基线起步：Pyflakes 全量 + pycodestyle 错误 + import 排序 + bugbear。
+# 存量代码消化完后再逐步收紧（UP、SIM 等）。
+select = ["E", "F", "I", "B"]
+ignore = [
+    "E501", # 行宽由 line-length 统一约束，存量长行较多，暂不阻断
+    "B904", # TODO: 存量 59 处 raise-without-from，分批补 `from exc` 后移除本行
+]
+
+[tool.ruff.lint.per-file-ignores]
+# 测试里存在为断言可读性而写的长布置代码
+"tests/*" = ["E501"]
+# 包级 re-export 入口
+"**/__init__.py" = ["F401"]
+# 常量与配置的集中转出口，供其他模块统一导入
+"file_pilot/app/session_constants.py" = ["F401"]
+"file_pilot/shared/config.py" = ["F401", "E402"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+# 与 `python -m unittest discover` 等价的导入语义：把项目根放进 sys.path，
+# 保证 `import file_pilot` 在裸 pytest 下也能解析。
+pythonpath = ["."]
+addopts = "-q"
+
+[tool.coverage.run]
+source = ["file_pilot"]
+omit = [
+    "file_pilot/debug/*",
+    "file_pilot/*/__main__.py",
+    "file_pilot/__main__.py",
+]
+
+[tool.coverage.report]
+precision = 1
+show_missing = false
+# 引入门槛时实测 80.6%，按 80% 最低要求设卡；只允许向上棘轮
+fail_under = 80

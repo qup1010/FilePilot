@@ -11,8 +11,11 @@ from file_pilot.organize.models import PendingPlan, PlanMove
 
 
 class TaskPlannerAdapter:
-    def __init__(self, base_dir: str):
+    def __init__(self, base_dir: str, *, strict_targets: bool = False):
         self.base_dir = Path(base_dir).resolve()
+        # 严格模式（归档/一键）：AI 输出的池外目标拒收降级为 unresolved；
+        # 用户手动指定（assign_mapping）不受限——用户显式选择即目录池的定义
+        self.strict_targets = strict_targets
 
     @staticmethod
     def _target_slot_number(slot_id: str) -> int:
@@ -46,8 +49,8 @@ class TaskPlannerAdapter:
     def _target_dir_for_slot(self, task: OrganizeTask, slot_id: str) -> str:
         return TargetSlotRegistry(self.base_dir, task.targets).directory_for_slot(slot_id)
 
-    def _ensure_target_slot(self, task: OrganizeTask, target_dir: str) -> str:
-        return TargetSlotRegistry(self.base_dir, task.targets).ensure_slot(target_dir)
+    def _ensure_target_slot(self, task: OrganizeTask, target_dir: str, *, strict: bool = False) -> str:
+        return TargetSlotRegistry(self.base_dir, task.targets).ensure_slot(target_dir, strict=strict)
 
     def to_pending_plan(self, task: OrganizeTask) -> PendingPlan:
         sources_by_id = {source.ref_id: source for source in task.sources}
@@ -99,7 +102,11 @@ class TaskPlannerAdapter:
                 continue
             target_dir = self._target_dir_for_move(move.target)
             if source_relpath in unresolved_set:
-                target_slot_id = self._ensure_target_slot(updated_task, target_dir) if target_dir and target_dir != REVIEW_SLOT_ID else REVIEW_SLOT_ID
+                target_slot_id = (
+                    self._ensure_target_slot(updated_task, target_dir, strict=self.strict_targets)
+                    if target_dir and target_dir != REVIEW_SLOT_ID
+                    else REVIEW_SLOT_ID
+                ) or REVIEW_SLOT_ID
                 status = "unresolved"
             elif target_dir == REVIEW_SLOT_ID:
                 target_slot_id = REVIEW_SLOT_ID
@@ -108,8 +115,13 @@ class TaskPlannerAdapter:
                 target_slot_id = ""
                 status = "skipped"
             else:
-                target_slot_id = self._ensure_target_slot(updated_task, target_dir)
-                status = "assigned"
+                target_slot_id = self._ensure_target_slot(updated_task, target_dir, strict=self.strict_targets)
+                if not target_slot_id:
+                    # 严格模式拒收池外目标：降级为 unresolved（留原地/待确认），而不是移去幻觉目录
+                    target_slot_id = REVIEW_SLOT_ID
+                    status = "unresolved"
+                else:
+                    status = "assigned"
             existing = existing_by_source_id.get(source.ref_id)
             mappings.append(
                 MappingEntry(

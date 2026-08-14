@@ -2,8 +2,17 @@
 
 import React, { useMemo, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { AlertCircle, AlertTriangle, ArrowRight, CheckCircle2, FolderPlus, FolderTree, Layers, ListChecks, Loader2, LogOut, PanelLeftClose, PanelLeftOpen, RefreshCw, ShieldAlert } from "lucide-react";
+import { AlertCircle, AlertTriangle, ArrowRight, CheckCircle2, Layers, ListChecks, Loader2, LogOut, PanelLeftClose, PanelLeftOpen, RefreshCw, ShieldAlert } from "lucide-react";
 import { getSessionStageView } from "@/lib/session-view-model";
+import { getPathBasename } from "@/lib/path-normalization";
+import {
+  WORKSPACE_CONTEXT_KEY,
+  clearActiveWorkspaceRoute,
+  clearActiveWorkspaceRouteForSession,
+  notifyAppContextChange,
+  readActiveWorkspaceRoute,
+  rememberActiveWorkspaceRoute,
+} from "@/lib/app-context-store";
 import { cn } from "@/lib/utils";
 import { canRunPrecheck as deriveCanRunPrecheck } from "@/lib/workspace-precheck";
 
@@ -20,6 +29,7 @@ import { notifyWorkspaceWhenAway, requestWorkspaceNotificationPermission } from 
 import { getWorkspaceRouteForSnapshot, getWorkspaceViewForSnapshot, hasStablePlan, type WorkspaceView } from "@/lib/workspace-routes";
 import { MinimalScanningView } from "./workspace/minimal-scanning-view";
 import type { WorkspaceProgressPhase } from "@/lib/scanner-progress-view";
+import { ExecutionProgressView } from "./workspace/execution-progress-view";
 import { PrecheckView } from "./workspace/precheck-view";
 import { CompletionView } from "./workspace/completion-view";
 import { ConversationPanel, type ConversationNotice } from "./workspace/conversation-panel";
@@ -45,47 +55,12 @@ interface WorkspacePrimaryNotice extends ConversationNotice {
   steps: WorkspacePipelineStep[];
 }
 
-function getSessionIdFromWorkspaceRoute(route: string | null): string | null {
-  if (!route?.startsWith("/workspace")) {
-    return null;
-  }
-  const query = route.split("?")[1] || "";
-  return new URLSearchParams(query).get("session_id");
-}
-
 function summarizeItemNames(names: string[], limit = 3): string {
   const visible = names.filter(Boolean).slice(0, limit);
   if (!visible.length) {
     return "";
   }
   return visible.join("、") + (names.length > limit ? ` 等 ${names.length} 项` : "");
-}
-
-function displayNameFromPath(path: string): string {
-  const normalized = String(path || "").replace(/[\\/]+$/, "");
-  return normalized.split(/[\\/]/).pop() || "未知条目";
-}
-
-function formatDirName(path: string | null | undefined): string {
-  const trimmed = String(path || "").trim();
-  if (!trimmed) {
-    return "当前任务";
-  }
-  try {
-    const decoded = decodeURIComponent(trimmed);
-    if (/^[a-zA-Z]:[\\/]?$/.test(decoded)) {
-      const letter = decoded[0].toUpperCase();
-      return `${letter}:\\`;
-    }
-    if (decoded === "/" || decoded === "\\") {
-      return "/";
-    }
-    const normalized = decoded.replace(/[\\/]$/, "");
-    return normalized.split(/[\\/]/).pop() || "当前任务";
-  } catch {
-    const normalized = trimmed.replace(/[\\/]$/, "");
-    return normalized.split(/[\\/]/).pop() || "当前任务";
-  }
 }
 
 function deriveWorkspacePipeline(stageView: ReturnType<typeof getSessionStageView>, progressPhase: WorkspaceProgressPhase): WorkspacePipelineStep[] {
@@ -139,9 +114,6 @@ function deriveWorkspacePipeline(stageView: ReturnType<typeof getSessionStageVie
 }
 
 export default function WorkspaceClient({ view = "progress" }: { view?: WorkspaceView }) {
-  const APP_CONTEXT_EVENT = "file-pilot-context-change";
-  const WORKSPACE_CONTEXT_KEY = "workspace_header_context";
-  const ACTIVE_WORKSPACE_ROUTE_KEY = "workspace_active_route";
   const searchParams = useSearchParams();
   const router = useRouter();
   const sessionIdParam = searchParams.get("session_id");
@@ -154,6 +126,7 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
     stage,
     journal,
     journalLoading,
+    journalError,
     loading,
     chatMessages,
     assistantDraft,
@@ -183,16 +156,18 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
     restoreAiSuggestion,
   } = useSession(sessionIdParam);
 
-  const [globalConfig, setGlobalConfig] = useState<any>(null);
-  const [configLoading, setConfigLoading] = useState(true);
+  const [globalConfig, setGlobalConfig] = useState<{ text_configured?: boolean } | null>(null);
 
   React.useEffect(() => {
     const api = createApiClient(getApiBaseUrl(), getApiToken());
-    api.getSettings().then(data => {
-      setGlobalConfig(data.status);
-    }).finally(() => {
-      setConfigLoading(false);
-    });
+    api.getSettings()
+      .then((data) => {
+        setGlobalConfig(data.status);
+      })
+      .catch(() => {
+        // 后端不可用时无法判断模型是否已配置，保持默认视为已配置，避免误导性提示。
+        setGlobalConfig(null);
+      });
   }, []);
 
   const isTextModelConfigured = useMemo(() => {
@@ -209,15 +184,13 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
   const [rollbackPrecheck, setRollbackPrecheck] = useState<RollbackPrecheckSummary | null>(null);
   const [scanAbortConfirmOpen, setScanAbortConfirmOpen] = useState(false);
   const [scanAborting, setScanAborting] = useState(false);
-  const [showExitMenu, setShowExitMenu] = useState(false);
-  const [dividerLeft, setDividerLeft] = useState<number | null>(null);
+  const [_showExitMenu, setShowExitMenu] = useState(false);
   const [previewFocusRequest, setPreviewFocusRequest] = useState<PreviewFocusRequest | null>(null);
   const [scanPreviewHoldUntil, setScanPreviewHoldUntil] = useState<number | null>(null);
   const [isCompactLayout, setIsCompactLayout] = useState(false);
   const [compactConversationOpen, setCompactConversationOpen] = useState(false);
   const [isChatCollapsed, setIsChatCollapsed] = useState(false);
   const [initialAutoPlanUiState, setInitialAutoPlanUiState] = useState<InitialAutoPlanUiState>("idle");
-  const [initialAutoPlanRevealMessageId, setInitialAutoPlanRevealMessageId] = useState<string | null>(null);
   const containerRef = React.useRef<HTMLDivElement>(null);
   const dividerRef = React.useRef<HTMLDivElement>(null);
   const leftPaneRef = React.useRef<HTMLElement>(null);
@@ -239,7 +212,6 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
   React.useEffect(() => {
     autoScanRequestedRef.current = false;
     setInitialAutoPlanUiState("idle");
-    setInitialAutoPlanRevealMessageId(null);
   }, [sessionIdParam]);
 
   React.useEffect(() => {
@@ -278,13 +250,10 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
 
   React.useEffect(() => {
     if (chatErrorCode === "SESSION_NOT_FOUND") {
-      if (typeof window !== "undefined") {
-        window.localStorage.removeItem(ACTIVE_WORKSPACE_ROUTE_KEY);
-        window.dispatchEvent(new Event(APP_CONTEXT_EVENT));
-      }
+      clearActiveWorkspaceRoute();
       router.push("/");
     }
-  }, [ACTIVE_WORKSPACE_ROUTE_KEY, APP_CONTEXT_EVENT, chatErrorCode, router]);
+  }, [chatErrorCode, router]);
 
   const saveWidth = React.useCallback((width: number) => {
     localStorage.setItem("workspace_sidebar_width", width.toString());
@@ -406,20 +375,26 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
   const showConversationPane = !isCompactLayout || compactConversationOpen;
   const showPreviewPane = !isCompactLayout || !compactConversationOpen;
   const effectiveComposerMode = isReadOnly ? "hidden" : composerMode;
-  const targetPath = snapshot?.target_dir || dirParam || "";
-  const targetDirName = useMemo(
-    () => formatDirName(targetPath),
-    [targetPath],
-  );
   const reviewMoveCount = useMemo(
     () => (precheck?.move_preview || []).filter((move) => move.target.split(/[\\/]/).some((part) => part.toLowerCase() === "review")).length,
     [precheck],
   );
+  const totalPlanItems = snapshot?.plan_snapshot?.items || [];
+  const movedItemIds = useMemo(
+    () => new Set((precheck?.move_preview || []).map((m) => m.item_id)),
+    [precheck?.move_preview],
+  );
+  const stayInPlaceCount = useMemo(
+    () => totalPlanItems.filter((item) => !movedItemIds.has(item.item_id)).length,
+    [movedItemIds, totalPlanItems],
+  );
+  const isAssignExisting = snapshot?.strategy?.organize_method === "assign_into_existing_categories";
+  const effectiveReviewOrStayCount = isAssignExisting ? stayInPlaceCount : reviewMoveCount;
   const interruptedDuring = String(snapshot?.integrity_flags?.interrupted_during || "").trim().toLowerCase();
   const isInterruptedDuringScan = stageView.isInterrupted && interruptedDuring === "scanning";
   const precheckItemNames = useMemo(() => {
     const itemNameById = new Map((snapshot?.plan_snapshot?.items || []).map((item) => [item.item_id, item.display_name] as const));
-    return (precheck?.move_preview || []).map((move) => itemNameById.get(move.item_id) || displayNameFromPath(move.source));
+    return (precheck?.move_preview || []).map((move) => itemNameById.get(move.item_id) || getPathBasename(move.source, "未知条目"));
   }, [precheck?.move_preview, snapshot?.plan_snapshot?.items]);
   const precheckItemsSummary = useMemo(() => summarizeItemNames(precheckItemNames), [precheckItemNames]);
   const nextStepHint = useMemo(() => {
@@ -464,7 +439,6 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
     }
     return "当前任务正在推进。";
   }, [canRunPrecheck, hasStrandedInitialAutoPlan, isEmptyCompleted, isReadOnly, precheck?.move_preview.length, progressPhase, reviewMoveCount, stageView]);
-  const isRootTarget = useMemo(() => /^[a-zA-Z]:[\\/]?$/.test((snapshot?.target_dir || "").trim()), [snapshot?.target_dir]);
   const beginScanPreviewHold = React.useCallback(() => {
     if (typeof window === "undefined") {
       return;
@@ -475,8 +449,9 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
     }
     setScanPreviewHoldUntil(Date.now() + SCAN_PREVIEW_GRACE_MS);
   }, []);
+  const isAutoScanPending = Boolean(autoStartScan && !isReadOnly && (stageView.isDraftLike || !snapshot));
   const shouldShowScanningPreview = !stageView.isRecovery && !stageView.isInactive && (
-    stageView.isScanning || shouldHoldInitialAutoPlanUi || isInitialAutoPlanGraceActive
+    stageView.isScanning || shouldHoldInitialAutoPlanUi || isInitialAutoPlanGraceActive || isAutoScanPending
   );
 
   const handleMouseMove = React.useCallback((event: MouseEvent) => {
@@ -506,7 +481,7 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
     }
     
     if (dividerRef.current) {
-      dividerRef.current.style.left = `${boundedX - 1.25}px`;
+      dividerRef.current.style.left = `${newWidth}%`;
     }
     
     draggedWidthRef.current = newWidth;
@@ -536,6 +511,34 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
     document.body.style.webkitUserSelect = "none";
   };
 
+  const handleResetWidth = React.useCallback((event: React.MouseEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setLeftWidth(DEFAULT_LEFT_WIDTH);
+    saveWidth(DEFAULT_LEFT_WIDTH);
+    if (leftPaneRef.current && rightPaneRef.current) {
+      leftPaneRef.current.style.width = `${DEFAULT_LEFT_WIDTH}%`;
+      rightPaneRef.current.style.width = `${100 - DEFAULT_LEFT_WIDTH}%`;
+    }
+    if (dividerRef.current) {
+      dividerRef.current.style.left = `${DEFAULT_LEFT_WIDTH}%`;
+    }
+  }, [saveWidth]);
+
+  React.useEffect(() => {
+    // 拖拽分栏期间组件被卸载（如 SSE 触发路由跳转）时，document 上的监听与光标样式会残留。
+    return () => {
+      if (isResizing.current) {
+        isResizing.current = false;
+        document.removeEventListener("mousemove", handleMouseMove);
+        document.removeEventListener("mouseup", stopResizing);
+        document.body.style.cursor = "default";
+        document.body.style.userSelect = "";
+        document.body.style.webkitUserSelect = "";
+      }
+    };
+  }, [handleMouseMove, stopResizing]);
+
   const handleSendMessage = async () => {
     if (isReadOnly || !messageInput.trim() || isBusy || isComposerLocked) {
       return;
@@ -544,31 +547,24 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
     const content = messageInput;
     setMessageInput("");
     setInitialAutoPlanUiState("done");
-    setInitialAutoPlanRevealMessageId(null);
     await sendMessage(content);
   };
 
-  const handleExitWorkbench = () => {
+  const handleExitWorkbench = React.useCallback(() => {
     setShowExitMenu(false);
-    if (isReadOnly) {
-      if (typeof window !== "undefined" && sessionIdParam) {
-        const storedRoute = window.localStorage.getItem(ACTIVE_WORKSPACE_ROUTE_KEY);
-        if (getSessionIdFromWorkspaceRoute(storedRoute) === sessionIdParam) {
-          window.localStorage.removeItem(ACTIVE_WORKSPACE_ROUTE_KEY);
-          window.dispatchEvent(new Event(APP_CONTEXT_EVENT));
-        }
+    // 只读或已完成的任务，返回首页是纯导航，无需确认拦截。
+    if (isReadOnly || stageView.isCompleted) {
+      if (sessionIdParam) {
+        clearActiveWorkspaceRouteForSession(sessionIdParam);
       }
       router.push("/");
       return;
     }
     setExitConfirmOpen(true);
-  };
+  }, [isReadOnly, router, sessionIdParam, stageView.isCompleted]);
 
   const handleConfirmExitWorkbench = async () => {
-    if (typeof window !== "undefined") {
-      window.localStorage.removeItem(ACTIVE_WORKSPACE_ROUTE_KEY);
-      window.dispatchEvent(new Event(APP_CONTEXT_EVENT));
-    }
+    clearActiveWorkspaceRoute();
     setExitConfirmOpen(false);
     router.push("/");
   };
@@ -578,10 +574,7 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
     try {
       const success = await abandonSession();
       if (success) {
-        if (typeof window !== "undefined") {
-          window.localStorage.removeItem(ACTIVE_WORKSPACE_ROUTE_KEY);
-          window.dispatchEvent(new Event(APP_CONTEXT_EVENT));
-        }
+        clearActiveWorkspaceRoute();
         setScanAbortConfirmOpen(false);
         router.push("/");
       }
@@ -597,7 +590,6 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
 
   const handleOpenConversation = React.useCallback(() => {
     setInitialAutoPlanUiState("done");
-    setInitialAutoPlanRevealMessageId(null);
     setIsChatCollapsed(false);
     setCompactConversationOpen(true);
   }, []);
@@ -612,7 +604,6 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
       const next = !current;
       if (next) {
         setInitialAutoPlanUiState("done");
-        setInitialAutoPlanRevealMessageId(null);
       }
       return next;
     });
@@ -642,22 +633,13 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
     });
 
     if (typeof window !== "undefined") {
-      const isCompleted = stageView.isCompleted;
-      const isInactive = stageView.isInactive;
-      const shouldClear = isReadOnly || isCompleted || isInactive;
+      const isInactive = stageView.isInactive || stageView.isCompleted;
+      const shouldClear = isReadOnly || isInactive;
 
       if (shouldClear) {
-        const storedRoute = window.localStorage.getItem(ACTIVE_WORKSPACE_ROUTE_KEY);
-        if (getSessionIdFromWorkspaceRoute(storedRoute) === sessionIdParam) {
-          window.localStorage.removeItem(ACTIVE_WORKSPACE_ROUTE_KEY);
-          window.dispatchEvent(new Event(APP_CONTEXT_EVENT));
-        }
-      } else {
-        const storedRoute = window.localStorage.getItem(ACTIVE_WORKSPACE_ROUTE_KEY);
-        if (storedRoute !== nextRoute) {
-          window.localStorage.setItem(ACTIVE_WORKSPACE_ROUTE_KEY, nextRoute);
-          window.dispatchEvent(new Event(APP_CONTEXT_EVENT));
-        }
+        clearActiveWorkspaceRouteForSession(sessionIdParam);
+      } else if (readActiveWorkspaceRoute() !== nextRoute) {
+        rememberActiveWorkspaceRoute(nextRoute);
       }
     }
 
@@ -698,17 +680,6 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
         lastPlanStartedAt: planStartedAt,
       };
       return;
-    }
-
-    if (current.wasScanning && !isScanningNow && isPlanningNow) {
-      const totalCount = Number(snapshot.scanner_progress?.total_count || 0);
-      const processedCount = Number(snapshot.scanner_progress?.processed_count || 0);
-      const countLabel = totalCount > 0 ? `已读取 ${processedCount || totalCount}/${totalCount} 项。` : "已完成目录读取。";
-      notifyWorkspaceWhenAway(
-        "FilePilot 正在生成方案",
-        `${countLabel}正在生成第一版整理建议。`,
-        `filepilot-scan-planning-${sessionIdParam}`,
-      );
     }
 
     if (current.wasScanning && !isScanningNow && !isPlanningNow) {
@@ -850,6 +821,7 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
   const workspacePrimaryNotice = useMemo<WorkspacePrimaryNotice>(() => {
     const baseNotice: ConversationNotice = statusNotice ?? {
       tone: stageView.isCompleted ? "info" : stageView.isReadyToExecute ? "warning" : "info",
+      // 标题讲"现在该做什么"；阶段名已由左侧 stageLabel 徽标承担，不再重复。
       title: stageView.isDraftLike
         ? "等待开始读取目录"
         : stageView.isReadyToExecute
@@ -862,7 +834,9 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
                 : "整理已完成"
               : canRunPrecheck
                 ? "方案已准备好检查"
-                : getFriendlyStage(stage),
+                : stageView.isPlanningConversation
+                  ? "可以继续调整方案"
+                  : getFriendlyStage(stage),
       description: nextStepHint,
       primaryAction: stageView.isDraftLike && !isReadOnly
         ? {
@@ -899,7 +873,6 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
           const next = !prev;
           if (!next) {
             setInitialAutoPlanUiState("done");
-            setInitialAutoPlanRevealMessageId(null);
           }
           return next;
         });
@@ -926,7 +899,6 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
     if (stageView.isRecovery || stageView.isInactive || stageView.isCompleted || stageView.isReadyToExecute) {
       if (initialAutoPlanUiState !== "idle") {
         setInitialAutoPlanUiState("idle");
-        setInitialAutoPlanRevealMessageId(null);
       }
       setScanPreviewHoldUntil(null);
       return;
@@ -945,14 +917,12 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
     if (shouldEnterInitialAutoPlan) {
       if (initialAutoPlanUiState !== "pending") {
         setInitialAutoPlanUiState("pending");
-        setInitialAutoPlanRevealMessageId(null);
       }
       return;
     }
 
     if (hasStrandedInitialAutoPlan && initialAutoPlanUiState === "pending") {
       setInitialAutoPlanUiState("done");
-      setInitialAutoPlanRevealMessageId(null);
       return;
     }
 
@@ -964,9 +934,9 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
       initialAutoPlanHasResult
     ) {
       setInitialAutoPlanUiState("done");
-      setInitialAutoPlanRevealMessageId(null);
     }
   }, [
+    chatMessages,
     initialAutoPlanHasResult,
     initialAutoPlanUiState,
     hasStrandedInitialAutoPlan,
@@ -1008,10 +978,11 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
   }, [scanPreviewHoldUntil, shouldShowScanningPreview]);
 
   React.useEffect(() => {
-    if (stageView.isCompleted && !isEmptyCompleted && !journal && !journalLoading && !isBusy) {
+    // journalError 挡住失败后的自动重试，否则读取失败会形成无限请求循环；重试由用户在结果页手动触发。
+    if (stageView.isCompleted && !isEmptyCompleted && !journal && !journalLoading && !journalError && !isBusy) {
       void loadJournal();
     }
-  }, [stageView, isEmptyCompleted, journal, journalLoading, isBusy, loadJournal]);
+  }, [stageView, isEmptyCompleted, journal, journalLoading, journalError, isBusy, loadJournal]);
 
   React.useEffect(() => {
     return () => {
@@ -1021,33 +992,7 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
     };
   }, []);
 
-  React.useEffect(() => {
-    if (!showConversationPane || isCompactLayout) {
-      setDividerLeft(null);
-      return;
-    }
 
-    const container = containerRef.current;
-    const leftPane = leftPaneRef.current;
-    if (!container || !leftPane) {
-      return;
-    }
-
-    const updateDivider = () => {
-      if (isResizing.current) return;
-      setDividerLeft(leftPane.getBoundingClientRect().width);
-    };
-
-    updateDivider();
-    const observer = new ResizeObserver(() => {
-      updateDivider();
-    });
-    observer.observe(container);
-    observer.observe(leftPane);
-    return () => {
-      observer.disconnect();
-    };
-  }, [isCompactLayout, showConversationPane, leftWidth]);
 
   React.useEffect(() => {
     if (typeof window === "undefined") {
@@ -1055,7 +1000,7 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
     }
     const targetPath = snapshot?.target_dir || dirParam || "";
     const hasTargetPath = Boolean(targetPath);
-    const dirName = snapshot?.session_title || formatDirName(targetPath);
+    const dirName = snapshot?.session_title || getPathBasename(targetPath, "当前任务");
     window.localStorage.setItem(
       WORKSPACE_CONTEXT_KEY,
       JSON.stringify({
@@ -1065,8 +1010,8 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
         hasTargetPath,
       }),
     );
-    window.dispatchEvent(new Event(APP_CONTEXT_EVENT));
-  }, [APP_CONTEXT_EVENT, WORKSPACE_CONTEXT_KEY, dirParam, sessionIdParam, snapshot?.target_dir, snapshot?.session_title, stage]);
+    notifyAppContextChange();
+  }, [dirParam, sessionIdParam, snapshot?.target_dir, snapshot?.session_title, stage]);
 
   React.useEffect(() => {
     if (view !== "plan") {
@@ -1117,21 +1062,16 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
     if (typeof window === "undefined" || !sessionIdParam) {
       return;
     }
-    const canRememberWorkspaceRoute = !isReadOnly && !stageView.isCompleted;
+    const canRememberWorkspaceRoute = !isReadOnly && !stageView.isInactive && !stageView.isCompleted;
     if (canRememberWorkspaceRoute) {
       const params = new URLSearchParams(window.location.search);
       params.delete("auto_scan");
       const query = params.toString();
-      window.localStorage.setItem(ACTIVE_WORKSPACE_ROUTE_KEY, query ? `/workspace/${view}?${query}` : `/workspace/${view}`);
-      window.dispatchEvent(new Event(APP_CONTEXT_EVENT));
+      rememberActiveWorkspaceRoute(query ? `/workspace/${view}?${query}` : `/workspace/${view}`);
       return;
     }
-    const storedRoute = window.localStorage.getItem(ACTIVE_WORKSPACE_ROUTE_KEY);
-    if (getSessionIdFromWorkspaceRoute(storedRoute) === sessionIdParam) {
-      window.localStorage.removeItem(ACTIVE_WORKSPACE_ROUTE_KEY);
-      window.dispatchEvent(new Event(APP_CONTEXT_EVENT));
-    }
-  }, [ACTIVE_WORKSPACE_ROUTE_KEY, APP_CONTEXT_EVENT, isReadOnly, sessionIdParam, stageView.isCompleted, view]);
+    clearActiveWorkspaceRouteForSession(sessionIdParam);
+  }, [isReadOnly, sessionIdParam, stageView.isCompleted, stageView.isInactive, view]);
 
   const focusPreviewItems = React.useCallback((itemIds: string[], filter?: PreviewFilter) => {
     setPreviewFocusRequest({
@@ -1141,16 +1081,22 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
     });
   }, []);
 
-  const handlePrepareRollback = async () => {
-    if (isReadOnly) {
+  const [rollbackPreparing, setRollbackPreparing] = useState(false);
+  const handlePrepareRollback = React.useCallback(async () => {
+    if (isReadOnly || rollbackPreparing) {
       return;
     }
-    const precheck = await prepareRollback();
-    if (precheck) {
-      setRollbackPrecheck(precheck);
-      setRollbackConfirmOpen(true);
+    setRollbackPreparing(true);
+    try {
+      const precheck = await prepareRollback();
+      if (precheck) {
+        setRollbackPrecheck(precheck);
+        setRollbackConfirmOpen(true);
+      }
+    } finally {
+      setRollbackPreparing(false);
     }
-  };
+  }, [isReadOnly, prepareRollback, rollbackPreparing]);
 
   const handleConfirmRollback = async () => {
     const ok = await confirmRollback();
@@ -1168,8 +1114,32 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
     setRollbackPrecheck(null);
   };
 
+  // 传给 PreviewPanel / CompletionView 的回调保持稳定引用，避免子树在无关状态（如输入框）变化时全量重渲染。
+  const handleRunPrecheck = React.useCallback(() => {
+    if (!isReadOnly) void runPrecheck();
+  }, [isReadOnly, runPrecheck]);
+  const handleApplyTargetConflictSuggestions = React.useCallback(() => {
+    if (!isReadOnly) void applyTargetConflictSuggestions();
+  }, [applyTargetConflictSuggestions, isReadOnly]);
+  const handleUpdateItem = React.useCallback(async (id: string, payload: { target_dir?: string; target_slot?: string; move_to_review?: boolean }) => {
+    if (!isReadOnly) await updateItem({ item_id: id, ...payload });
+  }, [isReadOnly, updateItem]);
+  const handleRestoreAiSuggestion = React.useCallback(async (id: string) => {
+    if (!isReadOnly) await restoreAiSuggestion(id);
+  }, [isReadOnly, restoreAiSuggestion]);
+  const handleOpenExplorerPath = React.useCallback((path?: string) => {
+    void openExplorer(path || snapshot?.target_dir || "");
+  }, [openExplorer, snapshot?.target_dir]);
+  const handleCleanupDirs = React.useCallback(() => {
+    if (!isReadOnly) void cleanupEmptyDirs();
+  }, [cleanupEmptyDirs, isReadOnly]);
+  const handleRollbackRequest = React.useCallback(() => {
+    if (!isReadOnly) void handlePrepareRollback();
+  }, [handlePrepareRollback, isReadOnly]);
+
   const renderWorkspaceStatusStrip = () => {
-    if (shouldShowScanningPreview) {
+    // 断线时必须始终可见——扫描进行中后端断开，进度条会冻结而计时继续走，用户需要重连入口。
+    if (shouldShowScanningPreview && streamStatus !== "offline") {
       return null;
     }
     const notice = workspacePrimaryNotice;
@@ -1195,7 +1165,7 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
             </div>
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
-                <span className="rounded-full bg-on-surface/[0.05] px-2 py-0.5 text-[10px] font-black text-on-surface/45">
+                <span className="rounded-full bg-on-surface/[0.05] px-2 py-0.5 text-[11px] font-black text-on-surface/45">
                   {notice.stageLabel}
                 </span>
                 <p className="text-[13px] font-black text-on-surface">{notice.title}</p>
@@ -1210,7 +1180,7 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
                 <React.Fragment key={step.id}>
                   <div
                     className={cn(
-                      "flex items-center gap-1.5 rounded-full border px-2 py-1 text-[10px] font-black",
+                      "flex items-center gap-1.5 rounded-full border px-2 py-1 text-[11px] font-black",
                       step.state === "done"
                         ? "border-success/15 bg-success/8 text-success-dim"
                         : step.state === "active"
@@ -1239,7 +1209,7 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
               <button
                 type="button"
                 onClick={notice.secondaryAction.onClick}
-                className="rounded-[7px] border border-on-surface/10 bg-surface px-3 py-1.5 text-[11px] font-bold text-on-surface-variant transition-colors hover:bg-on-surface/5"
+                className="rounded-[8px] border border-on-surface/10 bg-surface px-3 py-1.5 text-[11px] font-bold text-on-surface-variant transition-colors hover:bg-on-surface/5"
               >
                 {notice.secondaryAction.label}
               </button>
@@ -1248,7 +1218,7 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
               <button
                 type="button"
                 onClick={notice.primaryAction.onClick}
-                className="rounded-[7px] bg-primary px-3 py-1.5 text-[11px] font-black text-white transition-opacity hover:opacity-90"
+                className="rounded-[8px] bg-primary px-3 py-1.5 text-[11px] font-black text-white transition-opacity hover:opacity-90"
               >
                 {notice.primaryAction.label}
               </button>
@@ -1259,11 +1229,31 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
     );
   };
 
+  const renderIncrementalSelection = () => (
+    <IncrementalSelectionView
+      rootDirectoryOptions={incrementalSelection?.root_directory_options || []}
+      sourceTreeEntries={snapshot?.source_tree_entries || []}
+      loading={loading}
+      onConfirm={(selectedTargetDirs) => {
+        if (!isReadOnly) {
+          void requestWorkspaceNotificationPermission();
+          void confirmTargetDirectories(selectedTargetDirs);
+        }
+      }}
+      onExit={handleExitWorkbench}
+    />
+  );
+
   const renderPreviewContent = () => (
     <ErrorBoundary fallbackTitle="预览区加载失败">
         <div className="h-full w-full">
           {(() => {
             if (view === "progress") {
+              // 目标选择阶段被路由映射到 progress 视图；不优先处理会落入扫描进度分支，
+              // 用户会永远停留在"正在分析"而看不到目录选择界面。
+              if (stageView.isTargetSelection) {
+                return renderIncrementalSelection();
+              }
               if (stageView.isDraftLike) {
                 return (
                   <EmptyState
@@ -1295,7 +1285,7 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
                       </div>
 
                       <div className="flex flex-col items-center gap-2 text-center">
-                        <h3 className="text-[17px] font-black tracking-tight text-on-surface">
+                        <h3 className="text-[16px] font-black tracking-tight text-on-surface">
                           方案已准备好
                         </h3>
                         <p className="flex items-center gap-2 text-[13px] font-medium text-on-surface-variant/70">
@@ -1312,7 +1302,7 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
                   scanner={scanner}
                   progressPercent={progressPercent}
                   phase={progressPhase === "stranded" ? "planning" : progressPhase}
-                  onAbort={progressPhase === "planning" ? undefined : () => setScanAbortConfirmOpen(true)}
+                  onAbort={() => setScanAbortConfirmOpen(true)}
                   aborting={scanAborting}
                   isModelConfigured={isTextModelConfigured}
                 />
@@ -1325,6 +1315,7 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
                   scanner={scanner}
                   progressPercent={progressPercent}
                   phase="planning"
+                  onAbort={() => setScanAbortConfirmOpen(true)}
                   aborting={scanAborting}
                   isModelConfigured={isTextModelConfigured}
                 />
@@ -1337,7 +1328,7 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
                   scanner={scanner}
                   progressPercent={progressPercent}
                   phase={progressPhase}
-                  onAbort={progressPhase === "planning" ? undefined : () => setScanAbortConfirmOpen(true)}
+                  onAbort={() => setScanAbortConfirmOpen(true)}
                   aborting={scanAborting}
                   isModelConfigured={isTextModelConfigured}
                 />
@@ -1346,11 +1337,9 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
 
             if (stageView.isExecuting || stageView.isRollingBack) {
               return (
-                <EmptyState
-                  icon={Loader2}
-                  title={stageView.isRollingBack ? "正在回退整理" : "正在执行整理"}
-                  description={stageView.isRollingBack ? "正在按回退记录恢复文件位置，请不要关闭窗口。" : "正在移动本地文件，完成后会自动打开整理结果。"}
-                  className="mx-auto h-full max-w-[1360px]"
+                <ExecutionProgressView
+                  mode={stageView.isRollingBack ? "rolling_back" : "executing"}
+                  itemCount={precheck?.move_preview?.length}
                 />
               );
             }
@@ -1390,19 +1379,18 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
                 <CompletionView
                   journal={journal}
                   summary={snapshot?.summary || ""}
-                  loading={journalLoading || !journal}
+                  loading={journalLoading || (!journal && !journalError)}
+                  loadError={journalError}
+                  onRetryLoad={loadJournal}
                   targetDir={snapshot?.target_dir || ""}
                   organizeMethod={snapshot?.strategy?.organize_method}
                   cleanupCandidateCount={snapshot?.execution_report?.cleanup_candidate_count ?? 0}
                   isBusy={isBusy}
                   readOnly={isReadOnly}
-                  onOpenExplorer={(path) => void openExplorer(path || snapshot?.target_dir || "")}
-                  onCleanupDirs={() => {
-                    if (!isReadOnly) void cleanupEmptyDirs();
-                  }}
-                  onRollback={() => {
-                    if (!isReadOnly) void handlePrepareRollback();
-                  }}
+                  rollbackPreparing={rollbackPreparing}
+                  onOpenExplorer={handleOpenExplorerPath}
+                  onCleanupDirs={handleCleanupDirs}
+                  onRollback={handleRollbackRequest}
                   onGoHome={handleExitWorkbench}
                 />
               );
@@ -1435,31 +1423,30 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
               );
             }
 
-            if (stageView.isDraftLike) {
+            if (stageView.isDraftLike && !isAutoScanPending) {
               return (
                 <EmptyState
                   illustration={FileRadarIllustration}
-                  title="等待读取目录"
-                  description="开始后会先只读扫描目录，再在这里显示整理建议。"
+                  title="等待读取待整理目录"
+                  description="点击下方按钮开始只读分析文件结构，稍后将在此生成智能整理方案。"
                   className="mx-auto h-[70vh] max-w-[1360px]"
-                />
+                >
+                  {!isReadOnly && (
+                    <button
+                      type="button"
+                      onClick={handleStartScan}
+                      className="inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-[13px] font-bold text-white shadow-sm transition-all hover:bg-primary-dim active:scale-95"
+                    >
+                      <RefreshCw className="h-4 w-4" />
+                      开始读取目录
+                    </button>
+                  )}
+                </EmptyState>
               );
             }
 
             if (stageView.isTargetSelection) {
-              return (
-                <IncrementalSelectionView
-                  rootDirectoryOptions={incrementalSelection?.root_directory_options || []}
-                  sourceTreeEntries={snapshot?.source_tree_entries || []}
-                  loading={loading}
-                  onConfirm={(selectedTargetDirs) => {
-                    if (!isReadOnly) {
-                      void requestWorkspaceNotificationPermission();
-                      void confirmTargetDirectories(selectedTargetDirs);
-                    }
-                  }}
-                />
-              );
+              return renderIncrementalSelection();
             }
 
             return (
@@ -1504,18 +1491,10 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
                       sourceTreeEntries={snapshot?.source_tree_entries || []}
                       incrementalSelection={incrementalSelection}
                       precheckSummary={snapshot?.precheck_summary}
-                      onRunPrecheck={() => {
-                        if (!isReadOnly) void runPrecheck();
-                      }}
-                      onApplyTargetConflictSuggestions={() => {
-                        if (!isReadOnly) void applyTargetConflictSuggestions();
-                      }}
-                      onUpdateItem={async (id, payload) => {
-                        if (!isReadOnly) await updateItem({ item_id: id, ...payload });
-                      }}
-                      onRestoreAiSuggestion={async (id) => {
-                        if (!isReadOnly) await restoreAiSuggestion(id);
-                      }}
+                      onRunPrecheck={handleRunPrecheck}
+                      onApplyTargetConflictSuggestions={handleApplyTargetConflictSuggestions}
+                      onUpdateItem={handleUpdateItem}
+                      onRestoreAiSuggestion={handleRestoreAiSuggestion}
                       onPendingReviewCountChange={setPendingReviewCount}
                     />
                   )}
@@ -1569,7 +1548,6 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
       isComposerLocked={isComposerLocked}
       composerStatus={composerStatus}
       plannerStatus={plannerStatus}
-      revealMessageId={initialAutoPlanUiState === "revealing" ? initialAutoPlanRevealMessageId : null}
       stage={stage}
       messageInput={messageInput}
       setMessageInput={setMessageInput}
@@ -1586,13 +1564,13 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
   const conversationHeader = (
     <div className="z-20 flex shrink-0 items-center justify-between gap-3 border-b border-on-surface/6 bg-surface/50 px-4 py-1.5 backdrop-blur-md">
       <div className="flex min-w-0 items-center gap-1.5">
-        <span className="flex items-center gap-1 rounded-full bg-primary/8 px-1.5 py-0.5 text-[10px] font-black text-primary">
+        <span className="flex items-center gap-1 rounded-full bg-primary/8 px-1.5 py-0.5 text-[11px] font-black text-primary">
           <span className={cn("h-1 w-1 rounded-full", stageView.isCompleted ? "bg-success" : "bg-primary/60")} />
           {getFriendlyStage(stage)}
         </span>
 
         {assistantRuntime && (
-          <span className="flex items-center gap-1 rounded-full bg-on-surface/[0.04] px-1.5 py-0.5 text-[10px] font-bold text-ui-muted">
+          <span className="flex items-center gap-1 rounded-full bg-on-surface/[0.04] px-1.5 py-0.5 text-[11px] font-bold text-ui-muted">
             <Loader2 className="h-2.5 w-2.5 animate-spin-slow" />
             {assistantRuntime.label}
           </span>
@@ -1600,7 +1578,7 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
 
         {streamStatus !== "connected" && (
           <span className={cn(
-            "flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-black uppercase tracking-widest",
+            "flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[11px] font-black uppercase tracking-widest",
             streamStatus === "connecting" || streamStatus === "reconnecting" ? "bg-warning/10 text-warning" : "bg-on-surface/5 text-ui-muted"
           )}>
             {streamStatus === "connecting" ? "连接中" : streamStatus === "reconnecting" ? "重连中" : "离线"}
@@ -1633,9 +1611,27 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
     </div>
   );
 
+  // 操作失败（执行、回退、清理等）必须在所有视图可见；会话面板只在 plan 视图渲染，不能只依赖它。
+  const chatErrorBanner = chatError ? (
+    <div className="z-10 border-b border-error/20 bg-error/[0.04] px-4 py-3">
+      <div className="mx-auto flex max-w-[1360px] items-start gap-3">
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[8px] bg-error/10 text-error">
+          <AlertCircle className="h-4 w-4" />
+        </div>
+        <div className="min-w-0">
+          <p className="text-[13px] font-black text-on-surface">操作失败</p>
+          <p className="mt-0.5 text-[12px] font-medium leading-5 text-error/80">{chatError}</p>
+        </div>
+      </div>
+    </div>
+  ) : null;
+
   const singlePaneContent = (
     <section className="flex h-full min-w-0 flex-1 flex-col overflow-hidden bg-surface">
-      {view === "progress" || view === "review" ? null : renderWorkspaceStatusStrip()}
+      {view === "progress" || view === "review"
+        ? (streamStatus === "offline" ? renderWorkspaceStatusStrip() : null)
+        : renderWorkspaceStatusStrip()}
+      {chatErrorBanner}
       <div className="flex-1 min-h-0 w-full overflow-hidden flex flex-col">{renderPreviewContent()}</div>
     </section>
   );
@@ -1671,7 +1667,7 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
           <div className="h-px w-4 bg-on-surface/[0.08]" />
           <div className="flex-1 flex flex-col items-center justify-center">
             <div
-              className="whitespace-nowrap text-[9px] font-black uppercase tracking-[0.3em] text-on-surface/20"
+              className="whitespace-nowrap text-[11px] font-black uppercase tracking-[0.3em] text-on-surface/20"
               style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}
             >
               会话记录
@@ -1684,21 +1680,32 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
         <div
           ref={dividerRef}
           onMouseDown={handleStartResizing}
+          onDoubleClick={handleResetWidth}
           className={cn(
-            "absolute top-0 bottom-0 w-2.5 z-40 transition-all duration-300 cursor-col-resize flex items-center justify-center select-none group",
-            isResizingState ? "bg-primary/[0.02]" : "hover:bg-primary/[0.04]",
+            "absolute top-0 bottom-0 w-3.5 -translate-x-1/2 z-40 cursor-col-resize flex items-center justify-center select-none group",
+            isResizingState ? "bg-primary/[0.04]" : "hover:bg-primary/[0.02]",
           )}
-          style={{ left: dividerLeft !== null ? `${dividerLeft - 1.25}px` : `calc(${leftWidth}% - 1.25px)` }}
+          style={{ left: `${leftWidth}%` }}
+          title="拖拽调整左右分栏比例，双击恢复默认"
         >
-          <div className={cn("w-[1px] h-full transition-all duration-300", isResizingState ? "bg-primary/20" : "bg-transparent")} />
+          {/* 中线高亮指示 */}
           <div
             className={cn(
-              "absolute top-1/2 flex h-9 w-5 -translate-y-1/2 flex-col items-center justify-center gap-0.5 rounded-[8px] border border-on-surface/12 bg-surface-container-lowest transition-all duration-200",
-              isResizingState ? "scale-110 border-primary/20 opacity-100" : "opacity-0 group-hover:opacity-100 scale-100",
+              "w-[1px] h-full transition-colors duration-150",
+              isResizingState ? "bg-primary" : "bg-transparent group-hover:bg-primary/40",
+            )}
+          />
+          {/* 居中拖拽胶囊手柄 */}
+          <div
+            className={cn(
+              "absolute top-1/2 flex h-8 w-4 -translate-y-1/2 flex-col items-center justify-center gap-0.5 rounded-full border bg-surface shadow-sm transition-all duration-150 pointer-events-none",
+              isResizingState
+                ? "scale-105 border-primary/40 ring-2 ring-primary/15 opacity-100 shadow-md"
+                : "border-on-surface/12 opacity-0 group-hover:opacity-100 scale-95 group-hover:scale-100",
             )}
           >
-            <div className={cn("w-[1.5px] h-3 rounded-sm transition-colors", isResizingState ? "bg-primary/40" : "bg-on-surface/15")} />
-            <div className={cn("w-[1.5px] h-3 rounded-sm transition-colors", isResizingState ? "bg-primary/40" : "bg-on-surface/15")} />
+            <div className={cn("w-[1.5px] h-2.5 rounded-full transition-colors", isResizingState ? "bg-primary" : "bg-on-surface/30")} />
+            <div className={cn("w-[1.5px] h-2.5 rounded-full transition-colors", isResizingState ? "bg-primary" : "bg-on-surface/30")} />
           </div>
         </div>
       )}
@@ -1710,6 +1717,7 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
           className="flex h-full min-w-0 flex-1 flex-col overflow-hidden bg-surface"
         >
           {renderWorkspaceStatusStrip()}
+          {(isChatCollapsed || !showConversationPane) ? chatErrorBanner : null}
           <div className="flex-1 min-h-0 w-full overflow-hidden flex flex-col">{renderPreviewContent()}</div>
         </section>
       )}
@@ -1740,7 +1748,7 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
         </div>
         
         <div className="mt-8 flex flex-col items-center gap-2.5">
-          <h3 className="text-[17px] font-black tracking-tight text-on-surface">
+          <h3 className="text-[16px] font-black tracking-tight text-on-surface">
             {routeTransitionTitle}
           </h3>
           <div className="flex items-center gap-2">
@@ -1817,31 +1825,36 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
       <ConfirmDialog
         open={executeConfirmOpen}
         title="确认开始移动文件？"
-        description={`执行后会真实移动本地文件。本次将处理 ${precheck?.move_preview.length ?? 0} 项${reviewMoveCount > 0 ? `，其中 ${reviewMoveCount} 项会留在待确认区` : ""}${precheckItemsSummary ? `。涉及条目：${precheckItemsSummary}` : ""}。`}
+        description={`执行后会真实移动本地文件。本次涉及 ${totalPlanItems.length || precheck?.move_preview.length || 0} 项，其中 ${precheck?.move_preview.length ?? 0} 项将移动至目标目录${effectiveReviewOrStayCount > 0 ? `，${effectiveReviewOrStayCount} 项将${isAssignExisting ? "保留在原地" : "留在待确认区"}` : ""}${precheckItemsSummary ? `。涉及条目：${precheckItemsSummary}` : ""}。`}
         confirmLabel="开始移动"
         cancelLabel="再看看"
         tone="primary"
         loading={loading}
-        verificationText={(precheck && ((precheck.warnings || []).length > 0 || reviewMoveCount > 0)) ? "YES" : undefined}
+        verificationText={(precheck && ((precheck.warnings || []).length > 0 || (!isAssignExisting && reviewMoveCount > 0))) ? "YES" : undefined}
         verificationPlaceholder="请输入大写 YES 确认执行"
         onConfirm={async () => {
-          setExecuteConfirmOpen(false);
+          // 先执行再关框：loading 状态在对话框上可见；失败时错误横幅会在页面顶部显示。
           await execute();
+          setExecuteConfirmOpen(false);
         }}
-        onCancel={() => setExecuteConfirmOpen(false)}
+        onCancel={() => {
+          if (!loading) {
+            setExecuteConfirmOpen(false);
+          }
+        }}
       >
         <div className="grid gap-2 text-[13px]">
-          <div className="flex items-center justify-between rounded-[10px] bg-surface-container-low px-3 py-2">
+          <div className="flex items-center justify-between rounded-[8px] bg-surface-container-low px-3 py-2">
             <span className="text-ui-muted">本次将移动</span>
             <span className="font-semibold text-on-surface">{precheck?.move_preview.length ?? 0} 项</span>
           </div>
-          <div className="flex items-center justify-between rounded-[10px] bg-surface-container-low px-3 py-2">
+          <div className="flex items-center justify-between rounded-[8px] bg-surface-container-low px-3 py-2">
             <span className="text-ui-muted">本次将创建目录</span>
             <span className="font-semibold text-on-surface">{precheck?.mkdir_preview.length ?? 0} 个</span>
           </div>
-          <div className="flex items-center justify-between rounded-[10px] bg-surface-container-low px-3 py-2">
-            <span className="text-ui-muted">留在待确认区</span>
-            <span className="font-semibold text-on-surface">{reviewMoveCount} 项</span>
+          <div className="flex items-center justify-between rounded-[8px] bg-surface-container-low px-3 py-2">
+            <span className="text-ui-muted">{isAssignExisting ? "保留在原地" : "留在待确认区"}</span>
+            <span className="font-semibold text-on-surface">{effectiveReviewOrStayCount} 项</span>
           </div>
         </div>
       </ConfirmDialog>

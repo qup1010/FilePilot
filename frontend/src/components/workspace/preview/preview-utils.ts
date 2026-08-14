@@ -1,8 +1,10 @@
-import type { 
-  PlacementConfig, 
-  PlanItem, 
-  PlanTargetSlot, 
-  SourceTreeEntry 
+import { useEffect, useState } from "react";
+
+import type {
+  PlacementConfig,
+  PlanItem,
+  PlanTargetSlot,
+  SourceTreeEntry
 } from "@/types/session";
 import { 
   FileText, 
@@ -79,7 +81,7 @@ export const REVIEW_DIRECTORY = "Review";
 export const REVIEW_LABEL = "待确认区";
 
 export function normalizePath(path: string | null | undefined): string {
-  return String(path || "").replace(/\\/g, "/").replace(/^\/+|\/+$/g, "").trim();
+  return String(path || "").replace(/\\/g, "/").replace(/\/+/g, "/").replace(/^\/+|\/+$/g, "").trim();
 }
 
 export function isReviewDirectory(directory: string | null | undefined): boolean {
@@ -162,14 +164,19 @@ export function resolveItemDirectory(item: PlanItem, targetSlotById: TargetSlotL
   return "当前目录";
 }
 
-export function displayDirectoryLabel(directory: string): string {
-  return directory === REVIEW_DIRECTORY ? REVIEW_LABEL : directory;
+export function displayDirectoryLabel(directory: string, isAssignExisting: boolean = false): string {
+  if (directory === REVIEW_DIRECTORY) {
+    return isAssignExisting ? "保留在原地" : REVIEW_LABEL;
+  }
+  return directory;
 }
 
-export function resolveItemTargetPath(item: PlanItem, targetSlotById: TargetSlotLookup, placement: PlacementConfig): string {
+export function resolveItemTargetPath(item: PlanItem, targetSlotById: TargetSlotLookup, placement: PlacementConfig, isAssignExisting: boolean = false): string {
   const directoryLabel = resolveItemDirectory(item, targetSlotById, placement);
   const filename = item.display_name || item.source_relpath.split("/").pop() || item.source_relpath;
-  return directoryLabel && directoryLabel !== "当前目录" ? `${displayDirectoryLabel(directoryLabel)}/${filename}` : filename;
+  if (!directoryLabel || directoryLabel === "当前目录") return filename;
+  if (directoryLabel === REVIEW_DIRECTORY && isAssignExisting) return `保留在原地/${filename}`;
+  return `${displayDirectoryLabel(directoryLabel, isAssignExisting)}/${filename}`;
 }
 
 export function isItemChanged(item: PlanItem, targetSlotById: TargetSlotLookup, placement: PlacementConfig) {
@@ -196,11 +203,13 @@ export function matchesFilter(item: PlanItem, filter: PreviewFilter, targetSlotB
   return item.status === "invalidated";
 }
 
+export const zhCollator = new Intl.Collator("zh-CN");
+
 export function sortTree(root: TreeNode) {
   const sortNode = (node: TreeNode) => {
     node.children.sort((left, right) => {
       if (left.kind !== right.kind) return left.kind === "directory" ? -1 : 1;
-      return left.name.localeCompare(right.name, "zh-CN");
+      return zhCollator.compare(left.name, right.name);
     });
     node.children.forEach(sortNode);
   };
@@ -208,35 +217,90 @@ export function sortTree(root: TreeNode) {
   return root.children;
 }
 
-export function buildPlanTree(items: PlanItem[], mkdirPreview: string[], resolveItemPath: (item: PlanItem) => string): TreeNode[] {
-  const root: TreeNode = { name: "", path: "", kind: "directory", children: [] };
-  const ensureDir = (parts: string[]) => {
+/**
+ * 整体移动的目录 → 其内含条目数。
+ * 这类目录在计划里只占 1 项，界面需要显式说明"里面还有 N 项"，
+ * 否则用户看到"移动 25 项"会以为其余文件被漏掉了。
+ */
+export function buildAtomicChildCounts(sourceEntries: SourceTreeEntry[]): Map<string, number> {
+  const counts = new Map<string, number>();
+  for (const entry of sourceEntries) {
+    if (String(entry.source_mode || "").toLowerCase() !== "atomic") continue;
+    const path = normalizePath(entry.source_relpath);
+    const count = Number(entry.child_count || 0);
+    if (path && count > 0) {
+      counts.set(path, count);
+    }
+  }
+  return counts;
+}
+
+function atomicRootPaths(sourceEntries: SourceTreeEntry[]): string[] {
+  return sourceEntries
+    .filter((entry) => String(entry.source_mode || "").toLowerCase() === "atomic")
+    .map((entry) => normalizePath(entry.source_relpath))
+    .filter(Boolean);
+}
+
+function hasNestedEntry(sourcePath: string, entries: SourceTreeEntry[]): boolean {
+  const normalizedPath = normalizePath(sourcePath);
+  if (!normalizedPath) return false;
+  const prefix = `${normalizedPath}/`;
+  return entries.some((entry) => normalizePath(entry.source_relpath).startsWith(prefix));
+}
+
+function findAtomicRoot(sourcePath: string, atomicRoots: string[]): string | null {
+  const normalizedPath = normalizePath(sourcePath);
+  if (!normalizedPath) return null;
+  for (const root of atomicRoots) {
+    if (normalizedPath === root || normalizedPath.startsWith(`${root}/`)) {
+      return root;
+    }
+  }
+  return null;
+}
+
+function createEnsureDir(root: TreeNode): (parts: string[]) => TreeNode {
+  const directoryIndex = new Map<string, TreeNode>();
+  directoryIndex.set("", root);
+  return (parts: string[]) => {
     let current = root;
     let currentPath = "";
     for (const part of parts) {
       currentPath = currentPath ? `${currentPath}/${part}` : part;
-      let next = current.children.find((child) => child.kind === "directory" && child.name === part);
+      let next = directoryIndex.get(currentPath);
       if (!next) {
         next = { name: part, path: currentPath, kind: "directory", children: [] };
+        directoryIndex.set(currentPath, next);
         current.children.push(next);
       }
       current = next;
     }
     return current;
   };
+}
+
+export function buildPlanTree(
+  items: PlanItem[],
+  mkdirPreview: string[],
+  resolveItemPath: (item: PlanItem) => string,
+  sourceEntries: SourceTreeEntry[],
+): TreeNode[] {
+  const atomicRoots = atomicRootPaths(sourceEntries);
+  const root: TreeNode = { name: "", path: "", kind: "directory", children: [] };
+  const ensureDir = createEnsureDir(root);
   mkdirPreview.forEach((dir) => {
     const parts = normalizePath(dir).split("/").filter(Boolean);
     if (parts.length) ensureDir(parts);
   });
   items.forEach((item) => {
+    const atomicRoot = findAtomicRoot(item.source_relpath, atomicRoots);
+    if (atomicRoot && normalizePath(item.source_relpath) !== atomicRoot) {
+      return;
+    }
     const rawPath = resolveItemPath(item) || item.source_relpath;
     const parts = normalizePath(rawPath).split("/").filter(Boolean);
     if (parts.length === 0) return;
-    if (normalizeEntryKind(item.entry_type) === "directory") {
-      const directoryNode = ensureDir(parts);
-      directoryNode.item = directoryNode.item || item;
-      return;
-    }
     const filename = parts.pop();
     if (!filename) return;
     const parent = ensureDir(parts);
@@ -246,28 +310,26 @@ export function buildPlanTree(items: PlanItem[], mkdirPreview: string[], resolve
 }
 
 export function buildSourceTree(entries: SourceTreeEntry[], itemBySource: Map<string, PlanItem>): TreeNode[] {
+  const atomicRoots = atomicRootPaths(entries);
   const root: TreeNode = { name: "", path: "", kind: "directory", children: [] };
-  const ensureDir = (parts: string[]) => {
-    let current = root;
-    let currentPath = "";
-    for (const part of parts) {
-      currentPath = currentPath ? `${currentPath}/${part}` : part;
-      let next = current.children.find((child) => child.kind === "directory" && child.name === part);
-      if (!next) {
-        next = { name: part, path: currentPath, kind: "directory", children: [] };
-        current.children.push(next);
-      }
-      current = next;
-    }
-    return current;
-  };
+  const ensureDir = createEnsureDir(root);
 
   entries.forEach((entry) => {
     const entryPath = normalizePath(entry.source_relpath);
+    const atomicRoot = findAtomicRoot(entryPath, atomicRoots);
+    if (atomicRoot && entryPath !== atomicRoot) {
+      return;
+    }
     const parts = entryPath.split("/").filter(Boolean);
     if (parts.length === 0) return;
     const linkedItem = itemBySource.get(entryPath);
-    if (normalizeEntryKind(entry.entry_type) === "directory") {
+    const isAtomicDirectoryEntry =
+      normalizeEntryKind(entry.entry_type) === "directory" &&
+      (
+        atomicRoot === entryPath ||
+        (!!linkedItem && !hasNestedEntry(entryPath, entries))
+      );
+    if (normalizeEntryKind(entry.entry_type) === "directory" && !isAtomicDirectoryEntry) {
       const directoryNode = ensureDir(parts);
       directoryNode.sourceEntry = directoryNode.sourceEntry || entry;
       directoryNode.item = directoryNode.item || linkedItem;
@@ -296,4 +358,15 @@ export function mappingStatusLabel(status: string | undefined, item?: PlanItem, 
   if (status === "assigned") return "已分配";
   if (status === "skipped") return "保留原位";
   return "已规划";
+}
+
+export function useDebouncedValue<T>(value: T, delay = 200): T {
+  const [debouncedValue, setDebouncedValue] = useState<T>(value);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedValue(value), delay);
+    return () => clearTimeout(timer);
+  }, [value, delay]);
+
+  return debouncedValue;
 }

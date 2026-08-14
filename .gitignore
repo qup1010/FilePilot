@@ -88,3 +88,6 @@ logs/
 .history/
 test_temp_*/
 logs/backend/*
+
+# 测试覆盖率产物
+.coverage

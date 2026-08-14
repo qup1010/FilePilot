@@ -13,7 +13,6 @@ from file_pilot.icon_workbench.models import IconTemplate, IconWorkbenchSession
 from file_pilot.icon_workbench.templates import builtin_templates
 from file_pilot.shared.settings_service import SettingsService
 
-
 TEMPLATES_SCHEMA_VERSION = 1
 
 

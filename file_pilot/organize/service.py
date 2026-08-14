@@ -21,7 +21,6 @@ from file_pilot.organize.models import (
 )
 from file_pilot.organize.prompts import build_prompt
 from file_pilot.organize.target_slots import directory_target_slots, is_review_slot, slot_label
-from file_pilot.shared.review import REVIEW_SLOT_ID
 from file_pilot.shared.config import (
     RESULT_FILE_PATH,
     create_openai_client,
@@ -32,10 +31,12 @@ from file_pilot.shared.events import emit
 from file_pilot.shared.logging_utils import append_debug_event
 from file_pilot.shared.model_response import (
     extract_message_text as extract_model_message_text,
+)
+from file_pilot.shared.model_response import (
     normalize_non_stream_response as normalize_model_non_stream_response,
 )
 from file_pilot.shared.path_utils import normalize_source_name, split_relative_parts
-
+from file_pilot.shared.review import REVIEW_SLOT_ID
 
 COMMANDS_BLOCK_RE = re.compile(r"<COMMANDS>(.*?)</COMMANDS>", flags=re.S | re.I)
 MOVE_LINE_RE = re.compile(r'^\s*MOVE\s+"(.*?)"\s+"(.*?)"\s*$', flags=re.I)
@@ -612,8 +613,9 @@ def chat_one_round(
     target_dir: str | None = None,
     cancel_event: threading.Event | None = None,
 ):
-    from file_pilot.shared.config import RUNTIME_DIR, config_manager
     from datetime import datetime
+
+    from file_pilot.shared.config import RUNTIME_DIR, config_manager
 
     model = model or get_organizer_model_name()
 
@@ -1179,7 +1181,7 @@ def _system_pending_summary(plan: PendingPlan) -> str:
     total_moves = len(plan.moves or [])
     unresolved_count = len(plan.unresolved_items or [])
     classified_count = max(0, total_moves - unresolved_count)
-    return f"已分类 {classified_count} 项，调整 {total_moves} 项，仍剩 {unresolved_count} 项待定"
+    return f"已分类 {classified_count} 项，待移动 {total_moves} 项，待确认 {unresolved_count} 项"
 
 
 def apply_plan_diff(
@@ -1683,6 +1685,7 @@ def run_organizer_cycle(
 
     llm_messages = list(messages)
     persisted_inspection_messages: list[dict] = []
+    first_attempt_content: str = ""
     
     # NOTE: 采用循环机制实现后台自动修正。若 AI 提交的指令（如 FINAL_PLAN）校验失败，
     # 系统会根据失败细节构造反馈消息并触发下一次尝试，直到达到最大重试次数。
@@ -1703,6 +1706,9 @@ def run_organizer_cycle(
                 cancel_event=cancel_event,
             )
             raw_content = getattr(message, "content", "") or ""
+            if attempt == 1 and raw_content.strip():
+                first_attempt_content = raw_content.strip()
+
             content, plan_diff, final_plan, inspect_item_ids = _extract_plan_submissions(
                 message,
                 planner_items=planner_items,
@@ -1751,6 +1757,18 @@ def run_organizer_cycle(
                 continue
 
             break
+
+        if attempt > 1 and first_attempt_content and plan_diff is not None:
+            stripped = (content or "").strip()
+            is_brief_acknowledgment = (
+                len(stripped) < len(first_attempt_content)
+                and (
+                    len(stripped) < 80
+                    or stripped.startswith(("明白", "好的", "收到", "我现在", "已将", "正在提交"))
+                )
+            )
+            if is_brief_acknowledgment:
+                content = first_attempt_content
 
         content, synthetic_content_used = _inject_synthetic_plan_reply(
             content,
@@ -1822,12 +1840,26 @@ def run_organizer_cycle(
 
         # 场景 B: AI 仅回复文字说明，未发起任何方案层面的增量修改或最终提交
         if final_plan is None:
-            updated_pending = current_pending
-            diff_summary = []
-
             tool_result_messages = _build_tool_result_messages(
                 message,
             )
+            if (
+                attempt < max_retries
+                and current_pending.is_empty()
+                and not persisted_inspection_messages
+                and len(messages) <= 2
+            ):
+                err_msg = (
+                    "你输出了分析文本，但未调用 `submit_plan_diff` 工具提交具体的移动规则和目录划分！"
+                    "请必须调用 `submit_plan_diff` 工具提交 move_updates，否则系统无法把整理方案呈现给用户。"
+                )
+                llm_messages.extend([*persisted_inspection_messages, assistant_context_message, *tool_result_messages])
+                llm_messages.append({"role": "user", "content": err_msg})
+                continue
+
+            updated_pending = current_pending
+            diff_summary = []
+
             return content, {
                 "is_valid": False,
                 "pending_plan": updated_pending,

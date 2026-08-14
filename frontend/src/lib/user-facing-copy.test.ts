@@ -63,4 +63,32 @@ describe("user-facing copy helpers", () => {
     expect(error.message).toBe("这个位置属于系统或软件配置目录，FilePilot 已阻止本次整理以避免破坏系统或应用。");
     expect(getUserFacingErrorCode(error)).toBe("SOURCE_PATH_SYSTEM_PROTECTED");
   });
+
+  it("maps rule draft model errors to actionable Chinese copy", () => {
+    const error = createUserFacingRequestError(
+      502,
+      "Bad Gateway",
+      JSON.stringify({
+        error_code: "RULE_DRAFTS_THINKING_TOOL_UNSUPPORTED",
+        detail: "RULE_DRAFTS_THINKING_TOOL_UNSUPPORTED",
+        message: "当前模型处于思考模式，不支持强制工具调用。请关闭 thinking，或换用支持工具调用的非思考模型。",
+      }),
+    );
+
+    expect(error.message).toContain("思考模式");
+    expect(getUserFacingErrorCode(error)).toBe("RULE_DRAFTS_THINKING_TOOL_UNSUPPORTED");
+  });
+
+  it("prefers backend Chinese message when code is unknown but message is provided", () => {
+    const error = createUserFacingRequestError(
+      502,
+      "Bad Gateway",
+      JSON.stringify({
+        error_code: "SOME_NEW_BACKEND_CODE",
+        message: "模型服务暂时不可用，请稍后再试。",
+      }),
+    );
+
+    expect(error.message).toBe("模型服务暂时不可用，请稍后再试。");
+  });
 });

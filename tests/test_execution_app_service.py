@@ -77,6 +77,83 @@ class ExecutionAppServiceTests(unittest.TestCase):
         self.assertEqual(precheck["move_preview"][0]["target_kind"], "review")
         self.assertTrue(precheck["move_preview"][0]["is_review"])
 
+    def test_incremental_precheck_leaves_unresolved_in_place(self):
+        (self.target_dir / "a.txt").write_text("hello", encoding="utf-8")
+        (self.target_dir / "b.txt").write_text("world", encoding="utf-8")
+        (self.target_dir / "Docs").mkdir()
+        created = self.service.create_session(
+            str(self.target_dir),
+            resume_if_exists=False,
+            strategy={"organize_mode": "incremental"},
+        )
+        session = created.session
+        assert session is not None
+        session.stage = "planning"
+        session.selected_target_directories = ["Docs"]
+        session.incremental_selection = {"status": "ready", "target_directories": ["Docs"]}
+        session.pending_plan = {
+            "directories": ["Docs"],
+            "moves": [
+                {"source": "a.txt", "target": "Docs/a.txt"},
+                {"source": "b.txt", "target": "Review/b.txt"},
+            ],
+            "unresolved_items": ["b.txt"],
+            "summary": "1 项归位，1 项待确认",
+        }
+        self.store.save(session)
+
+        result = self.service.execution_app.run_precheck(session.session_id)
+
+        precheck = result.session_snapshot["precheck_summary"]
+        # 归档模式：拿不准的条目留在原地，不生成任何指向待确认区的移动
+        move_targets = [move["target"] for move in precheck["move_preview"]]
+        self.assertEqual(len(move_targets), 1)
+        self.assertNotIn("Review/b.txt", move_targets)
+        self.assertFalse(any("Review" in str(path) for path in precheck["mkdir_preview"]))
+        self.assertTrue((self.target_dir / "b.txt").exists())
+
+    def test_incremental_precheck_leaves_unresolved_with_pool_target_in_place(self):
+        (self.target_dir / "a.txt").write_text("hello", encoding="utf-8")
+        (self.target_dir / "Docs").mkdir()
+        created = self.service.create_session(
+            str(self.target_dir),
+            resume_if_exists=False,
+            strategy={"organize_mode": "incremental"},
+        )
+        session = created.session
+        assert session is not None
+        session.stage = "planning"
+        session.selected_target_directories = ["Docs"]
+        session.incremental_selection = {"status": "ready", "target_directories": ["Docs"]}
+        # 模型拿不准但仍给了池内目标：「拿不准的留在原地」承诺必须覆盖这种情况
+        session.pending_plan = {
+            "directories": ["Docs"],
+            "moves": [{"source": "a.txt", "target": "Docs/a.txt"}],
+            "unresolved_items": ["a.txt"],
+            "summary": "1 项待确认",
+        }
+        self.store.save(session)
+
+        result = self.service.execution_app.run_precheck(session.session_id)
+
+        precheck = result.session_snapshot["precheck_summary"]
+        self.assertEqual(precheck["move_preview"], [])
+        self.assertTrue((self.target_dir / "a.txt").exists())
+
+    def test_execute_rejects_concurrent_second_caller(self):
+        created = self.service.create_session(str(self.target_dir), resume_if_exists=False)
+        session = created.session
+        assert session is not None
+
+        guard = self.service._execution_guard(session.session_id)
+        self.assertTrue(guard.acquire(blocking=False))
+        try:
+            with self.assertRaises(RuntimeError) as ctx:
+                self.service.execution_app.execute(session.session_id, confirm=True)
+            self.assertEqual(str(ctx.exception), "SESSION_LOCKED")
+        finally:
+            guard.release()
+
     def test_run_precheck_marks_directory_move_preview_as_directory_kind(self):
         (self.target_dir / "a.txt").write_text("hello", encoding="utf-8")
         created = self.service.create_session(str(self.target_dir), resume_if_exists=False)
@@ -143,10 +220,13 @@ class ExecutionAppServiceTests(unittest.TestCase):
         result = self.service.execution_app.run_precheck(session.session_id)
 
         snapshot = result.session_snapshot
-        self.assertEqual(snapshot["stage"], "planning")
+        # 重名只跳过后来者，不再阻断整批：保留项仍可执行
+        self.assertEqual(snapshot["stage"], "ready_to_execute")
         precheck = snapshot["precheck_summary"]
-        self.assertFalse(precheck["can_execute"])
-        self.assertTrue(any("计划内多个项目指向同一目标" in item for item in precheck["blocking_errors"]))
+        self.assertTrue(precheck["can_execute"])
+        self.assertEqual(precheck["blocking_errors"], [])
+        duplicate_skips = [skip for skip in precheck["item_skips"] if skip["reason"] == "duplicate_target"]
+        self.assertEqual(len(duplicate_skips), 1)
         suggestions = precheck["target_conflict_suggestions"]
         self.assertEqual(len(suggestions), 1)
         self.assertEqual(suggestions[0]["type"], "target_name_conflict")
@@ -187,8 +267,11 @@ class ExecutionAppServiceTests(unittest.TestCase):
         result = self.service.execution_app.run_precheck(session.session_id)
 
         precheck = result.session_snapshot["precheck_summary"]
+        # 唯一一项被跳过时没有可执行项，仍不放行
         self.assertFalse(precheck["can_execute"])
-        self.assertTrue(any("目标已存在" in item for item in precheck["blocking_errors"]))
+        self.assertEqual(precheck["blocking_errors"], [])
+        self.assertEqual(precheck["item_skips"][0]["reason"], "target_exists")
+        self.assertIn("Docs/report.pdf", precheck["item_skips"][0]["message"])
         suggestions = precheck["target_conflict_suggestions"]
         self.assertEqual(len(suggestions), 1)
         self.assertEqual(suggestions[0]["type"], "target_exists")
@@ -328,7 +411,6 @@ class ExecutionAppServiceTests(unittest.TestCase):
                     "ext": ".txt",
                 }
             ],
-            "targets": [],
             "targets": [
                 {
                     "slot_id": "D003",

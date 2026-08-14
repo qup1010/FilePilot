@@ -1,8 +1,8 @@
 "use client";
 
 import React, { useMemo } from "react";
-import { FolderOpen, FolderPlus, Palette, Plus, Sparkles } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
+import { FolderOpen, FolderPlus, Plus, Sparkles } from "lucide-react";
+import { motion, } from "motion/react";
 
 import { DropZoneOverlay, getDropZoneSurfaceClassName } from "@/components/ui/drop-zone-feedback";
 import type { FolderIconCandidate, IconPreviewVersion } from "@/types/icon-workbench";
@@ -71,7 +71,7 @@ export function IconWorkbenchFolderList({
   dropZoneRef,
   isDraggingGlobal = false,
 }: IconWorkbenchFolderListProps) {
-  const hasReadyVersions = useMemo(
+  const _hasReadyVersions = useMemo(
     () => folders.some((folder) => folder.versions.some((version) => version.status === "ready")),
     [folders],
   );
@@ -129,7 +129,7 @@ export function IconWorkbenchFolderList({
             <div className="max-w-[320px] mb-8">
               <h2 className="text-[15px] font-black tracking-tight text-on-surface/90 mb-2">图标工坊</h2>
               <p className="text-[12px] font-medium leading-relaxed text-on-surface/40">
-                载入目标文件夹后，AI 会提取语义以生成定制图标。
+                添加需要美化的文件夹，AI 将自动提炼内容主题并生成专属图标。
               </p>
             </div>
 
@@ -143,10 +143,10 @@ export function IconWorkbenchFolderList({
                   idleClassName: "border-on-surface/8 bg-on-surface/[0.015] border-dashed text-on-surface/30 hover:bg-on-surface/[0.035] hover:border-on-surface/12 cursor-pointer",
                   activeClassName: "border-primary/35 bg-primary/[0.06] text-primary cursor-pointer",
                   draggingClassName: "border-primary/20 bg-primary/[0.015] text-on-surface/50",
-                  className: "flex h-11 w-full items-center justify-center rounded-lg px-3 text-[11.5px] font-black uppercase tracking-wider select-none transition-all",
+                  className: "flex h-11 w-full items-center justify-center rounded-lg px-3 text-[12px] font-black uppercase tracking-wider select-none transition-all",
                 })}
               >
-                {isTargetDropActive ? "松手即可追加目标文件夹" : "拖放文件夹至此，或点击载入"}
+                {isTargetDropActive ? "松手即可追加目标文件夹" : "拖入文件夹至此处，或点击添加"}
               </div>
             </div>
           </motion.div>
@@ -166,8 +166,8 @@ export function IconWorkbenchFolderList({
               })}
             >
               <Plus className="h-3.5 w-3.5 text-on-surface/20 group-hover/add-more:text-primary transition-colors" />
-              <span className="text-[11.5px] font-black uppercase tracking-widest text-on-surface/30 group-hover/add-more:text-primary/60 transition-colors">
-                追加目标文件夹
+              <span className="text-[12px] font-black uppercase tracking-widest text-on-surface/30 group-hover/add-more:text-primary/60 transition-colors">
+                添加更多文件夹
               </span>
             </motion.div>
 

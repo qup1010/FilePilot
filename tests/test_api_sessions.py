@@ -675,8 +675,9 @@ class SessionApiTests(unittest.TestCase):
         response = self.client.post(f"/api/sessions/{session.session_id}/apply-target-conflict-suggestions")
 
         self.assertEqual(precheck.status_code, 200)
-        self.assertEqual(precheck.json()["session_snapshot"]["stage"], "planning")
-        self.assertFalse(precheck.json()["session_snapshot"]["precheck_summary"]["can_execute"])
+        # 重名只跳过后来者：预检直接放行到 ready_to_execute，改名建议仍可应用
+        self.assertEqual(precheck.json()["session_snapshot"]["stage"], "ready_to_execute")
+        self.assertTrue(precheck.json()["session_snapshot"]["precheck_summary"]["can_execute"])
         self.assertEqual(response.status_code, 200)
         snapshot = response.json()["session_snapshot"]
         self.assertEqual(snapshot["stage"], "ready_to_execute")
@@ -925,6 +926,15 @@ class SessionApiTests(unittest.TestCase):
         matched = next(item for item in response.json() if item["execution_id"] == created["session_id"])
         self.assertEqual(matched["status"], "interrupted")
         self.assertTrue(matched["is_session"])
+
+    def test_history_search_endpoint_delegates_to_service(self):
+        with mock.patch.object(self.service, "search_file_history") as search_mock:
+            search_mock.return_value = {"query": "invoice", "total": 1, "matches": [{"display_name": "invoice.pdf"}]}
+            response = self.client.get("/api/history/search", params={"q": "invoice", "limit": 10})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["total"], 1)
+        search_mock.assert_called_once_with("invoice", limit=10)
 
     def test_cleanup_endpoint_returns_session_snapshot_and_count(self):
         created = self.client.post(

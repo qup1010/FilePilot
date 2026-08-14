@@ -1,8 +1,8 @@
 from __future__ import annotations
 
+import posixpath
 from dataclasses import dataclass
 from pathlib import Path
-import posixpath
 from typing import TYPE_CHECKING
 
 from file_pilot.app.models import OrganizerSession, PlacementPayload
@@ -11,8 +11,8 @@ from file_pilot.shared.path_utils import canonical_target_dir
 
 if TYPE_CHECKING:
     from file_pilot.app.session_service import OrganizerSessionService
-    from file_pilot.organize.models import FinalPlan, PendingPlan
     from file_pilot.domain.models import TargetSlot
+    from file_pilot.organize.models import FinalPlan, PendingPlan
 
 
 @dataclass(frozen=True)

@@ -4,7 +4,6 @@ from collections.abc import Collection
 
 from file_pilot.shared.review import REVIEW_DIR_NAME, REVIEW_DISPLAY_NAME, REVIEW_SLOT_ID
 
-
 STAGE_DRAFT = "draft"
 STAGE_SCANNING = "scanning"
 STAGE_SELECTING_INCREMENTAL_SCOPE = "selecting_incremental_scope"

@@ -1,6 +1,19 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import {
+  Children,
+  cloneElement,
+  createContext,
+  isValidElement,
+  useContext,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type ReactElement,
+  type ReactNode,
+} from "react";
 import { Check, ChevronDown, Plus, Trash2, type LucideIcon } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -52,7 +65,7 @@ export function SettingsSection({
         <div className="flex min-w-0 items-center gap-2.5">
           <Icon className={cn("h-4 w-4 shrink-0", disabled ? "text-on-surface-variant/30" : "text-primary/70")} />
           <div className="min-w-0 space-y-0.5">
-            <h2 className="text-[13.5px] font-black tracking-tight text-on-surface leading-none">{title}</h2>
+            <h2 className="text-[13px] font-black tracking-tight text-on-surface leading-none">{title}</h2>
             <p className="text-[11px] font-medium text-on-surface-variant/50">{description}</p>
           </div>
         </div>
@@ -63,19 +76,67 @@ export function SettingsSection({
   );
 }
 
+const FIELD_LABEL_CLASS =
+  "flex items-center gap-2 px-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-on-surface-variant/50";
+
+/**
+ * Provides the FieldGroup-generated control id to descendants (e.g. InputShell)
+ * so the nested native form control can be associated with the group label.
+ */
+const FieldControlIdContext = createContext<string | null>(null);
+
+function isNativeFormControl(element: ReactElement): element is ReactElement<{ id?: string }> {
+  return element.type === "input" || element.type === "select" || element.type === "textarea";
+}
+
 export function FieldGroup({ label, hint, className, children }: FieldGroupProps) {
+  const generatedId = useId();
+  const childArray = Children.toArray(children);
+  const singleChild = childArray.length === 1 && isValidElement(childArray[0]) ? childArray[0] : null;
+
+  let controlId: string | null = null;
+  let content: ReactNode = children;
+
+  if (singleChild && isNativeFormControl(singleChild)) {
+    // Direct native control (e.g. a bare <textarea>): attach the id ourselves.
+    const existingId = singleChild.props.id;
+    controlId = existingId ?? generatedId;
+    if (!existingId) {
+      content = cloneElement(singleChild, { id: generatedId });
+    }
+  } else if (childArray.some((child) => isValidElement(child) && child.type === InputShell)) {
+    // The control lives inside an InputShell; hand the id down via context.
+    controlId = generatedId;
+  }
+
   return (
     <div className={cn("space-y-1.5", className)}>
-      <label className="flex items-center gap-2 px-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-on-surface-variant/50">
-        {label}
-      </label>
-      {children}
-      {hint ? <p className="px-1 text-[11.5px] font-medium text-on-surface-variant/40 leading-relaxed">{hint}</p> : null}
+      {controlId ? (
+        <label htmlFor={controlId} className={FIELD_LABEL_CLASS}>
+          {label}
+        </label>
+      ) : (
+        <span className={FIELD_LABEL_CLASS}>{label}</span>
+      )}
+      <FieldControlIdContext.Provider value={controlId}>{content}</FieldControlIdContext.Provider>
+      {hint ? <p className="px-1 text-[12px] font-medium text-on-surface-variant/40 leading-relaxed">{hint}</p> : null}
     </div>
   );
 }
 
 export function InputShell({ icon: Icon, children, className }: InputShellProps) {
+  const controlId = useContext(FieldControlIdContext);
+  let content: ReactNode = children;
+  if (controlId) {
+    let injected = false;
+    content = Children.map(children, (child) => {
+      if (!injected && isValidElement(child) && isNativeFormControl(child) && !child.props.id) {
+        injected = true;
+        return cloneElement(child, { id: controlId });
+      }
+      return child;
+    });
+  }
   return (
     <div
       className={cn(
@@ -86,7 +147,7 @@ export function InputShell({ icon: Icon, children, className }: InputShellProps)
       <div className="flex h-6 w-6 shrink-0 items-center justify-center text-on-surface-variant/30 transition-colors group-focus-within:text-primary">
         <Icon className="h-3 w-3" />
       </div>
-      {children}
+      {content}
     </div>
   );
 }
@@ -123,10 +184,12 @@ export function ToggleSwitch({
   checked,
   onClick,
   disabled = false,
+  ariaLabel,
 }: {
   checked: boolean;
   onClick: () => void;
   disabled?: boolean;
+  ariaLabel?: string;
 }) {
   return (
     <button
@@ -135,6 +198,7 @@ export function ToggleSwitch({
       disabled={disabled}
       role="switch"
       aria-checked={checked}
+      aria-label={ariaLabel}
       className={cn(
         "relative inline-flex h-6 w-11 items-center rounded-full p-1 transition-all active:scale-95 disabled:cursor-not-allowed disabled:opacity-50",
         checked ? "bg-primary" : "bg-surface-container-highest",
@@ -147,69 +211,6 @@ export function ToggleSwitch({
         )}
       />
     </button>
-  );
-}
-
-export function PresetManager({
-  title,
-  presets,
-  activeId,
-  onSwitch,
-  onAdd,
-  onDelete,
-}: {
-  title: string;
-  presets: PresetItem[];
-  activeId: string;
-  onSwitch: (id: string) => void;
-  onAdd: () => void;
-  onDelete: (preset: PresetItem) => void;
-}) {
-  return (
-    <div className="space-y-3 rounded-[10px] border border-on-surface/8 bg-surface px-4 py-4">
-      <div className="flex items-center justify-between gap-3">
-        <div className="space-y-1">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-on-surface-variant/60">{title}</p>
-          <p className="text-[12px] text-on-surface-variant/60">切换后只影响这一类模型的地址、模型和密钥。</p>
-        </div>
-        <Button variant="secondary" size="sm" onClick={onAdd} className="px-4 py-2">
-          <Plus className="mr-1 h-4 w-4" />
-          新建
-        </Button>
-      </div>
-
-      <div className="grid gap-2 md:grid-cols-2">
-        {presets.map((preset) => (
-          <button
-            key={preset.id}
-            type="button"
-            onClick={() => onSwitch(preset.id)}
-            className={cn(
-              "group flex items-center justify-between rounded-[10px] border px-3.5 py-3 text-left transition-colors",
-              activeId === preset.id
-                ? "border-primary/25 bg-primary/10"
-                : "border-on-surface/8 bg-surface-container-lowest hover:border-primary/18 hover:bg-surface-container-low",
-            )}
-          >
-            <div className="min-w-0">
-              <p className="truncate text-[13px] font-semibold tracking-tight text-on-surface">{preset.name}</p>
-              <p className="text-[11px] text-on-surface-variant/45">{preset.id}</p>
-            </div>
-            {preset.id !== "default" ? (
-              <span
-                onClick={(event) => {
-                  event.stopPropagation();
-                  onDelete(preset);
-                }}
-                className="rounded-[8px] p-1.5 text-on-surface-variant/35 transition-colors hover:bg-error/5 hover:text-error"
-              >
-                <Trash2 className="h-4 w-4" />
-              </span>
-            ) : null}
-          </button>
-        ))}
-      </div>
-    </div>
   );
 }
 
@@ -232,7 +233,47 @@ export function PresetSelector({
 }) {
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
   const activePreset = presets.find((preset) => preset.id === activeId) || presets[0] || null;
+
+  const focusOption = (index: number) => {
+    const options = listRef.current?.querySelectorAll<HTMLButtonElement>('[role="option"]');
+    if (!options || options.length === 0) {
+      return;
+    }
+    const clamped = Math.max(0, Math.min(index, options.length - 1));
+    options[clamped].focus();
+  };
+
+  const handleListKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    const options = Array.from(
+      listRef.current?.querySelectorAll<HTMLButtonElement>('[role="option"]') ?? [],
+    );
+    if (options.length === 0) {
+      return;
+    }
+    const currentIndex = options.indexOf(document.activeElement as HTMLButtonElement);
+    switch (event.key) {
+      case "ArrowDown":
+        event.preventDefault();
+        focusOption(currentIndex + 1);
+        break;
+      case "ArrowUp":
+        event.preventDefault();
+        focusOption(currentIndex <= 0 ? 0 : currentIndex - 1);
+        break;
+      case "Home":
+        event.preventDefault();
+        focusOption(0);
+        break;
+      case "End":
+        event.preventDefault();
+        focusOption(options.length - 1);
+        break;
+      default:
+        break;
+    }
+  };
 
   useEffect(() => {
     if (!open) {
@@ -286,7 +327,7 @@ export function PresetSelector({
             )}
           >
             <div className="min-w-0">
-              <p className="truncate text-[13.5px] font-bold tracking-tight text-on-surface">
+              <p className="truncate text-[13px] font-bold tracking-tight text-on-surface">
                 {activePreset?.name || "选择预设..."}
               </p>
               <p className="mt-0.5 text-[11px] font-medium text-on-surface-variant/60">
@@ -310,8 +351,13 @@ export function PresetSelector({
       </div>
 
       <div
+        ref={listRef}
         id={`${label}-preset-list`}
         role="listbox"
+        aria-label={label}
+        inert={!open}
+        aria-hidden={!open}
+        onKeyDown={handleListKeyDown}
         className={cn(
           "overflow-hidden rounded-[8px] border border-on-surface/8 bg-surface transition-[max-height,opacity,margin] duration-200",
           open ? "max-h-[320px] opacity-100 mt-1" : "max-h-0 border-transparent opacity-0 mt-0",
@@ -323,6 +369,7 @@ export function PresetSelector({
             return (
               <div
                 key={preset.id}
+                role="presentation"
                 className={cn(
                   "group flex items-center gap-3 rounded-[6px] px-2 py-2 transition-all",
                   active 
@@ -332,6 +379,8 @@ export function PresetSelector({
               >
                 <button
                   type="button"
+                  role="option"
+                  aria-selected={active}
                   onClick={() => onSwitch(preset.id)}
                   className="flex min-w-0 flex-1 items-center gap-2.5 text-left"
                 >
@@ -345,7 +394,7 @@ export function PresetSelector({
                   </span>
                   <div className="min-w-0">
                     <p className={cn("truncate text-[13px] font-bold tracking-tight", active ? "text-primary" : "text-on-surface")}>{preset.name}</p>
-                    <p className="mt-0.5 text-[10.5px] font-mono text-on-surface-variant/60">{preset.id}</p>
+                    <p className="mt-0.5 text-[11px] font-mono text-on-surface-variant/60">{preset.id}</p>
                   </div>
                 </button>
                 <button

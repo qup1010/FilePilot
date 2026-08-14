@@ -9,7 +9,6 @@ from typing import Any, Iterable
 
 from openai import OpenAI
 
-
 TOOL_NAME = "submit_probe_result"
 DEFAULT_TIMEOUT_SECONDS = 60.0
 

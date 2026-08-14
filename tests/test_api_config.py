@@ -1,8 +1,8 @@
 import io
 import json
 import os
-from collections import Counter
 import unittest
+from collections import Counter
 from unittest import mock
 from urllib import error as urllib_error
 
@@ -562,12 +562,20 @@ class ApiConfigTests(unittest.TestCase):
         self.assertEqual(openai_mock.call_args.kwargs["base_url"], "https://text.example/v1")
 
     def test_create_app_does_not_register_duplicate_api_routes(self):
+        def iter_routes(routes):
+            # include_router 挂载的子路由在新版 FastAPI 中以嵌套对象出现，需要递归展开
+            for route in routes:
+                if hasattr(route, "path"):
+                    yield route
+                else:
+                    yield from iter_routes(getattr(route, "routes", []))
+
         route_counts = Counter(
             (
                 tuple(sorted(route.methods or [])),
                 route.path,
             )
-            for route in self.client.app.routes
+            for route in iter_routes(self.client.app.routes)
             if route.path.startswith("/api/")
         )
 

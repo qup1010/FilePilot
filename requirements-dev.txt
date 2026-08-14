@@ -1,0 +1,5 @@
+# 开发与 CI 专用依赖，不进入 PyInstaller 打包产物。
+-r requirements.txt
+pytest>=8.0,<9
+pytest-cov>=6.0,<8
+ruff>=0.9,<1

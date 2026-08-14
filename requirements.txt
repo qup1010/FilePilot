@@ -1,12 +1,14 @@
-openai
-httpx
-pypdf
-python-docx
-pandas
-openpyxl
-fastapi
-uvicorn
-python-multipart
-python-dotenv
-Pillow
-mutagen
+# 运行时依赖。上界取下一个主版本，防止上游破坏性变更悄悄进入构建；
+# 升级主版本时请在本地跑完整测试后再放宽。
+openai>=2.0,<3
+httpx>=0.28,<1
+pypdf>=6.0,<7
+python-docx>=1.2,<2
+pandas>=2.2,<4
+openpyxl>=3.1,<4
+fastapi>=0.115,<1
+uvicorn>=0.34,<1
+python-multipart>=0.0.20,<0.1
+python-dotenv>=1.0,<2
+Pillow>=11.0,<13
+mutagen>=1.47,<2
