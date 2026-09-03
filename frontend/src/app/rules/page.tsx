@@ -11,7 +11,6 @@ import {
   FolderPlus,
   Loader2,
   Plus,
-  RefreshCw,
   SlidersHorizontal,
   Sparkles,
   Star,

@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, ArrowLeft, CheckCircle2, ExternalLink, Folder, FolderOpen, History, Info, Layers, Loader2, Palette, RotateCcw, ShieldCheck, Undo2 } from "lucide-react";
+import { AlertTriangle, ArrowLeft, CheckCircle2, Folder, FolderOpen, History, Info, Layers, Loader2, Palette, RotateCcw, ShieldCheck, Undo2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { OrganizeMethod, JournalSummary, SessionSnapshot } from "@/types/session";
 import { DirectoryTreeDiff, type DirectoryTreeLeafEntry, type DirectoryTreeFilter } from "./directory-tree-diff";

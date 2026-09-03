@@ -1,6 +1,5 @@
 "use client";
 
-import React from "react";
 import { motion } from "motion/react";
 import { ArrowRight, FolderCheck, FolderOpen, Loader2, RotateCcw, ShieldCheck } from "lucide-react";
 import { cn } from "@/lib/utils";

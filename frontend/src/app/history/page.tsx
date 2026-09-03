@@ -8,7 +8,6 @@ import {
   Activity,
   History as HistoryIcon,
   Undo2,
-  PlayCircle,
   Search,
   Trash2,
   ShieldCheck,
@@ -34,7 +33,6 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { notifyAppContextChange } from "@/lib/app-context-store";
 import {
   clearActiveWorkspaceRouteForSession,
-  getHistoryEntryName,
   getHistoryEntrySummary,
   getHistoryEntryHref,
   getHistoryEntryReadonlyHref,
