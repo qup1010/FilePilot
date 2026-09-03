@@ -52,7 +52,7 @@ export function BgRemovalTab({
           <StrategyOptionButton
             active={bgRemoval.mode === "custom"}
             label="自定义服务"
-            description="手动配置 Space ID、API 类型及 Payload 请求模板。"
+            description="连接自建的 Hugging Face Space 或私有 Gradio 抠图端点（适合高级用户）。"
             onClick={() => onUpdate((current) => ({ ...current, mode: "custom" }))}
           />
         </div>

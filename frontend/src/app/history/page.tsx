@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import {
   FolderOpen,
+  FolderInput,
   ArrowRight,
   Activity,
   History as HistoryIcon,
@@ -14,6 +15,8 @@ import {
   FileClock,
   CheckCircle2,
   AlertCircle,
+  Compass,
+  Sparkles,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { useVirtualizer } from "@tanstack/react-virtual";
@@ -77,6 +80,7 @@ function getSessionRecoveryCopy(entry: HistoryItem | null, detail: SessionSnapsh
       description: "可以回到工作区继续读取目录并生成第一版整理方案。",
       primaryLabel: "继续并扫描",
       secondaryLabel: "只读查看",
+      icon: FileClock,
     };
   }
   if (status === "scanning") {
@@ -85,6 +89,7 @@ function getSessionRecoveryCopy(entry: HistoryItem | null, detail: SessionSnapsh
       description: "打开工作区可查看当前扫描进度；如果后台已中断，工作区会给出恢复动作。",
       primaryLabel: "查看进度",
       secondaryLabel: "只读查看",
+      icon: Compass,
     };
   }
   if (status === "planning") {
@@ -93,6 +98,7 @@ function getSessionRecoveryCopy(entry: HistoryItem | null, detail: SessionSnapsh
       description: "回到工作区后可以继续生成、修改方案，或在方案就绪后进行移动前检查。",
       primaryLabel: "继续处理任务",
       secondaryLabel: "只读查看",
+      icon: Sparkles,
     };
   }
   if (status === "ready_for_precheck") {
@@ -101,6 +107,7 @@ function getSessionRecoveryCopy(entry: HistoryItem | null, detail: SessionSnapsh
       description: "建议先做移动前安全检查，确认无冲突后再执行整理。",
       primaryLabel: "去做安全检查",
       secondaryLabel: "只读查看",
+      icon: ShieldCheck,
     };
   }
   if (status === "ready_to_execute") {
@@ -109,6 +116,7 @@ function getSessionRecoveryCopy(entry: HistoryItem | null, detail: SessionSnapsh
       description: "可以回到工作区复核检查结果，并输入确认后执行移动。",
       primaryLabel: "继续执行前确认",
       secondaryLabel: "只读查看",
+      icon: CheckCircle2,
     };
   }
   if (status === "interrupted" || status === "stale") {
@@ -117,6 +125,7 @@ function getSessionRecoveryCopy(entry: HistoryItem | null, detail: SessionSnapsh
       description: "建议回到工作区重新扫描，先确认目录状态再继续。",
       primaryLabel: "恢复任务",
       secondaryLabel: "只读查看",
+      icon: AlertCircle,
     };
   }
   return {
@@ -124,6 +133,7 @@ function getSessionRecoveryCopy(entry: HistoryItem | null, detail: SessionSnapsh
     description: "可以继续之前的工作区状态，或只读查看这条任务记录。",
     primaryLabel: "继续处理任务",
     secondaryLabel: "只读查看",
+    icon: ArrowRight,
   };
 }
 
@@ -377,55 +387,105 @@ export default function HistoryPage() {
   ] as const;
 
   const sessionRecoveryCopy = getSessionRecoveryCopy(selectedEntry, sessionDetail);
+  const RecoveryStatusIcon = sessionRecoveryCopy.icon;
+  const planStats = sessionDetail?.plan_snapshot?.stats;
   const sessionDetailInterior = (
     <div className="space-y-4">
-      <div className="group flex items-center justify-between gap-4 rounded-xl border border-primary/18 bg-gradient-to-r from-primary/[0.045] to-primary/[0.01] p-4">
-        <div className="flex items-center gap-4">
-          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary text-white border border-primary/25 transition-transform group-hover:scale-105">
-            <PlayCircle className="h-6 w-6" />
-          </div>
-          <div className="min-w-0">
-            <h3 className="text-[14px] font-black tracking-tight text-on-surface">{sessionRecoveryCopy.title}</h3>
-            <div className="mt-0.5 flex items-center gap-2">
-              <p className="text-[11px] font-bold text-ui-muted opacity-60">已扫描得到 {sessionDetail?.plan_snapshot?.stats?.move_count || 0} 个整理项</p>
-              <div className="h-1 w-1 rounded-full bg-ui-muted/30" />
-              <p className="text-[11px] font-bold text-ui-muted opacity-60">
-                最后更新: {formatDisplayDate(sessionDetail?.updated_at || "")}
+      {/* 1. 一体化主行动看板：整合阶段状态、行动建议与操作按钮 */}
+      <div className="rounded-xl border border-primary/20 bg-gradient-to-br from-primary/[0.06] via-primary/[0.02] to-surface-container-lowest p-5 shadow-sm">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start gap-3.5 min-w-0 flex-1">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary border border-primary/20 shadow-sm mt-0.5">
+              <RecoveryStatusIcon className="h-5 w-5" />
+            </div>
+            <div className="min-w-0 space-y-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <h3 className="text-[15px] font-bold tracking-tight text-on-surface">{sessionRecoveryCopy.title}</h3>
+                <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary">
+                  进行中
+                </span>
+              </div>
+              <p className="text-[13px] font-medium leading-relaxed text-on-surface-variant/80">
+                {sessionRecoveryCopy.description}
               </p>
+              <div className="flex items-center gap-2 pt-0.5 text-[11px] font-medium text-on-surface-variant/60">
+                <span>已规划 {planStats?.move_count ?? 0} 个整理项</span>
+                <span className="h-1 w-1 rounded-full bg-on-surface-variant/30" />
+                <span>最后更新于 {formatDisplayDate(sessionDetail?.updated_at || "")}</span>
+              </div>
             </div>
           </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button variant="secondary" onClick={() => handleOpenSession(true)} className="h-8.5 rounded-lg px-4 text-[11px] font-black">
-            {sessionRecoveryCopy.secondaryLabel}
-          </Button>
-          <Button variant="primary" onClick={() => handleOpenSession(false)} className="h-8.5 rounded-lg px-5 text-[11px] font-black">
-            {sessionRecoveryCopy.primaryLabel}
-          </Button>
-        </div>
-      </div>
 
-      <div className="rounded-[8px] border border-primary/12 bg-surface-container-lowest px-4 py-3">
-        <div className="flex items-start gap-3">
-          <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-primary/70" />
-          <div>
-            <p className="text-[13px] font-black text-on-surface">推荐下一步</p>
-            <p className="mt-1 text-[13px] leading-5 text-ui-muted/75">{sessionRecoveryCopy.description}</p>
+          <div className="flex shrink-0 items-center gap-2.5 sm:self-center">
+            <Button
+              variant="secondary"
+              onClick={() => handleOpenSession(true)}
+              className="h-9 rounded-lg px-3.5 text-[12px] font-bold border border-on-surface/10 bg-surface shadow-sm hover:bg-surface-container-low"
+            >
+              {sessionRecoveryCopy.secondaryLabel}
+            </Button>
+            <Button
+              variant="primary"
+              onClick={() => handleOpenSession(false)}
+              className="h-9 rounded-lg px-4 text-[12px] font-bold shadow-sm"
+            >
+              {sessionRecoveryCopy.primaryLabel}
+              <ArrowRight className="h-3.5 w-3.5" />
+            </Button>
           </div>
         </div>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-1">
-        <div className="rounded-xl border border-on-surface/8 bg-on-surface/[0.02] p-5">
-           <div className="mb-2 flex items-center gap-2">
-              <span className="text-[11px] font-black uppercase tracking-[0.2em] text-ui-muted opacity-40">会话摘要</span>
-              <div className="h-px flex-1 bg-on-surface/5" />
-           </div>
-           <p className="text-[13px] font-medium leading-relaxed text-on-surface/80">
-             {sessionDetail?.summary || "这是一条未完成的整理记录，你可以继续之前的操作。"}
-           </p>
+      {/* 2. 结构化关键指标微面板 */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <div className="rounded-xl border border-on-surface/10 bg-surface-container-lowest p-3.5 shadow-sm">
+          <div className="flex items-center justify-between text-on-surface-variant/60">
+            <span className="text-[11px] font-bold">待移动文件</span>
+            <FolderInput className="h-4 w-4 text-primary/70" />
+          </div>
+          <p className="mt-2 text-[22px] font-bold tabular-nums text-on-surface">
+            {planStats?.move_count ?? 0}
+          </p>
+          <p className="mt-0.5 text-[11px] font-medium text-on-surface-variant/50">已识别并规划落点</p>
+        </div>
+
+        <div className="rounded-xl border border-on-surface/10 bg-surface-container-lowest p-3.5 shadow-sm">
+          <div className="flex items-center justify-between text-on-surface-variant/60">
+            <span className="text-[11px] font-bold">目标归档目录</span>
+            <FolderOpen className="h-4 w-4 text-primary/70" />
+          </div>
+          <p className="mt-2 text-[22px] font-bold tabular-nums text-on-surface">
+            {planStats?.directory_count ?? 0}
+          </p>
+          <p className="mt-0.5 text-[11px] font-medium text-on-surface-variant/50">涉及的目标文件夹</p>
+        </div>
+
+        <div className="rounded-xl border border-on-surface/10 bg-surface-container-lowest p-3.5 shadow-sm">
+          <div className="flex items-center justify-between text-on-surface-variant/60">
+            <span className="text-[11px] font-bold">待确认复核</span>
+            <ShieldCheck className="h-4 w-4 text-primary/70" />
+          </div>
+          <p className={cn(
+            "mt-2 text-[22px] font-bold tabular-nums",
+            (planStats?.unresolved_count ?? 0) > 0 ? "text-amber-600 dark:text-amber-400" : "text-emerald-600 dark:text-emerald-400"
+          )}>
+            {planStats?.unresolved_count ?? 0}
+          </p>
+          <p className="mt-0.5 text-[11px] font-medium text-on-surface-variant/50">
+            {(planStats?.unresolved_count ?? 0) > 0 ? "需人工确认分类" : "已全部明确分类"}
+          </p>
         </div>
       </div>
+
+      {/* 3. 方案概述说明 */}
+      {sessionDetail?.summary && (
+        <div className="rounded-xl border border-on-surface/8 bg-surface/50 p-4 shadow-sm">
+          <p className="text-[11px] font-bold text-on-surface-variant/60">整理方案概述</p>
+          <p className="mt-1 text-[13px] leading-relaxed text-on-surface/85">
+            {sessionDetail.summary}
+          </p>
+        </div>
+      )}
 
       {sessionDetail?.last_error && (
         <ErrorAlert 
@@ -467,19 +527,50 @@ export default function HistoryPage() {
         </motion.div>
       )}
 
-      <div className="flex flex-wrap items-center gap-6 px-1 py-1">
-        <div className="flex items-baseline gap-2">
-          <span className="text-[12px] font-bold text-ui-muted/65">已整理项</span>
-          <span className="text-[18px] font-black tabular-nums text-on-surface/90">{journal?.item_count || 0}</span>
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+        <div className="rounded-xl border border-on-surface/10 bg-surface-container-lowest p-3.5 shadow-sm">
+          <div className="flex items-center justify-between text-on-surface-variant/60">
+            <span className="text-[11px] font-bold">已整理项</span>
+            <FolderInput className="h-4 w-4 text-primary/70" />
+          </div>
+          <p className="mt-2 text-[22px] font-bold tabular-nums text-on-surface">
+            {journal?.item_count || 0}
+          </p>
+          <p className="mt-0.5 text-[11px] font-medium text-on-surface-variant/50">实际执行文件数</p>
         </div>
-        <div className="flex items-baseline gap-2">
-          <span className="text-[12px] font-bold text-ui-muted/65">成功</span>
-          <span className="text-[18px] font-black tabular-nums text-success-dim">{journal?.success_count || 0}</span>
+
+        <div className="rounded-xl border border-on-surface/10 bg-surface-container-lowest p-3.5 shadow-sm">
+          <div className="flex items-center justify-between text-on-surface-variant/60">
+            <span className="text-[11px] font-bold">整理成功</span>
+            <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+          </div>
+          <p className="mt-2 text-[22px] font-bold tabular-nums text-emerald-600 dark:text-emerald-400">
+            {journal?.success_count || 0}
+          </p>
+          <p className="mt-0.5 text-[11px] font-medium text-on-surface-variant/50">已成功移动并归档</p>
         </div>
-        {Boolean(journal?.failure_count) && (
-          <div className="flex items-baseline gap-2">
-            <span className="text-[12px] font-bold text-ui-muted/65 text-error/80">失败</span>
-            <span className="text-[18px] font-black tabular-nums text-error">{journal?.failure_count}</span>
+
+        {Boolean(journal?.failure_count) ? (
+          <div className="rounded-xl border border-error/20 bg-error/[0.03] p-3.5 shadow-sm">
+            <div className="flex items-center justify-between text-error/80">
+              <span className="text-[11px] font-bold">整理失败</span>
+              <AlertCircle className="h-4 w-4 text-error" />
+            </div>
+            <p className="mt-2 text-[22px] font-bold tabular-nums text-error">
+              {journal?.failure_count}
+            </p>
+            <p className="mt-0.5 text-[11px] font-medium text-error/60">发生冲突或权限问题</p>
+          </div>
+        ) : (
+          <div className="rounded-xl border border-on-surface/10 bg-surface-container-lowest p-3.5 shadow-sm">
+            <div className="flex items-center justify-between text-on-surface-variant/60">
+              <span className="text-[11px] font-bold">失败项</span>
+              <ShieldCheck className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+            </div>
+            <p className="mt-2 text-[22px] font-bold tabular-nums text-emerald-600 dark:text-emerald-400">
+              0
+            </p>
+            <p className="mt-0.5 text-[11px] font-medium text-on-surface-variant/50">全部顺利完成</p>
           </div>
         )}
       </div>
@@ -487,8 +578,8 @@ export default function HistoryPage() {
       <div className="space-y-4">
         <div className="flex items-center justify-between border-b border-on-surface/8 pb-3 px-1">
           <div className="flex items-center gap-2">
-            <FileClock className="h-4 w-4 text-primary/60" />
-            <h3 className="text-[13px] font-black uppercase tracking-[0.1em] text-on-surface/80">变更执行明细</h3>
+            <FileClock className="h-4 w-4 text-primary/70" />
+            <h3 className="text-[13px] font-bold uppercase tracking-[0.08em] text-on-surface/80">变更执行明细</h3>
           </div>
 
           {!rollbackResult && (journal?.status === "completed" || journal?.status === "partial_failure") && (
@@ -497,9 +588,9 @@ export default function HistoryPage() {
               onClick={() => void handleRollback(false)}
               disabled={actionLoading}
               loading={actionLoading}
-              className="h-7.5 rounded-md px-4 text-[11px] font-black"
+              className="h-8 rounded-lg px-3.5 text-[12px] font-bold"
             >
-              <Undo2 className="h-3 w-3" />
+              <Undo2 className="h-3.5 w-3.5" />
               回退执行
             </Button>
           )}
@@ -702,53 +793,49 @@ export default function HistoryPage() {
                         }
                       }}
                       className={cn(
-                        "group relative flex cursor-pointer flex-col gap-1 rounded-md px-3 py-2 transition-colors text-left outline-none",
+                        "group relative flex cursor-pointer flex-col gap-1.5 rounded-xl px-3.5 py-2.5 transition-all text-left outline-none",
                         active
-                          ? "bg-primary/[0.08] border-primary/20"
-                          : "bg-transparent border-transparent hover:bg-on-surface/[0.035]",
-                        isRolledBack && "opacity-60 saturate-50 hover:opacity-90 hover:saturate-100 transition-all",
+                          ? "bg-primary/10 border-primary/20 shadow-sm text-primary"
+                          : "bg-transparent border-transparent hover:bg-on-surface/[0.04]",
+                        isRolledBack && "opacity-75 saturate-75",
                       )}
                       style={{ borderWidth: '1px', borderStyle: 'solid' }}
                     >
-                      {active && (
-                        <div className="absolute left-0 top-2 bottom-2 w-[3px] rounded-r-full bg-primary" />
-                      )}
-
                       <div className="flex items-center justify-between gap-2">
-                        <div className="flex min-w-0 items-center gap-1.5">
+                        <div className="flex min-w-0 items-center gap-2">
                           <span className={cn(
-                            "h-1.5 w-1.5 shrink-0 rounded-full",
-                            sessionLike ? "bg-primary" : isRolledBack ? "bg-on-surface/20" : isPartialFailure ? "bg-warning" : "bg-success",
+                            "h-2 w-2 shrink-0 rounded-full",
+                            sessionLike ? "bg-primary" : isRolledBack ? "bg-on-surface/30" : isPartialFailure ? "bg-amber-500" : "bg-emerald-500",
                           )} />
                           <h3 className={cn(
-                            "truncate text-[13px] font-black tracking-tight",
-                            active ? "text-primary" : "text-on-surface/85",
-                            isRolledBack && "text-ui-muted line-through opacity-70"
+                            "truncate text-[13px] font-bold tracking-tight",
+                            active ? "text-primary" : "text-on-surface/90",
+                            isRolledBack && "text-on-surface-variant/70",
                           )}>
                             {dirShortName}
                           </h3>
                         </div>
                         <div className="flex items-center gap-1.5 shrink-0 transition-all duration-300 ease-out group-hover:opacity-0 group-hover:-translate-x-3 group-hover:scale-95 group-hover:pointer-events-none">
                           <span className={cn(
-                            "rounded-[4px] border px-1.5 py-0.5 text-[11px] font-bold",
+                            "rounded-full border px-2 py-0.5 text-[11px] font-bold",
                             active
-                              ? "bg-primary/10 border-primary/20 text-primary/80"
+                              ? "bg-primary/15 border-primary/25 text-primary"
                               : isPartialFailure
-                                ? "bg-warning/5 border-warning/10 text-warning"
+                                ? "bg-amber-500/10 border-amber-500/20 text-amber-600 dark:text-amber-400"
                                 : isRolledBack
-                                  ? "bg-on-surface/[0.03] border-on-surface/10 text-ui-muted/60"
-                                  : "bg-success/5 border-success/10 text-success-dim/80"
+                                  ? "bg-on-surface/[0.04] border-on-surface/10 text-on-surface-variant/60"
+                                  : "bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-400"
                           )}>
                             {statusSummary}
                           </span>
                         </div>
                       </div>
 
-                      <div className="flex items-center justify-between gap-2 mt-0.5">
-                        <p className="truncate text-[11px] font-medium text-ui-muted/55 flex-1" title={entry.target_dir}>
+                      <div className="flex items-center justify-between gap-2 mt-0.5 pl-4">
+                        <p className="truncate text-[11px] font-medium text-on-surface-variant/60 flex-1" title={entry.target_dir}>
                           {formatPath(entry.target_dir)}
                         </p>
-                        <span className="shrink-0 font-mono text-[11px] font-medium text-ui-muted/45 transition-all duration-300 ease-out group-hover:opacity-0 group-hover:-translate-x-3 group-hover:pointer-events-none">
+                        <span className="shrink-0 font-mono text-[11px] font-medium text-on-surface-variant/50 transition-all duration-300 ease-out group-hover:opacity-0 group-hover:-translate-x-3 group-hover:pointer-events-none">
                           {formatDisplayDate(entry.created_at)}
                         </span>
                       </div>
@@ -815,17 +902,17 @@ export default function HistoryPage() {
                   <div className="flex items-center justify-between gap-4">
                     <div className="flex min-w-0 flex-1 items-center gap-3">
                        <h2 className={cn(
-                         "truncate text-[15px] font-black tracking-tight text-on-surface",
-                         selectedEntry && isHistoryRolledBackEntry(selectedEntry) && "line-through text-ui-muted/60"
+                         "truncate text-[15px] font-bold tracking-tight text-on-surface",
+                         selectedEntry && isHistoryRolledBackEntry(selectedEntry) && "text-on-surface-variant/70"
                        )}>
                          {getPathBasename(selectedEntry.target_dir, selectedEntry.target_dir || "未指定目录")}
                        </h2>
                        <div className="h-4 w-px bg-on-surface/10 shrink-0" />
                        <div className="flex min-w-0 items-center gap-2">
-                         <div className="shrink-0 text-[12px] font-bold text-ui-muted/55">
+                         <div className="shrink-0 text-[12px] font-semibold text-on-surface-variant/65">
                            {isSelectedSession ? "任务记录" : "执行结果"}
                          </div>
-                         <div className="hidden min-w-0 items-center gap-1.5 truncate text-[11px] font-medium text-ui-muted/60 xl:flex">
+                         <div className="hidden min-w-0 items-center gap-1.5 truncate text-[11px] font-medium text-on-surface-variant/60 xl:flex">
                            <FolderOpen className="h-3 w-3 shrink-0 opacity-40" />
                            <span className="truncate">{selectedEntry.target_dir}</span>
                          </div>
@@ -840,7 +927,7 @@ export default function HistoryPage() {
                           : false;
                         return (
                           <div className={cn(
-                            "hidden items-center gap-2 rounded-[6px] border px-2 py-1 text-[12px] font-bold sm:flex",
+                            "hidden items-center gap-2 rounded-full border px-2.5 py-1 text-[12px] font-bold sm:flex",
                             isSelectedSession
                               ? "border-primary/25 bg-primary/5 text-primary"
                               : entryIsRolledBack

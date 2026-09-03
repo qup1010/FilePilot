@@ -210,11 +210,11 @@ export function ConnectionTestPanel({
   onTest,
 }: ConnectionTestPanelProps) {
   return (
-    <div className="rounded-[8px] border border-on-surface/8 bg-surface-container-lowest px-4 py-3">
+    <div className="rounded-xl border border-on-surface/12 bg-surface/40 p-4 shadow-sm">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h3 className="text-[13px] font-black text-on-surface">{title || "连接测试"}</h3>
-          <p className="mt-1 text-[12px] font-medium text-ui-muted/65">{description || "验证当前配置的连通性与可用性。"}</p>
+          <h3 className="text-[13px] font-bold text-on-surface">{title || "连接测试"}</h3>
+          <p className="mt-0.5 text-[12px] font-medium text-on-surface-variant/65">{description || "验证当前配置的连通性与可用性。"}</p>
         </div>
         <Button
           variant="secondary"
@@ -222,6 +222,7 @@ export function ConnectionTestPanel({
           onClick={onTest}
           loading={isTesting}
           disabled={disabled}
+          className="h-[34px] rounded-lg px-3.5 text-[12px] font-bold border border-on-surface/12 shadow-sm"
         >
           {disabled ? "仅桌面端可测试" : buttonLabel || "测试连接"}
         </Button>
@@ -270,43 +271,43 @@ export function ModelIdField({
           type="button"
           onClick={onFetchModels}
           disabled={isLoadingModels}
-          className="inline-flex h-7 shrink-0 items-center gap-1.5 rounded-[6px] border border-on-surface/8 bg-surface px-2.5 text-[11px] font-bold text-on-surface/70 transition-colors hover:border-primary/20 hover:text-primary disabled:opacity-55"
+          className="inline-flex h-[28px] shrink-0 items-center gap-1.5 rounded-md border border-primary/20 bg-primary/5 px-2.5 text-[11px] font-bold text-primary transition-colors hover:bg-primary/10 hover:border-primary/35 disabled:opacity-55"
         >
           {isLoadingModels ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
-          获取
+          获取模型
         </button>
       </InputShell>
       {lookupResult ? (
         <div
           className={cn(
-            "rounded-[6px] border px-2.5 py-2",
+            "rounded-xl border p-2.5 transition-all shadow-sm",
             lookupResult.status === "ok"
-              ? "border-on-surface/8 bg-surface-container-lowest"
+              ? "border-on-surface/10 bg-surface/50"
               : "border-error/15 bg-error/[0.03]",
           )}
         >
           {lookupResult.status === "ok" ? (
             models.length ? (
               <div className="flex flex-wrap gap-1.5">
-                {models.slice(0, 8).map((model) => (
+                {models.slice(0, 10).map((model) => (
                   <button
                     key={model.id}
                     type="button"
                     onClick={() => onChange(model.id)}
                     className={cn(
-                      "max-w-full truncate rounded-[6px] border px-2 py-1 text-[11px] font-semibold transition-colors",
+                      "max-w-full truncate rounded-lg border px-2.5 py-1 text-[11px] font-medium transition-all",
                       model.id === value
-                        ? "border-primary/25 bg-primary/10 text-primary"
-                        : "border-on-surface/8 bg-surface text-on-surface/70 hover:border-primary/18 hover:text-primary",
+                        ? "border-primary/40 bg-primary/15 text-primary font-bold shadow-sm"
+                        : "border-on-surface/8 bg-surface-container-lowest text-on-surface/75 hover:border-primary/25 hover:text-primary",
                     )}
                     title={model.id}
                   >
                     {model.id}
                   </button>
                 ))}
-                {models.length > 8 ? (
-                  <span className="rounded-[6px] border border-on-surface/8 bg-surface px-2 py-1 text-[11px] font-semibold text-ui-muted">
-                    +{models.length - 8}
+                {models.length > 10 ? (
+                  <span className="rounded-lg border border-on-surface/8 bg-surface-container-lowest px-2 py-1 text-[11px] font-semibold text-on-surface-variant/50">
+                    +{models.length - 10}
                   </span>
                 ) : null}
               </div>
@@ -414,14 +415,17 @@ export function SecretField({ label, state, secret, setSecret, family }: SecretF
   );
 }
 
-export function SettingsMinPath({ items }: { items: string[] }) {
+export function SettingsMinPath({ items, title = "快速配置指南" }: { items: string[]; title?: string }) {
   return (
-    <div className="rounded-[8px] border border-on-surface/8 bg-surface-container-lowest px-4 py-3">
-      <p className="text-[11px] font-black uppercase tracking-[0.16em] text-primary/55">最小配置路径</p>
-      <ul className="mt-2 space-y-1.5">
+    <div className="rounded-xl border border-primary/15 bg-primary/[0.03] px-4 py-3.5 shadow-sm">
+      <div className="flex items-center gap-2">
+        <span className="h-1.5 w-1.5 rounded-full bg-primary" />
+        <p className="text-[12px] font-bold tracking-wide text-primary">{title}</p>
+      </div>
+      <ul className="mt-2.5 space-y-1.5">
         {items.map((item) => (
-          <li key={item} className="flex gap-2 text-[12px] leading-5 text-on-surface/70">
-            <span className="mt-2 h-1 w-1 shrink-0 rounded-full bg-primary/50" />
+          <li key={item} className="flex gap-2 text-[12px] leading-5 text-on-surface/80">
+            <span className="mt-2 h-1 w-1 shrink-0 rounded-full bg-primary/60" />
             <span>{item}</span>
           </li>
         ))}

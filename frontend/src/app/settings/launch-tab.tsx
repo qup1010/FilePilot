@@ -108,7 +108,7 @@ export function LaunchTab({
               >
                 <section.icon className="h-4 w-4 shrink-0" />
                 <div className="min-w-0">
-                  <p className="text-[13px] font-black">{section.label}</p>
+                  <p className="text-[13px] font-bold">{section.label}</p>
                   <p className="mt-1 truncate text-[11px] font-medium text-ui-muted">{section.description}</p>
                 </div>
               </button>
@@ -191,9 +191,9 @@ export function LaunchTab({
           <div className="grid gap-3 xl:grid-cols-4">
             {[
               { label: "目录语言", key: "LAUNCH_DEFAULT_LANGUAGE", options: LANGUAGE_OPTIONS },
-              { label: "分类粒度", key: "LAUNCH_DEFAULT_DENSITY", options: DENSITY_OPTIONS },
+              { label: "分类精细度", key: "LAUNCH_DEFAULT_DENSITY", options: DENSITY_OPTIONS },
               { label: "目录前缀", key: "LAUNCH_DEFAULT_PREFIX_STYLE", options: PREFIX_STYLE_OPTIONS },
-              { label: "归档倾向", key: "LAUNCH_DEFAULT_CAUTION_LEVEL", options: CAUTION_LEVEL_OPTIONS },
+              { label: "归档严格度", key: "LAUNCH_DEFAULT_CAUTION_LEVEL", options: CAUTION_LEVEL_OPTIONS },
             ].map((group) => (
               <FieldGroup key={group.key} label={group.label}>
                 <div className="grid gap-1.5">
@@ -211,7 +211,7 @@ export function LaunchTab({
                             : "border-on-surface/8 bg-surface-container-lowest text-on-surface hover:border-primary/20",
                         )}
                       >
-                        <span className="text-[12px] font-black">{option.label}</span>
+                        <span className="text-[12px] font-bold">{option.label}</span>
                       </button>
                     );
                   })}
@@ -236,7 +236,7 @@ export function LaunchTab({
             <div className="mb-4">
               <h3 className="text-[13px] font-semibold text-on-surface">默认放置规则</h3>
               <p className="mt-1 text-[12px] leading-5 text-on-surface-variant/65">
-                这里只定义新任务的默认落点；任务页仍然可以按单次任务覆盖。
+                定义新任务的默认归档落点与待复核文件夹；单次整理任务中仍可灵活覆盖。
               </p>
             </div>
             <div className="grid gap-4 xl:grid-cols-2">
@@ -265,11 +265,11 @@ export function LaunchTab({
                 </InputShell>
               </FieldGroup>
               <FieldGroup
-                label="默认待确认区位置"
+                label="默认待确认区位置 (Review)"
                 hint={
                   launchReviewFollowsNewRoot
-                    ? `当前会自动跟随新目录位置，默认使用 ${launchDerivedReviewRoot}。`
-                    : "只在关闭“跟随新目录位置”后单独生效。"
+                    ? `当前会自动跟随新目录位置，默认保存在 ${launchDerivedReviewRoot}（用于存放拿不准的文件）。`
+                    : "供存放拿不准的文件；只在关闭“跟随新目录位置”后单独生效。"
                 }
               >
                 <InputShell icon={FolderOpen} className="flex items-center">

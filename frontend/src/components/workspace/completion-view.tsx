@@ -1,8 +1,8 @@
 "use client";
 
-import { AlertTriangle, ArrowLeft, CheckCircle2, ExternalLink, Folder, FolderOpen, History, Info, Layers, Loader2, Palette, RotateCcw, ShieldCheck } from "lucide-react";
+import { AlertTriangle, ArrowLeft, CheckCircle2, ExternalLink, Folder, FolderOpen, History, Info, Layers, Loader2, Palette, RotateCcw, ShieldCheck, Undo2 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { OrganizeMethod, JournalSummary } from "@/types/session";
+import type { OrganizeMethod, JournalSummary, SessionSnapshot } from "@/types/session";
 import { DirectoryTreeDiff, type DirectoryTreeLeafEntry, type DirectoryTreeFilter } from "./directory-tree-diff";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
@@ -30,6 +30,7 @@ function computeCommonAncestor(paths: string[]): string {
 
 interface CompletionViewProps {
   journal: JournalSummary | null;
+  rollbackReport?: NonNullable<SessionSnapshot["rollback_report"]> | null;
   summary: string;
   loading: boolean;
   loadError?: string | null;
@@ -65,6 +66,7 @@ function isReviewJournalItem(item: JournalMoveItem): boolean {
 
 export function CompletionView({
   journal,
+  rollbackReport = null,
   summary,
   loading,
   loadError = null,
@@ -249,30 +251,54 @@ export function CompletionView({
           className="space-y-6"
         >
         {/* Status Header - Workbench Style */}
-        <div className={cn(
-            "flex items-center gap-4 rounded-xl border px-5 py-3 shadow-sm",
-            isPartial 
-                ? "border-error/20 bg-error/[0.03] text-error" 
-                : "border-success/20 bg-success/[0.03] text-success-dim"
-        )}>
-            <div className={cn(
-                "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg font-black",
-                isPartial ? "bg-error text-white" : "bg-success text-white"
-            )}>
-                {isPartial ? <AlertTriangle className="h-4 w-4" /> : <ShieldCheck className="h-4 w-4" />}
+        {rollbackReport ? (
+          <div className="flex items-center gap-4 rounded-xl border border-success/20 bg-success/[0.04] px-5 py-3.5 shadow-sm">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-success text-white font-bold">
+              <Undo2 className="h-4 w-4" />
             </div>
             <div className="min-w-0 flex-1">
-                <h2 className="text-[14px] font-black tracking-tight text-on-surface uppercase leading-none">
-                    {isPartial ? "整理已完成，但有部分项目需要处理" : "文件整理已完成"}
-                </h2>
+              <h2 className="text-[14px] font-bold tracking-tight text-on-surface">
+                {rollbackReport.failure_count > 0 ? "整理回退部分完成" : "文件整理已成功还原回退"}
+              </h2>
+              <p className="mt-0.5 text-[12px] font-medium text-on-surface-variant/70">
+                {rollbackReport.failure_count > 0
+                  ? `已恢复 ${rollbackReport.success_count} 项，仍有 ${rollbackReport.failure_count} 项失败。`
+                  : `已成功将 ${rollbackReport.success_count} 项文件还原到整理前的位置。`}
+              </p>
             </div>
             <div className="hidden shrink-0 flex-col items-end gap-1 sm:flex">
-                <div className="flex items-center gap-2 rounded-md bg-on-surface/[0.03] px-2.5 py-1 border border-on-surface/8">
-                    <Folder className="h-3 w-3 opacity-40 text-primary" />
-                    <span className="max-w-[200px] truncate font-mono text-[11px] font-bold text-on-surface/70" title={targetDir}>{targetDir}</span>
-                </div>
+              <div className="flex items-center gap-2 rounded-md bg-on-surface/[0.03] px-2.5 py-1 border border-on-surface/8">
+                <Folder className="h-3 w-3 opacity-40 text-primary" />
+                <span className="max-w-[200px] truncate font-mono text-[11px] font-bold text-on-surface/70" title={targetDir}>{targetDir}</span>
+              </div>
             </div>
-        </div>
+          </div>
+        ) : (
+          <div className={cn(
+              "flex items-center gap-4 rounded-xl border px-5 py-3 shadow-sm",
+              isPartial 
+                  ? "border-error/20 bg-error/[0.03] text-error" 
+                  : "border-success/20 bg-success/[0.03] text-success-dim"
+          )}>
+              <div className={cn(
+                  "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg font-bold",
+                  isPartial ? "bg-error text-white" : "bg-success text-white"
+              )}>
+                  {isPartial ? <AlertTriangle className="h-4 w-4" /> : <ShieldCheck className="h-4 w-4" />}
+              </div>
+              <div className="min-w-0 flex-1">
+                  <h2 className="text-[14px] font-bold tracking-tight text-on-surface uppercase leading-none">
+                      {isPartial ? "整理已完成，但有部分项目需要处理" : "文件整理已完成"}
+                  </h2>
+              </div>
+              <div className="hidden shrink-0 flex-col items-end gap-1 sm:flex">
+                  <div className="flex items-center gap-2 rounded-md bg-on-surface/[0.03] px-2.5 py-1 border border-on-surface/8">
+                      <Folder className="h-3 w-3 opacity-40 text-primary" />
+                      <span className="max-w-[200px] truncate font-mono text-[11px] font-bold text-on-surface/70" title={targetDir}>{targetDir}</span>
+                  </div>
+              </div>
+          </div>
+        )}
 
         {/* Metrics Grid - High Density */}
         <div className={cn("grid grid-cols-2 gap-2.5", (skippedItems.length > 0 || reviewItems.length > 0) ? "sm:grid-cols-4" : "sm:grid-cols-3")}>
@@ -554,7 +580,12 @@ export function CompletionView({
               type="button"
               onClick={onGoHome}
               disabled={isBusy}
-              className="group flex h-8.5 items-center justify-center gap-2 rounded-lg border border-on-surface/10 bg-surface px-3.5 text-[12px] font-black text-on-surface/60 transition-all hover:bg-on-surface/5 active:scale-95 disabled:opacity-50"
+              className={cn(
+                "group flex h-8.5 items-center justify-center gap-2 rounded-lg px-4 text-[12px] font-bold transition-all active:scale-95 disabled:opacity-50",
+                rollbackReport
+                  ? "bg-primary text-white shadow-sm hover:bg-primary-dim"
+                  : "border border-on-surface/10 bg-surface text-on-surface/70 hover:bg-on-surface/5 hover:text-on-surface"
+              )}
             >
               <ArrowLeft className="h-3.5 w-3.5 transition-transform group-hover:-translate-x-0.5" />
               返回首页
@@ -564,21 +595,26 @@ export function CompletionView({
               type="button"
               onClick={() => onOpenExplorer(targetDir)}
               disabled={isBusy}
-              className="flex h-8.5 items-center justify-center gap-2 rounded-lg bg-primary px-4 text-[12px] font-black text-white transition-all hover:bg-primary-dim active:scale-95 disabled:opacity-50"
+              className={cn(
+                "flex h-8.5 items-center justify-center gap-2 rounded-lg px-4 text-[12px] font-bold transition-all active:scale-95 disabled:opacity-50",
+                rollbackReport
+                  ? "border border-on-surface/10 bg-surface text-on-surface/75 hover:bg-on-surface/5 hover:text-on-surface"
+                  : "bg-primary text-white shadow-sm hover:bg-primary-dim"
+              )}
             >
               <Folder className="h-3.5 w-3.5" />
               打开整理目录
             </button>
           </div>
 
-          {!readOnly && (
+          {!readOnly && !rollbackReport && (
             <div className="flex items-center gap-2">
               <button
                 type="button"
                 onClick={() => setCleanupConfirmOpen(true)}
                 disabled={isBusy || isCleaning || cleanupCandidateCount <= 0}
                 className={cn(
-                  "flex h-8.5 items-center justify-center gap-2 rounded-lg border border-on-surface/10 bg-surface px-3.5 text-[12px] font-black transition-all active:scale-95 disabled:opacity-40",
+                  "flex h-8.5 items-center justify-center gap-2 rounded-lg border border-on-surface/10 bg-surface px-3.5 text-[12px] font-bold transition-all active:scale-95 disabled:opacity-40",
                   cleanupCandidateCount > 0 && !isCleaning
                     ? "text-on-surface/75 border-on-surface/15 hover:bg-on-surface/5 hover:text-on-surface hover:border-on-surface/25"
                     : "text-on-surface/40"
@@ -596,7 +632,7 @@ export function CompletionView({
                 type="button"
                 onClick={onRollback}
                 disabled={isBusy || rollbackPreparing}
-                className="flex h-8.5 items-center justify-center gap-2 rounded-lg border border-error/20 bg-error/5 px-3.5 text-[12px] font-black text-error/70 transition-all hover:bg-error/10 active:scale-95 disabled:opacity-50"
+                className="flex h-8.5 items-center justify-center gap-2 rounded-lg border border-error/20 bg-error/5 px-3.5 text-[12px] font-bold text-error/80 transition-all hover:bg-error/10 active:scale-95 disabled:opacity-50"
               >
                 {rollbackPreparing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RotateCcw className="h-3.5 w-3.5" />}
                 {rollbackPreparing ? "正在检查..." : "一键还原"}

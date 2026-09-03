@@ -139,19 +139,19 @@ export function TextTab({
           />
         </div>
       </div>
-      <div className="mt-6 rounded-[12px] border border-on-surface/8 bg-surface px-4 py-4">
+      <div className="rounded-xl border border-on-surface/12 bg-surface/40 p-5 shadow-sm">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <Globe className="h-4 w-4 text-primary/70" />
+              <Globe className="h-4 w-4 text-primary" />
               <h3 className="text-[14px] font-bold text-on-surface">图片理解能力</h3>
             </div>
-            <p className="mt-1 text-[12px] leading-6 text-on-surface-variant/70">
+            <p className="mt-1 text-[12px] leading-relaxed text-on-surface-variant/70">
               开启后，模型可在必要时查看图片内容；关闭时只按文件名判断。
             </p>
           </div>
-          <div className="flex items-center gap-2 rounded-[8px] border border-on-surface/8 bg-surface-container-low px-3 py-2">
-            <span className="text-[12px] font-medium text-on-surface-variant/70">启用</span>
+          <div className="flex items-center gap-2.5 rounded-lg border border-on-surface/10 bg-surface-container-lowest px-3 py-1.5 shadow-sm">
+            <span className="text-[12px] font-bold text-on-surface/80">启用</span>
             <ToggleSwitch
               checked={visionEnabled}
               onClick={() => onUpdateGlobal("IMAGE_ANALYSIS_ENABLED", !visionEnabled)}
@@ -161,8 +161,8 @@ export function TextTab({
         </div>
 
         <div className="mt-4">
-          <p className="text-[11px] font-bold uppercase tracking-wider text-ui-muted">当前来源</p>
-          <div className="mt-2 grid gap-2 xl:grid-cols-2">
+          <p className="text-[12px] font-bold text-on-surface/80">当前来源</p>
+          <div className="mt-2 grid gap-2.5 xl:grid-cols-2">
             {([
               {
                 id: "shared_text" as const,
@@ -182,14 +182,14 @@ export function TextTab({
                   type="button"
                   onClick={() => onUpdateGlobal("IMAGE_ANALYSIS_SOURCE_MODE", item.id)}
                   className={cn(
-                    "rounded-[8px] border px-3 py-3 text-left transition-colors",
+                    "rounded-lg border p-3 text-left transition-all",
                     active
-                      ? "border-primary/35 bg-primary/[0.06]"
-                      : "border-on-surface/8 bg-surface-container-lowest hover:border-on-surface/16",
+                      ? "border-primary/40 bg-primary/[0.05] shadow-[0_0_0_1px_rgba(0,120,212,0.15)] select-active"
+                      : "border-on-surface/10 bg-surface-container-lowest hover:border-primary/25 hover:bg-surface-container-low/50",
                   )}
                 >
-                  <div className="text-[13px] font-bold text-on-surface">{item.label}</div>
-                  <div className="mt-1 text-[11px] leading-relaxed text-ui-muted">{item.description}</div>
+                  <div className={cn("text-[13px] font-bold", active ? "text-primary" : "text-on-surface")}>{item.label}</div>
+                  <div className="mt-1 text-[11px] leading-relaxed text-on-surface-variant/70">{item.description}</div>
                 </button>
               );
             })}
@@ -198,19 +198,19 @@ export function TextTab({
 
         {visionUsesSharedText ? (
           <div className="mt-4 space-y-4">
-            <div className="rounded-[8px] border border-on-surface/8 bg-surface-container-lowest px-4 py-3">
+            <div className="rounded-xl border border-on-surface/10 bg-surface-container-lowest p-4 shadow-sm">
               <div className="flex items-center gap-2">
-                <Layers3 className="h-4 w-4 text-primary/70" />
+                <Layers3 className="h-4 w-4 text-primary" />
                 <p className="text-[13px] font-bold text-on-surface">当前复用文本模型</p>
               </div>
               <div className="mt-3 grid gap-3 xl:grid-cols-2">
-                <div className="rounded-[8px] border border-on-surface/6 bg-surface px-3 py-2">
-                  <p className="text-[11px] font-bold uppercase tracking-wider text-ui-muted">模型 ID</p>
-                  <p className="mt-1 text-[12px] font-semibold text-on-surface">{textDraft.OPENAI_MODEL || "未填写"}</p>
+                <div className="rounded-lg border border-on-surface/8 bg-surface/50 px-3.5 py-2.5">
+                  <p className="text-[11px] font-bold text-on-surface-variant/60">模型 ID</p>
+                  <p className="mt-0.5 text-[12px] font-bold text-on-surface">{textDraft.OPENAI_MODEL || "未填写"}</p>
                 </div>
-                <div className="rounded-[8px] border border-on-surface/6 bg-surface px-3 py-2">
-                  <p className="text-[11px] font-bold uppercase tracking-wider text-ui-muted">接口地址</p>
-                  <p className="mt-1 break-all font-mono text-[11px] font-medium text-on-surface">{textDraft.OPENAI_BASE_URL || "未填写"}</p>
+                <div className="rounded-lg border border-on-surface/8 bg-surface/50 px-3.5 py-2.5">
+                  <p className="text-[11px] font-bold text-on-surface-variant/60">接口地址</p>
+                  <p className="mt-0.5 break-all font-mono text-[11px] font-medium text-on-surface">{textDraft.OPENAI_BASE_URL || "未填写"}</p>
                 </div>
               </div>
               <p className="mt-3 text-[11px] leading-relaxed text-ui-muted">

@@ -93,24 +93,27 @@ export function IconImageTab({
           "高级选项：可按需调整图标尺寸、并发数上限及本地保存位置",
         ]}
       />
-      <div className="rounded-[8px] border border-on-surface/8 bg-surface-container-lowest px-4 py-3">
-        <p className="text-[11px] font-black uppercase tracking-[0.16em] text-primary/55">双模型依赖</p>
-        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+      <div className="rounded-xl border border-on-surface/12 bg-surface-container-lowest p-4 shadow-sm">
+        <div className="flex items-center gap-2">
+          <span className="h-1.5 w-1.5 rounded-full bg-primary" />
+          <p className="text-[12px] font-bold tracking-wide text-primary">模型分工与协作</p>
+        </div>
+        <div className="mt-3 grid gap-3 sm:grid-cols-2">
           <div className={cn(
-            "rounded-[8px] border px-3 py-2",
-            textConfigured ? "border-success/20 bg-success/5" : "border-on-surface/8 bg-surface",
+            "rounded-lg border p-3 transition-all",
+            textConfigured ? "border-success/25 bg-success/[0.04]" : "border-on-surface/10 bg-surface/50",
           )}>
             <div className="flex items-center justify-between gap-2">
-              <span className="text-[12px] font-bold text-on-surface">文本模型（分析）</span>
-              <span className={cn("text-[11px] font-black", textConfigured ? "text-success-dim" : "text-on-surface/40")}>
+              <span className="text-[13px] font-bold text-on-surface">文本模型（分析）</span>
+              <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider", textConfigured ? "bg-success/15 text-success-dim" : "bg-on-surface/10 text-on-surface-variant/60")}>
                 {textConfigured ? "已配置" : "未配置"}
               </span>
             </div>
-            <p className="mt-1 text-[11px] text-ui-muted">用于提炼文件夹主题与关键词</p>
+            <p className="mt-1 text-[12px] leading-relaxed text-on-surface-variant/70">提炼文件夹主题与关键词</p>
             {!textConfigured ? (
               <button
                 type="button"
-                className="mt-2 text-[11px] font-bold text-primary hover:underline"
+                className="mt-2 inline-flex items-center gap-1 text-[11px] font-bold text-primary hover:underline"
                 onClick={onGoToTextTab}
               >
                 去配置整理模型
@@ -118,16 +121,16 @@ export function IconImageTab({
             ) : null}
           </div>
           <div className={cn(
-            "rounded-[8px] border px-3 py-2",
-            iconImageConfigured ? "border-success/20 bg-success/5" : "border-on-surface/8 bg-surface",
+            "rounded-lg border p-3 transition-all",
+            iconImageConfigured ? "border-success/25 bg-success/[0.04]" : "border-on-surface/10 bg-surface/50",
           )}>
             <div className="flex items-center justify-between gap-2">
-              <span className="text-[12px] font-bold text-on-surface">生图模型（预览）</span>
-              <span className={cn("text-[11px] font-black", iconImageConfigured ? "text-success-dim" : "text-on-surface/40")}>
+              <span className="text-[13px] font-bold text-on-surface">生图模型（预览）</span>
+              <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider", iconImageConfigured ? "bg-success/15 text-success-dim" : "bg-on-surface/10 text-on-surface-variant/60")}>
                 {iconImageConfigured ? "已配置" : "未配置"}
               </span>
             </div>
-            <p className="mt-1 text-[11px] text-ui-muted">根据关键词绘制图标预览图</p>
+            <p className="mt-1 text-[12px] leading-relaxed text-on-surface-variant/70">根据关键词绘制图标预览图</p>
           </div>
         </div>
       </div>

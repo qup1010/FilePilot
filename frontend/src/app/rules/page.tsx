@@ -5,11 +5,14 @@ import { AnimatePresence, motion } from "motion/react";
 import {
   BookOpenCheck,
   Check,
+  CheckCircle2,
+  Copy,
   Folder,
   FolderPlus,
   Loader2,
   Plus,
   RefreshCw,
+  SlidersHorizontal,
   Sparkles,
   Star,
   Trash2,
@@ -40,6 +43,77 @@ interface DraftState {
 }
 
 const SELECTED_PROFILE_STORAGE_KEY = "filepilot.rules.selected_profile_id";
+
+const RULE_INSPIRATIONS = [
+  { label: "+ 文档材料", text: "包含办公文档、PDF、报表等文书材料，文件以文本说明和数据报告为主。" },
+  { label: "+ 素材与图片", text: "包含图片、矢量图、视频、音频等设计媒体素材，典型扩展名为 .jpg、.png、.mp4 等。" },
+  { label: "+ 软件与压缩包", text: "包含软件安装包（.exe、.msi）与压缩归档（.zip、.rar、.7z）等可执行分发文件。" },
+  { label: "+ 代码与配置", text: "包含源代码、配置文件、样式表等开发文件，文件内容以程序代码或配置为主。" },
+];
+
+function CopyPathButton({ path }: { path: string }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (typeof navigator !== "undefined" && navigator.clipboard) {
+      void navigator.clipboard.writeText(path);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    }
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={handleCopy}
+      title={copied ? "已复制完整路径" : "点击复制完整路径"}
+      className="inline-flex h-4.5 items-center gap-1 rounded px-1.5 text-[10px] font-semibold text-on-surface-variant/50 hover:bg-on-surface/5 hover:text-on-surface transition-colors"
+    >
+      {copied ? <Check className="h-2.5 w-2.5 text-emerald-500" /> : <Copy className="h-2.5 w-2.5" />}
+      <span>{copied ? "已复制" : "复制路径"}</span>
+    </button>
+  );
+}
+
+function AutoGrowTextarea({
+  value,
+  onChange,
+  placeholder,
+  disabled,
+  className,
+}: {
+  value: string;
+  onChange: (val: string) => void;
+  placeholder?: string;
+  disabled?: boolean;
+  className?: string;
+}) {
+  const ref = useRef<HTMLTextAreaElement | null>(null);
+
+  const autoResize = useCallback(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.max(52, el.scrollHeight)}px`;
+  }, []);
+
+  useEffect(() => {
+    autoResize();
+  }, [value, autoResize]);
+
+  return (
+    <textarea
+      ref={ref}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      disabled={disabled}
+      placeholder={placeholder}
+      rows={2}
+      className={cn("resize-none overflow-hidden transition-all", className)}
+    />
+  );
+}
 
 function ruleCompletion(profile: TargetProfile): { total: number; filled: number } {
   const total = profile.directories.length;
@@ -629,44 +703,51 @@ export default function RulesPage() {
   return (
     <>
     <div className="flex flex-1 flex-col overflow-y-auto bg-surface px-6 py-6">
-      <div className="mx-auto w-full max-w-[860px]">
+      <div className="mx-auto w-full max-w-[920px]">
+        {/* 顶部标题与说明 */}
         <div className="flex items-start justify-between gap-4">
           <div>
-            <h1 className="flex items-center gap-2 text-[20px] font-black text-on-surface">
-              <BookOpenCheck className="h-5 w-5 text-primary" aria-hidden />
+            <h1 className="flex items-center gap-2.5 text-[18px] font-bold tracking-tight text-on-surface">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                <BookOpenCheck className="h-4.5 w-4.5" aria-hidden />
+              </div>
               分类规则
             </h1>
-            <p className="mt-1 text-[13px] leading-6 text-on-surface-variant/70">
-              给每个目录写一句规则，AI 归档时按规则自动归类。
+            <p className="mt-1 text-[13px] leading-relaxed text-on-surface-variant/75">
+              为每个目标目录配置归类规则。AI 在组织和整理文件时将严格依据规则精准归档。
             </p>
           </div>
         </div>
 
+        {/* 错误提示 */}
         {(loadError || actionError) ? (
-          <div className="mt-4 flex items-center gap-2 rounded-[8px] border border-error/30 bg-error/5 px-3 py-2 text-[12px] font-semibold text-error">
+          <div className="mt-4 flex items-center gap-2 rounded-xl border border-error/25 bg-error/5 px-3.5 py-2.5 text-[12px] font-semibold text-error shadow-sm">
             <TriangleAlert className="h-4 w-4 shrink-0" aria-hidden />
-            {actionError || loadError}
+            <span className="flex-1">{actionError || loadError}</span>
           </div>
         ) : null}
 
         {profiles === null ? (
-          <div className="mt-10 flex items-center justify-center gap-2 text-[13px] font-semibold text-on-surface-variant/60">
-            <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-            正在读取分类规则
+          <div className="mt-16 flex flex-col items-center justify-center gap-3 py-12 text-[13px] font-medium text-on-surface-variant/60">
+            <Loader2 className="h-6 w-6 animate-spin text-primary" aria-hidden />
+            <span>正在载入分类规则配置…</span>
           </div>
         ) : profiles.length === 0 && !creating ? (
-          <div className="mt-8 rounded-[10px] border border-dashed border-on-surface/15 px-6 py-10 text-center">
-            <p className="text-[15px] font-black text-on-surface">先建立一套分类规则</p>
+          <div className="mt-8 rounded-2xl border border-dashed border-on-surface/15 bg-surface-container-lowest/50 px-6 py-12 text-center shadow-sm">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary">
+              <FolderPlus className="h-6 w-6" />
+            </div>
+            <p className="mt-3 text-[15px] font-bold text-on-surface">先建立一套分类规则</p>
             <p className="mx-auto mt-2 max-w-[460px] text-[13px] leading-6 text-on-surface-variant/70">
-              以「下载常用」为例：添加几个目标目录，再为每个目录写一句规则即可。
+              例如配置一套「常用分类」：添加几个目标目录，并为每个目录写一句归档规则即可。
             </p>
             <button
               type="button"
               onClick={() => {
                 setCreating(true);
-                setNewProfileName("下载常用");
+                setNewProfileName("常用分类");
               }}
-              className="mt-4 inline-flex items-center gap-1.5 rounded-[8px] bg-primary px-4 py-2 text-[13px] font-bold text-on-primary transition-opacity hover:opacity-90"
+              className="mt-5 inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-[13px] font-bold text-on-primary shadow-sm transition-all hover:bg-primary-dim active:scale-95"
             >
               <Plus className="h-4 w-4" aria-hidden />
               新建规则配置
@@ -674,79 +755,171 @@ export default function RulesPage() {
           </div>
         ) : (
           <>
-            <div className="mt-5 rounded-xl border border-on-surface/8 bg-surface-container-lowest p-4 shadow-sm">
-              <div className="flex flex-wrap items-end gap-3">
-                <label className="min-w-[200px] flex-1">
-                  <span className="mb-1 block text-[11px] font-bold text-on-surface-variant/60">当前规则配置</span>
-                  <select
-                    value={selectedProfile?.profile_id || ""}
-                    onChange={(event) => selectProfile(event.target.value)}
-                    disabled={!profiles.length || busy}
-                    className="h-10 w-full rounded-lg border border-on-surface/10 bg-surface px-3 text-[13px] font-bold text-on-surface outline-none transition-colors focus:border-primary/40 focus:ring-2 focus:ring-primary/10 disabled:opacity-60"
+            {/* 吸顶操作栏（Sticky Toolbar） */}
+            <div className="sticky top-0 z-20 -mx-6 mt-4 mb-4 border-y border-on-surface/8 bg-surface/90 px-6 py-3 backdrop-blur-md transition-all">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                {/* 左侧：配置快速选择与管理 */}
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="relative flex items-center rounded-lg border border-on-surface/10 bg-surface-container-lowest shadow-sm transition-all focus-within:border-primary/40 focus-within:ring-2 focus-within:ring-primary/10">
+                    <SlidersHorizontal className="ml-2.5 h-3.5 w-3.5 shrink-0 text-on-surface-variant/50 pointer-events-none" />
+                    <select
+                      value={selectedProfile?.profile_id || ""}
+                      onChange={(event) => selectProfile(event.target.value)}
+                      disabled={!profiles.length || busy}
+                      className="h-9 rounded-lg bg-transparent pl-2 pr-7 text-[13px] font-bold text-on-surface outline-none cursor-pointer disabled:opacity-60"
+                    >
+                      {profiles.map((profile) => {
+                        const done = ruleCompletion(profile);
+                        const mark = profile.profile_id === defaultProfileId ? " [默认]" : "";
+                        return (
+                          <option key={profile.profile_id} value={profile.profile_id}>
+                            {profile.name}
+                            {mark}
+                            {` (${done.filled}/${done.total})`}
+                          </option>
+                        );
+                      })}
+                    </select>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCreating((prev) => !prev);
+                      if (!creating) setNewProfileName("");
+                    }}
+                    disabled={busy}
+                    className="flex h-9 items-center gap-1 rounded-lg border border-on-surface/10 bg-surface-container-lowest px-2.5 text-[12px] font-bold text-on-surface shadow-sm transition-all hover:border-primary/30 hover:text-primary active:scale-95 disabled:opacity-50"
+                    title="新建一套规则配置"
                   >
-                    {profiles.map((profile) => {
-                      const done = ruleCompletion(profile);
-                      const mark = profile.profile_id === defaultProfileId ? " · 默认" : "";
-                      return (
-                        <option key={profile.profile_id} value={profile.profile_id}>
-                          {profile.name}
-                          {mark}
-                          {`（规则 ${done.filled}/${done.total}）`}
-                        </option>
-                      );
-                    })}
-                  </select>
-                </label>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setCreating((prev) => !prev);
-                    if (!creating) setNewProfileName("");
-                  }}
-                  disabled={busy}
-                  className="flex h-10 items-center gap-1.5 rounded-lg border border-on-surface/10 bg-surface px-3.5 text-[12px] font-bold text-on-surface transition-all hover:border-primary/30 hover:text-primary active:scale-95 disabled:opacity-50"
-                >
-                  <Plus className="h-3.5 w-3.5" aria-hidden />
-                  新建
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void handleSetDefault()}
-                  disabled={!selectedProfile || busy}
-                  className={cn(
-                    "flex h-10 items-center gap-1.5 rounded-lg border px-3.5 text-[12px] font-bold transition-all active:scale-95 disabled:opacity-50",
-                    isDefault
-                      ? "border-primary/30 bg-primary/8 text-primary font-black"
-                      : "border-on-surface/10 bg-surface text-on-surface hover:border-primary/30 hover:text-primary",
+                    <Plus className="h-3.5 w-3.5" aria-hidden />
+                    新建
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => void handleSetDefault()}
+                    disabled={!selectedProfile || busy}
+                    className={cn(
+                      "flex h-9 items-center gap-1 rounded-lg border px-2.5 text-[12px] font-bold shadow-sm transition-all active:scale-95 disabled:opacity-50",
+                      isDefault
+                        ? "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300 font-bold"
+                        : "border-on-surface/10 bg-surface-container-lowest text-on-surface hover:border-amber-500/30 hover:text-amber-600",
+                    )}
+                    title={isDefault ? "当前已是默认配置" : "设为一键默认配置"}
+                  >
+                    <Star className={cn("h-3.5 w-3.5", isDefault ? "fill-amber-500 text-amber-500" : "")} aria-hidden />
+                    {isDefault ? "默认" : "设默认"}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => void handleDeleteProfile()}
+                    disabled={!selectedProfile || busy}
+                    className="flex h-9 items-center gap-1 rounded-lg border border-transparent px-2 text-[12px] font-bold text-on-surface-variant/60 transition-all hover:border-error/20 hover:bg-error/5 hover:text-error active:scale-95 disabled:opacity-50"
+                    title="删除当前规则配置"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" aria-hidden />
+                  </button>
+                </div>
+
+                {/* 右侧：目录操作、AI 初稿与保存按钮 */}
+                <div className="flex flex-wrap items-center gap-2">
+                  {/* 规则补全度胶囊 */}
+                  {selectedProfile && (
+                    <div
+                      className={cn(
+                        "inline-flex h-8 items-center gap-1.5 rounded-full px-2.5 text-[11px] font-bold tracking-tight",
+                        isComplete
+                          ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20"
+                          : "bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20",
+                      )}
+                    >
+                      {isComplete ? (
+                        <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+                      ) : (
+                        <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+                      )}
+                      <span>规则 {completion.filled}/{completion.total}</span>
+                    </div>
                   )}
-                >
-                  <Star className={cn("h-3.5 w-3.5", isDefault && "fill-current")} aria-hidden />
-                  {isDefault ? "默认配置" : "设为默认"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void handleDeleteProfile()}
-                  disabled={!selectedProfile || busy}
-                  className="flex h-10 items-center gap-1.5 rounded-lg border border-error/20 bg-surface px-3.5 text-[12px] font-bold text-error transition-all hover:bg-error/5 active:scale-95 disabled:opacity-50"
-                >
-                  <Trash2 className="h-3.5 w-3.5" aria-hidden />
-                  删除
-                </button>
+
+                  <button
+                    type="button"
+                    onClick={() => void handleAddDirectories()}
+                    disabled={busy || draftState.loading}
+                    className="flex h-8 items-center gap-1.5 rounded-lg border border-on-surface/10 bg-surface-container-lowest px-2.5 text-[12px] font-bold text-on-surface shadow-sm transition-all hover:border-primary/30 hover:text-primary active:scale-95 disabled:opacity-50"
+                  >
+                    <FolderPlus className="h-3.5 w-3.5 text-primary" aria-hidden />
+                    添加目录
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => void handleGenerateDrafts()}
+                    disabled={busy || draftState.loading || (selectedProfile?.directories.length ?? 0) === 0}
+                    className="flex h-8 items-center gap-1.5 rounded-lg border border-primary/25 bg-primary/5 px-2.5 text-[12px] font-bold text-primary shadow-sm transition-all hover:bg-primary/10 active:scale-95 disabled:opacity-50"
+                  >
+                    {draftState.loading && !draftState.loadingPath ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+                    ) : (
+                      <Sparkles className="h-3.5 w-3.5" aria-hidden />
+                    )}
+                    {draftState.loading && !draftState.loadingPath ? "阅读目录中…" : "整套 AI 初稿"}
+                  </button>
+
+                  {Object.keys(draftState.items).length > 0 && !draftState.loading ? (
+                    <button
+                      type="button"
+                      onClick={acceptAllDrafts}
+                      disabled={busy}
+                      className="flex h-8 items-center gap-1 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2.5 text-[12px] font-bold text-emerald-600 dark:text-emerald-400 shadow-sm transition-all hover:bg-emerald-500/20 active:scale-95 disabled:opacity-50"
+                    >
+                      <Check className="h-3.5 w-3.5" aria-hidden />
+                      全部采纳
+                    </button>
+                  ) : null}
+
+                  {/* 保存按钮：未保存时显著脉冲高亮 */}
+                  <button
+                    type="button"
+                    onClick={() => void handleSave()}
+                    disabled={saving || busy || !hasEdits}
+                    className={cn(
+                      "relative flex h-8 items-center gap-1.5 rounded-lg px-3.5 text-[12px] font-bold transition-all active:scale-95 disabled:opacity-40",
+                      hasEdits
+                        ? "bg-primary text-on-primary shadow-[0_2px_8px_rgba(0,120,212,0.35)] hover:bg-primary-dim"
+                        : "border border-on-surface/10 bg-surface-container-lowest text-on-surface-variant/70",
+                    )}
+                  >
+                    {saving ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+                    ) : savedFlash && !hasEdits ? (
+                      <Check className="h-3.5 w-3.5 text-emerald-500" aria-hidden />
+                    ) : hasEdits ? (
+                      <span className="h-1.5 w-1.5 rounded-full bg-amber-300 animate-pulse" />
+                    ) : null}
+                    <span>{hasEdits ? "保存修改" : savedFlash ? "已保存" : "保存"}</span>
+                  </button>
+                </div>
               </div>
 
+              {/* 新建配置输入展开 */}
               {creating ? (
-                <div className="mt-3 flex flex-wrap items-center gap-2 rounded-lg border border-primary/15 bg-primary/5 p-3">
+                <div className="mt-3 flex flex-wrap items-center gap-2 rounded-xl border border-primary/20 bg-primary/5 p-2.5">
                   <input
                     value={newProfileName}
                     onChange={(event) => setNewProfileName(event.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") void handleCreateProfile(); }}
                     placeholder="新配置名称，例如：下载常用"
-                    className="h-9 min-w-[200px] flex-1 rounded-lg border border-on-surface/10 bg-surface px-3 text-[13px] font-semibold text-on-surface outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10"
+                    autoFocus
+                    className="h-8 min-w-[200px] flex-1 rounded-lg border border-on-surface/10 bg-surface-container-lowest px-3 text-[13px] font-semibold text-on-surface outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10"
                   />
                   <button
                     type="button"
                     onClick={() => void handleCreateProfile()}
                     disabled={busy}
-                    className="h-9 rounded-lg bg-primary px-3.5 text-[12px] font-bold text-on-primary shadow-sm hover:bg-primary-dim active:scale-95 disabled:opacity-50"
+                    className="h-8 rounded-lg bg-primary px-3 text-[12px] font-bold text-on-primary shadow-sm hover:bg-primary-dim active:scale-95 disabled:opacity-50"
                   >
                     {busy ? "创建中…" : "创建"}
                   </button>
@@ -756,43 +929,39 @@ export default function RulesPage() {
                       setCreating(false);
                       setNewProfileName("");
                     }}
-                    className="h-9 rounded-lg border border-on-surface/10 bg-surface px-3 text-[12px] font-bold text-on-surface-variant hover:bg-on-surface/5"
+                    className="h-8 rounded-lg border border-on-surface/10 bg-surface-container-lowest px-2.5 text-[12px] font-bold text-on-surface-variant hover:bg-on-surface/5"
                   >
                     取消
                   </button>
                 </div>
               ) : null}
-
-              {selectedProfile ? (
-                <div className="mt-3 flex flex-wrap items-center gap-3">
-                  <label className="min-w-[180px] flex-1">
-                    <span className="mb-1 block text-[11px] font-bold text-on-surface-variant/60">配置名称</span>
-                    <input
-                      value={profileName}
-                      onChange={(event) => setEditedName(event.target.value)}
-                      className="h-9 w-full rounded-lg border border-on-surface/10 bg-surface px-3 text-[13px] font-semibold text-on-surface outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10"
-                    />
-                  </label>
-                  <div className="flex items-center gap-2 pt-5">
-                    <span
-                      className={cn(
-                        "rounded-full px-2.5 py-0.5 text-[11px] font-bold",
-                        isComplete ? "bg-primary/10 text-primary" : "bg-on-surface/5 text-on-surface-variant/70",
-                      )}
-                    >
-                      规则 {completion.filled}/{completion.total}
-                    </span>
-                    {!isComplete && completion.total > 0 ? (
-                      <span className="text-[11px] font-semibold text-on-surface-variant/60">补全后才能一键整理</span>
-                    ) : null}
-                    {isDefault ? (
-                      <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-[11px] font-bold text-primary">一键默认</span>
-                    ) : null}
-                  </div>
-                </div>
-              ) : null}
             </div>
 
+            {/* 配置重命名及概览 */}
+            {selectedProfile ? (
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-on-surface/8 bg-surface-container-lowest px-4 py-3 shadow-[0_1px_3px_rgba(0,0,0,0.02)]">
+                <div className="flex min-w-[220px] flex-1 items-center gap-2">
+                  <span className="text-[12px] font-bold text-on-surface-variant/60 shrink-0">配置名称:</span>
+                  <input
+                    value={profileName}
+                    onChange={(event) => setEditedName(event.target.value)}
+                    placeholder="配置名称"
+                    className="h-8 max-w-[260px] flex-1 rounded-lg border border-on-surface/10 bg-surface px-2.5 text-[13px] font-bold text-on-surface outline-none transition-colors focus:border-primary/40 focus:ring-2 focus:ring-primary/10"
+                  />
+                  {editedName !== null && editedName.trim() !== selectedProfile.name && (
+                    <span className="text-[11px] font-semibold text-amber-600 dark:text-amber-400">未保存</span>
+                  )}
+                </div>
+                <div className="text-[12px] text-on-surface-variant/65">
+                  共 <span className="font-bold text-on-surface">{selectedProfile.directories.length}</span> 个目标目录
+                  {!isComplete && completion.total > 0 && (
+                    <span className="ml-2 font-medium text-amber-600 dark:text-amber-400">（请补全所有规则以启用一键整理）</span>
+                  )}
+                </div>
+              </div>
+            ) : null}
+
+            {/* 目标目录与规则列表区 */}
             {selectedProfile ? (
               <section
                 ref={dropZoneRef}
@@ -801,10 +970,10 @@ export default function RulesPage() {
                 onDragLeave={(event) => handleDropZoneDragLeave(event)}
                 onDrop={(event) => void handleDropZoneDrop(event)}
                 className={cn(
-                  "relative mt-4 overflow-hidden rounded-xl border p-4 shadow-sm transition-all duration-200",
+                  "relative rounded-2xl border p-4 shadow-sm transition-all duration-200",
                   isDropActive
                     ? "border-primary bg-primary/[0.04] ring-2 ring-primary/20"
-                    : "border-on-surface/8 bg-surface-container-lowest",
+                    : "border-on-surface/8 bg-surface-container-lowest/40",
                 )}
               >
                 {/* 拖入文件夹时的半透明遮罩与动画 */}
@@ -826,157 +995,150 @@ export default function RulesPage() {
                           <FolderPlus className="h-6 w-6 animate-pulse" />
                         </div>
                         <p className="text-sm font-bold text-on-surface">释放以添加目标文件夹</p>
-                        <p className="text-[11px] text-on-surface-variant/65">可一次拖入多个文件夹，文件会被忽略</p>
+                        <p className="text-[11px] text-on-surface-variant/65">可一次拖入多个文件夹，文件会被自动忽略</p>
                       </motion.div>
                     </motion.div>
                   ) : null}
                 </AnimatePresence>
 
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <h2 className="text-[15px] font-black text-on-surface">目标目录与规则</h2>
-                    <p className="mt-0.5 text-[12px] text-on-surface-variant/65">
-                      每个目录一句规则。可拖入文件夹添加，或用 AI 生成初稿。
-                    </p>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => void handleAddDirectories()}
-                      disabled={busy || draftState.loading}
-                      className="flex items-center gap-1.5 rounded-lg border border-on-surface/10 bg-surface px-3 py-1.5 text-[12px] font-bold text-on-surface transition-all hover:border-primary/30 hover:text-primary active:scale-95 disabled:opacity-50"
-                    >
-                      <FolderPlus className="h-3.5 w-3.5" aria-hidden />
-                      添加目录
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => void handleGenerateDrafts()}
-                      disabled={busy || draftState.loading || selectedProfile.directories.length === 0}
-                      className="flex items-center gap-1.5 rounded-lg border border-primary/30 bg-primary/5 px-3 py-1.5 text-[12px] font-bold text-primary transition-all hover:bg-primary/10 active:scale-95 disabled:opacity-50"
-                    >
-                      {draftState.loading && !draftState.loadingPath ? (
-                        <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
-                      ) : (
-                        <Sparkles className="h-3.5 w-3.5" aria-hidden />
-                      )}
-                      {draftState.loading && !draftState.loadingPath ? "正在阅读目录…" : "整套 AI 初稿"}
-                    </button>
-                    {Object.keys(draftState.items).length > 0 && !draftState.loading ? (
-                      <button
-                        type="button"
-                        onClick={acceptAllDrafts}
-                        disabled={busy}
-                        className="flex items-center gap-1.5 rounded-lg border border-primary/40 bg-primary/10 px-3 py-1.5 text-[12px] font-bold text-primary transition-all hover:bg-primary/20 active:scale-95 disabled:opacity-50"
-                      >
-                        <Check className="h-3.5 w-3.5" aria-hidden />
-                        全部采纳
-                      </button>
-                    ) : null}
-                    <button
-                      type="button"
-                      onClick={() => void handleSave()}
-                      disabled={saving || busy || !hasEdits}
-                      className="flex items-center gap-1.5 rounded-lg bg-primary px-3.5 py-1.5 text-[12px] font-bold text-on-primary shadow-sm transition-all hover:bg-primary-dim active:scale-95 disabled:opacity-40"
-                    >
-                      {saving ? (
-                        <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
-                      ) : savedFlash && !hasEdits ? (
-                        <Check className="h-3.5 w-3.5" aria-hidden />
-                      ) : null}
-                      保存
-                    </button>
-                  </div>
-                </div>
-
                 {draftState.error ? (
-                  <p className="mt-2 text-[12px] font-semibold text-error">{draftState.error}</p>
+                  <p className="mb-3 text-[12px] font-semibold text-error">{draftState.error}</p>
                 ) : null}
 
                 {selectedProfile.directories.length === 0 ? (
-                  <div className="mt-4 rounded-xl border border-dashed border-on-surface/15 px-4 py-8 text-center">
-                    <p className="text-[13px] font-bold text-on-surface">还没有目标目录</p>
+                  <div className="rounded-xl border-2 border-dashed border-on-surface/15 px-4 py-10 text-center">
+                    <p className="text-[13px] font-bold text-on-surface">当前配置暂无目标目录</p>
                     <p className="mt-1 text-[12px] text-on-surface-variant/65">
-                      拖入文件夹，或点击按钮添加；再为每个目录写规则。
+                      可直接从系统拖入文件夹，或点击按钮手动添加目标目录并撰写规则。
                     </p>
                     <button
                       type="button"
                       onClick={() => void handleAddDirectories()}
                       disabled={busy}
-                      className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-primary px-3.5 py-2 text-[12px] font-bold text-on-primary shadow-sm hover:bg-primary-dim active:scale-95 disabled:opacity-50"
+                      className="mt-4 inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-[12px] font-bold text-on-primary shadow-sm hover:bg-primary-dim active:scale-95 disabled:opacity-50"
                     >
                       <FolderPlus className="h-3.5 w-3.5" aria-hidden />
-                      添加目录
+                      添加目标目录
                     </button>
                   </div>
                 ) : (
-                  <div className="mt-3 space-y-3">
+                  <div className="space-y-3">
                     {selectedProfile.directories.map((directory) => {
                       const draft = draftState.items[directory.path];
                       const currentValue = descriptionFor(selectedProfile, directory.path);
                       const pathLoading = draftState.loading && draftState.loadingPath === directory.path;
                       const batchLoading = draftState.loading && !draftState.loadingPath;
                       return (
-                        <div key={directory.path} className="rounded-xl border border-on-surface/8 bg-surface p-3.5 shadow-sm transition-all hover:border-on-surface/16">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <Folder className="h-4 w-4 shrink-0 text-on-surface-variant/50" aria-hidden />
-                            <span className="text-[13px] font-bold text-on-surface">{directoryTitle(directory)}</span>
-                            <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-on-surface-variant/50" title={directory.path}>
-                              {directory.path}
-                            </span>
-                            {!currentValue.trim() ? (
-                              <span className="shrink-0 rounded-full bg-error/10 px-2 py-0.5 text-[11px] font-bold text-error">缺规则</span>
-                            ) : null}
-                            <button
-                              type="button"
-                              onClick={() => void handleGenerateDrafts([directory.path])}
-                              disabled={busy || draftState.loading}
-                              className="flex shrink-0 items-center gap-1 rounded-[6px] border border-primary/25 px-2 py-1 text-[11px] font-bold text-primary transition-colors hover:bg-primary/5 disabled:opacity-50"
-                              title="只分析这一个目录并生成规则建议"
-                            >
-                              {pathLoading ? (
-                                <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
+                        <div
+                          key={directory.path}
+                          className="group relative rounded-xl border border-on-surface/8 bg-surface-container-lowest p-4 shadow-[0_1px_3px_rgba(0,0,0,0.02)] transition-all hover:border-on-surface/16 hover:shadow-[0_4px_16px_rgba(0,0,0,0.04)]"
+                        >
+                          {/* 卡片头部第 1 行：目录图标、名称、状态胶囊、右侧操作 */}
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="flex min-w-0 items-center gap-2.5">
+                              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                                <Folder className="h-4 w-4" aria-hidden />
+                              </div>
+                              <span className="truncate text-[14px] font-bold text-on-surface tracking-tight">
+                                {directoryTitle(directory)}
+                              </span>
+                              {currentValue.trim() ? (
+                                <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[11px] font-bold text-emerald-600 dark:text-emerald-400">
+                                  <Check className="h-3 w-3" />
+                                  已配置
+                                </span>
                               ) : (
-                                <Sparkles className="h-3 w-3" aria-hidden />
+                                <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-amber-500/10 px-2 py-0.5 text-[11px] font-bold text-amber-600 dark:text-amber-400">
+                                  待配置规则
+                                </span>
                               )}
-                              {pathLoading ? "分析中…" : currentValue.trim() ? "AI 重写建议" : "AI 分析"}
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => void handleRemoveDirectory(directory.path)}
-                              disabled={busy || draftState.loading}
-                              className="flex shrink-0 items-center gap-1 rounded-[6px] px-2 py-1 text-[11px] font-bold text-on-surface-variant/70 transition-colors hover:bg-error/5 hover:text-error disabled:opacity-50"
-                            >
-                              <Trash2 className="h-3 w-3" aria-hidden />
-                              移除
-                            </button>
+                            </div>
+
+                            <div className="flex shrink-0 items-center gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => void handleGenerateDrafts([directory.path])}
+                                disabled={busy || draftState.loading}
+                                className="flex items-center gap-1 rounded-lg border border-primary/25 bg-primary/5 px-2.5 py-1 text-[11px] font-bold text-primary transition-all hover:bg-primary/10 active:scale-95 disabled:opacity-50"
+                                title="分析该目录并生成专属规则建议"
+                              >
+                                {pathLoading ? (
+                                  <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
+                                ) : (
+                                  <Sparkles className="h-3 w-3" aria-hidden />
+                                )}
+                                <span>{pathLoading ? "分析中…" : currentValue.trim() ? "AI 重写建议" : "AI 分析生成"}</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => void handleRemoveDirectory(directory.path)}
+                                disabled={busy || draftState.loading}
+                                className="flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-bold text-on-surface-variant/50 transition-colors hover:bg-error/10 hover:text-error active:scale-95 disabled:opacity-50"
+                                title="从配置中移除该目录"
+                              >
+                                <Trash2 className="h-3 w-3" aria-hidden />
+                                <span>移除</span>
+                              </button>
+                            </div>
                           </div>
-                          <textarea
-                            value={currentValue}
-                            onChange={(event) =>
-                              setEditedDescriptions((prev) => ({
-                                ...prev,
-                                [editKey(selectedProfile.profile_id, directory.path)]: event.target.value,
-                              }))
-                            }
-                            disabled={batchLoading || pathLoading}
-                            rows={2}
-                            placeholder="什么样的文件放进这里？例如：PDF 文档、安装包、图片等"
-                            className="mt-2 w-full resize-y rounded-[8px] border border-on-surface/8 bg-surface-container-lowest px-3 py-2 text-[13px] leading-6 text-on-surface outline-none transition-colors focus:border-primary/40 placeholder:text-on-surface-variant/35 disabled:opacity-60"
-                          />
+
+                          {/* 卡片头部第 2 行：路径展示与快捷复制 */}
+                          <div className="mt-1.5 flex items-center gap-1.5 font-mono text-[11px] text-on-surface-variant/50">
+                            <span className="truncate" title={directory.path}>{directory.path}</span>
+                            <CopyPathButton path={directory.path} />
+                          </div>
+
+                          {/* 规则编辑输入框 */}
+                          <div className="mt-3 rounded-lg border border-on-surface/8 bg-surface/50 p-2.5 transition-all focus-within:border-primary/40 focus-within:bg-surface-container-lowest focus-within:ring-2 focus-within:ring-primary/10">
+                            <AutoGrowTextarea
+                              value={currentValue}
+                              onChange={(val) =>
+                                setEditedDescriptions((prev) => ({
+                                  ...prev,
+                                  [editKey(selectedProfile.profile_id, directory.path)]: val,
+                                }))
+                              }
+                              disabled={batchLoading || pathLoading}
+                              placeholder="描述放入该目录的文件特征，如：PDF办公文档、报表、安装包、图片设计素材等..."
+                              className="w-full text-[13px] leading-relaxed text-on-surface placeholder:text-on-surface-variant/35"
+                            />
+                            {/* 空规则时的灵感快捷参考 */}
+                            {!currentValue.trim() && (
+                              <div className="mt-2 flex flex-wrap items-center gap-1.5 border-t border-on-surface/5 pt-2">
+                                <span className="text-[10px] font-bold text-on-surface-variant/45">💡 快捷填入参考:</span>
+                                {RULE_INSPIRATIONS.map((chip) => (
+                                  <button
+                                    key={chip.label}
+                                    type="button"
+                                    onClick={() => {
+                                      setEditedDescriptions((prev) => ({
+                                        ...prev,
+                                        [editKey(selectedProfile.profile_id, directory.path)]: chip.text,
+                                      }));
+                                    }}
+                                    className="rounded-md border border-on-surface/8 bg-surface-container-lowest px-1.5 py-0.5 text-[10px] font-semibold text-on-surface-variant/70 hover:border-primary/30 hover:text-primary transition-all active:scale-95"
+                                  >
+                                    {chip.label}
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* AI 建议与重叠冲突卡片 */}
                           {draft?.draft_description ? (
-                            <div className="mt-2 space-y-2">
+                            <div className="mt-3 space-y-2.5">
                               {/* 冲突警告 */}
                               {draft.overlap_paths && draft.overlap_paths.length > 0 ? (
-                                <div className="rounded-[8px] border border-warning/40 bg-warning/[0.05] p-2.5">
-                                  <p className="flex items-center gap-1.5 text-[11px] font-bold text-warning-dim">
-                                    <TriangleAlert className="h-3 w-3 shrink-0" aria-hidden />
-                                    AI 发现潜在重叠
+                                <div className="rounded-lg border border-amber-500/25 bg-amber-500/[0.04] p-3">
+                                  <p className="flex items-center gap-1.5 text-[11px] font-bold text-amber-600 dark:text-amber-400">
+                                    <TriangleAlert className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                                    AI 发现潜在规则重叠
                                   </p>
-                                  <p className="mt-1 text-[12px] font-medium leading-5 text-on-surface/80">
-                                    {draft.overlap_note || "与以下目录收录范围重合，建议确认是否需要合并。"}
+                                  <p className="mt-1 text-[12px] font-medium leading-relaxed text-on-surface/80">
+                                    {draft.overlap_note || "与以下目录收录范围可能重合，建议确认规则边界或是否合并。"}
                                   </p>
-                                  <div className="mt-1.5 flex flex-wrap gap-1">
+                                  <div className="mt-2 flex flex-wrap gap-1.5">
                                     {draft.overlap_paths.map((op) => {
                                       const overlappedDir = selectedProfile?.directories.find((d) => d.path === op);
                                       const label = overlappedDir
@@ -986,7 +1148,7 @@ export default function RulesPage() {
                                         <span
                                           key={op}
                                           title={op}
-                                          className="rounded-[4px] border border-warning/25 bg-warning/10 px-1.5 py-0.5 font-mono text-[11px] font-bold text-warning-dim"
+                                          className="rounded-md border border-amber-500/25 bg-amber-500/10 px-2 py-0.5 font-mono text-[11px] font-bold text-amber-700 dark:text-amber-300"
                                         >
                                           {label}
                                         </span>
@@ -995,27 +1157,48 @@ export default function RulesPage() {
                                   </div>
                                 </div>
                               ) : null}
-                              {/* AI 建议规则 */}
-                              <div className="rounded-[8px] border border-primary/20 bg-primary/5 p-2.5">
-                                <p className="text-[11px] font-bold text-primary">AI 建议</p>
-                                <p className="mt-1 text-[12px] font-semibold leading-5 text-on-surface">{draft.draft_description}</p>
+
+                              {/* AI 建议卡片 */}
+                              <div className="rounded-lg border border-primary/20 bg-gradient-to-r from-primary/[0.04] to-primary/[0.01] p-3 shadow-sm">
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-1.5 text-[11px] font-bold text-primary">
+                                    <Sparkles className="h-3.5 w-3.5" aria-hidden />
+                                    <span>AI 推荐规则</span>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => acceptDraft(directory.path, draft.draft_description || "")}
+                                    className="flex items-center gap-1 rounded-md bg-primary/10 px-2.5 py-1 text-[11px] font-bold text-primary transition-all hover:bg-primary hover:text-on-primary active:scale-95"
+                                  >
+                                    <Check className="h-3 w-3" aria-hidden />
+                                    采纳此建议
+                                  </button>
+                                </div>
+                                <p className="mt-1.5 text-[12px] font-semibold leading-relaxed text-on-surface">
+                                  {draft.draft_description}
+                                </p>
                                 {draft.basis ? (
-                                  <p className="mt-1 text-[11px] leading-5 text-on-surface-variant/70">依据：{draft.basis}</p>
+                                  <p className="mt-1 text-[11px] leading-5 text-on-surface-variant/70">
+                                    依据：{draft.basis}
+                                  </p>
                                 ) : null}
-                                <button
-                                  type="button"
-                                  onClick={() => acceptDraft(directory.path, draft.draft_description || "")}
-                                  className="mt-1.5 flex items-center gap-1 rounded-[6px] px-2 py-1 text-[11px] font-bold text-primary transition-colors hover:bg-primary/10"
-                                >
-                                  <RefreshCw className="h-3 w-3" aria-hidden />
-                                  采纳这条初稿
-                                </button>
                               </div>
                             </div>
                           ) : null}
                         </div>
                       );
                     })}
+
+                    {/* 列表底部常驻添加引导卡片 */}
+                    <button
+                      type="button"
+                      onClick={() => void handleAddDirectories()}
+                      disabled={busy || draftState.loading}
+                      className="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-on-surface/12 bg-surface-container-lowest/30 py-3.5 text-[12px] font-bold text-on-surface-variant/60 transition-all hover:border-primary/40 hover:bg-primary/[0.02] hover:text-primary active:scale-[0.99] disabled:opacity-50"
+                    >
+                      <FolderPlus className="h-4 w-4" />
+                      <span>拖入新文件夹至此处，或点击添加目标目录</span>
+                    </button>
                   </div>
                 )}
               </section>

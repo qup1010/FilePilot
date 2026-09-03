@@ -290,7 +290,7 @@ describe("SettingsPage preset flow", () => {
     await waitForSettingsHydrated();
     expect(screen.queryByText("请先点击 + 创建一个预设")).not.toBeInTheDocument();
     expect(screen.getByDisplayValue("gpt-5.4")).toBeInTheDocument();
-    expect(screen.getByText(/最小配置路径/i)).toBeInTheDocument();
+    expect(screen.getByText(/快速配置指南/i)).toBeInTheDocument();
     expect(screen.getByText(/首次保存时会自动创建可编辑预设/i)).toBeInTheDocument();
   });
 
@@ -309,7 +309,7 @@ describe("SettingsPage preset flow", () => {
     await waitForSettingsHydrated();
     await clickSettingsCategory("图标生图配置");
 
-    expect(await screen.findByText("双模型依赖")).toBeInTheDocument();
+    expect(await screen.findByText("模型分工与协作")).toBeInTheDocument();
     expect(screen.getByText("文本模型（分析）")).toBeInTheDocument();
     expect(screen.getByText("生图模型（预览）")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /去配置整理模型/i })).toBeInTheDocument();
@@ -554,7 +554,7 @@ describe("SettingsPage preset flow", () => {
     render(<SettingsPage />);
 
     await waitForSettingsHydrated();
-    expect(await screen.findByText("双模型依赖")).toBeInTheDocument();
+    expect(await screen.findByText("模型分工与协作")).toBeInTheDocument();
     expect(screen.getAllByRole("button", { name: /新建图标生图预设|新建预设/i }).length).toBeGreaterThan(0);
     expect(screen.queryByRole("button", { name: /新建文本预设/i })).not.toBeInTheDocument();
   });

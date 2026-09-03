@@ -4,6 +4,7 @@ import { useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "motion/react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  Check,
   CheckCircle2,
   Cpu,
   Globe,
@@ -863,8 +864,11 @@ export default function SettingsPage() {
       <div className="flex w-full flex-1 overflow-hidden">
         {/* Left Sidebar Navigation */}
         {!isCompactLayout && (
-          <aside className="w-[260px] 2xl:w-[300px] shrink-0 overflow-y-auto border-r border-on-surface/8 bg-surface-container-lowest px-2 py-4 scrollbar-none">
-            <div className="space-y-0.5">
+          <aside className="w-[260px] 2xl:w-[280px] shrink-0 overflow-y-auto border-r border-on-surface/10 bg-surface-container-lowest px-3 py-4 scrollbar-none flex flex-col justify-between">
+            <div className="space-y-1">
+              <div className="px-3 pb-1 text-[11px] font-bold tracking-wider text-on-surface-variant/50">
+                设置选项
+              </div>
               {categories.map((cat) => {
                 const active = activeTab === cat.id;
                 return (
@@ -872,82 +876,67 @@ export default function SettingsPage() {
                     key={cat.id}
                     onClick={() => handleSelectTab(cat.id)}
                     className={cn(
-                      "group relative flex w-full items-center gap-3 rounded-[6px] px-3 py-2 text-left transition-colors outline-none",
+                      "group relative flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-all outline-none",
                       active
-                        ? "bg-primary/[0.06] border-primary/20"
-                        : "bg-transparent border-transparent hover:bg-on-surface/[0.035]",
+                        ? "bg-primary/10 text-primary font-bold shadow-[0_1px_2px_rgba(0,120,212,0.06)] border border-primary/20"
+                        : "bg-transparent border border-transparent text-on-surface/80 hover:bg-on-surface/[0.04]",
                     )}
-                    style={{ borderWidth: '1px', borderStyle: 'solid' }}
                   >
-                    {active && (
-                      <div
-
-                        className="absolute left-0 top-2.5 bottom-2.5 w-[3px] rounded-r-full bg-primary"
-                      />
-                    )}
                     <div className={cn(
-                      "flex h-7 w-7 shrink-0 items-center justify-center rounded-[6px] transition-colors",
-                      active ? "bg-primary text-white" : "bg-transparent group-hover:bg-on-surface/[0.05] text-on-surface/40",
+                      "flex h-7 w-7 shrink-0 items-center justify-center rounded-lg transition-colors",
+                      active ? "bg-primary text-white" : "bg-on-surface/5 text-on-surface-variant group-hover:text-on-surface",
                     )}>
                       <cat.icon className="h-3.5 w-3.5" />
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
-                        <p className={cn("text-[13px] font-black leading-none tracking-tight", active ? "text-primary" : "text-on-surface/80")}>{cat.label}</p>
+                        <p className={cn("text-[13px] font-bold leading-tight", active ? "text-primary font-bold" : "text-on-surface")}>{cat.label}</p>
                         {dirtyTabs[cat.id] ? (
                           <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary" aria-label={`${cat.label} 有未保存修改`} />
                         ) : null}
                       </div>
-                      <p className="mt-1.5 truncate text-[11px] font-medium opacity-50">{cat.description}</p>
+                      <p className={cn("mt-1 truncate text-[11px] leading-tight font-medium", active ? "text-primary/70" : "text-on-surface-variant/65")}>{cat.description}</p>
                     </div>
                   </button>
                 );
               })}
             </div>
 
-            <div className="mt-8 rounded-xl border border-on-surface/8 bg-on-surface/[0.02] p-4">
-              <div className="flex items-center gap-2 text-primary">
-                <Cpu className="h-3.5 w-3.5" />
-                <span className="text-[11px] font-black uppercase tracking-[0.2em] text-primary/60">配置健康</span>
+            <div className="mt-6 rounded-xl border border-on-surface/8 bg-surface/60 p-3.5 shadow-sm">
+              <div className="flex items-center justify-between text-primary">
+                <div className="flex items-center gap-1.5">
+                  <Cpu className="h-3.5 w-3.5 text-primary" />
+                  <span className="text-[11px] font-bold text-on-surface/75">核心能力状态</span>
+                </div>
+                <span className="text-[11px] font-bold font-mono text-primary bg-primary/10 rounded-full px-2 py-0.5">
+                  {configuredHealthCount}/{healthItems.length} 就绪
+                </span>
               </div>
-              <div className="mt-3 flex items-baseline justify-between gap-3">
-                <span className="text-[18px] font-black text-on-surface">{configuredHealthCount}/{healthItems.length}</span>
-                <span className="text-[11px] font-bold text-on-surface/35">能力已配置</span>
-              </div>
-              <div className="mt-4 space-y-2">
+              <div className="mt-2.5 space-y-1.5">
                 {healthItems.map((item) => (
                   <button
                     key={item.label}
                     type="button"
                     onClick={() => handleSelectTab(item.id)}
-                    className="flex w-full items-center justify-between gap-3 rounded-[8px] px-1.5 py-1.5 text-left transition-colors hover:bg-on-surface/[0.04]"
+                    className="flex w-full items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-on-surface/[0.05]"
                     title={`前往${item.label}配置`}
                   >
                     <div className="flex items-center gap-2 min-w-0">
-                      <item.icon className="h-3 w-3 text-on-surface/25" />
-                      <div className="min-w-0">
-                        <span className="block truncate text-[11px] font-bold text-on-surface/50">{item.label}</span>
-                        <span className="block truncate text-[11px] font-semibold text-on-surface/25">{item.description}</span>
-                      </div>
+                      <item.icon className="h-3.5 w-3.5 shrink-0 text-on-surface-variant/50" />
+                      <span className="truncate text-[11px] font-semibold text-on-surface/75">{item.label}</span>
                     </div>
                     {item.configured ? (
-                      <div className="flex items-center gap-1 rounded-full bg-success/10 px-1.5 py-0.5">
-                        <div className="h-0.5 w-0.5 rounded-full bg-success" />
-                        <span className="text-[11px] font-black tracking-widest text-success-dim/80">可用</span>
-                      </div>
+                      <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
+                        <Check className="h-2.5 w-2.5" />
+                        已配置
+                      </span>
                     ) : (
-                      <div className="flex items-center gap-1 rounded-full bg-on-surface/5 px-1.5 py-0.5">
-                        <div className="h-0.5 w-0.5 rounded-full bg-on-surface/20" />
-                        <span className="text-[11px] font-black tracking-widest text-on-surface/35">{item.optional ? "可选" : "待配置"}</span>
-                      </div>
+                      <span className="text-[10px] font-medium text-on-surface-variant/45">
+                        {item.optional ? "可选" : "未配置"}
+                      </span>
                     )}
                   </button>
                 ))}
-              </div>
-              <div className="mt-4 border-t border-on-surface/5 pt-3">
-                <p className="text-[11px] font-bold leading-relaxed text-on-surface/25">
-                  文本分析为整理核心功能所必需；其余模型在用到对应功能时才会调用。
-                </p>
               </div>
             </div>
           </aside>
@@ -960,7 +949,7 @@ export default function SettingsPage() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ duration: 0.15 }}
-            className="mx-auto max-w-[800px] pb-24 pt-6 px-6"
+            className="mx-auto max-w-[880px] pb-28 pt-6 px-6"
           >
             {isCompactLayout && (
               <div className="mb-6 rounded-[8px] border border-on-surface/8 bg-surface-container-lowest px-4 py-3">
@@ -968,7 +957,7 @@ export default function SettingsPage() {
                   <div className="min-w-0">
                     <p className="text-[11px] font-bold uppercase tracking-wider text-ui-muted">当前分类</p>
                     <div className="flex items-center gap-2">
-                      <p className="truncate text-[14px] font-black text-on-surface">{activeCategory.label}</p>
+                      <p className="truncate text-[14px] font-bold text-on-surface">{activeCategory.label}</p>
                       {dirtyTabs[activeCategory.id] ? <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary" /> : null}
                     </div>
                   </div>
@@ -977,7 +966,7 @@ export default function SettingsPage() {
                   </Button>
                 </div>
                 <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-on-surface/6 pt-3">
-                  <span className="text-[11px] font-black uppercase tracking-[0.18em] text-primary/55">配置健康</span>
+                  <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-primary/55">配置健康</span>
                   <span className="text-[11px] font-bold text-on-surface/50">{configuredHealthCount}/{healthItems.length} 可用</span>
                   {healthItems.map((item) => (
                     <button
@@ -1130,7 +1119,7 @@ export default function SettingsPage() {
                 )}
               >
                 <div className="mr-4 flex flex-col">
-                  <span className="text-[11px] font-black uppercase tracking-wider text-primary">有未保存的配置更改</span>
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-primary">有未保存的配置更改</span>
                   <span className="text-[11px] font-medium text-on-surface/40">
                     {dirtyTabLabels.length ? `涉及分类：${dirtyTabLabels.join("、")}` : "会保存本页未提交的修改"}
                   </span>
@@ -1171,7 +1160,7 @@ export default function SettingsPage() {
                   <cat.icon className="h-4.5 w-4.5 shrink-0" />
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
-                      <p className="text-[13px] font-black">{cat.label}</p>
+                      <p className="text-[13px] font-bold">{cat.label}</p>
                       {dirtyTabs[cat.id] ? <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary" /> : null}
                     </div>
                     <p className="mt-1 text-[11px] font-medium text-ui-muted">{cat.description}</p>

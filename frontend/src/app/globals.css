@@ -349,12 +349,12 @@
 /* Global Scrollbar Styles - Workbench Minimalist Look */
 * {
   scrollbar-width: thin;
-  scrollbar-color: color-mix(in srgb, var(--on-surface) 6%, transparent) transparent;
+  scrollbar-color: color-mix(in srgb, var(--on-surface) 14%, transparent) transparent;
 }
 
 *::-webkit-scrollbar {
-  width: 4px;
-  height: 4px;
+  width: 6px;
+  height: 6px;
 }
 
 *::-webkit-scrollbar-track {
@@ -362,21 +362,21 @@
 }
 
 *::-webkit-scrollbar-thumb {
-  background-color: color-mix(in srgb, var(--on-surface) 5%, transparent);
+  background-color: color-mix(in srgb, var(--on-surface) 14%, transparent);
   border-radius: 20px;
-  transition: background-color 0.3s ease;
+  transition: background-color 0.2s ease;
 }
 
 *::-webkit-scrollbar-thumb:hover {
-  background-color: color-mix(in srgb, var(--on-surface) 15%, transparent);
+  background-color: color-mix(in srgb, var(--on-surface) 28%, transparent);
 }
 
 .dark *::-webkit-scrollbar-thumb {
-  background-color: rgba(255, 255, 255, 0.05);
+  background-color: rgba(255, 255, 255, 0.12);
 }
 
 .dark *::-webkit-scrollbar-thumb:hover {
-  background-color: rgba(255, 255, 255, 0.1);
+  background-color: rgba(255, 255, 255, 0.24);
 }
 
 /* Global Selection & Interactive Feel */

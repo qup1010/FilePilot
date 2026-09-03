@@ -57,27 +57,29 @@ export function SettingsSection({
   return (
     <section
       className={cn(
-        "overflow-hidden rounded-xl border border-on-surface/8 bg-surface-container-lowest",
+        "overflow-hidden rounded-xl border border-on-surface/12 bg-surface-container-lowest shadow-[0_1px_3px_rgba(0,0,0,0.02)] transition-all",
         disabled && "opacity-55",
       )}
     >
-      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-on-surface/6 bg-surface px-4 py-2.5">
-        <div className="flex min-w-0 items-center gap-2.5">
-          <Icon className={cn("h-4 w-4 shrink-0", disabled ? "text-on-surface-variant/30" : "text-primary/70")} />
+      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-on-surface/8 bg-surface/60 px-5 py-3.5 backdrop-blur-sm">
+        <div className="flex min-w-0 items-center gap-3">
+          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+            <Icon className={cn("h-4 w-4", disabled && "text-on-surface-variant/30")} />
+          </div>
           <div className="min-w-0 space-y-0.5">
-            <h2 className="text-[13px] font-black tracking-tight text-on-surface leading-none">{title}</h2>
-            <p className="text-[11px] font-medium text-on-surface-variant/50">{description}</p>
+            <h2 className="text-[14px] font-bold tracking-tight text-on-surface leading-tight">{title}</h2>
+            <p className="text-[12px] font-medium text-on-surface-variant/65 leading-tight">{description}</p>
           </div>
         </div>
         {actions ? <div className="shrink-0">{actions}</div> : null}
       </div>
-      <div className="px-4 py-4 space-y-5">{children}</div>
+      <div className="px-5 py-5 space-y-5">{children}</div>
     </section>
   );
 }
 
 const FIELD_LABEL_CLASS =
-  "flex items-center gap-2 px-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-on-surface-variant/50";
+  "flex items-center gap-2 px-0.5 text-[12px] font-bold text-on-surface/80 leading-none";
 
 /**
  * Provides the FieldGroup-generated control id to descendants (e.g. InputShell)
@@ -119,7 +121,7 @@ export function FieldGroup({ label, hint, className, children }: FieldGroupProps
         <span className={FIELD_LABEL_CLASS}>{label}</span>
       )}
       <FieldControlIdContext.Provider value={controlId}>{content}</FieldControlIdContext.Provider>
-      {hint ? <p className="px-1 text-[12px] font-medium text-on-surface-variant/40 leading-relaxed">{hint}</p> : null}
+      {hint ? <p className="px-0.5 text-[12px] font-medium text-on-surface-variant/60 leading-relaxed">{hint}</p> : null}
     </div>
   );
 }
@@ -140,12 +142,12 @@ export function InputShell({ icon: Icon, children, className }: InputShellProps)
   return (
     <div
       className={cn(
-        "ui-field-shell group min-h-[36px] bg-surface-container-lowest border border-on-surface/10 rounded-[6px] px-2 transition-colors focus-within:border-primary/40 focus-within:ring-1 focus-within:ring-primary/10",
+        "ui-field-shell group min-h-[38px] bg-surface-container-lowest border border-on-surface/12 rounded-lg px-2.5 transition-all focus-within:border-primary/50 focus-within:ring-2 focus-within:ring-primary/10 shadow-[0_1px_2px_rgba(0,0,0,0.02)]",
         className,
       )}
     >
-      <div className="flex h-6 w-6 shrink-0 items-center justify-center text-on-surface-variant/30 transition-colors group-focus-within:text-primary">
-        <Icon className="h-3 w-3" />
+      <div className="flex h-6 w-6 shrink-0 items-center justify-center text-on-surface-variant/40 transition-colors group-focus-within:text-primary">
+        <Icon className="h-3.5 w-3.5" />
       </div>
       {content}
     </div>
@@ -168,14 +170,14 @@ export function StrategyOptionButton({
       type="button"
       onClick={onClick}
       className={cn(
-        "w-full rounded-[6px] border px-3 py-2 text-left transition-colors",
+        "w-full rounded-lg border px-3.5 py-2.5 text-left transition-all",
         active 
-          ? "border-primary/40 bg-primary/[0.04] select-active" 
-          : "border-on-surface/8 bg-surface-container-lowest hover:border-primary/20 hover:bg-surface-container-low",
+          ? "border-primary/40 bg-primary/[0.05] shadow-[0_0_0_1px_rgba(0,120,212,0.15)] select-active" 
+          : "border-on-surface/10 bg-surface-container-lowest hover:border-primary/20 hover:bg-surface-container-low/60",
       )}
     >
-      <p className={cn("text-[12px] font-black tracking-tight", active ? "text-primary" : "text-on-surface")}>{label}</p>
-      <p className="mt-0.5 text-[11px] font-medium leading-relaxed text-ui-muted/70">{description}</p>
+      <p className={cn("text-[12px] font-bold tracking-tight", active ? "text-primary" : "text-on-surface")}>{label}</p>
+      <p className="mt-0.5 text-[11px] font-medium leading-relaxed text-on-surface-variant/70">{description}</p>
     </button>
   );
 }
@@ -305,10 +307,10 @@ export function PresetSelector({
   }, [activeId]);
 
   return (
-    <div ref={containerRef} className="space-y-3">
-      <div className="flex flex-wrap items-end gap-3">
-        <div className="min-w-0 flex-1 space-y-2">
-          <label className="flex items-center gap-2 px-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-on-surface-variant/60">
+    <div ref={containerRef} className="space-y-2">
+      <div className="flex flex-wrap items-end gap-2.5">
+        <div className="min-w-0 flex-1 space-y-1.5">
+          <label className={FIELD_LABEL_CLASS}>
             {label}
           </label>
           <button
@@ -319,22 +321,19 @@ export function PresetSelector({
             aria-haspopup="listbox"
             aria-controls={`${label}-preset-list`}
             className={cn(
-              "flex min-h-[46px] w-full items-center justify-between gap-4 rounded-[6px] border px-3 py-2 text-left transition-[border-color,background-color] duration-150",
+              "flex min-h-[38px] w-full items-center justify-between gap-3 rounded-lg border px-3 py-1.5 text-left transition-all",
               open
-                ? "border-primary/25 bg-primary/10"
-                : "border-on-surface/10 bg-surface-container-lowest hover:border-primary/20 hover:bg-surface-container-low",
+                ? "border-primary/40 bg-primary/5 ring-2 ring-primary/10"
+                : "border-on-surface/12 bg-surface-container-lowest hover:border-primary/25 hover:bg-surface-container-low/40",
               disabled && "cursor-not-allowed opacity-55",
             )}
           >
             <div className="min-w-0">
-              <p className="truncate text-[13px] font-bold tracking-tight text-on-surface">
+              <p className="truncate text-[13px] font-bold text-on-surface leading-tight">
                 {activePreset?.name || "选择预设..."}
               </p>
-              <p className="mt-0.5 text-[11px] font-medium text-on-surface-variant/60">
-                {activePreset ? "切换后会应用此预设的连接信息。" : "当前还没有可用预设。"}
-              </p>
             </div>
-            <ChevronDown className={cn("h-4 w-4 shrink-0 text-on-surface-variant/55 transition-transform", open && "rotate-180")} />
+            <ChevronDown className={cn("h-4 w-4 shrink-0 text-on-surface-variant/55 transition-transform duration-200", open && "rotate-180")} />
           </button>
         </div>
 
@@ -342,10 +341,10 @@ export function PresetSelector({
           variant="secondary"
           onClick={onAdd}
           disabled={disabled}
-          className="min-h-[46px] shrink-0 rounded-[6px] px-5 font-bold"
+          className="h-[38px] shrink-0 rounded-lg px-4 text-[12px] font-bold border border-on-surface/12 shadow-sm"
           aria-label={`新建${label}`}
         >
-          <Plus className="h-4 w-4 mr-1" />
+          <Plus className="h-3.5 w-3.5 mr-1 text-primary" />
           新建预设
         </Button>
       </div>
@@ -359,8 +358,8 @@ export function PresetSelector({
         aria-hidden={!open}
         onKeyDown={handleListKeyDown}
         className={cn(
-          "overflow-hidden rounded-[8px] border border-on-surface/8 bg-surface transition-[max-height,opacity,margin] duration-200",
-          open ? "max-h-[320px] opacity-100 mt-1" : "max-h-0 border-transparent opacity-0 mt-0",
+          "overflow-hidden rounded-xl border border-on-surface/12 bg-surface-container-lowest shadow-[0_8px_24px_rgba(0,0,0,0.08)] transition-all duration-200",
+          open ? "max-h-[320px] opacity-100 mt-1" : "max-h-0 border-transparent opacity-0 mt-0 pointer-events-none",
         )}
       >
         <div className="max-h-[320px] overflow-y-auto p-1.5 scrollbar-thin">
@@ -392,10 +391,9 @@ export function PresetSelector({
                   >
                     <Check className="h-3 w-3" />
                   </span>
-                  <div className="min-w-0">
-                    <p className={cn("truncate text-[13px] font-bold tracking-tight", active ? "text-primary" : "text-on-surface")}>{preset.name}</p>
-                    <p className="mt-0.5 text-[11px] font-mono text-on-surface-variant/60">{preset.id}</p>
-                  </div>
+                  <span className={cn("truncate text-[13px] font-bold tracking-tight", active ? "text-primary" : "text-on-surface")}>
+                    {preset.name}
+                  </span>
                 </button>
                 <button
                   type="button"

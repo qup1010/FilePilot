@@ -95,9 +95,10 @@ function getBaseModuleLabel(pathname: string, searchParams: URLSearchParams) {
 function getStoredModuleLabel(pathname: string, searchParams: URLSearchParams) {
   if (pathname === "/rules") {
     const stored = readStoredContext(RULES_CONTEXT_KEY);
+    const detail = stored?.detail;
     return {
       title: "分类规则",
-      detail: stored?.detail || "规则配置",
+      detail: detail && detail !== "规则配置" ? `配置: ${detail}` : "规则配置",
     };
   }
   if (pathname === "/history") {

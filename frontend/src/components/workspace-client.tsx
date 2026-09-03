@@ -552,18 +552,22 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
 
   const handleExitWorkbench = React.useCallback(() => {
     setShowExitMenu(false);
-    // 只读或已完成的任务，返回首页是纯导航，无需确认拦截。
-    if (isReadOnly || stageView.isCompleted) {
+    // 只读、已完成或已回退完成的任务，返回首页是纯导航，无需确认拦截。
+    if (isReadOnly || stageView.isCompleted || Boolean(snapshot?.rollback_report) || stageView.isStale) {
       if (sessionIdParam) {
         clearActiveWorkspaceRouteForSession(sessionIdParam);
       }
+      clearActiveWorkspaceRoute();
       router.push("/");
       return;
     }
     setExitConfirmOpen(true);
-  }, [isReadOnly, router, sessionIdParam, stageView.isCompleted]);
+  }, [isReadOnly, router, sessionIdParam, snapshot?.rollback_report, stageView.isCompleted, stageView.isStale]);
 
   const handleConfirmExitWorkbench = async () => {
+    if (sessionIdParam) {
+      clearActiveWorkspaceRouteForSession(sessionIdParam);
+    }
     clearActiveWorkspaceRoute();
     setExitConfirmOpen(false);
     router.push("/");
@@ -1344,8 +1348,9 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
               );
             }
 
-            if (stageView.isCompleted) {
-              if (isEmptyCompleted) {
+            const isRolledBackCompleted = Boolean(snapshot?.rollback_report);
+            if (stageView.isCompleted || isRolledBackCompleted) {
+              if (isEmptyCompleted && !isRolledBackCompleted) {
                 return (
                   <EmptyState
                     illustration={FileRadarIllustration}
@@ -1378,6 +1383,7 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
               return (
                 <CompletionView
                   journal={journal}
+                  rollbackReport={snapshot?.rollback_report || null}
                   summary={snapshot?.summary || ""}
                   loading={journalLoading || (!journal && !journalError)}
                   loadError={journalError}
