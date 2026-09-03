@@ -12,3 +12,4 @@ python-multipart>=0.0.20,<0.1
 python-dotenv>=1.0,<2
 Pillow>=11.0,<13
 mutagen>=1.47,<2
+python-pptx>=1.0,<2

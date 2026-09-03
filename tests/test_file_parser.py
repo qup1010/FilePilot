@@ -1,4 +1,4 @@
-﻿import os
+import os
 import shutil
 import time
 import unittest
@@ -8,7 +8,7 @@ from unittest import mock
 import pandas as pd
 from PIL import Image
 
-from file_pilot.analysis.file_reader import list_local_files, read_local_file, read_local_files_batch
+from file_pilot.analysis.file_reader import list_local_files, read_local_file, read_local_files_batch, read_pptx
 from file_pilot.analysis.image_describer import ImageDescriptionResult
 
 
@@ -95,6 +95,18 @@ class FileReaderEncodingTests(unittest.TestCase):
         dataframe.to_excel(self.xlsx_path, index=False)
         with open(self.long_text_path, "w", encoding="utf-8") as file:
             file.write("开头关键信息 " + ("中间内容" * 80) + " 结尾总结信息")
+        from pptx import Presentation
+
+        prs = Presentation()
+        slide = prs.slides.add_slide(prs.slide_layouts[0])
+        slide.shapes.title.text = "演示文稿标题"
+        slide.placeholders[1].text = "副标题内容"
+        self.pptx_path = os.path.join(self.root_dir, "sample.pptx")
+        prs.save(self.pptx_path)
+
+        self.ppt_path = os.path.join(self.root_dir, "legacy.ppt")
+        with open(self.ppt_path, "wb") as file:
+            file.write(b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1legacy-ppt-binary")
 
     def tearDown(self):
         if os.path.exists(self.root_dir):
@@ -181,6 +193,31 @@ class FileReaderEncodingTests(unittest.TestCase):
         self.assertIn("总行数: 3", result)
         self.assertIn("总列数: 2", result)
         self.assertIn("列名: name, amount", result)
+
+    def test_read_local_file_extracts_pptx_slides_text(self):
+        result = read_local_file(self.pptx_path, max_len=1000)
+
+        self.assertIn("PowerPoint 演示文稿", result)
+        self.assertIn("[Slide 1]", result)
+        self.assertIn("演示文稿标题", result)
+        self.assertIn("副标题内容", result)
+        self.assertNotIn("非 UTF-8 编码", result)
+
+    def test_read_local_file_handles_legacy_ppt_with_guidance(self):
+        result = read_local_file(self.ppt_path)
+
+        self.assertIn("系统信息", result)
+        self.assertIn("扩展名：.ppt", result)
+        self.assertIn("旧版 PPT 复合二进制格式", result)
+        self.assertNotIn("非 UTF-8 编码", result)
+
+    def test_read_pptx_returns_error_message_on_failure(self):
+        corrupt_path = os.path.join(self.root_dir, "corrupt.pptx")
+        with open(corrupt_path, "wb") as file:
+            file.write(b"not-a-zip")
+
+        result = read_pptx(corrupt_path)
+        self.assertIn("读取 PPT 失败", result)
 
     def test_read_local_files_batch_keeps_input_order_when_parallelized(self):
         def fake_read(filename, max_len=300, allowed_base_dir=None):

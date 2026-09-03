@@ -334,6 +334,47 @@ def read_docx(filepath, max_len=DEFAULT_MAX_LEN):
         return f"读取 Word 失败: {exc}"
 
 
+def read_pptx(filepath, max_len=DEFAULT_MAX_LEN):
+    """提取 PowerPoint (.pptx) 演示文稿文本摘要。"""
+    try:
+        from pptx import Presentation
+
+        prs = Presentation(filepath)
+        slides_text: list[str] = []
+        total_len = 0
+
+        for idx, slide in enumerate(prs.slides, start=1):
+            slide_parts: list[str] = []
+            for shape in slide.shapes:
+                if shape.has_text_frame:
+                    text = shape.text_frame.text.strip()
+                    if text:
+                        slide_parts.append(text)
+                elif shape.has_table:
+                    table_cells = [
+                        cell.text.strip()
+                        for row in shape.table.rows
+                        for cell in row.cells
+                        if cell.text.strip()
+                    ]
+                    if table_cells:
+                        slide_parts.append(" | ".join(table_cells))
+
+            if slide_parts:
+                slide_content = f"[Slide {idx}]\n" + "\n".join(slide_parts)
+                slides_text.append(slide_content)
+                total_len += len(slide_content)
+                if total_len >= max_len:
+                    break
+
+        if not slides_text:
+            return f"PowerPoint 演示文稿（共 {len(prs.slides)} 页，未提取到纯文本内容）"
+
+        return f"PowerPoint 演示文稿（共 {len(prs.slides)} 页）:\n" + "\n\n".join(slides_text)
+    except Exception as exc:
+        return f"读取 PPT 失败: {exc}"
+
+
 def read_excel(filepath, max_len=DEFAULT_MAX_LEN):
     """提取 Excel 内容摘要。"""
     try:
@@ -523,6 +564,13 @@ def read_local_file(filename, max_len=DEFAULT_MAX_LEN, allowed_base_dir: str | N
             content = read_excel(filename, max_len=max_len)
         elif ext in CSV_EXTENSIONS:
             content = read_csv(filename, max_len=max_len)
+        elif ext == ".pptx":
+            content = read_pptx(filename, max_len=max_len)
+        elif ext == ".ppt":
+            content = _format_basic_info(
+                filename,
+                unsupported_reason="该文件为旧版 PPT 复合二进制格式，暂不支持直接提取文本，建议转存为 .pptx 格式后分析。",
+            )
         elif ext == ".zip":
             content = read_archive_index(filename, max_entries=max_len)
         elif ext in IMAGE_EXTENSIONS:

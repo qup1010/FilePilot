@@ -1,5 +1,13 @@
 from .archive_reader import read_archive_index
-from .file_reader import list_local_files, read_docx, read_excel, read_local_file, read_local_files_batch, read_pdf
+from .file_reader import (
+    list_local_files,
+    read_docx,
+    read_excel,
+    read_local_file,
+    read_local_files_batch,
+    read_pdf,
+    read_pptx,
+)
 from .image_describer import describe_image
 from .models import AnalysisItem
 from .prompts import build_system_prompt

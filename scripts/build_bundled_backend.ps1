@@ -42,6 +42,7 @@ try {
         --collect-submodules file_pilot `
         --collect-submodules uvicorn `
         --collect-submodules fastapi `
+        --collect-submodules pptx `
         file_pilot/api/__main__.py
 
     if ($LASTEXITCODE -ne 0) {
