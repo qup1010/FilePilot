@@ -1,4 +1,11 @@
-# FilePilot
+<div align="center">
+  <img src="./desktop/src-tauri/icons/icon.png" alt="FilePilot 应用图标" width="112" />
+  <h1>FilePilot</h1>
+  <p>本地优先的 Windows 文件整理工作台</p>
+  <p>
+    <sub>AI 辅助分析&nbsp;&nbsp;·&nbsp;&nbsp;清晰规划&nbsp;&nbsp;·&nbsp;&nbsp;可回退执行</sub>
+  </p>
+</div>
 
 FilePilot 是一款 Windows 文件整理工具。它使用你配置的模型分析文件，并根据整理方式生成或执行归档方案。
 
