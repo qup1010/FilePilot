@@ -26,7 +26,9 @@ if (-not $PythonExe) {
 Push-Location $projectRootPath
 try {
     if (Test-Path -LiteralPath $backendResourceDir) {
-        Remove-Item -LiteralPath $backendResourceDir -Recurse -Force
+        Get-ChildItem -LiteralPath $backendResourceDir -Force |
+        Where-Object { $_.Name -ne ".gitkeep" } |
+        Remove-Item -Recurse -Force
     }
 
     & $PythonExe -m PyInstaller `
