@@ -62,6 +62,17 @@
     "interrupted": "Interrupted"
   },
   "workspace": {
+    "notifications": {
+      "scanReadyTitle": "FilePilot plan is ready",
+      "scanProgress": "Read {{processed}} of {{total}} items.",
+      "scanComplete": "Folder scan complete.",
+      "scanReadyBody": "{{detail}} Return to the workspace to review the organization suggestions.",
+      "planUpdatedTitle": "FilePilot plan updated",
+      "planNeedsReview": "The plan is updated. {{count}} items still need review.",
+      "planReady": "The plan is updated with {{count}} items. You can now check move safety.",
+      "executionCompleteTitle": "FilePilot organization is complete",
+      "executionCompleteBody": "Return to the workspace to review the results."
+    },
     "conversation": {
       "preparingTask": "Preparing task",
       "startReading": "Start reading folder",

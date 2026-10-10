@@ -2,6 +2,7 @@
 
 import React, { useMemo, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
+import { useTranslation } from "react-i18next";
 import { AlertCircle, AlertTriangle, ArrowRight, CheckCircle2, Layers, ListChecks, Loader2, LogOut, PanelLeftClose, PanelLeftOpen, RefreshCw, ShieldAlert } from "lucide-react";
 import { getSessionStageView } from "@/lib/session-view-model";
 import { getPathBasename } from "@/lib/path-normalization";
@@ -114,6 +115,7 @@ function deriveWorkspacePipeline(stageView: ReturnType<typeof getSessionStageVie
 }
 
 export default function WorkspaceClient({ view = "progress" }: { view?: WorkspaceView }) {
+  const { t } = useTranslation("common");
   const searchParams = useSearchParams();
   const router = useRouter();
   const sessionIdParam = searchParams.get("session_id");
@@ -206,6 +208,7 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
     initialized: false,
     wasScanning: false,
     wasPlanning: false,
+    wasExecuting: false,
     lastPlanStartedAt: null as string | null,
   });
 
@@ -663,6 +666,7 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
       initialized: false,
       wasScanning: false,
       wasPlanning: false,
+      wasExecuting: false,
       lastPlanStartedAt: null,
     };
   }, [sessionIdParam]);
@@ -682,6 +686,7 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
         initialized: true,
         wasScanning: isScanningNow,
         wasPlanning: isPlanningNow,
+        wasExecuting: stageView.isExecuting,
         lastPlanStartedAt: planStartedAt,
       };
       return;
@@ -690,10 +695,12 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
     if (current.wasScanning && !isScanningNow && !isPlanningNow) {
       const totalCount = Number(snapshot.scanner_progress?.total_count || 0);
       const processedCount = Number(snapshot.scanner_progress?.processed_count || 0);
-      const countLabel = totalCount > 0 ? `已读取 ${processedCount || totalCount}/${totalCount} 项。` : "已完成目录读取。";
+      const countLabel = totalCount > 0
+        ? t("workspace.notifications.scanProgress", { processed: processedCount || totalCount, total: totalCount })
+        : t("workspace.notifications.scanComplete");
       notifyWorkspaceWhenAway(
-        "FilePilot 方案已准备好",
-        `${countLabel}可以回到工作台查看整理建议。`,
+        t("workspace.notifications.scanReadyTitle"),
+        t("workspace.notifications.scanReadyBody", { detail: countLabel }),
         `filepilot-scan-${sessionIdParam}`,
       );
     }
@@ -702,12 +709,20 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
       const moveCount = Number(snapshot.plan_snapshot?.stats?.move_count || 0);
       const unresolvedCount = Number(snapshot.plan_snapshot?.stats?.unresolved_count || 0);
       const detail = unresolvedCount > 0
-        ? `方案已更新，仍有 ${unresolvedCount} 项需要确认。`
-        : `方案已更新，已规划 ${moveCount} 项，可以进行移动风险检查。`;
+        ? t("workspace.notifications.planNeedsReview", { count: unresolvedCount })
+        : t("workspace.notifications.planReady", { count: moveCount });
       notifyWorkspaceWhenAway(
-        "FilePilot 方案已更新",
+        t("workspace.notifications.planUpdatedTitle"),
         detail,
         `filepilot-plan-${sessionIdParam}-${current.lastPlanStartedAt}`,
+      );
+    }
+
+    if (current.wasExecuting && stageView.isCompleted) {
+      notifyWorkspaceWhenAway(
+        t("workspace.notifications.executionCompleteTitle"),
+        t("workspace.notifications.executionCompleteBody"),
+        `filepilot-execution-${sessionIdParam}`,
       );
     }
 
@@ -715,6 +730,7 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
       initialized: true,
       wasScanning: isScanningNow,
       wasPlanning: isPlanningNow,
+      wasExecuting: stageView.isExecuting,
       lastPlanStartedAt: planStartedAt,
     };
   }, [
@@ -722,6 +738,9 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
     sessionIdParam,
     snapshot,
     stageView.isScanning,
+    stageView.isExecuting,
+    stageView.isCompleted,
+    t,
   ]);
 
   const statusNotice = useMemo<ConversationNotice | null>(() => {

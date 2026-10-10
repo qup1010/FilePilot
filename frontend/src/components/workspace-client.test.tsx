@@ -2,7 +2,9 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-libra
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ACTIVE_WORKSPACE_ROUTE_KEY } from "@/lib/app-context-store";
+import i18n from "@/i18n/instance";
 import { getSessionStageView } from "@/lib/session-view-model";
+import { notifyWorkspaceWhenAway } from "@/lib/workspace-notifications";
 import type { SessionSnapshot, SessionStage } from "@/types/session";
 
 import WorkspaceClient from "./workspace-client";
@@ -307,14 +309,77 @@ describe("WorkspaceClient", () => {
     pushMock.mockReset();
     replaceMock.mockReset();
     getSettingsMock.mockReset();
+    vi.mocked(notifyWorkspaceWhenAway).mockReset();
     getSettingsMock.mockResolvedValue({ status: { text_configured: true } });
     setWorkspaceQuery("session_id=s1&dir=D%3A%2Fdemo");
     currentSession = makeSession();
   });
 
-  afterEach(() => {
+  afterEach(async () => {
     cleanup();
     window.localStorage.clear();
+    await i18n.changeLanguage("zh-CN");
+  });
+
+  it("sends English notifications when scanning, planning, and execution finish", async () => {
+    await i18n.changeLanguage("en");
+    const { rerender } = render(<WorkspaceClient view="progress" />);
+
+    currentSession = makeSession({
+      snapshot: makeSnapshot({
+        stage: "scanning",
+        scanner_progress: { status: "running", processed_count: 4, total_count: 8, current_item: null, recent_analysis_items: [] },
+      }),
+    });
+    rerender(<WorkspaceClient view="progress" />);
+    currentSession = makeSession({
+      snapshot: makeSnapshot({
+        stage: "planning",
+        scanner_progress: { status: "completed", processed_count: 8, total_count: 8, current_item: null, recent_analysis_items: [] },
+      }),
+    });
+    rerender(<WorkspaceClient view="progress" />);
+
+    expect(notifyWorkspaceWhenAway).toHaveBeenCalledWith(
+      "FilePilot plan is ready",
+      "Read 8 of 8 items. Return to the workspace to review the organization suggestions.",
+      "filepilot-scan-s1",
+    );
+
+    currentSession = makeSession({
+      snapshot: makeSnapshot({
+        stage: "planning",
+        planner_progress: { status: "running", started_at: "2026-10-10T00:00:00Z" },
+        plan_snapshot: { stats: { move_count: 5, unresolved_count: 0 } },
+      }),
+      plannerStatus: { ...IDLE_PLANNER_STATUS, isRunning: true },
+    });
+    rerender(<WorkspaceClient view="progress" />);
+    currentSession = makeSession({
+      snapshot: makeSnapshot({
+        stage: "ready_to_execute",
+        planner_progress: { status: "completed", started_at: "2026-10-10T00:00:00Z" },
+        plan_snapshot: { stats: { move_count: 5, unresolved_count: 0 } },
+      }),
+    });
+    rerender(<WorkspaceClient view="progress" />);
+
+    expect(notifyWorkspaceWhenAway).toHaveBeenCalledWith(
+      "FilePilot plan updated",
+      "The plan is updated with 5 items. You can now check move safety.",
+      "filepilot-plan-s1-2026-10-10T00:00:00Z",
+    );
+
+    currentSession = makeSession({ snapshot: makeSnapshot({ stage: "executing" }) });
+    rerender(<WorkspaceClient view="progress" />);
+    currentSession = makeSession({ snapshot: makeSnapshot({ stage: "completed" }) });
+    rerender(<WorkspaceClient view="progress" />);
+
+    expect(notifyWorkspaceWhenAway).toHaveBeenCalledWith(
+      "FilePilot organization is complete",
+      "Return to the workspace to review the results.",
+      "filepilot-execution-s1",
+    );
   });
 
   it("renders the scanning view while the session is scanning", async () => {

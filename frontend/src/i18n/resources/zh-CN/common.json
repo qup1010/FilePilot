@@ -60,6 +60,17 @@
     "interrupted": "已中断"
   },
   "workspace": {
+    "notifications": {
+      "scanReadyTitle": "FilePilot 方案已准备好",
+      "scanProgress": "已读取 {{processed}}/{{total}} 项。",
+      "scanComplete": "已完成目录读取。",
+      "scanReadyBody": "{{detail}}可以回到工作台查看整理建议。",
+      "planUpdatedTitle": "FilePilot 方案已更新",
+      "planNeedsReview": "方案已更新，仍有 {{count}} 项需要确认。",
+      "planReady": "方案已更新，已规划 {{count}} 项，可以进行移动风险检查。",
+      "executionCompleteTitle": "FilePilot 整理已完成",
+      "executionCompleteBody": "可以回到工作台查看整理结果。"
+    },
     "conversation": {
       "preparingTask": "正在准备任务",
       "startReading": "开始读取目录",
