@@ -99,30 +99,18 @@ jobs:
         run: python -m pip install -r requirements.txt "pyinstaller>=6.0,<7"
 
       - name: Build bundled Python backend
-        run: |
-          if (Test-Path dist\backend) {
-            Remove-Item -LiteralPath dist\backend -Recurse -Force
-          }
-          python -m PyInstaller `
-            --noconfirm `
-            --clean `
-            --onefile `
-            --noconsole `
-            --name file_pilot_api `
-            --paths . `
-            --add-data "frontend/src/lib/strategy-catalog.json;frontend/src/lib" `
-            --collect-submodules file_pilot `
-            --collect-submodules uvicorn `
-            --collect-submodules fastapi `
-            file_pilot/api/__main__.py
-          New-Item -ItemType Directory -Force -Path dist\backend | Out-Null
-          Copy-Item -LiteralPath dist\file_pilot_api.exe -Destination dist\backend\file_pilot_api.exe -Force
+        shell: pwsh
+        run: ./scripts/build_bundled_backend.ps1
 
       - name: Build Windows desktop bundle
         working-directory: desktop
         env:
           CI: "true"
         run: npm run tauri:build
+
+      - name: Verify localized frontend resources
+        shell: pwsh
+        run: ./scripts/verify_localized_frontend.ps1
 
       - name: Verify localized Windows installers
         shell: pwsh
@@ -155,41 +143,54 @@ jobs:
           }
           $desktopExeName = $builtExe.Name
 
-          $msi = Get-ChildItem 'desktop/src-tauri/target/release/bundle/msi' -Recurse -Filter *.msi |
-            Where-Object { $_.BaseName.Contains('en-US') } |
-            Select-Object -First 1
-          if (-not $msi) {
-            throw "English MSI bundle was not found."
-          }
+          foreach ($language in @('en-US', 'zh-CN')) {
+            $msi = Get-ChildItem 'desktop/src-tauri/target/release/bundle/msi' -Recurse -Filter *.msi |
+              Where-Object { $_.BaseName.Contains($language) } |
+              Select-Object -First 1
+            if (-not $msi) {
+              throw "$language MSI bundle was not found."
+            }
 
-          $install = Start-Process msiexec.exe -ArgumentList '/i', $msi.FullName, '/qn', '/norestart' -PassThru -Wait
-          if ($install.ExitCode -ne 0) {
-            throw "MSI install failed with exit code $($install.ExitCode)"
-          }
+            Write-Output "Installing $language MSI: $($msi.Name)"
+            $install = Start-Process msiexec.exe -ArgumentList '/i', $msi.FullName, '/qn', '/norestart' -PassThru -Wait
+            if ($install.ExitCode -ne 0) {
+              throw "$language MSI install failed with exit code $($install.ExitCode)"
+            }
 
-          $candidates = @(
-            (Join-Path $env:LOCALAPPDATA "Programs\FilePilot\$desktopExeName"),
-            (Join-Path $env:ProgramFiles "FilePilot\$desktopExeName"),
-            (Join-Path ${env:ProgramFiles(x86)} "FilePilot\$desktopExeName")
-          ) | Where-Object { $_ -and (Test-Path -LiteralPath $_) }
+            try {
+              $candidates = @(
+                (Join-Path $env:LOCALAPPDATA "Programs\FilePilot\$desktopExeName"),
+                (Join-Path $env:ProgramFiles "FilePilot\$desktopExeName"),
+                (Join-Path ${env:ProgramFiles(x86)} "FilePilot\$desktopExeName")
+              ) | Where-Object { $_ -and (Test-Path -LiteralPath $_) }
 
-          $app = $candidates | Select-Object -First 1
-          if (-not $app) {
-            $searchRoots = @($env:LOCALAPPDATA, $env:ProgramFiles, ${env:ProgramFiles(x86)}) | Where-Object { $_ -and (Test-Path -LiteralPath $_) }
-            foreach ($root in $searchRoots) {
-              $match = Get-ChildItem $root -Recurse -Filter $desktopExeName -ErrorAction SilentlyContinue | Select-Object -First 1
-              if ($match) {
-                $app = $match.FullName
-                break
+              $app = $candidates | Select-Object -First 1
+              if (-not $app) {
+                $searchRoots = @($env:LOCALAPPDATA, $env:ProgramFiles, ${env:ProgramFiles(x86)}) | Where-Object { $_ -and (Test-Path -LiteralPath $_) }
+                foreach ($root in $searchRoots) {
+                  $match = Get-ChildItem $root -Recurse -Filter $desktopExeName -ErrorAction SilentlyContinue | Select-Object -First 1
+                  if ($match) {
+                    $app = $match.FullName
+                    break
+                  }
+                }
+              }
+
+              if (-not $app) {
+                throw "Installed $desktopExeName was not found after $language MSI install."
+              }
+
+              & powershell -ExecutionPolicy Bypass -File scripts\smoke_desktop_bundle.ps1 -AppPath $app
+              if ($LASTEXITCODE -ne 0) {
+                throw "$language desktop smoke test failed with exit code $LASTEXITCODE"
+              }
+            } finally {
+              $uninstall = Start-Process msiexec.exe -ArgumentList '/x', $msi.FullName, '/qn', '/norestart' -PassThru -Wait
+              if ($uninstall.ExitCode -ne 0) {
+                throw "$language MSI uninstall failed with exit code $($uninstall.ExitCode)"
               }
             }
           }
-
-          if (-not $app) {
-            throw "Installed $desktopExeName was not found after MSI install."
-          }
-
-          powershell -ExecutionPolicy Bypass -File scripts\smoke_desktop_bundle.ps1 -AppPath $app
 
       - name: Dump desktop smoke diagnostics on failure
         if: failure()

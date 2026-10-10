@@ -49,6 +49,10 @@ try {
         throw "PyInstaller failed with exit code $LASTEXITCODE."
     }
 
+    if (-not (Test-Path -LiteralPath $backendExe -PathType Leaf)) {
+        throw "PyInstaller succeeded but the backend executable was not found: $backendExe"
+    }
+
     New-Item -ItemType Directory -Force -Path $backendResourceDir | Out-Null
     Copy-Item -LiteralPath $backendExe -Destination $resourceExe -Force
 

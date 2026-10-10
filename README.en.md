@@ -45,6 +45,8 @@ On first launch:
 
 Open **Settings → About and logs → Interface language**, choose **Follow system**, **Simplified Chinese**, or **English**, and save the settings. The interface language is separate from the language used for task content and generated folder names. Changing the interface language does not translate existing folder names or task content.
 
+![FilePilot interface language setting with English selected](./frontend/public/screenshots/settings-language-en.jpg)
+
 ### Standard organization
 
 Choose source files or folders, then select **Organize into existing folders** or **Create a new folder structure**. After scanning and plan generation, review each destination and adjust the plan in the workspace if needed. Check the pre-check results before execution.
