@@ -88,9 +88,15 @@ interface ConversationPanelProps {
   progressPercent?: number;
   plannerStatus?: {
     label: string;
+    labelCode?: string;
+    labelParams?: Record<string, string | number>;
     detail: string | null;
-    elapsedLabel: string | null;
-    reassureText: string | null;
+    detailCode?: string | null;
+    detailParams?: Record<string, string | number>;
+    elapsedSeconds?: number | null;
+    reassure?: boolean;
+    elapsedLabel?: string | null;
+    reassureText?: string | null;
     attempt: number;
     phase: string | null;
     isRunning: boolean;

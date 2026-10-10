@@ -171,6 +171,8 @@ export interface ScannerProgress {
   batch_count?: number;
   completed_batches?: number;
   message?: string;
+  message_code?: string;
+  message_params?: Record<string, string | number | boolean | null>;
   is_retrying?: boolean;
   retry_kind?: string | null;
   retry_attempt?: number;
@@ -194,6 +196,10 @@ export interface PlannerProgress {
   phase?: PlannerProgressPhase;
   message?: string;
   detail?: string | null;
+  message_code?: string;
+  message_params?: Record<string, string | number | boolean | null>;
+  detail_code?: string;
+  detail_params?: Record<string, string | number | boolean | null>;
   attempt?: number;
   started_at?: string | null;
   updated_at?: string | null;
@@ -401,6 +407,10 @@ export interface AssistantRuntimeStatus {
   mode: AssistantRuntimeMode;
   label: string;
   detail?: string;
+  labelCode?: string;
+  labelParams?: Record<string, string | number>;
+  detailCode?: string;
+  detailParams?: Record<string, string | number>;
 }
 
 export type ComposerMode = "hidden" | "readonly" | "editable";
@@ -433,6 +443,8 @@ export interface SessionSnapshot {
   updated_at: string;
   stale_reason?: string | null;
   last_error?: string | null;
+  last_error_code?: string | null;
+  last_error_params?: Record<string, string | number | boolean | null>;
 }
 
 export interface SessionEvent {
@@ -442,6 +454,8 @@ export interface SessionEvent {
   session_snapshot?: SessionSnapshot;
   content?: string;
   action?: Record<string, any>;
+  error_code?: string | null;
+  error_params?: Record<string, string | number | boolean | null>;
 }
 
 export interface CreateSessionResponse {
@@ -591,6 +605,8 @@ export interface JournalSummary {
     action_type: string;
     status: string;
     message?: string | null;
+    message_code?: string | null;
+    message_params?: Record<string, string | number | boolean | null>;
     source: string | null;
     target: string | null;
     display_name: string;

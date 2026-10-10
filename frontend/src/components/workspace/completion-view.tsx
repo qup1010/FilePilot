@@ -65,6 +65,37 @@ function isReviewJournalItem(item: JournalMoveItem): boolean {
     || hasReviewPathSegment(item.target);
 }
 
+function journalItemMessage(
+  item: JournalMoveItem,
+  t: (key: string, values?: Record<string, unknown>) => string,
+  useLegacyCopy: boolean,
+): string {
+  const codeKeys: Record<string, string> = {
+    directory_created: "diagnostics.execution.directoryCreated",
+    directory_exists: "diagnostics.execution.directoryExists",
+    file_moved: "diagnostics.execution.fileMoved",
+    operation_failed: "diagnostics.execution.operationFailed",
+    reconciled_moved: "diagnostics.execution.reconciledMoved",
+    reconciled_skipped: "diagnostics.execution.reconciledSkipped",
+    reconciled_unknown: "diagnostics.execution.reconciledUnknown",
+    unmatched_kept_in_place: "diagnostics.execution.unmatchedKeptInPlace",
+    skip_target_exists: "diagnostics.precheck.skipTargetExists",
+    skip_source_missing: "diagnostics.precheck.skipSourceMissing",
+    skip_duplicate_target: "diagnostics.precheck.skipDuplicateTarget",
+    skip_self_subpath: "diagnostics.precheck.skipSelfSubpath",
+    skip_parent_missing: "diagnostics.precheck.skipParentMissing",
+    skip_not_movable: "diagnostics.precheck.skipNotMovable",
+  };
+  const code = item.message_code || "";
+  if (codeKeys[code]) {
+    return t(codeKeys[code], (item.message_params || {}) as Record<string, unknown>);
+  }
+  if (useLegacyCopy && item.message) return item.message;
+  if (item.status === "failed") return t("diagnostics.execution.operationFailed");
+  if (item.status === "skipped") return t("diagnostics.execution.moveSkipped");
+  return t("diagnostics.execution.operationSucceeded");
+}
+
 export function CompletionView({
   journal,
   rollbackReport = null,
@@ -83,7 +114,8 @@ export function CompletionView({
   onRollback,
   onGoHome,
 }: CompletionViewProps) {
-  const { t } = useTranslation("common");
+  const { t, i18n } = useTranslation("common");
+  const useLegacyCopy = i18n.resolvedLanguage?.startsWith("zh") ?? false;
   const router = useRouter();
   const [filter, setFilter] = useState<DirectoryTreeFilter>("all");
   const [cleanupConfirmOpen, setCleanupConfirmOpen] = useState(false);
@@ -502,10 +534,10 @@ export function CompletionView({
                       {skippedItems.map((item, idx) => (
                         <div key={idx} className="group flex flex-col gap-1 p-2 transition-colors hover:bg-warning/5 border-b border-warning/5 last:border-0 text-[11px]">
                           <p className="truncate font-mono font-black text-on-surface/90" title={item.display_name}>{item.display_name}</p>
-                          {item.message ? (
+                          {item.message || item.message_code ? (
                             <div className="flex items-start gap-2">
                               <span className="shrink-0 text-[11px] font-black uppercase text-warning-dim/70">{t("workspace.completion.reason")}</span>
-                              <p className="text-[11px] font-medium leading-snug text-on-surface-variant/80" title={item.message}>{item.message}</p>
+                              <p className="text-[11px] font-medium leading-snug text-on-surface-variant/80" title={journalItemMessage(item, t, useLegacyCopy)}>{journalItemMessage(item, t, useLegacyCopy)}</p>
                             </div>
                           ) : null}
                         </div>
@@ -532,10 +564,10 @@ export function CompletionView({
                              <span className="text-[11px] font-black uppercase text-error/60">{t("workspace.completion.target")}</span>
                              <p className="truncate font-mono text-[11px] text-error/70" title={item.target || ""}>{item.target}</p>
                           </div>
-                          {item.message ? (
+                          {item.message || item.message_code ? (
                             <div className="flex items-start gap-2">
                               <span className="shrink-0 text-[11px] font-black uppercase text-error/60">{t("workspace.completion.reason")}</span>
-                              <p className="text-[11px] font-medium leading-snug text-error/80" title={item.message}>{item.message}</p>
+                              <p className="text-[11px] font-medium leading-snug text-error/80" title={journalItemMessage(item, t, useLegacyCopy)}>{journalItemMessage(item, t, useLegacyCopy)}</p>
                             </div>
                           ) : null}
                         </div>

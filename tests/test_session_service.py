@@ -956,11 +956,15 @@ class OrganizerSessionServiceTests(unittest.TestCase):
         assert scanned is not None
         self.assertEqual(scanned.stage, "interrupted")
         self.assertEqual(scanned.last_error, "scan_empty_result")
+        self.assertEqual(scanned.last_error_code, "scan_empty_result")
         self.assertEqual(scanned.scanner_progress["status"], "failed")
+        self.assertEqual(scanned.scanner_progress["message_code"], "scan_empty_result")
         self.assertEqual(scanned.scanner_progress["message"], "扫描未返回任何条目，请检查模型输出或调试日志")
         organizer_cycle_mock.assert_not_called()
         error_events = [event for event in service.read_events(session.session_id) if event["event_type"] == "session.error"]
         self.assertTrue(error_events)
+        self.assertEqual(error_events[-1]["error_code"], "scan_empty_result")
+        self.assertEqual(error_events[-1]["session_snapshot"]["last_error_code"], "scan_empty_result")
 
     def test_start_scan_sync_runner_raises_when_scan_returns_empty_for_nonempty_directory(self):
         (self.target_dir / "a.txt").write_text("hello", encoding="utf-8")
@@ -1398,6 +1402,7 @@ class OrganizerSessionServiceTests(unittest.TestCase):
             result = self.service.submit_user_intent(session.session_id, "放到文档")
 
         self.assertEqual(result.session_snapshot["planner_progress"]["status"], "completed")
+        self.assertEqual(result.session_snapshot["planner_progress"]["message_code"], "completed")
         self.assertIsNotNone(result.session_snapshot["planner_progress"]["last_completed_at"])
         self.assertFalse(result.session_snapshot["planner_progress"]["preserving_previous_plan"])
 
@@ -1409,6 +1414,11 @@ class OrganizerSessionServiceTests(unittest.TestCase):
         self.assertIn("streaming_reply", phases)
         self.assertIn("validating", phases)
         self.assertIn("applying", phases)
+        waiting_event = next(
+            event for event in progress_events
+            if event["session_snapshot"]["planner_progress"]["phase"] == "waiting_model"
+        )
+        self.assertEqual(waiting_event["session_snapshot"]["planner_progress"]["message_code"], "waiting_model")
 
     def test_submit_user_intent_marks_retrying_and_repairing_planner_progress(self):
         created = self.service.create_session(str(self.target_dir), resume_if_exists=False)

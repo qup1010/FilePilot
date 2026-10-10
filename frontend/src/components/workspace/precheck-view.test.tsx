@@ -172,7 +172,8 @@ describe("PrecheckView", () => {
     expect(screen.queryByText("D:/custom-review-root/unknown.pdf")).not.toBeInTheDocument();
   });
 
-  it("uses the structured risk code to mark an item without parsing its message", () => {
+  it("translates the structured risk code without exposing backend prose", async () => {
+    await i18n.changeLanguage("en");
     render(
       <PrecheckView
         summary={{
@@ -193,7 +194,12 @@ describe("PrecheckView", () => {
               severity: "warning",
               issue_type: "precheck_warning",
               code: "risky_move",
-              params: { reason_code: "RISKY_MOVE_PROJECT_ENTRY" },
+              params: {
+                reason_code: "RISKY_MOVE_PROJECT_ENTRY",
+                display_name: "package-lock.json",
+                source: "D:/project/package-lock.json",
+                target: "D:/archive/package-lock.json",
+              },
               message: "A high-impact move needs review.",
               related_item_ids: ["F001"],
             },
@@ -216,7 +222,8 @@ describe("PrecheckView", () => {
       />,
     );
 
-    expect(screen.getByText("重要变动")).toBeInTheDocument();
+    expect(screen.getByText(/package-lock\.json appears to contain project or hidden configuration files/)).toBeInTheDocument();
+    expect(screen.queryByText("A high-impact move needs review.")).not.toBeInTheDocument();
   });
 
   it("falls back to source file names instead of internal item ids", () => {

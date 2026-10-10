@@ -277,6 +277,8 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
       batch_count: snapshot?.scanner_progress?.batch_count,
       completed_batches: snapshot?.scanner_progress?.completed_batches,
       message: snapshot?.scanner_progress?.message || undefined,
+      message_code: snapshot?.scanner_progress?.message_code,
+      message_params: snapshot?.scanner_progress?.message_params,
       is_retrying: snapshot?.scanner_progress?.is_retrying,
       ai_thinking: snapshot?.scanner_progress?.ai_thinking,
     }),
@@ -825,7 +827,9 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
       return {
         tone: "danger",
         title: t("workspace.notice.interruptedTitle"),
-        description: snapshot?.last_error ? localizeSessionLastError(snapshot.last_error) : t("workspace.notice.interruptedDescription"),
+        description: snapshot?.last_error
+          ? localizeSessionLastError(snapshot.last_error, undefined, snapshot.last_error_code, snapshot.last_error_params)
+          : t("workspace.notice.interruptedDescription"),
         primaryAction: {
           label: t("workspace.emptyState.rescan"),
           onClick: handleStartScan,
@@ -1616,7 +1620,9 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
         {assistantRuntime && (
           <span className="flex items-center gap-1 rounded-full bg-on-surface/[0.04] px-1.5 py-0.5 text-[11px] font-bold text-ui-muted">
             <Loader2 className="h-2.5 w-2.5 animate-spin-slow" />
-            {assistantRuntime.label}
+            {assistantRuntime.labelCode
+              ? t(`diagnostics.assistantRuntime.${assistantRuntime.labelCode}`, assistantRuntime.labelParams)
+              : assistantRuntime.label}
           </span>
         )}
 

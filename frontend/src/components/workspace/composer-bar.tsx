@@ -11,9 +11,15 @@ export interface ComposerBarProps {
   composerStatus?: AssistantRuntimeStatus | null;
   plannerStatus?: {
     label: string;
+    labelCode?: string;
+    labelParams?: Record<string, string | number>;
     detail: string | null;
-    elapsedLabel: string | null;
-    reassureText: string | null;
+    detailCode?: string | null;
+    detailParams?: Record<string, string | number>;
+    elapsedSeconds?: number | null;
+    reassure?: boolean;
+    elapsedLabel?: string | null;
+    reassureText?: string | null;
     attempt: number;
     phase: string | null;
     isRunning: boolean;
@@ -71,6 +77,30 @@ export function ComposerBar({
     : isComposerLocked
       ? t("workspace.composer.placeholderBusy")
       : t("workspace.composer.placeholderEditable");
+  const runtimeLabel = composerStatus?.labelCode
+    ? t(`diagnostics.assistantRuntime.${composerStatus.labelCode}`, composerStatus.labelParams)
+    : composerStatus?.label;
+  const runtimeDetail = composerStatus?.detailCode
+    ? t(`diagnostics.assistantRuntime.${composerStatus.detailCode}`, composerStatus.detailParams)
+    : composerStatus?.detail;
+  const plannerLabel = plannerStatus?.labelCode
+    ? t(`diagnostics.plannerProgress.${plannerStatus.labelCode}`, plannerStatus.labelParams)
+    : plannerStatus?.label;
+  const plannerDetail = plannerStatus?.detailCode
+    ? t(`diagnostics.plannerProgress.${plannerStatus.detailCode}`, plannerStatus.detailParams)
+    : plannerStatus?.detail;
+  const elapsedSeconds = plannerStatus?.elapsedSeconds;
+  const elapsedLabel = elapsedSeconds === null || elapsedSeconds === undefined
+    ? plannerStatus?.elapsedLabel
+    : elapsedSeconds < 60
+      ? t("diagnostics.plannerProgress.elapsedSeconds", { seconds: elapsedSeconds })
+      : t("diagnostics.plannerProgress.elapsedMinutes", {
+          minutes: Math.floor(elapsedSeconds / 60),
+          seconds: elapsedSeconds % 60,
+        });
+  const reassureText = plannerStatus?.reassure
+    ? t("diagnostics.plannerProgress.reassurance")
+    : plannerStatus?.reassureText;
  
   if (composerMode === "hidden") {
     return null;
@@ -112,9 +142,9 @@ export function ComposerBar({
           >
             <div className="mb-2 mt-4 flex items-center gap-2.5 px-1 text-[11px] font-black uppercase tracking-widest text-primary opacity-80">
               <Loader2 className="h-3 w-3 animate-spin" />
-              <span>{composerStatus.label}</span>
-              {composerStatus.detail && (
-                <span className="opacity-40 italic">— {composerStatus.detail}</span>
+              <span>{runtimeLabel}</span>
+              {runtimeDetail && (
+                <span className="opacity-40 italic">— {runtimeDetail}</span>
               )}
             </div>
           </motion.div>
@@ -132,13 +162,13 @@ export function ComposerBar({
             <div className="mb-2 mt-3 rounded-[8px] border border-primary/12 bg-primary/[0.035] px-3 py-2">
               <div className="flex min-w-0 items-center gap-2.5">
                 <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-primary" />
-                <span className="shrink-0 text-[12px] font-black text-primary">{plannerStatus.label}</span>
+                <span className="shrink-0 text-[12px] font-black text-primary">{plannerLabel}</span>
                 {plannerAttemptLabel ? <span className="shrink-0 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-bold text-primary">{plannerAttemptLabel}</span> : null}
-                {plannerStatus.elapsedLabel ? <span className="shrink-0 font-mono text-[11px] font-bold text-primary/45">{plannerStatus.elapsedLabel}</span> : null}
-                {plannerStatus.detail ? <span className="min-w-0 truncate text-[11px] font-medium text-on-surface-variant/60">{plannerStatus.detail}</span> : null}
+                {elapsedLabel ? <span className="shrink-0 font-mono text-[11px] font-bold text-primary/45">{elapsedLabel}</span> : null}
+                {plannerDetail ? <span className="min-w-0 truncate text-[11px] font-medium text-on-surface-variant/60">{plannerDetail}</span> : null}
               </div>
-              {plannerStatus.reassureText ? (
-                <p className="mt-1 truncate text-[11px] font-medium text-on-surface-variant/45">{plannerStatus.reassureText}</p>
+              {reassureText ? (
+                <p className="mt-1 truncate text-[11px] font-medium text-on-surface-variant/45">{reassureText}</p>
               ) : null}
             </div>
           </motion.div>

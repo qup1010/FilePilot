@@ -55,6 +55,57 @@ function displayNameFromMoveSource(source: string, unknownLabel: string): string
     return normalized.split(/[\\/]/).pop() || unknownLabel;
 }
 
+function precheckIssueMessage(
+    issue: PrecheckSummary["issues"][number],
+    t: (key: string, values?: Record<string, unknown>) => string,
+    useLegacyCopy: boolean,
+): string {
+    const params = issue.params || {};
+    const values = params as Record<string, string | number>;
+    if (issue.code === "risky_move") {
+        if (useLegacyCopy && issue.message && (!values.display_name || !values.source || !values.target)) {
+            return issue.message;
+        }
+        const reasonKey = ({
+            RISKY_MOVE_PROJECT_ENTRY: "riskProjectEntry",
+            RISKY_MOVE_HIDDEN_ENTRY: "riskHiddenEntry",
+            RISKY_MOVE_CROSS_VOLUME: "riskCrossVolume",
+            project_entry: "riskProjectEntry",
+            hidden_entry: "riskHiddenEntry",
+            cross_volume: "riskCrossVolume",
+        } as Record<string, string>)[String(params.reason_code)] || "riskHiddenEntry";
+        return t("diagnostics.precheck.riskyMove", {
+            ...values,
+            display_name: values.display_name || "",
+            source: values.source || "",
+            target: values.target || "",
+            reason: t(`diagnostics.precheck.${reasonKey}`),
+        });
+    }
+    if (issue.code === "review_items") {
+        return t("diagnostics.precheck.reviewItems", { ...values, count: values.count ?? issue.related_item_ids.length });
+    }
+    if (issue.code === "item_skip") {
+        const reasonKey = ({
+            target_exists: "skipTargetExists",
+            source_missing: "skipSourceMissing",
+            duplicate_target: "skipDuplicateTarget",
+            self_subpath: "skipSelfSubpath",
+            parent_missing: "skipParentMissing",
+            not_movable: "skipNotMovable",
+        } as Record<string, string>)[String(params.reason)];
+        if (reasonKey) return t(`diagnostics.precheck.${reasonKey}`, {
+            ...values,
+            source: values.source || "",
+            target: values.target || "",
+        });
+    }
+    if (useLegacyCopy && issue.message) return issue.message;
+    if (issue.severity === "blocking") return t("diagnostics.precheck.genericBlocking");
+    if (issue.severity === "review") return t("diagnostics.precheck.genericReview");
+    return t("diagnostics.precheck.genericWarning");
+}
+
 export function PrecheckView({
     summary,
     planItems = [],
@@ -65,7 +116,8 @@ export function PrecheckView({
     onBack,
     onLocateIssue,
 }: PrecheckViewProps) {
-    const { t } = useTranslation("common");
+    const { t, i18n } = useTranslation("common");
+    const useLegacyCopy = i18n.resolvedLanguage?.startsWith("zh") ?? false;
     const [filter, setFilter] = useState<DirectoryTreeFilter>("all");
     const suggestionTypeLabel = (type: string) => {
         if (type === "target_exists") return t("workspace.precheck.suggestion.targetExists");
@@ -121,7 +173,7 @@ export function PrecheckView({
         if (issue.code !== "risky_move") continue;
         for (const itemId of issue.related_item_ids || []) {
             const existing = riskMessagesByItemId.get(itemId) || [];
-            existing.push(String(issue.message || t("workspace.precheck.importantChange")));
+            existing.push(precheckIssueMessage(issue, t, useLegacyCopy));
             riskMessagesByItemId.set(itemId, existing);
         }
     }
@@ -410,6 +462,7 @@ export function PrecheckView({
                                     const Icon = isBlocking ? AlertCircle : isWarning ? ShieldAlert : ListChecks;
                                     const title = isBlocking ? t("workspace.precheck.issueTitle.blocking") : isWarning ? t("workspace.precheck.issueTitle.warning") : t("workspace.precheck.issueTitle.review");
                                     const locateFilter = issue.severity === "review" ? "review" : undefined;
+                                    const issueMessage = precheckIssueMessage(issue, t, useLegacyCopy);
                                     
                                     return (
                                         <div key={issue.id} className={cn(
@@ -425,7 +478,7 @@ export function PrecheckView({
                                                 </div>
                                                 <div className="min-w-0">
                                                     <p className="text-[11px] font-black tracking-[0.2em] opacity-40 leading-none">{title}</p>
-                                                    <p className="text-[13px] font-bold text-on-surface mt-1 truncate" title={issue.message}>{issue.message}</p>
+                                                    <p className="text-[13px] font-bold text-on-surface mt-1 truncate" title={issueMessage}>{issueMessage}</p>
                                                 </div>
                                             </div>
                                             {onLocateIssue && issue.related_item_ids?.length ? (

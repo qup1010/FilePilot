@@ -299,6 +299,8 @@ class ScanWorkflowService:
                     session.scanner_progress["batch_count"] = batch_count
                     session.scanner_progress["completed_batches"] = 0
                     session.scanner_progress["message"] = f"文件较多，已拆分为 {batch_count} 个批次并行分析"
+                    session.scanner_progress["message_code"] = "batch_split"
+                    session.scanner_progress["message_params"] = {"batch_count": batch_count}
                     session.scanner_progress["current_item"] = f"已启动 {worker_count} 个并行分析线程"
                     changed = True
                 elif event_type == "batch_progress":

@@ -173,6 +173,8 @@ class SessionOrchestrator:
             )
         except Exception as exc:
             session.last_error = str(exc)
+            session.last_error_code = "planner_failed"
+            session.last_error_params = {}
             self.helpers._fail_planner_progress(session, str(exc))
             raise
 
@@ -230,6 +232,8 @@ class SessionOrchestrator:
                 session.target_dir,
             )
             session.last_error = f"自动规划失败: {str(exc)}"
+            session.last_error_code = "planner_failed"
+            session.last_error_params = {}
             self.helpers._fail_planner_progress(session, session.last_error)
             session.stage = STAGE_INTERRUPTED
             self.helpers._sync_session_views(session)

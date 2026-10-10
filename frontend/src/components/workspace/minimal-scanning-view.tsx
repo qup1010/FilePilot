@@ -117,7 +117,7 @@ export function MinimalScanningView({
   const displayDescription = translateCopy(viewModel.description);
   const displayMessage = isPlanning
     ? t("scanner.minimal.longPlanMessage")
-    : viewModel.backendMessage || (viewModel.batchDetail ? translateCopy(viewModel.batchDetail) : null);
+    : viewModel.backendMessage ? translateCopy(viewModel.backendMessage) : (viewModel.batchDetail ? translateCopy(viewModel.batchDetail) : null);
   const metricLabel = isPlanning ? t("scanner.minimal.filesToOrganize") : t("scanner.minimal.analysisProgress");
   const currentStatusLabel = isPlanning ? t("scanner.minimal.planningStatus") : t("scanner.minimal.readOnlyAnalysisStatus");
   const primaryItemLabel = isPlanning ? t("scanner.minimal.planInProgress") : viewModel.currentItem || t("scanner.minimal.preparingDirectoryRead");

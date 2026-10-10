@@ -212,6 +212,8 @@ class HistoryAppService:
                 "action_type": item.action_type,
                 "status": item.status,
                 "message": item.message,
+                "message_code": item.message_code,
+                "message_params": dict(item.message_params or {}),
                 "source": item.source_before,
                 "target": item.target_after or item.created_path,
                 "display_name": str(
@@ -255,6 +257,8 @@ class HistoryAppService:
                                 "action_type": "MOVE",
                                 "status": "skipped",
                                 "message": "未命中任何目标分类规则，选择留在原地",
+                                "message_code": "unmatched_kept_in_place",
+                                "message_params": {},
                                 "source": str(full_path),
                                 "target": str(full_path),
                                 "display_name": str(p_item.get("display_name") or full_path.name),

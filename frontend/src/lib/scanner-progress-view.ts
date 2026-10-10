@@ -20,7 +20,7 @@ export interface ScannerProgressViewModel {
   eyebrow: ProgressCopy;
   title: ProgressCopy;
   description: ProgressCopy;
-  backendMessage: string | null;
+  backendMessage: ProgressCopy | null;
   stageLabel: ProgressCopy;
   totalCount: number;
   processedCount: number;
@@ -108,7 +108,28 @@ export function deriveScannerProgressViewModel(
   const batchCount = Math.max(0, Number(scanner.batch_count || 0));
   const completedBatches = Math.max(0, Number(scanner.completed_batches || 0));
   const status = normalizeText(scanner.status || "running").toLowerCase();
-  const backendMessage = normalizeText(scanner.message) || null;
+  const messageKeys: Record<string, string> = {
+    reading_directory: "diagnostics.scannerProgress.readingDirectory",
+    reading_sources: "diagnostics.scannerProgress.readingSources",
+    batch_split: "diagnostics.scannerProgress.batchSplit",
+    directory_discovered: "diagnostics.scannerProgress.directoryDiscovered",
+    empty_directory: "diagnostics.scannerProgress.emptyDirectory",
+    scan_empty_result: "diagnostics.scannerProgress.scanEmptyResult",
+    scan_completed: "diagnostics.scannerProgress.scanCompleted",
+    parallel_scan_completed: "diagnostics.scannerProgress.parallelScanCompleted",
+    completed_with_recovered_batches: "diagnostics.scannerProgress.completedWithRecoveredBatches",
+    completed_with_review_items: "diagnostics.scannerProgress.completedWithReviewItems",
+    scan_incomplete_batches: "diagnostics.scannerProgress.scanIncompleteBatches",
+    scan_incomplete_items: "diagnostics.scannerProgress.scanIncompleteItems",
+    scanner_failed: "diagnostics.scannerProgress.scannerFailed",
+  };
+  const messageCode = normalizeText(scanner.message_code);
+  const messageParams = Object.fromEntries(
+    Object.entries(scanner.message_params || {}).filter(([, value]) => typeof value === "string" || typeof value === "number"),
+  ) as Record<string, string | number>;
+  const backendMessage = messageCode && messageKeys[messageCode]
+    ? copy(messageKeys[messageCode], Object.keys(messageParams).length ? messageParams : undefined)
+    : null;
   const currentItemRaw = normalizeText(scanner.current_item);
   const currentItem = isSpecificScanItem(currentItemRaw, scanner.current_item_kind) ? currentItemRaw : null;
   const isRetrying = Boolean(scanner.is_retrying);

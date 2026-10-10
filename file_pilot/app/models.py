@@ -625,6 +625,8 @@ class OrganizerSession:
     updated_at: str = field(default_factory=utc_now_iso)
     stale_reason: str | None = None
     last_error: str | None = None
+    last_error_code: str | None = None
+    last_error_params: dict = field(default_factory=dict)
     last_ai_pending_plan: AIPendingBaseline | None = None
     summary: str = ""
     id_registry_state: IdRegistryState | None = None
@@ -821,6 +823,8 @@ class OrganizerSession:
             updated_at=data.get("updated_at", utc_now_iso()),
             stale_reason=data.get("stale_reason"),
             last_error=data.get("last_error"),
+            last_error_code=data.get("last_error_code"),
+            last_error_params=dict(data.get("last_error_params") or {}),
             last_ai_pending_plan=AIPendingBaseline.from_dict(data.get("last_ai_pending_plan")),
             summary=data.get("summary", ""),
             id_registry_state=IdRegistryState.from_dict(data.get("id_registry_state")),

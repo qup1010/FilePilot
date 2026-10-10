@@ -331,6 +331,19 @@ class ExecutionAppService:
                 }
             )
         item_skip_messages = [f"将跳过（留在原地）：{skip.message}" for skip in precheck.item_skips]
+        warning_details = dict(structured_safety_warnings)
+        for skip_index, skip in enumerate(precheck.item_skips):
+            warning_index = len(precheck.warnings) + skip_index
+            warning_details[warning_index] = {
+                "code": "item_skip",
+                "params": {
+                    "reason": skip.reason,
+                    "display_name": skip.display_name or "",
+                    "source": skip.source or "",
+                    "target": skip.target or "",
+                },
+                "related_item_ids": [skip.item_id] if skip.item_id else [],
+            }
         session.precheck_summary = {
             "can_execute": precheck.can_execute,
             "blocking_errors": list(precheck.blocking_errors),
@@ -344,7 +357,7 @@ class ExecutionAppService:
                 list(precheck.warnings) + item_skip_messages,
                 final_plan.moves,
                 planner_by_source,
-                structured_warning_details=structured_safety_warnings,
+                structured_warning_details=warning_details,
             ),
         }
         session.stage = STAGE_READY_TO_EXECUTE if precheck.can_execute else STAGE_PLANNING
@@ -426,6 +439,8 @@ class ExecutionAppService:
             except Exception as exc:
                 session.stage = STAGE_INTERRUPTED
                 session.last_error = str(exc)
+                session.last_error_code = "execution_failed"
+                session.last_error_params = {}
                 self.helpers._sync_session_views(session)
                 self.helpers.store.save(session)
                 self.helpers._log_runtime_event("execution.failed", session, level=logging.ERROR, error=str(exc))
@@ -441,6 +456,8 @@ class ExecutionAppService:
             if not journal_id:
                 session.stage = STAGE_INTERRUPTED
                 session.last_error = "missing_execution_journal"
+                session.last_error_code = "execution_journal_missing"
+                session.last_error_params = {}
                 self.helpers._sync_session_views(session)
                 self.helpers.store.save(session)
                 self.helpers._log_runtime_event("execution.failed", session, reason="missing_execution_journal", level=logging.ERROR)
@@ -531,6 +548,8 @@ class ExecutionAppService:
         except Exception as exc:
             session.stage = STAGE_INTERRUPTED
             session.last_error = str(exc)
+            session.last_error_code = "rollback_failed"
+            session.last_error_params = {}
             self.helpers._sync_session_views(session)
             self.helpers.store.save(session)
             self.helpers._log_runtime_event("rollback.failed", session, level=logging.ERROR, error=str(exc))

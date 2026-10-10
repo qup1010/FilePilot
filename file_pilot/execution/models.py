@@ -98,6 +98,8 @@ class ExecutionJournalItem:
     action_type: str
     status: str
     message: str
+    message_code: str | None = None
+    message_params: dict = field(default_factory=dict)
     raw: str = ""
     source_before: str | None = None
     target_after: str | None = None
@@ -141,6 +143,8 @@ class ExecutionJournal:
                     "action_type": item.action_type,
                     "status": item.status,
                     "message": item.message,
+                    "message_code": item.message_code,
+                    "message_params": dict(item.message_params or {}),
                     "raw": item.raw,
                     "source_before": item.source_before,
                     "target_after": item.target_after,

@@ -57,6 +57,15 @@ describe("user-facing copy helpers", () => {
     );
   });
 
+  it("translates structured session errors and interruption stages", async () => {
+    await i18n.changeLanguage("en");
+
+    expect(localizeSessionLastError("原始后端错误", undefined, "scan_incomplete_items", { placeholder_count: 3 }))
+      .toBe("3 items were not analyzed successfully. Try again or reduce parallelism.");
+    expect(localizeSessionLastError("planning_interrupted", undefined, "planning_interrupted", { stage: "planning" }))
+      .toBe("The task was interrupted during planning.");
+  });
+
   it("humanizes model gateway timeout session errors", () => {
     expect(localizeSessionLastError("Error code: 504 - Gateway Timeout")).toBe(
       "模型服务响应超时，扫描已经停止。建议稍后重试，或在设置中切换到更稳定的模型服务。",

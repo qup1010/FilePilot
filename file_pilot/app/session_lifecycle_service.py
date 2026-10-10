@@ -120,6 +120,9 @@ class SessionLifecycleService:
         session.stage = STAGE_INTERRUPTED
         session.integrity_flags["interrupted_during"] = interrupted_during
         session.last_error = session.last_error or f"{interrupted_during}_interrupted"
+        if not session.last_error_code:
+            session.last_error_code = f"{interrupted_during}_interrupted"
+            session.last_error_params = {"stage": interrupted_during}
         session.last_journal_id = session.last_journal_id or self.helpers._latest_execution_id(Path(session.target_dir))
         self.helpers._sync_session_views(session)
         self.helpers.store.save(session)

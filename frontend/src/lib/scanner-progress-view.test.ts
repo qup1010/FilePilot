@@ -15,6 +15,24 @@ describe("scanner-progress-view", () => {
     expect(view.steps.map((step) => step.state)).toEqual(["active", "pending", "pending"]);
   });
 
+  it("uses stable scanner message codes and parameters instead of backend prose", () => {
+    const view = deriveScannerProgressViewModel(
+      {
+        status: "completed",
+        message: "已发现源文件夹中的 4 个条目，请选择目标目录以继续。",
+        message_code: "directory_discovered",
+        message_params: { count: 4 },
+      },
+      100,
+      "discovering",
+    );
+
+    expect(view.backendMessage).toEqual({
+      key: "diagnostics.scannerProgress.directoryDiscovered",
+      values: { count: 4 },
+    });
+  });
+
   it("labels content analysis when entries are known", () => {
     const view = deriveScannerProgressViewModel(
       { status: "running", processed_count: 3, total_count: 10, recent_analysis_items: [] },

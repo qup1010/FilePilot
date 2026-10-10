@@ -120,8 +120,45 @@ export function createUserFacingRequestError(status: number, statusText: string,
   });
 }
 
-export function localizeSessionLastError(lastError: string | null | undefined, fallback?: string): string {
+export function localizeSessionLastError(
+  lastError: string | null | undefined,
+  fallback?: string,
+  errorCode?: string | null,
+  errorParams?: Record<string, string | number | boolean | null> | null,
+): string {
   const translatedFallback = fallback ?? i18n.t("workspace.fallback.interrupted");
+  const codeKeys: Record<string, string> = {
+    scanner_failed: "scannerFailed",
+    scan_empty_result: "scanEmpty",
+    scan_incomplete_batches: "scanIncompleteBatches",
+    scan_incomplete_items: "scanIncompleteItems",
+    planner_failed: "plannerFailed",
+    execution_failed: "executionFailed",
+    execution_journal_missing: "executionJournalMissing",
+    rollback_failed: "rollbackFailed",
+  };
+  const code = String(errorCode || "").trim().toLowerCase();
+  if (codeKeys[code]) {
+    return i18n.t(`diagnostics.sessionErrors.${codeKeys[code]}`, errorParams || {});
+  }
+  const stage = String(errorParams?.stage || (code.endsWith("_interrupted") ? code.slice(0, -"_interrupted".length) : ""));
+  if (stage) {
+    if (stage === "scanning") {
+      return i18n.t("workspace.fallback.scanningInterrupted");
+    }
+    const stageKeys: Record<string, string> = {
+      scanning: "stageScanning",
+      planning: "stagePlanning",
+      executing: "stageExecuting",
+      rolling_back: "stageRollingBack",
+      draft: "stageDraft",
+      selecting_incremental_scope: "stageSelectingTargets",
+    };
+    const stageLabel = stageKeys[stage]
+      ? i18n.t(`diagnostics.sessionErrors.${stageKeys[stage]}`)
+      : i18n.t("diagnostics.sessionErrors.stageTask");
+    return i18n.t("diagnostics.sessionErrors.sessionInterrupted", { stage: stageLabel });
+  }
   const normalized = String(lastError || "").trim().toLowerCase();
   if (!normalized) {
     return translatedFallback;

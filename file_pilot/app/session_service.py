@@ -1455,6 +1455,8 @@ class OrganizerSessionService:
                     "severity": "blocking",
                     "issue_type": "precheck_blocking_error",
                     "message": message,
+                    "code": "blocking_error",
+                    "params": {},
                     "related_item_ids": self._related_item_ids_for_message(message, planner_by_source, plan_moves),
                 }
             )
@@ -1477,7 +1479,10 @@ class OrganizerSessionService:
                             "params": dict(structured_detail.get("params") or {}),
                         }
                         if structured_detail is not None
-                        else {}
+                        else {
+                            "code": "warning",
+                            "params": {},
+                        }
                     ),
                 }
             )
@@ -1493,6 +1498,8 @@ class OrganizerSessionService:
                     "severity": "review",
                     "issue_type": "review_items",
                     "message": f"这次有 {len(review_item_ids)} 项会先进入待确认区，建议执行前先核对。",
+                    "code": "review_items",
+                    "params": {"count": len(review_item_ids)},
                     "related_item_ids": review_item_ids,
                 }
             )
@@ -1605,6 +1612,8 @@ class OrganizerSessionService:
             "current_item_kind": "entry" if discovery_entries else None,
             "recent_analysis_items": discovery_entries[-5:],
             "message": f"已发现 {total_count} 个根目录条目，请先选择目标目录。",
+            "message_code": "directory_discovered",
+            "message_params": {"count": total_count},
         }
         self.store.save(session)
         self._log_runtime_event("scan.completed", session, entry_count=total_count, mode="sync")
@@ -2253,6 +2262,8 @@ class OrganizerSessionService:
             "unrecovered_failed_batches": False,
             "placeholder_count": 0,
             "message": "正在读取目录结构",
+            "message_code": "reading_directory",
+            "message_params": {},
         }
 
     def _initial_source_collection_scan_progress(self, session: OrganizerSession) -> dict:
@@ -2284,11 +2295,15 @@ class OrganizerSessionService:
             "unrecovered_failed_batches": False,
             "placeholder_count": 0,
             "message": "正在读取本次整理来源",
+            "message_code": "reading_sources",
+            "message_params": {},
         }
 
     @staticmethod
     def _clear_scan_recovery_state(session: OrganizerSession) -> None:
         session.last_error = None
+        session.last_error_code = None
+        session.last_error_params = {}
         session.integrity_flags.pop("interrupted_during", None)
         session.integrity_flags.pop("scan_incomplete", None)
         session.integrity_flags.pop("scan_placeholder_count", None)
@@ -2547,6 +2562,8 @@ class OrganizerSessionService:
                 "current_item_kind": None,
                 "recent_analysis_items": [],
                 "message": "目录为空，无需整理",
+                "message_code": "empty_directory",
+                "message_params": {},
             }
             self.store.save(session)
             self._log_runtime_event("scan.completed", session, entry_count=0, mode=mode, auto_plan_pending=False)
@@ -2562,6 +2579,8 @@ class OrganizerSessionService:
         session.scan_lines = ""
         session.source_tree_entries = []
         session.last_error = "scan_empty_result"
+        session.last_error_code = "scan_empty_result"
+        session.last_error_params = {}
         session.scanner_progress = {
             **dict(session.scanner_progress or {}),
             "status": "failed",
@@ -2570,6 +2589,8 @@ class OrganizerSessionService:
             "current_item_kind": None,
             "recent_analysis_items": [],
             "message": "扫描未返回任何条目，请检查模型输出或调试日志",
+            "message_code": "scan_empty_result",
+            "message_params": {},
         }
         self.store.save(session)
         self._log_runtime_event("scan.failed", session, level=logging.ERROR, error="scan_empty_result", mode=mode)
@@ -2620,6 +2641,23 @@ class OrganizerSessionService:
             return f"已完成 {batch_count}/{batch_count} 批并行分析"
         return "已完成并行扫描分析" if parallel else "已完成单线程扫描分析"
 
+    def _scan_completion_feedback(
+        self,
+        entries: list[dict],
+        *,
+        parallel: bool,
+        batch_count: int | None = None,
+        recovered_failed_batches: bool = False,
+    ) -> tuple[str, dict]:
+        placeholder_count = self._placeholder_scan_item_count(entries)
+        if placeholder_count > 0:
+            return "completed_with_review_items", {"placeholder_count": placeholder_count}
+        if recovered_failed_batches:
+            return "completed_with_recovered_batches", {"batch_count": int(batch_count or 0)}
+        if parallel:
+            return "parallel_scan_completed", {"batch_count": int(batch_count or 0)}
+        return "scan_completed", {}
+
     def _handle_incomplete_scan_result(
         self,
         session: OrganizerSession,
@@ -2639,10 +2677,14 @@ class OrganizerSessionService:
             reasons.append(f"{placeholder_count} 项未成功分析")
         detail = "，".join(reasons) if reasons else "扫描结果不完整"
         message = f"扫描结果不完整：{detail}。请稍后重试或降低并发后重新扫描。"
+        message_code = "scan_incomplete_batches" if unrecovered_failed_batches else "scan_incomplete_items"
+        message_params = {"placeholder_count": placeholder_count}
         recent_items = entries[-5:]
 
         session.stage = STAGE_INTERRUPTED
         session.last_error = message
+        session.last_error_code = message_code
+        session.last_error_params = dict(message_params)
         session.summary = ""
         session.pending_plan = self._pending_plan_payload({})
         session.plan_snapshot = self._plan_snapshot_payload({})
@@ -2663,6 +2705,8 @@ class OrganizerSessionService:
             "ai_thinking": False,
             "is_retrying": False,
             "message": message,
+            "message_code": message_code,
+            "message_params": message_params,
         }
         self.store.save(session)
         self._log_runtime_event(
@@ -2734,8 +2778,17 @@ class OrganizerSessionService:
                     batch_count=int(existing_progress.get("batch_count") or 0),
                     recovered_failed_batches=had_failed_batches and not unrecovered_failed_batches,
                 )
+                message_code, message_params = self._scan_completion_feedback(
+                    all_entries,
+                    parallel=True,
+                    batch_count=int(existing_progress.get("batch_count") or 0),
+                    recovered_failed_batches=had_failed_batches and not unrecovered_failed_batches,
+                )
             else:
                 session.scanner_progress["message"] = self._scan_completion_message(all_entries, parallel=False)
+                message_code, message_params = self._scan_completion_feedback(all_entries, parallel=False)
+            session.scanner_progress["message_code"] = message_code
+            session.scanner_progress["message_params"] = message_params
 
             if unrecovered_failed_batches or placeholder_count > 0:
                 self._handle_incomplete_scan_result(
@@ -2826,7 +2879,15 @@ class OrganizerSessionService:
             session = self._load_or_raise(session_id)
             session.stage = STAGE_INTERRUPTED
             session.last_error = str(exc)
-            session.scanner_progress = {**dict(session.scanner_progress or {}), "status": "failed", "message": str(exc)}
+            session.last_error_code = "scanner_failed"
+            session.last_error_params = {}
+            session.scanner_progress = {
+                **dict(session.scanner_progress or {}),
+                "status": "failed",
+                "message": str(exc),
+                "message_code": "scanner_failed",
+                "message_params": {},
+            }
             self.store.save(session)
             logger.exception(
                 "scan.failed session_id=%s target_dir=%s",
@@ -2938,6 +2999,8 @@ class OrganizerSessionService:
                 "current_item_kind": "entry" if recent_items else None,
                 "recent_analysis_items": recent_items,
                 "message": self._scan_completion_message(all_entries, parallel=False),
+                "message_code": self._scan_completion_feedback(all_entries, parallel=False)[0],
+                "message_params": self._scan_completion_feedback(all_entries, parallel=False)[1],
             }
             self.store.save(session)
             self._log_runtime_event("scan.completed", session, entry_count=len(all_entries), mode="sync")
@@ -3014,6 +3077,8 @@ class OrganizerSessionService:
             return False
 
         session.last_error = session.last_error or "planning_interrupted"
+        session.last_error_code = session.last_error_code or "planning_interrupted"
+        session.last_error_params = dict(session.last_error_params or {})
         session.integrity_flags["interrupted_during"] = STAGE_PLANNING
         self._fail_planner_progress(session, session.last_error)
         if is_stage(session.stage, STAGE_PLANNING):
@@ -3071,6 +3136,8 @@ class OrganizerSessionService:
             "stale_reason": session.stale_reason,
             "last_journal_id": session.last_journal_id,
             "last_error": session.last_error,
+            "last_error_code": session.last_error_code,
+            "last_error_params": copy.deepcopy(session.last_error_params or {}),
             "created_at": session.created_at,
             "updated_at": session.updated_at,
             "strategy": {
@@ -3109,6 +3176,10 @@ class OrganizerSessionService:
             "phase": None,
             "message": "",
             "detail": None,
+            "message_code": None,
+            "message_params": {},
+            "detail_code": None,
+            "detail_params": {},
             "attempt": 1,
             "started_at": None,
             "updated_at": None,
@@ -3193,6 +3264,18 @@ class OrganizerSessionService:
         if detail is not None or effective_phase is None:
             assign("detail", detail)
 
+        effective_status = status if status is not None else progress.get("status")
+        if effective_status in {"completed", "failed"}:
+            message_code = effective_status
+            detail_code = "failureDetail" if effective_status == "failed" else None
+        else:
+            message_code = str(effective_phase or "updating")
+            detail_code = f"{effective_phase}_detail" if effective_phase else None
+        assign("message_code", message_code)
+        assign("message_params", {})
+        assign("detail_code", detail_code)
+        assign("detail_params", {})
+
         if changed:
             progress["updated_at"] = now
             session.planner_progress = progress
@@ -3201,6 +3284,8 @@ class OrganizerSessionService:
     def _begin_planner_progress(self, session: OrganizerSession, *, preserving_previous_plan: bool | None = None) -> None:
         started_at = utc_now_iso()
         session.last_error = None
+        session.last_error_code = None
+        session.last_error_params = {}
         self._set_planner_progress(
             session,
             status="running",
@@ -3499,6 +3584,9 @@ class OrganizerSessionService:
             "timestamp": datetime.datetime.now().isoformat(),
             **kwargs
         }
+        if session is not None and event_type in {"session.error", "session.interrupted"}:
+            event["error_code"] = session.last_error_code
+            event["error_params"] = copy.deepcopy(session.last_error_params or {})
         if session is not None:
             event["stage"] = session.stage
         if session is not None and include_snapshot:

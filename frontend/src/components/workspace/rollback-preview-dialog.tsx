@@ -36,7 +36,7 @@ export function RollbackPreviewDialog({
   onConfirm,
   onCancel,
 }: RollbackPreviewDialogProps) {
-  const { t } = useTranslation("common");
+  const { t, i18n } = useTranslation("common");
   const canExecute = precheck?.can_execute ?? false;
   const actions = precheck?.actions ?? [];
   const errors = precheck?.blocking_errors ?? [];
@@ -125,7 +125,16 @@ export function RollbackPreviewDialog({
                         <div className="mt-1 h-1 w-1 shrink-0 rounded-full bg-warning/50" />
                         <span>
                           {skip.display_name ? <span className="font-black text-on-surface/80">{skip.display_name}：</span> : null}
-                          {skip.message}
+                          {(() => {
+                            const reasonKey = ({
+                              target_exists: "skipTargetExists",
+                              source_missing: "skipSourceMissing",
+                              invalid_dir: "skipInvalidDirectory",
+                              dir_not_empty: "skipDirectoryNotEmpty",
+                            } as Record<string, string>)[skip.reason];
+                            if (!reasonKey) return i18n.resolvedLanguage?.startsWith("zh") ? skip.message : t("diagnostics.rollback.genericBlocking");
+                            return t(`diagnostics.rollback.${reasonKey}`, { source: skip.source || "", target: skip.target || "" });
+                          })()}
                         </span>
                       </li>
                     ))}
@@ -149,7 +158,7 @@ export function RollbackPreviewDialog({
                       {errors.map((err, idx) => (
                         <li key={idx} className="flex items-start gap-2 text-[11px] font-medium text-error/80 leading-relaxed">
                           <div className="mt-1 h-1 w-1 shrink-0 rounded-full bg-error/40" />
-                          {err}
+                          {i18n.resolvedLanguage?.startsWith("zh") ? err : t("diagnostics.rollback.genericBlocking")}
                         </li>
                       ))}
                     </ul>

@@ -463,7 +463,12 @@ export default function HistoryPage() {
       {sessionDetail?.last_error && (
         <ErrorAlert 
           title={t("history.lastTaskInterrupted")}
-          message={localizeSessionLastError(sessionDetail.last_error)} 
+          message={localizeSessionLastError(
+            sessionDetail.last_error,
+            undefined,
+            sessionDetail.last_error_code,
+            sessionDetail.last_error_params,
+          )}
         />
       )}
     </div>
