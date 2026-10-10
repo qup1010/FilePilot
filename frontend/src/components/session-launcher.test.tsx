@@ -2,6 +2,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-libra
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { SessionLauncher } from "./session-launcher";
+import i18n from "@/i18n/instance";
 
 const pushMock = vi.fn();
 let pathnameMock = "/";
@@ -235,10 +236,11 @@ describe("SessionLauncher", () => {
     });
   });
 
-  afterEach(() => {
+  afterEach(async () => {
     cleanup();
     vi.useRealTimers();
     window.localStorage.clear();
+    await i18n.changeLanguage("zh-CN");
   });
 
   it("keeps the new-organize flow behind the launch workbench until requested", async () => {
@@ -768,6 +770,46 @@ describe("SessionLauncher", () => {
       );
       expect(pushMock).toHaveBeenCalledWith("/workspace/progress?session_id=session-1&dir=D%3A%2Fincoming%2Freadme.txt&auto_scan=1");
     });
+  });
+
+  it("runs the launcher flow in English while retaining the configured output-folder language", async () => {
+    await i18n.changeLanguage("en");
+    render(<SessionLauncher />);
+
+    expect(await screen.findByText("Pick up where you left off, or start organizing")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /New organization/ }));
+    expect(await screen.findByText("Sources for this task")).toBeVisible();
+
+    fireEvent.click(screen.getByRole("button", { name: "[ Enter a path manually ]" }));
+    fireEvent.change(screen.getByPlaceholderText("Enter an absolute path..."), {
+      target: { value: "D:/incoming" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Add" }));
+    fireEvent.click(screen.getByRole("button", { name: "Next: choose an approach" }));
+
+    expect(screen.getByText("Organization approach")).toBeInTheDocument();
+    expect(screen.getByText("How it works")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Next: set up details" }));
+
+    expect(screen.getByText("Default locations")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Advanced settings..." }));
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(screen.getByText("Advanced settings")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Standard" })).toBeInTheDocument();
+  });
+
+  it("localizes launcher validation feedback and updates it when the UI language changes", async () => {
+    await i18n.changeLanguage("en");
+    render(<SessionLauncher />);
+
+    await screen.findByText("Pick up where you left off, or start organizing");
+    fireEvent.click(screen.getByRole("button", { name: /New organization/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Enter a path manually/ }));
+    fireEvent.keyDown(screen.getByPlaceholderText("Enter an absolute path..."), { key: "Enter" });
+
+    expect(await screen.findByText("Enter a file or folder path first.")).toBeInTheDocument();
+    await i18n.changeLanguage("zh-CN");
+    expect(await screen.findByText("请先输入文件或文件夹路径。")).toBeInTheDocument();
   });
 
   it("does not advance to step two when there are no sources", async () => {

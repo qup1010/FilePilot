@@ -104,7 +104,9 @@ function getStoredModuleLabel(pathname: string, searchParams: URLSearchParams, t
     const detail = stored?.detail;
     return {
       title: t("navigation.rules"),
-      detail: detail && detail !== "规则配置" ? `${t("navigation.configPrefix")}${detail}` : t("navigation.ruleConfig"),
+      detail: stored?.detail_code === "rule_config" || !detail || detail === "规则配置"
+        ? t("navigation.ruleConfig")
+        : `${t("navigation.configPrefix")}${detail}`,
     };
   }
   if (pathname === "/history") {

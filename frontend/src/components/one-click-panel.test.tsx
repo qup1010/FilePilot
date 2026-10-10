@@ -1,6 +1,7 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import i18n from "@/i18n/instance";
 import { OneClickPanel } from "./one-click-panel";
 import type { TargetProfile } from "@/types/session";
 
@@ -46,8 +47,9 @@ describe("OneClickPanel", () => {
     window.localStorage.clear();
   });
 
-  afterEach(() => {
+  afterEach(async () => {
     cleanup();
+    await i18n.changeLanguage("zh-CN");
   });
 
   it("guides to rules page when no profile exists", async () => {

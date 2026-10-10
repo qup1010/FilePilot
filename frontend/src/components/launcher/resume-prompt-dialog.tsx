@@ -1,5 +1,6 @@
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { History } from "lucide-react";
+import { Trans, useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { getFriendlyStage } from "@/lib/utils";
 import { StrategySummaryChips } from "./strategy-summary-chips";
@@ -26,10 +27,23 @@ export function ResumePromptDialog({
   onReadOnlyView: () => void;
   onCancel: () => void;
 }) {
+  const { t } = useTranslation("common");
   if (!resumePrompt) return null;
 
   const isStaleResume = resumePrompt.snapshot.stage === "stale";
-  const primaryLabel = isCompletedResume ? "查看整理结果" : isStaleResume ? "打开复核" : "继续整理";
+  const primaryLabel = isCompletedResume
+    ? t("launcher.resume.viewResult")
+    : isStaleResume
+      ? t("launcher.resume.openReview")
+      : t("launcher.resume.continue");
+  const taskStatus = isCompletedResume
+    ? t("launcher.resume.completedStatus")
+    : isStaleResume
+      ? t("launcher.resume.staleStatus")
+      : t("launcher.resume.pendingStatus");
+  const stageLabel = t(`workspaceStage.${resumePrompt.snapshot.stage}`, {
+    defaultValue: getFriendlyStage(resumePrompt.snapshot.stage),
+  });
 
   return (
     <DialogPrimitive.Root
@@ -53,26 +67,28 @@ export function ResumePromptDialog({
             </div>
             <div className="space-y-1">
               <DialogPrimitive.Title className="text-xl font-black font-headline text-on-surface tracking-tight">
-                {isCompletedResume ? "发现之前的整理记录" : isStaleResume ? "发现需要复核的整理记录" : "发现可继续的整理任务"}
+                {isCompletedResume ? t("launcher.resume.completedTitle") : isStaleResume ? t("launcher.resume.staleTitle") : t("launcher.resume.pendingTitle")}
               </DialogPrimitive.Title>
               <DialogPrimitive.Description className="text-ui-body font-medium text-ui-muted">
                 {isCompletedResume
-                  ? "你可以先查看之前的结果，也可以按这次的设置重新开始"
+                  ? t("launcher.resume.completedDescription")
                   : isStaleResume
-                    ? "上一次方案已过期，你可以打开复核，也可以按当前设置重新开始"
-                  : "你可以接着处理，也可以按当前设置重新开始"}
+                    ? t("launcher.resume.staleDescription")
+                    : t("launcher.resume.pendingDescription")}
               </DialogPrimitive.Description>
             </div>
           </div>
 
           <p className="mb-5 text-sm leading-relaxed text-on-surface-variant">
-            检测到这次来源和设置（<strong>{targetDir.split(/[\\/]/).pop()}</strong>）
-            {isCompletedResume ? "之前已经整理过一次" : isStaleResume ? "有一条需要复核的记录" : "还有一条未完成的任务"}（当前状态：
-            <em>{getFriendlyStage(resumePrompt.snapshot.stage)}</em>）。
+            <Trans
+              i18nKey="launcher.resume.summary"
+              values={{ folder: targetDir.split(/[\\/]/).pop(), taskStatus, stage: stageLabel }}
+              components={{ strong: <strong />, em: <em /> }}
+            />
           </p>
 
           <div className="mb-6 rounded-[8px] border border-on-surface/8 bg-surface px-5 py-5">
-            <p className="text-ui-section font-semibold text-ui-muted">上一次使用的设置</p>
+            <p className="text-ui-section font-semibold text-ui-muted">{t("launcher.resume.previousSettings")}</p>
             <StrategySummaryChips strategy={resumeStrategy} />
           </div>
 
@@ -86,10 +102,10 @@ export function ResumePromptDialog({
             </Button>
             <div className="rounded-[8px] border border-on-surface/8 bg-surface px-5 py-4 text-ui-section font-medium leading-relaxed text-ui-muted">
               {isCompletedResume
-                ? "重新开始会按当前来源和设置重新读取目录。"
+                ? t("launcher.resume.completedRestartNote")
                 : isStaleResume
-                  ? "重新开始会按当前来源和设置生成一条新任务，旧记录仍可在历史中查看。"
-                : "重新开始会结束上一次未完成的状态，并按当前来源和设置重新读取目录。"}
+                  ? t("launcher.resume.staleRestartNote")
+                  : t("launcher.resume.pendingRestartNote")}
             </div>
             <div className={isCompletedResume ? "grid grid-cols-2 gap-3" : "grid grid-cols-3 gap-3"}>
               <Button
@@ -97,7 +113,7 @@ export function ResumePromptDialog({
                 onClick={onStartFresh}
                 className="py-3.5"
               >
-                重新开始
+                {t("launcher.resume.startFresh")}
               </Button>
               {!isCompletedResume ? (
                 <Button
@@ -105,7 +121,7 @@ export function ResumePromptDialog({
                   onClick={onReadOnlyView}
                   className="py-3.5"
                 >
-                  只读打开
+                  {t("launcher.resume.readOnly")}
                 </Button>
               ) : null}
               <Button
@@ -113,7 +129,7 @@ export function ResumePromptDialog({
                 onClick={onCancel}
                 className="py-3.5"
               >
-                取消
+                {t("launcher.resume.cancel")}
               </Button>
             </div>
           </div>

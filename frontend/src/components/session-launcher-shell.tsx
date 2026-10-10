@@ -22,6 +22,7 @@ import {
   Info,
 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
+import { useTranslation } from "react-i18next";
 
 import { createApiClient } from "@/lib/api";
 import {
@@ -123,10 +124,17 @@ import { StrategyStep } from "./launcher/strategy-step";
 
 type SourceFeedback = {
   tone: "success" | "info";
-  message: string;
+  message?: string;
+  messageKey?: string;
+  messageValues?: Record<string, string | number>;
 };
 
+const LAUNCHER_MESSAGE_PREFIX = "launcher:i18n:";
 const LAUNCH_TRANSITION_TIMEOUT_MS = 20000;
+
+function launcherMessage(key: string): string {
+  return `${LAUNCHER_MESSAGE_PREFIX}${key}`;
+}
 
 type LaunchRequestState = {
   sources: SessionSourceSelection[];
@@ -185,6 +193,7 @@ function placementDefaults(
 }
 
 export function SessionLauncherShell() {
+  const { t } = useTranslation("common");
   const router = useRouter();
   const pathname = usePathname();
   const apiBaseUrl = getApiBaseUrl();
@@ -251,7 +260,7 @@ export function SessionLauncherShell() {
       launchAttemptRef.current += 1;
       setLaunchTransitionOpen(false);
       setLoading(false);
-      setError("打开工作区等待时间过长。任务可能已经创建成功，稍等片刻后左侧“当前任务”出现即可继续进入；如果没有出现，请重试。");
+      setError(launcherMessage("launcher.errors.workspaceTimeout"));
     }, LAUNCH_TRANSITION_TIMEOUT_MS);
     return () => window.clearTimeout(timer);
   }, [launchTransitionOpen, pathname]);
@@ -345,17 +354,17 @@ export function SessionLauncherShell() {
       <div className="mt-6 rounded-xl border border-on-surface/5 bg-on-surface/[0.01] p-4 space-y-3.5 animate-in fade-in duration-300">
         <div className="text-[12px] font-bold text-on-surface flex items-center gap-1.5 border-b border-on-surface/[0.04] pb-2">
           <span className="h-1.5 w-1.5 rounded-full bg-primary" />
-          <span>整理逻辑</span>
+          <span>{t("launcher.method.explanationTitle")}</span>
         </div>
         {isAssign ? (
           <div className="space-y-2.5 text-[12px] text-ui-muted leading-relaxed">
-            <p>按名称和内容比对，把来源文件归入你指定的已有目录；拿不准的进入「待确认区（Review）」，不会乱放或新建未知目录。</p>
-            <p className="text-[11px] font-medium opacity-60">适合已有清晰分类目录的场景。</p>
+            <p>{t("launcher.method.assignExplanation")}</p>
+            <p className="text-[11px] font-medium opacity-60">{t("launcher.method.assignFit")}</p>
           </div>
         ) : (
           <div className="space-y-2.5 text-[12px] text-ui-muted leading-relaxed">
-            <p>AI 分析文件主题与类型，在指定根目录下自动构建多级新目录；无法归纳的进入「待确认区（Review）」，可后续手动调整。</p>
-            <p className="text-[11px] font-medium opacity-60">适合杂乱无章、没有预设分类的文件。</p>
+            <p>{t("launcher.method.createExplanation")}</p>
+            <p className="text-[11px] font-medium opacity-60">{t("launcher.method.createFit")}</p>
           </div>
         )}
       </div>
@@ -450,14 +459,14 @@ export function SessionLauncherShell() {
   const skipStrategyPrompt = shouldSkipLaunchStrategyPrompt(launchConfig);
   const hasProfiles = targetProfiles.length > 0;
   const stepItems = skipStrategyPrompt
-    ? [{ id: 1 as const, title: "选择整理来源" }]
+    ? [{ id: 1 as const, title: t("launcher.steps.sources") }]
     : [
-      { id: 1 as const, title: "选择整理来源" },
-      { id: 2 as const, title: "选择整理方式" },
-      { id: 3 as const, title: "填写必要信息" },
+      { id: 1 as const, title: t("launcher.steps.sources") },
+      { id: 2 as const, title: t("launcher.steps.method") },
+      { id: 3 as const, title: t("launcher.steps.details") },
     ];
-  const primaryLaunchLabel = isAssignExisting ? "读取目录并开始规划" : "读取目录并生成建议";
-  const fastStartLabel = "按默认配置开始整理";
+  const primaryLaunchLabel = isAssignExisting ? t("launcher.actions.readAndPlan") : t("launcher.actions.readAndSuggest");
+  const fastStartLabel = t("launcher.actions.fastStart");
   const displayPath = isFullCategorize ? effectiveOutputDir || firstSourcePath(sources) : firstSourcePath(sources);
   // Step 2 归入现有目录但无 Profile 时阻断
   const step2BlockedByNoProfile = isAssignExisting && !hasProfiles && !targetProfilesLoading;
@@ -470,33 +479,33 @@ export function SessionLauncherShell() {
 
   const getLaunchValidationMessage = useCallback((mode: "default" | "direct" = "default"): string | null => {
     if (sources.length === 0) {
-      return "请先添加至少一个待整理来源。";
+      return launcherMessage("launcher.errors.noSources");
     }
     if (isAssignExisting && selectedTargetProfileId.trim() && targetProfilesLoading) {
-      return "正在读取目录配置，请稍后再开始。";
+      return launcherMessage("launcher.errors.loadingProfiles");
     }
     if (isAssignExisting && selectedTargetProfileId.trim() && !selectedProfile) {
-      return "当前选择的目录配置已不存在，请重新选择目录配置或手动添加目标目录。";
+      return launcherMessage("launcher.errors.profileMissing");
     }
     if (isAssignExisting && effectiveTargetDirectories.length === 0 && !selectedTargetProfileId.trim()) {
       return mode === "direct"
-        ? "当前已开启“直接使用默认值启动”，但默认整理方式是“归入现有目录”，还没有可用的目标目录。请先关闭直启后进入完整流程补充目标目录，或到设置中改用“生成新的分类结构”。"
-        : "归入现有目录时，至少需要选择一个目录配置或手动添加目标目录。";
+        ? launcherMessage("launcher.errors.directProfileTargetsMissing")
+        : launcherMessage("launcher.errors.profileTargetsMissing");
     }
     if (isFullCategorize && !effectiveNewDirectoryRoot) {
       return mode === "direct"
-        ? "当前默认配置没有可用的新目录生成位置。请先到设置补全默认放置规则，或关闭直启后手动调整。"
-        : "生成新的分类结构前，必须先指定新目录生成位置。";
+        ? launcherMessage("launcher.errors.directNewRootMissing")
+        : launcherMessage("launcher.errors.newRootMissing");
     }
     if (isAssignExisting && !effectiveNewDirectoryRoot) {
       return mode === "direct"
-        ? "当前默认整理方式是“归入现有目录”，但缺少待确认区的默认推导根。请先到设置补全默认放置规则。"
-        : "归入现有目录时，需要一个默认放置根来推导待确认区（不会自动归入目标目录），但不会用它自动创建未知目标目录。";
+        ? launcherMessage("launcher.errors.directReviewRootMissing")
+        : launcherMessage("launcher.errors.reviewRootMissing");
     }
     if (!effectiveReviewRoot) {
       return mode === "direct"
-        ? "当前默认配置没有可用的待确认区位置。请先到设置补全默认放置规则。"
-        : "当前任务没有可用的待确认区位置。";
+        ? launcherMessage("launcher.errors.directReviewRootMissing")
+        : launcherMessage("launcher.errors.reviewRootMissing");
     }
     return null;
   }, [
@@ -847,7 +856,7 @@ export function SessionLauncherShell() {
         void dragCallbacksRef.current.resolveNativeDroppedSources(payload.paths).then((droppedSources) => {
           if (cancelled) return;
           if (!droppedSources.length) {
-            setError("当前环境暂时无法从拖拽内容里读取本地绝对路径。你可以改用“移动整个文件夹”“添加单个文件”或手动输入路径。");
+            setError(launcherMessage("launcher.errors.sourceDropUnavailable"));
             return;
           }
           dragCallbacksRef.current.addSources(droppedSources);
@@ -860,7 +869,7 @@ export function SessionLauncherShell() {
         void dragCallbacksRef.current.resolveNativeDirectoryPaths(payload.paths).then((dirs) => {
           if (cancelled) return;
           if (!dirs.length) {
-            setError("只能拖拽文件夹（目录）作为目标目录配置，已忽略文件。若路径识别失败请改用手动输入。");
+            setError(launcherMessage("launcher.errors.targetDropFoldersOnly"));
             return;
           }
           setManualTargetDirectories((previous) => {
@@ -963,7 +972,7 @@ export function SessionLauncherShell() {
   function addManualSource() {
     const path = sourceDraftPath.trim();
     if (!path) {
-      setError("请先输入文件或文件夹路径。");
+      setError(launcherMessage("launcher.errors.sourcePathRequired"));
       return;
     }
     addSources([sourceSelectionFromDraft(path, sourceDraftType)]);
@@ -976,14 +985,14 @@ export function SessionLauncherShell() {
     setSourceFeedback(null);
 
     if (!isTauriDesktop()) {
-      setError("当前环境还不能直接读取文件夹内容。请在桌面端使用“整理文件夹内容”。");
+      setError(launcherMessage("launcher.errors.desktopImportOnly"));
       return;
     }
 
     try {
       const directoryResult = await listDirectoryEntriesResultWithTauri(path);
       if (!directoryResult.ok) {
-        setError(directoryResult.message || "现在还不能读取这个文件夹的内容，请检查权限或路径是否存在。");
+        setError(directoryResult.message || launcherMessage("launcher.errors.directoryReadFailed"));
         return;
       }
       const entries = directoryResult.items;
@@ -991,7 +1000,7 @@ export function SessionLauncherShell() {
       if (!nextItems.length) {
         setSourceFeedback({
           tone: "info",
-          message: "这个文件夹下没有可导入的顶层项目。",
+          messageKey: "launcher.feedback.noDirectoryEntries",
         });
         return;
       }
@@ -1008,7 +1017,8 @@ export function SessionLauncherShell() {
       if (!importedItems.length) {
         setSourceFeedback({
           tone: "info",
-          message: skippedCount > 0 ? `已跳过 ${skippedCount} 个已在列表中的项目。` : "这个文件夹下没有可导入的顶层项目。",
+          messageKey: skippedCount > 0 ? "launcher.feedback.itemsAlreadyAdded" : "launcher.feedback.noDirectoryEntries",
+          messageValues: { count: skippedCount },
         });
         return;
       }
@@ -1043,12 +1053,18 @@ export function SessionLauncherShell() {
 
       setSourceFeedback({
         tone: "success",
-        message: skippedCount > 0 || directoryResult.ignored_count > 0
-          ? `已导入“${path}”下的 ${importedItems.length} 个顶层项目，已跳过 ${skippedCount} 个重复项，另有 ${directoryResult.ignored_count} 个条目因权限或读取失败被忽略。`
-          : `已导入“${path}”下的 ${importedItems.length} 个顶层项目。`,
+        messageKey: skippedCount > 0 || directoryResult.ignored_count > 0
+          ? "launcher.feedback.directoryImportedWithDetails"
+          : "launcher.feedback.directoryImported",
+        messageValues: {
+          path,
+          imported: importedItems.length,
+          skipped: skippedCount,
+          ignored: directoryResult.ignored_count,
+        },
       });
     } catch {
-      setError("现在还不能读取这个文件夹的内容，请检查桌面端是否正常运行。");
+      setError(launcherMessage("launcher.errors.directoryReadFailed"));
     }
   }
 
@@ -1069,7 +1085,7 @@ export function SessionLauncherShell() {
         addSources([createDirectorySource(response.path, "atomic")]);
       }
     } catch {
-      setError("现在还不能打开文件夹选择器，请检查本地服务是否正常运行。");
+      setError(launcherMessage("launcher.errors.directoryPickerUnavailable"));
     }
   }
 
@@ -1077,7 +1093,7 @@ export function SessionLauncherShell() {
     setError(null);
     setSourceFeedback(null);
     if (!isTauriDesktop()) {
-      setError("当前环境还不能直接读取文件夹内容。请在桌面端使用这个入口。");
+      setError(launcherMessage("launcher.errors.desktopImportOnly"));
       return;
     }
     try {
@@ -1085,7 +1101,7 @@ export function SessionLauncherShell() {
       if (!path) return;
       await importDirectoryEntries(path);
     } catch {
-      setError("现在还不能打开文件夹选择器，请检查桌面端是否正常运行。");
+      setError(launcherMessage("launcher.errors.directoryPickerUnavailable"));
     }
   }
 
@@ -1109,7 +1125,7 @@ export function SessionLauncherShell() {
   async function handleChooseFiles() {
     setError(null);
     if (!isTauriDesktop()) {
-      setError("当前仅桌面环境支持文件批量选择。你仍然可以手动输入文件路径或直接拖拽文件进来。");
+      setError(launcherMessage("launcher.errors.desktopFilePickerOnly"));
       return;
     }
 
@@ -1119,7 +1135,7 @@ export function SessionLauncherShell() {
         addSources(files.map((path) => ({ source_type: "file" as const, path })));
       }
     } catch {
-      setError("现在还不能打开文件选择器，请检查本地服务是否正常运行。");
+      setError(launcherMessage("launcher.errors.filePickerUnavailable"));
     }
   }
 
@@ -1152,7 +1168,7 @@ export function SessionLauncherShell() {
   function addManualTargetDirectory() {
     const path = targetDirectoryDraft.trim();
     if (!path) {
-      setError("请先输入目标目录路径。");
+      setError(launcherMessage("launcher.errors.targetPathRequired"));
       return;
     }
     setManualTargetDirectories((previous) => {
@@ -1197,7 +1213,7 @@ export function SessionLauncherShell() {
         });
       }
     } catch {
-      setError("现在还不能打开目录选择器，请检查本地服务是否正常运行。");
+      setError(launcherMessage("launcher.errors.directoryPickerUnavailable"));
     }
   }
 
@@ -1221,18 +1237,18 @@ export function SessionLauncherShell() {
         setReviewFollowsNewRoot(false);
       }
     } catch {
-      setError(isTauriDesktop() ? "没有打开目录选择窗口，请再试一次。" : "现在还不能打开目录选择器，请检查本地服务是否正常运行。");
+      setError(launcherMessage(isTauriDesktop() ? "launcher.errors.directoryPickerCancelled" : "launcher.errors.directoryPickerUnavailable"));
     }
   }
 
   async function handleSaveCurrentDirectoriesAsProfile() {
     const name = profileNameDraft.trim();
     if (!name) {
-      setError("请先输入分类目录配置名称。");
+      setError(launcherMessage("launcher.errors.profileNameRequired"));
       return;
     }
     if (effectiveTargetDirectories.length === 0) {
-      setError("当前没有可保存的目标目录。");
+      setError(launcherMessage("launcher.errors.profileTargetsRequired"));
       return;
     }
 
@@ -1252,7 +1268,7 @@ export function SessionLauncherShell() {
       setSelectedTargetProfileId(profile.profile_id);
       setProfileNameDraft("");
     } catch (err: any) {
-      setError(err instanceof Error ? err.message : "保存目录配置失败，请再试一次。");
+      setError(err instanceof Error ? err.message : launcherMessage("launcher.errors.saveProfileFailed"));
     } finally {
       setLoading(false);
     }
@@ -1269,7 +1285,7 @@ export function SessionLauncherShell() {
 
   function validateStepOne(): boolean {
     if (sources.length === 0) {
-      setError("请先添加至少一个待整理来源。");
+      setError(launcherMessage("launcher.errors.noSources"));
       return false;
     }
     return true;
@@ -1278,7 +1294,7 @@ export function SessionLauncherShell() {
   // Step 2（选方式）-> Step 3（填信息）的前置校验
   function validateStepMethod(): boolean {
     if (step2BlockedByNoProfile) {
-      setError("请先在「分类规则」页面创建一套分类规则，才能使用「归入现有目录」模式。");
+      setError(launcherMessage("launcher.errors.rulesRequired"));
       return false;
     }
     return true;
@@ -1312,7 +1328,7 @@ export function SessionLauncherShell() {
 
   async function launchCurrentRequest(resumeIfExists: boolean, options?: { directStart?: boolean }) {
     if (!textModelConfigured) {
-      setError("请先在设置中配置文本模型，然后再开始整理分析。");
+      setError(launcherMessage("launcher.errors.textModelRequired"));
       return;
     }
     if (!validateBeforeLaunch(options?.directStart ? "direct" : "default")) return;
@@ -1340,7 +1356,7 @@ export function SessionLauncherShell() {
         });
         return;
       }
-      if (!response.session_id) throw new Error("没有成功创建整理会话，请再试一次。");
+      if (!response.session_id) throw new Error(launcherMessage("launcher.errors.createSessionFailed"));
       const workspaceRoute = buildWorkspaceRoute("progress", {
         sessionId: response.session_id,
         dir: launchRequest.display_path || firstSourcePath(launchRequest.sources),
@@ -1360,9 +1376,9 @@ export function SessionLauncherShell() {
       }
       setLaunchTransitionOpen(false);
       if (err.message && err.message.toLowerCase().includes("failed to fetch")) {
-        setError(`现在连不上本地服务，请确认它是否已经启动（${apiBaseUrl}）。`);
+        setError(launcherMessage("launcher.errors.serviceUnavailable"));
       } else {
-        setError(err instanceof Error ? err.message : "创建会话或启动扫描失败，请再试一次。");
+        setError(err instanceof Error ? err.message : launcherMessage("launcher.errors.startSessionFailed"));
       }
     } finally {
       if (attemptId === launchAttemptRef.current) {
@@ -1381,7 +1397,7 @@ export function SessionLauncherShell() {
     try {
       const api = createApiClient(apiBaseUrl, getApiToken());
       const response = await startFreshSession(api, resumePrompt.sessionId, resumePrompt.snapshot.stage, resumePrompt.launch);
-      if (!response.session_id) throw new Error("没有成功重新开始，请再试一次。");
+      if (!response.session_id) throw new Error(launcherMessage("launcher.errors.restartSessionFailed"));
       const workspaceRoute = buildWorkspaceRoute("progress", {
         sessionId: response.session_id,
         dir: resumePrompt.launch.display_path || firstSourcePath(resumePrompt.launch.sources),
@@ -1401,9 +1417,9 @@ export function SessionLauncherShell() {
       }
       setLaunchTransitionOpen(false);
       if (err.message && err.message.toLowerCase().includes("failed to fetch")) {
-        setError(`现在连不上本地服务，请确认它是否已经启动（${apiBaseUrl}）。`);
+        setError(launcherMessage("launcher.errors.serviceUnavailable"));
       } else {
-        setError(err instanceof Error ? err.message : "重新开始并启动扫描失败，请再试一次。");
+        setError(err instanceof Error ? err.message : launcherMessage("launcher.errors.restartSessionFailed"));
       }
     } finally {
       if (attemptId === launchAttemptRef.current) {
@@ -1458,7 +1474,7 @@ export function SessionLauncherShell() {
     const droppedSources = extractDroppedSources(event.dataTransfer);
     const dirs = droppedSources.filter(s => s.source_type === "directory").map(s => s.path);
     if (!dirs.length) {
-      setError("只能拖拽文件夹（目录）作为目标目录配置，已忽略文件。若路径识别失败请改用手动输入。");
+      setError(launcherMessage("launcher.errors.targetDropFoldersOnly"));
       return;
     }
     setManualTargetDirectories((previous) => {
@@ -1520,7 +1536,7 @@ export function SessionLauncherShell() {
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-on-surface/6 pb-4">
         <div className="min-w-0">
           <h2 className="text-[16px] font-black tracking-tight text-on-surface">
-            继续手头任务，或开始一次新的整理
+            {t("launcher.home.title")}
           </h2>
         </div>
         <div className="flex items-center gap-2">
@@ -1529,7 +1545,7 @@ export function SessionLauncherShell() {
             onClick={() => router.push("/settings?tab=text")}
             className="h-8 rounded-lg px-3.5 text-[11px] font-bold tracking-wider"
           >
-            模型设置
+            {t("launcher.home.modelSettings")}
           </Button>
         </div>
       </div>
@@ -1543,9 +1559,9 @@ export function SessionLauncherShell() {
                   <AlertCircle className="h-4 w-4" />
                 </span>
                 <div className="min-w-0">
-                  <p className="text-[13px] font-black text-on-surface">无法连接本地服务</p>
+                  <p className="text-[13px] font-black text-on-surface">{t("launcher.home.backendUnavailable")}</p>
                   <p className="mt-0.5 text-[12px] font-medium text-ui-muted/70">
-                    最近记录、快捷目录等数据暂时读取不到。请确认应用已正常启动（{apiBaseUrl}），然后重试。
+                    {t("launcher.home.backendUnavailableDescription", { url: apiBaseUrl })}
                   </p>
                 </div>
               </div>
@@ -1554,7 +1570,7 @@ export function SessionLauncherShell() {
                 onClick={() => setBackendReloadNonce((nonce) => nonce + 1)}
                 className="shrink-0 rounded-lg border border-error/20 bg-surface px-3 py-1.5 text-[11px] font-bold text-error transition-colors hover:bg-error/5"
               >
-                重新连接
+                {t("launcher.home.retryConnection")}
               </button>
             </div>
           ) : null}
@@ -1568,13 +1584,13 @@ export function SessionLauncherShell() {
                 <Activity className="h-4.5 w-4.5 animate-pulse" />
               </span>
               <div className="min-w-0">
-                <p className="text-[13px] font-black text-on-surface">返回挂起中的任务</p>
+                <p className="text-[13px] font-black text-on-surface">{t("launcher.home.resumeTask")}</p>
                 <p className="mt-0.5 block max-w-full truncate text-[12px] font-medium text-ui-muted/70" title={activeWorkspaceTask.route}>
                   {describeWorkspaceTask(activeWorkspaceTask)}
                 </p>
               </div>
               <span className="shrink-0 flex items-center justify-center h-8 rounded-lg bg-primary px-3.5 text-[11px] font-black text-white uppercase tracking-wider transition-all group-hover:bg-primary-dim active:scale-95">
-                继续执行
+                {t("launcher.home.continueTask")}
               </span>
             </button>
           ) : (
@@ -1583,8 +1599,8 @@ export function SessionLauncherShell() {
                 <Activity className="h-4.5 w-4.5 opacity-60" />
               </span>
               <div>
-                <p className="text-[13px] font-black text-on-surface/80">当前没有挂起的会话</p>
-                <p className="mt-0.5 text-[12px] font-medium text-ui-muted/50">添加整理来源即可开始新任务。</p>
+                <p className="text-[13px] font-black text-on-surface/80">{t("launcher.home.noActiveTask")}</p>
+                <p className="mt-0.5 text-[12px] font-medium text-ui-muted/50">{t("launcher.home.noActiveTaskDescription")}</p>
               </div>
             </div>
           )}
@@ -1602,8 +1618,8 @@ export function SessionLauncherShell() {
               <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary transition-all group-hover:scale-110 group-hover:bg-primary/15">
                 <Plus className="h-4.5 w-4.5" />
               </div>
-              <p className="mt-3 text-[13px] font-black text-on-surface tracking-tight">新建整理</p>
-              <p className="mt-1 text-[12px] font-medium leading-relaxed text-ui-muted/65">拖入文件或文件夹，AI 自动推导分类结构。</p>
+              <p className="mt-3 text-[13px] font-black text-on-surface tracking-tight">{t("launcher.home.newTask")}</p>
+              <p className="mt-1 text-[12px] font-medium leading-relaxed text-ui-muted/65">{t("launcher.home.newTaskDescription")}</p>
             </button>
             <button
               type="button"
@@ -1613,8 +1629,8 @@ export function SessionLauncherShell() {
               <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sky-500/10 text-sky-600 transition-all group-hover:scale-110 group-hover:bg-sky-500/15 dark:text-sky-400">
                 <History className="h-4.5 w-4.5" />
               </div>
-              <p className="mt-3 text-[13px] font-black text-on-surface tracking-tight">整理历史</p>
-              <p className="mt-1 text-[12px] font-medium leading-relaxed text-ui-muted/65">查看历史整理记录，可一键安全回退。</p>
+              <p className="mt-3 text-[13px] font-black text-on-surface tracking-tight">{t("launcher.home.history")}</p>
+              <p className="mt-1 text-[12px] font-medium leading-relaxed text-ui-muted/65">{t("launcher.home.historyDescription")}</p>
             </button>
             <button
               type="button"
@@ -1624,8 +1640,8 @@ export function SessionLauncherShell() {
               <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-500/10 text-amber-600 transition-all group-hover:scale-110 group-hover:bg-amber-500/15 dark:text-amber-400">
                 <Sparkles className="h-4.5 w-4.5" />
               </div>
-              <p className="mt-3 text-[13px] font-black text-on-surface tracking-tight">图标工坊</p>
-              <p className="mt-1 text-[12px] font-medium leading-relaxed text-ui-muted/65">为文件夹匹配并应用图标，提升辨识度。</p>
+              <p className="mt-3 text-[13px] font-black text-on-surface tracking-tight">{t("launcher.home.iconStudio")}</p>
+              <p className="mt-1 text-[12px] font-medium leading-relaxed text-ui-muted/65">{t("launcher.home.iconStudioDescription")}</p>
             </button>
           </div>
         </div>
@@ -1667,8 +1683,8 @@ export function SessionLauncherShell() {
                 {error ? (
                   <div className="mb-6">
                     <ErrorAlert
-                      title="操作未完成"
-                      message={error}
+                      title={t("launcher.feedback.operationIncomplete")}
+                      message={error.startsWith(LAUNCHER_MESSAGE_PREFIX) ? t(error.slice(LAUNCHER_MESSAGE_PREFIX.length)) : error}
                       onClose={() => setError(null)}
                     />
                   </div>
@@ -1701,15 +1717,17 @@ export function SessionLauncherShell() {
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="text-[13px] font-black leading-tight text-on-surface">
-                        {sourceFeedback.tone === "success" ? "来源已更新" : "导入提示"}
+                        {sourceFeedback.tone === "success" ? t("launcher.feedback.sourceUpdated") : t("launcher.feedback.importHint")}
                       </p>
-                      <p className="mt-1.5 text-[12px] font-medium leading-relaxed text-ui-muted opacity-80">{sourceFeedback.message}</p>
+                      <p className="mt-1.5 text-[12px] font-medium leading-relaxed text-ui-muted opacity-80">
+                        {sourceFeedback.messageKey ? t(sourceFeedback.messageKey, sourceFeedback.messageValues) : sourceFeedback.message}
+                      </p>
                     </div>
                     <button
                       type="button"
                       onClick={() => setSourceFeedback(null)}
                       className="p-1 rounded transition-colors active:scale-95 shrink-0 self-start mt-0.5 text-on-surface/40 hover:bg-on-surface/5 hover:text-on-surface"
-                      title="关闭提示"
+                      title={t("launcher.feedback.closeNotice")}
                     >
                       <X className="h-3.5 w-3.5" />
                     </button>
@@ -1720,7 +1738,7 @@ export function SessionLauncherShell() {
               {!error && fastStartValidationMessage ? (
                 <div className="mb-4">
                   <ErrorAlert
-                    title="默认配置还不完整"
+                    title={t("launcher.feedback.defaultIncomplete")}
                     message={fastStartValidationMessage}
                   />
                 </div>
@@ -1742,7 +1760,7 @@ export function SessionLauncherShell() {
                     className="absolute left-0 top-1/2 -translate-y-1/2 flex items-center gap-1 text-[11px] font-black text-ui-muted hover:text-primary hover:bg-primary/5 rounded-[6px] px-2.5 py-1.5 transition-all active:scale-[0.97]"
                   >
                     <ChevronLeft className="h-3.5 w-3.5" />
-                    <span>返回</span>
+                    <span>{t("launcher.actions.back")}</span>
                   </button>
 
                   <div className="flex items-center justify-center gap-2">
@@ -1837,19 +1855,19 @@ export function SessionLauncherShell() {
                           <div className="flex h-6 w-6 items-center justify-center rounded-[4px] bg-primary/10 text-primary">
                             <Sparkles className="h-3.5 w-3.5" />
                           </div>
-                          <h2 className="text-[14px] font-bold text-on-surface">选择整理方式</h2>
+                          <h2 className="text-[14px] font-bold text-on-surface">{t("launcher.method.title")}</h2>
                         </div>
                         <div className="grid gap-4 md:grid-cols-2">
                           {[
                             {
                               method: "assign_into_existing_categories" as const,
-                              title: "归入现有目录",
-                              description: "按文件名和内容，归入你指定的文件夹。",
+                              titleKey: "launcher.method.assignTitle",
+                              descriptionKey: "launcher.method.assignDescription",
                             },
                             {
                               method: "categorize_into_new_structure" as const,
-                              title: "生成新分类结构",
-                              description: "AI 自动生成新的多级目录并分类存放。",
+                              titleKey: "launcher.method.createTitle",
+                              descriptionKey: "launcher.method.createDescription",
                             },
                           ].map((option) => {
                             const active = organizeMethod === option.method;
@@ -1868,7 +1886,7 @@ export function SessionLauncherShell() {
                               >
                                 <div className="flex items-center justify-between gap-3">
                                   <p className={cn("text-[14px] font-bold tracking-tight", active ? "text-primary" : "text-on-surface/80")}>
-                                    {option.title}
+                                    {t(option.titleKey)}
                                   </p>
                                   <div className={cn(
                                     "flex items-center gap-1.5 rounded-[6px] border px-2 py-0.5 text-[11px] font-medium transition-all duration-300 shrink-0",
@@ -1891,7 +1909,7 @@ export function SessionLauncherShell() {
                                     )}
                                   </div>
                                 </div>
-                                <p className="mt-2 text-[12px] font-medium leading-relaxed text-ui-muted opacity-60">{option.description}</p>
+                                <p className="mt-2 text-[12px] font-medium leading-relaxed text-ui-muted opacity-60">{t(option.descriptionKey)}</p>
                               </button>
                             );
                           })}
@@ -1903,9 +1921,9 @@ export function SessionLauncherShell() {
                           <div className="animate-in fade-in duration-200 rounded-xl border border-warning/30 bg-warning/[0.04] px-4 py-3.5">
                             <div className="flex flex-wrap items-start justify-between gap-3">
                               <div className="min-w-0">
-                                <p className="text-[13px] font-bold text-on-surface">还没有分类规则</p>
+                                <p className="text-[13px] font-bold text-on-surface">{t("launcher.method.noRulesTitle")}</p>
                                 <p className="mt-1 text-[12px] leading-5 text-on-surface-variant/70">
-                                  「归入现有目录」需要先配置一套分类规则。
+                                  {t("launcher.method.noRulesDescription")}
                                 </p>
                               </div>
                               <button
@@ -1913,7 +1931,7 @@ export function SessionLauncherShell() {
                                 onClick={() => router.push("/rules")}
                                 className="shrink-0 rounded-[8px] border border-primary/30 bg-surface px-3 py-1.5 text-[12px] font-bold text-primary transition-colors hover:bg-primary/5"
                               >
-                                去创建分类规则
+                                {t("launcher.method.createRules")}
                               </button>
                             </div>
                           </div>
@@ -1928,20 +1946,20 @@ export function SessionLauncherShell() {
                             <div className="flex h-6 w-6 items-center justify-center rounded-[4px] bg-primary/10 text-primary">
                               <FolderOpen className="h-3.5 w-3.5" />
                             </div>
-                            <h2 className="text-[14px] font-bold text-on-surface">默认放置规则</h2>
+                            <h2 className="text-[14px] font-bold text-on-surface">{t("launcher.placement.title")}</h2>
                           </div>
 
                           <div className="grid gap-4 md:grid-cols-2">
                             <div className="rounded-[8px] border border-on-surface/8 bg-surface-container-lowest p-3.5 transition-all focus-within:border-primary/30">
                               <div className="mb-2 text-[12px] font-bold text-on-surface">
-                                {isAssignExisting ? "未匹配条目默认根路径" : "新目录生成位置"}
+                                {isAssignExisting ? t("launcher.placement.unmatchedRoot") : t("launcher.placement.newFolderRoot")}
                               </div>
                               <div className="flex gap-2">
                                 <input
                                   value={newDirectoryRoot}
                                   onChange={(event) => setNewDirectoryRoot(event.target.value)}
                                   disabled={loading}
-                                  placeholder={placementConfig.defaultNewDirectoryRoot || (isFullCategorize ? "新目录生成路径" : "当前任务工作区")}
+                                  placeholder={placementConfig.defaultNewDirectoryRoot || (isFullCategorize ? t("launcher.placement.newFolderPlaceholder") : t("launcher.placement.workspacePlaceholder"))}
                                   className="h-9 flex-1 rounded-[6px] border border-transparent bg-on-surface/[0.03] px-2.5 text-[13px] font-medium text-on-surface outline-none transition-all placeholder:text-on-surface-variant/35 focus:border-primary/30 focus:bg-surface focus:ring-2 focus:ring-primary/5"
                                 />
                                 <button
@@ -1950,19 +1968,19 @@ export function SessionLauncherShell() {
                                   disabled={loading}
                                   className="h-9 rounded-[6px] border border-on-surface/8 bg-surface px-3 text-[12px] font-bold text-on-surface transition-colors hover:border-primary/20 hover:text-primary disabled:opacity-50"
                                 >
-                                  选择目录
+                                  {t("launcher.placement.chooseFolder")}
                                 </button>
                               </div>
                               <p className="mt-2 text-[11px] font-medium leading-relaxed text-ui-muted opacity-80">
                                 {isAssignExisting
-                                  ? "存放未匹配的条目，留空则用默认值。"
-                                  : "留空则用默认值（任务启动根目录）。"}
+                                  ? t("launcher.placement.unmatchedHelp")
+                                  : t("launcher.placement.newRootHelp")}
                               </p>
                             </div>
 
                             <div className="rounded-[8px] border border-on-surface/8 bg-surface-container-lowest p-3.5 transition-all focus-within:border-primary/30">
                               <div className="mb-2 flex items-center justify-between gap-3">
-                                <div className="text-[12px] font-bold text-on-surface">待确认区路径</div>
+                                <div className="text-[12px] font-bold text-on-surface">{t("launcher.placement.reviewRoot")}</div>
                                 <button
                                   type="button"
                                   onClick={() => {
@@ -1979,7 +1997,7 @@ export function SessionLauncherShell() {
                                       : "border-on-surface/8 bg-surface text-ui-muted",
                                   ].join(" ")}
                                 >
-                                  {reviewFollowsNewRoot ? "跟随新目录" : "独立设置"}
+                                  {reviewFollowsNewRoot ? t("launcher.placement.followNewRoot") : t("launcher.placement.independent")}
                                 </button>
                               </div>
                               <div className="flex gap-2">
@@ -1990,7 +2008,7 @@ export function SessionLauncherShell() {
                                     setReviewFollowsNewRoot(false);
                                   }}
                                   disabled={loading || reviewFollowsNewRoot}
-                                  placeholder={reviewFollowsNewRoot ? derivedReviewRoot || "跟随新目录路径自动生成" : placementConfig.globalReviewRoot || derivedReviewRoot || "独立指定待确认区路径"}
+                                  placeholder={reviewFollowsNewRoot ? derivedReviewRoot || t("launcher.placement.followPathPlaceholder") : placementConfig.globalReviewRoot || derivedReviewRoot || t("launcher.placement.independentPathPlaceholder")}
                                   className="h-9 flex-1 rounded-[6px] border border-transparent bg-on-surface/[0.03] px-2.5 text-[13px] font-medium text-on-surface outline-none transition-all placeholder:text-on-surface-variant/35 focus:border-primary/30 focus:bg-surface focus:ring-2 focus:ring-primary/5 disabled:opacity-60"
                                 />
                                 <button
@@ -1999,11 +2017,11 @@ export function SessionLauncherShell() {
                                   disabled={loading || reviewFollowsNewRoot}
                                   className="h-9 rounded-[6px] border border-on-surface/8 bg-surface px-3 text-[12px] font-bold text-on-surface transition-colors hover:border-primary/20 hover:text-primary disabled:opacity-50"
                                 >
-                                  选择目录
+                                  {t("launcher.placement.chooseFolder")}
                                 </button>
                               </div>
                               <p className="mt-2 text-[11px] font-medium leading-relaxed text-ui-muted opacity-80">
-                                默认在新目录根路径下生成 Review 子目录。
+                                {t("launcher.placement.reviewHelp")}
                               </p>
                             </div>
                           </div>
@@ -2027,8 +2045,8 @@ export function SessionLauncherShell() {
                             {isTargetDropActive && (
                               <DropZoneOverlay
                                 icon={FolderPlus}
-                                title="松手即可添加为目标候选"
-                                detail="这里只接受文件夹，文件会被自动忽略"
+                                title={t("launcher.targets.dropTitle")}
+                                detail={t("launcher.targets.dropDetail")}
                                 className="inset-0 rounded-[8px]"
                                 tone="success"
                               />
@@ -2038,7 +2056,7 @@ export function SessionLauncherShell() {
                                 <div className="flex h-6 w-6 items-center justify-center rounded-[4px] bg-primary/10 text-primary">
                                   <Layers3 className="h-3.5 w-3.5" />
                                 </div>
-                                <h2 className="text-[14px] font-bold text-on-surface">目标目录</h2>
+                                <h2 className="text-[14px] font-bold text-on-surface">{t("launcher.targets.title")}</h2>
                               </div>
                               {targetProfilesLoading ? <Loader2 className="h-4 w-4 animate-spin text-primary" /> : null}
                             </div>
@@ -2047,21 +2065,21 @@ export function SessionLauncherShell() {
                               <div className="mb-4 rounded-[8px] border border-primary/15 bg-primary/[0.02] p-3 text-[12px] font-medium leading-relaxed text-on-surface-variant flex items-start gap-2 animate-in fade-in slide-in-from-top-1 duration-200">
                                 <Info className="h-4 w-4 shrink-0 text-primary mt-0.5" />
                                 <div>
-                                  <span className="font-bold text-on-surface">需要目标目录：</span>
-                                  当前整理方式需要至少一个目标目录，请选择已有配置或添加/拖入文件夹。
+                                  <span className="font-bold text-on-surface">{t("launcher.targets.required")}</span>
+                                  {t("launcher.targets.requiredDescription")}
                                 </div>
                               </div>
                             )}
 
                             <div className="mb-4">
-                              <div className="mb-2 text-[11px] font-bold uppercase tracking-[0.15em] text-ui-muted">已有目录配置</div>
+                              <div className="mb-2 text-[11px] font-bold uppercase tracking-[0.15em] text-ui-muted">{t("launcher.targets.savedProfiles")}</div>
                               <select
                                 value={selectedTargetProfileId}
                                 onChange={(event) => setSelectedTargetProfileId(event.target.value)}
                                 disabled={loading || targetProfilesLoading}
                                 className="h-10 w-full rounded-[8px] border border-transparent bg-on-surface/[0.03] px-3 text-[13px] font-medium text-on-surface outline-none transition-all focus:border-primary/40 focus:bg-surface focus:ring-4 focus:ring-primary/10"
                               >
-                                <option value="">不使用已保存配置</option>
+                                <option value="">{t("launcher.targets.noSavedProfile")}</option>
                                 {targetProfiles.map((profile) => (
                                   <option key={profile.profile_id} value={profile.profile_id}>
                                     {profile.name}
@@ -2071,7 +2089,7 @@ export function SessionLauncherShell() {
                             </div>
 
                             <div className="space-y-2">
-                              <div className="text-[11px] font-bold uppercase tracking-[0.15em] text-ui-muted">补充目标目录</div>
+                              <div className="text-[11px] font-bold uppercase tracking-[0.15em] text-ui-muted">{t("launcher.targets.additionalFolders")}</div>
 
                               {effectiveTargetDirectories.length > 0 && (
                                 <div className="grid gap-2">
@@ -2093,12 +2111,12 @@ export function SessionLauncherShell() {
                                             <div className="min-w-0">
                                               <div className="flex items-center gap-2">
                                                 <span className="truncate text-[14px] font-black tracking-tight text-on-surface">{item.label || item.path.split(/[\\/]/).pop() || item.path}</span>
-                                                {isFromProfile && <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[11px] font-black uppercase text-primary tracking-widest leading-none">已保存</span>}
+                                                {isFromProfile && <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[11px] font-black uppercase text-primary tracking-widest leading-none">{t("launcher.targets.saved")}</span>}
                                               </div>
                                               <div className="truncate font-mono text-[11px] font-medium text-ui-muted opacity-40 uppercase tracking-tighter" title={item.path}>{item.path}</div>
                                               {item.label ? (
                                                 <div className="mt-1 inline-flex rounded-[6px] bg-primary/[0.06] px-2 py-0.5 text-[11px] font-bold text-primary">
-                                                  标签：{item.label}
+                                                  {t("launcher.targets.labelPrefix")}{item.label}
                                                 </div>
                                               ) : null}
                                               {item.description ? (
@@ -2107,7 +2125,7 @@ export function SessionLauncherShell() {
                                                 </div>
                                               ) : !item.label ? (
                                                 <div className="mt-1 text-[11px] font-medium leading-relaxed text-ui-muted/55">
-                                                  暂未补充标签和目录说明。
+                                                  {t("launcher.targets.noMetadata")}
                                                 </div>
                                               ) : null}
                                             </div>
@@ -2119,7 +2137,7 @@ export function SessionLauncherShell() {
                                               disabled={loading}
                                               className="rounded-[6px] px-2 py-1 text-[11px] font-bold text-primary transition-colors hover:bg-primary/10 disabled:opacity-50"
                                             >
-                                              {hasSemanticHint ? "编辑标签和说明" : "补充标签和说明"}
+                                              {hasSemanticHint ? t("launcher.targets.editMetadata") : t("launcher.targets.addMetadata")}
                                             </button>
                                             {!isFromProfile && (
                                               <button
@@ -2127,7 +2145,7 @@ export function SessionLauncherShell() {
                                                 onClick={() => removeManualTargetDirectory(item.path)}
                                                 disabled={loading}
                                                 className="shrink-0 rounded-md p-2 text-on-surface-variant/40 transition-all hover:bg-error/10 hover:text-error opacity-0 group-hover:opacity-100 focus:opacity-100 active:scale-90"
-                                                title="移除"
+                                                title={t("source.remove")}
                                               >
                                                 <Trash2 className="h-4 w-4" />
                                               </button>
@@ -2140,14 +2158,14 @@ export function SessionLauncherShell() {
                                               value={item.label || ""}
                                               onChange={(event) => updateTargetDirectoryDraft(item.path, { label: event.target.value })}
                                               disabled={loading}
-                                              placeholder="标签（可选）"
+                                              placeholder={t("launcher.targets.labelPlaceholder")}
                                               className="h-9 rounded-[8px] border border-on-surface/8 bg-surface px-3 text-[12px] text-on-surface outline-none focus:border-primary/40"
                                             />
                                             <input
                                               value={item.description || ""}
                                               onChange={(event) => updateTargetDirectoryDraft(item.path, { description: event.target.value })}
                                               disabled={loading}
-                                              placeholder="目录说明（可选，提示该目录收什么）"
+                                              placeholder={t("launcher.targets.descriptionPlaceholder")}
                                               className="h-9 rounded-[8px] border border-on-surface/8 bg-surface px-3 text-[12px] text-on-surface outline-none focus:border-primary/40"
                                             />
                                           </div>
@@ -2177,15 +2195,15 @@ export function SessionLauncherShell() {
                               >
                                 <div className="flex items-center gap-2 text-[13px] font-bold text-on-surface/60 mb-3 sm:mb-0">
                                   <Plus className="hidden h-4 w-4 text-on-surface/20 sm:block" />
-                                  拖入文件夹作为目标，或
-                                  <button type="button" onClick={() => void handleAddTargetDirectories()} className="mx-1 font-black text-primary hover:underline underline-offset-4 decoration-2">点击选择</button>
+                                  {t("launcher.targets.dropOrChoose")}
+                                  <button type="button" onClick={() => void handleAddTargetDirectories()} className="mx-1 font-black text-primary hover:underline underline-offset-4 decoration-2">{t("launcher.targets.chooseFolders")}</button>
                                 </div>
                                 <button
                                   type="button"
                                   onClick={() => setShowManualTargetInput(!showManualTargetInput)}
                                   className="text-[11px] font-black uppercase tracking-wider text-ui-muted opacity-30 hover:text-primary hover:opacity-100 transition-colors"
                                 >
-                                  {showManualTargetInput ? "[ 收起手动输入 ]" : "[ 手填路径 ]"}
+                                  {showManualTargetInput ? t("launcher.targets.collapseManualPath") : t("launcher.targets.manualPath")}
                                 </button>
                               </div>
 
@@ -2196,7 +2214,7 @@ export function SessionLauncherShell() {
                                       value={targetDirectoryDraft}
                                       onChange={(event) => setTargetDirectoryDraft(event.target.value)}
                                       disabled={loading}
-                                      placeholder="手动输入目标目录完整绝对路径"
+                                      placeholder={t("launcher.targets.manualPathPlaceholder")}
                                       className="h-10 flex-1 rounded-[8px] border border-transparent bg-on-surface/[0.03] px-3 text-[13px] font-medium text-on-surface outline-none transition-all placeholder:text-on-surface-variant/35 focus:border-primary/40 focus:bg-surface focus:ring-4 focus:ring-primary/10"
                                       onKeyDown={(e) => {
                                         if (e.key === 'Enter') addManualTargetDirectory();
@@ -2208,7 +2226,7 @@ export function SessionLauncherShell() {
                                       disabled={loading || !targetDirectoryDraft.trim()}
                                       className="h-10 rounded-[8px] bg-on-surface/5 px-4 text-[12px] font-bold text-on-surface transition-colors hover:bg-primary/10 hover:text-primary disabled:opacity-50"
                                     >
-                                      添加
+                                      {t("source.add")}
                                     </button>
                                   </div>
                                 </div>
@@ -2223,9 +2241,9 @@ export function SessionLauncherShell() {
                           <div className="space-y-3 pt-2">
                             <div className="flex items-center justify-between gap-3 border-b border-on-surface/10 pb-3">
                               <div>
-                                <h2 className="text-[14px] font-bold text-on-surface">把这次目录组合保存为常用配置</h2>
+                                <h2 className="text-[14px] font-bold text-on-surface">{t("launcher.targets.saveAsProfileTitle")}</h2>
                                 <p className="mt-1 text-[11px] font-medium leading-relaxed text-ui-muted">
-                                  保存后下次可直接选用，无需重新拖入。
+                                  {t("launcher.targets.saveAsProfileDescription")}
                                 </p>
                               </div>
                             </div>
@@ -2234,7 +2252,7 @@ export function SessionLauncherShell() {
                                 value={profileNameDraft}
                                 onChange={(event) => setProfileNameDraft(event.target.value)}
                                 disabled={loading}
-                                placeholder="配置名称（例：工作资料库）"
+                                placeholder={t("launcher.targets.profileNamePlaceholder")}
                                 className="h-10 flex-1 rounded-[8px] border border-transparent bg-on-surface/[0.03] px-3 text-[13px] font-medium text-on-surface outline-none transition-all placeholder:text-on-surface-variant/35 focus:border-primary/40 focus:bg-surface focus:ring-4 focus:ring-primary/10"
                               />
                               <button
@@ -2243,7 +2261,7 @@ export function SessionLauncherShell() {
                                 disabled={loading || effectiveTargetDirectories.length === 0}
                                 className="h-10 rounded-[8px] bg-on-surface/5 px-4 text-[12px] font-bold text-on-surface transition-colors hover:bg-primary/10 hover:text-primary disabled:opacity-50"
                               >
-                                保存配置
+                                {t("launcher.targets.saveProfile")}
                               </button>
                             </div>
                           </div>
@@ -2270,7 +2288,7 @@ export function SessionLauncherShell() {
                           disabled={loading}
                           className="pointer-events-auto h-10 px-6 font-bold"
                         >
-                          返回上一步
+                          {t("launcher.actions.backStep")}
                         </Button>
                       ) : (
                         <div />
@@ -2283,7 +2301,7 @@ export function SessionLauncherShell() {
                           disabled={loading || sources.length === 0}
                           className="pointer-events-auto h-10 px-8 font-bold border border-primary/20 bg-primary"
                         >
-                          {loading ? "正在启动..." : skipStrategyPrompt ? fastStartLabel : "下一步：选择整理方式"}
+                          {loading ? t("launcher.actions.starting") : skipStrategyPrompt ? fastStartLabel : t("launcher.actions.nextMethod")}
                         </Button>
                       ) : step === 2 ? (
                         <Button
@@ -2292,7 +2310,7 @@ export function SessionLauncherShell() {
                           disabled={loading || step2BlockedByNoProfile || targetProfilesLoading}
                           className="pointer-events-auto h-10 px-8 font-bold border border-primary/20 bg-primary"
                         >
-                          下一步：填写必要信息
+                          {t("launcher.actions.nextDetails")}
                         </Button>
                       ) : (
                         <Button
@@ -2302,7 +2320,7 @@ export function SessionLauncherShell() {
                           loading={loading}
                           className="pointer-events-auto h-10 min-w-[200px] px-8 font-bold border border-primary/20 bg-primary"
                         >
-                          {loading ? "正在启动..." : primaryLaunchLabel}
+                          {loading ? t("launcher.actions.starting") : primaryLaunchLabel}
                         </Button>
                       )}
                     </div>
@@ -2330,9 +2348,9 @@ export function SessionLauncherShell() {
       <Dialog open={advancedSettingsDialogOpen} onOpenChange={setAdvancedSettingsDialogOpen}>
         <DialogContent className="max-w-[440px] p-5">
           <DialogHeader className="mb-2">
-            <DialogTitle className="text-[15px] font-black text-on-surface">高级设置</DialogTitle>
+            <DialogTitle className="text-[15px] font-black text-on-surface">{t("launcher.advanced.title")}</DialogTitle>
             <DialogDescription className="text-[12px] text-ui-muted/80">
-              在此微调分类粒度、归档策略及附加规则说明。
+              {t("launcher.advanced.description")}
             </DialogDescription>
           </DialogHeader>
 
@@ -2341,7 +2359,7 @@ export function SessionLauncherShell() {
               <div className="space-y-1.5 rounded-[8px] border border-on-surface/6 bg-surface-container-lowest p-3.5">
                 <div className="text-[12px] font-bold text-on-surface flex items-center gap-1.5 mb-1.5">
                   <ListTree className="h-3.5 w-3.5 text-primary" />
-                  分类粒度
+                  {t("launcher.advanced.density")}
                 </div>
                 <div className="flex rounded-[6px] border border-on-surface/8 bg-surface p-0.5 max-w-[200px]">
                   {DENSITY_OPTIONS.map((option) => {
@@ -2358,15 +2376,15 @@ export function SessionLauncherShell() {
                             : "text-on-surface-variant/60 hover:text-on-surface"
                         )}
                       >
-                        {option.label}
+                        {t(`strategy.densityOptions.${option.id}`, { defaultValue: option.label })}
                       </button>
                     );
                   })}
                 </div>
                 <p className="mt-1.5 text-[11px] leading-relaxed text-ui-muted opacity-80">
                   {strategy.density === "minimal"
-                    ? "生成极简的核心目录结构，避免过度细分目录。"
-                    : "按标准格式与逻辑生成细分的多层级目录。"}
+                    ? t("launcher.advanced.minimalDescription")
+                    : t("launcher.advanced.normalDescription")}
                 </p>
               </div>
             ) : null}
@@ -2375,7 +2393,7 @@ export function SessionLauncherShell() {
             <div className="space-y-1.5 rounded-[8px] border border-on-surface/6 bg-surface-container-lowest p-3.5">
               <div className="text-[12px] font-bold text-on-surface flex items-center gap-1.5 mb-2">
                 <Activity className="h-3.5 w-3.5 text-primary" />
-                分类归档策略
+                {t("launcher.advanced.archivePolicy")}
               </div>
               <div className="grid grid-cols-2 gap-2">
                 {CAUTION_LEVEL_OPTIONS.map((option) => {
@@ -2392,12 +2410,12 @@ export function SessionLauncherShell() {
                           : "border-on-surface/8 bg-surface text-on-surface hover:bg-surface-container-low"
                       )}
                     >
-                      <div>{option.label}</div>
+                      <div>{t(`strategy.cautionOptions.${option.id}`, { defaultValue: option.label })}</div>
                       <div className={cn(
                         "mt-0.5 text-[11px] font-medium leading-tight",
                         active ? "text-primary/70" : "text-ui-muted/70"
                       )}>
-                        {option.description}
+                        {t(`strategy.cautionDescriptions.${option.id}`, { defaultValue: option.description })}
                       </div>
                     </button>
                   );
@@ -2409,13 +2427,13 @@ export function SessionLauncherShell() {
             <div className="space-y-1.5 rounded-[8px] border border-on-surface/6 bg-surface-container-lowest p-3.5">
               <div className="text-[12px] font-bold text-on-surface flex items-center gap-1.5 mb-1">
                 <FileText className="h-3.5 w-3.5 text-primary" />
-                附加说明
+                {t("launcher.advanced.additionalNotes")}
               </div>
               <textarea
                 value={strategy.note}
                 disabled={loading}
                 onChange={(event) => updateStrategy((previous) => ({ ...previous, note: event.target.value.slice(0, 200) }))}
-                placeholder={isAssignExisting ? "例如：拿不准的先放待确认区；优先归入现有项目目录。" : "例如：课程资料按学期整理；图片素材按用途分层。"}
+                placeholder={isAssignExisting ? t("launcher.advanced.assignNotesPlaceholder") : t("launcher.advanced.createNotesPlaceholder")}
                 className="h-[72px] w-full resize-none rounded-[6px] border border-on-surface/8 bg-surface px-2.5 py-1.5 text-[12px] leading-relaxed text-on-surface outline-none transition-all placeholder:text-on-surface-variant/35 focus:border-primary/30"
               />
             </div>

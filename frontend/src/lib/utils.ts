@@ -33,10 +33,10 @@ export function getFriendlyStatus(status: string | undefined): string {
 /**
  * 安全转换日期字符串
  */
-export function formatDisplayDate(dateStr: string) {
+export function formatDisplayDate(dateStr: string, locale = "zh-CN") {
   try {
     const date = new Date(dateStr);
-    return date.toLocaleDateString('zh-CN', {
+    return date.toLocaleDateString(locale, {
       month: 'short',
       day: 'numeric',
       hour: '2-digit',

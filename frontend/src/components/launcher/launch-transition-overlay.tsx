@@ -1,8 +1,10 @@
 import { motion, AnimatePresence } from "motion/react";
 import { Loader2 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 export function LaunchTransitionOverlay({ open, targetDir }: { open: boolean; targetDir: string }) {
-  const folderName = targetDir.replace(/[\\/]$/, "").split(/[\\/]/).pop() || "当前目录";
+  const { t } = useTranslation("common");
+  const folderName = targetDir.replace(/[\\/]$/, "").split(/[\\/]/).pop() || t("launcher.transition.currentFolder");
 
   return (
     <AnimatePresence>
@@ -37,20 +39,20 @@ export function LaunchTransitionOverlay({ open, targetDir }: { open: boolean; ta
 
               <div className="min-w-0 flex-1">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-primary/72">
-                  正在打开整理工作区
+                  {t("launcher.transition.opening")}
                 </p>
                 <h3 className="mt-2 text-[20px] font-black tracking-tight text-on-surface">
-                  正在准备读取目录
+                  {t("launcher.transition.preparing")}
                 </h3>
                 <p className="mt-2 text-[13px] leading-6 text-on-surface-variant/78">
-                  已确认整理对象，正在进入只读扫描阶段。
+                  {t("launcher.transition.description")}
                 </p>
 
                 <div className="mt-4 rounded-[12px] border border-on-surface/8 bg-surface-container-low/70 px-4 py-3">
                   <div className="flex items-center justify-between gap-3">
                     <span className="truncate text-[13px] font-semibold text-on-surface">{folderName}</span>
                     <span className="shrink-0 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary">
-                      等待读取
+                      {t("launcher.transition.waiting")}
                     </span>
                   </div>
                   <div className="mt-3 flex gap-1.5">
