@@ -406,7 +406,7 @@ Tauri 原生命令错误统一携带稳定 `code`、`params` 和诊断 `detail`�
 
 Tauri 配置已加入 NSIS 英文/简体中文语言选择器，以及分别生成 `en-US`、`zh-CN` WiX MSI 的配置；Windows 打包工作流会检查两种 MSI 均生成，并继续运行安装后后端健康检查。Next.js 静态导出成功，40 个 JavaScript 静态文件中包含英文 UI 文案，核心静态路由均已生成；Tauri 接受配置并完成无安装包桌面编译。后端打包链路已核对：PyInstaller 收集 `file_pilot` 代码并加入策略目录数据，Tauri 将 `dist/backend` 作为安装资源。
 
-本分支已让 Windows 工作流复用 `scripts/build_bundled_backend.ps1`，避免 CI 与本地后端资源参数漂移；脚本现在会在 PyInstaller 返回成功后核对可执行文件确实存在，并在清理旧输出时保留受版本控制的 `.gitkeep`。新增 `scripts/verify_localized_frontend.ps1`，在 Windows 打包构建后检查静态导出中包含中英文界面语言文案和英语语言选项。脚本语法、静态资源检查及清理逻辑验证通过。
+本分支已让 Windows 工作流复用 `scripts/build_bundled_backend.ps1`，避免 CI 与本地后端资源参数漂移；脚本现在会在 PyInstaller 返回成功后核对可执行文件确实存在，并在清理旧输出时保留受版本控制的 `.gitkeep`。新增 `scripts/verify_localized_frontend.ps1`，在 Windows 打包构建后检查静态导出中包含中英文界面语言文案和英语语言选项。静态资源检查通过；临时 PyInstaller stub 验证了参数传递、产物复制和占位文件保留，测试文件已清理。这只是构建脚本编排验证，不替代真实后端打包。
 
 阶段限制：本机没有 PyInstaller，pip 被配置为禁用索引，临时启用索引后又因 SOCKS 支持依赖缺失而无法安装构建工具，因此未在本机生成或检查实际后端可执行文件与安装包。Windows 打包工作流尚未在远端运行，E30 保持未完成，待可用构建环境生成真实安装包后核验。
 
