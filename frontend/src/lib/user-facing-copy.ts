@@ -1,4 +1,5 @@
 import i18n from "@/i18n/instance";
+import type { TFunction } from "i18next";
 
 export class UserFacingError extends Error {
   code?: string;
@@ -75,6 +76,96 @@ const REQUEST_ERROR_COPY_KEYS: Record<string, string> = {
   SETTINGS_PRESET_NOT_FOUND: "settingsPresetNotFound",
   UNAUTHORIZED: "unauthorized",
 };
+
+const NATIVE_COMMAND_COPY_KEYS: Record<string, string> = {
+  TAURI_PATH_NOT_FOUND: "diagnostics.nativeCommands.pathNotFound",
+  TAURI_PERMISSION_DENIED: "diagnostics.nativeCommands.permissionDenied",
+  TAURI_ICON_BACKUP_NOT_FOUND: "diagnostics.nativeCommands.iconBackupNotFound",
+  TAURI_UNSUPPORTED_PLATFORM: "diagnostics.nativeCommands.unsupportedPlatform",
+  TAURI_SHELL_OPEN_FAILED: "diagnostics.nativeCommands.shellOpenFailed",
+  TAURI_BACKGROUND_REMOVAL_FAILED: "diagnostics.nativeCommands.backgroundRemovalFailed",
+  TAURI_ICON_OPERATION_FAILED: "diagnostics.nativeCommands.iconOperationFailed",
+  TAURI_FILE_SAVE_FAILED: "diagnostics.nativeCommands.fileSaveFailed",
+  TAURI_NOTIFICATION_FAILED: "diagnostics.nativeCommands.notificationFailed",
+  TAURI_INVALID_ARGUMENT: "diagnostics.nativeCommands.invalidArgument",
+  TAURI_OPERATION_FAILED: "diagnostics.nativeCommands.operationFailed",
+};
+
+export interface NativeCommandFailure {
+  code: string;
+  params: Record<string, string | number | boolean | null>;
+  detail: string;
+}
+
+function nativeCommandFailureFromValue(value: unknown): NativeCommandFailure | null {
+  if (typeof value === "string") {
+    try {
+      return nativeCommandFailureFromValue(JSON.parse(value));
+    } catch {
+      return null;
+    }
+  }
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const candidate = value as Record<string, unknown>;
+  const code = typeof candidate.code === "string"
+    ? candidate.code
+    : typeof candidate.error_code === "string"
+      ? candidate.error_code
+      : "";
+  if (!code) {
+    return null;
+  }
+  const params = candidate.params && typeof candidate.params === "object" && !Array.isArray(candidate.params)
+    ? candidate.params as NativeCommandFailure["params"]
+    : {};
+  const detail = typeof candidate.detail === "string"
+    ? candidate.detail
+    : typeof candidate.message === "string"
+      ? candidate.message
+      : "";
+  return { code, params, detail };
+}
+
+export function parseNativeCommandFailure(error: unknown): NativeCommandFailure | null {
+  const direct = nativeCommandFailureFromValue(error);
+  if (direct) {
+    return direct;
+  }
+  if (error instanceof Error) {
+    return nativeCommandFailureFromValue(error.message);
+  }
+  return null;
+}
+
+export function getNativeCommandErrorCopyKey(code: string | null | undefined): string | null {
+  return NATIVE_COMMAND_COPY_KEYS[String(code || "").trim()] || null;
+}
+
+export function localizeNativeCommandError(
+  code: string,
+  params: NativeCommandFailure["params"],
+  fallbackMessage: string,
+  t: TFunction<"common"> = i18n.t,
+): string {
+  const copyKey = getNativeCommandErrorCopyKey(code);
+  return copyKey ? t(copyKey, params) : fallbackMessage;
+}
+
+export function createUserFacingTauriCommandError(error: unknown, fallbackMessage: string): UserFacingError {
+  const failure = parseNativeCommandFailure(error);
+  if (!failure) {
+    return new UserFacingError(fallbackMessage, {
+      rawMessage: error instanceof Error ? error.message : String(error ?? ""),
+    });
+  }
+  return new UserFacingError(
+    localizeNativeCommandError(failure.code, failure.params, fallbackMessage),
+    { code: failure.code, rawMessage: failure.detail || JSON.stringify(failure) },
+  );
+}
 
 function requestErrorMessage(status: number, detail?: string): string {
   const normalizedDetail = String(detail || "").trim().toUpperCase();

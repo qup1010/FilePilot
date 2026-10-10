@@ -3,6 +3,7 @@ mod icon_apply;
 mod backend;
 mod runtime;
 mod bg_removal;
+mod native_command_error;
 
 use std::fs;
 use std::io;
@@ -13,6 +14,8 @@ use std::time::Duration;
 use tauri::{App, Manager, RunEvent};
 use serde::Serialize;
 use tauri_plugin_notification::NotificationExt;
+
+use crate::native_command_error::{encode_native_command_error, io_failure_code};
 
 const APP_USER_MODEL_ID: &str = "com.filepilot.desktop";
 
@@ -205,7 +208,21 @@ fn save_file_as(source_path: String, filename: String) -> Result<bool, String> {
         .save_file();
 
     if let Some(dest) = save_path {
-        fs::copy(&source_path, &dest).map_err(|e| e.to_string())?;
+        fs::copy(&source_path, &dest).map_err(|error| {
+            let code = match io_failure_code(&error) {
+                "TAURI_OPERATION_FAILED" => "TAURI_FILE_SAVE_FAILED",
+                code => code,
+            };
+            encode_native_command_error(
+                code,
+                serde_json::json!({
+                    "path": dest.to_string_lossy(),
+                    "sourcePath": source_path,
+                    "destinationPath": dest.to_string_lossy(),
+                }),
+                error.to_string(),
+            )
+        })?;
         Ok(true)
     } else {
         Ok(false)
@@ -214,59 +231,77 @@ fn save_file_as(source_path: String, filename: String) -> Result<bool, String> {
 
 #[tauri::command]
 fn open_directory(path: String) -> Result<(), String> {
+    if !Path::new(&path).exists() {
+        return Err(encode_native_command_error(
+            "TAURI_PATH_NOT_FOUND",
+            serde_json::json!({ "path": path }),
+            "The selected path does not exist.",
+        ));
+    }
+
     #[cfg(target_os = "windows")]
-    {
-        // On Windows, using /select opens the parent folder and highlights the item
-        let _ = std::process::Command::new("explorer")
-            .arg("/select,")
-            .arg(&path)
-            .spawn();
-    }
+    let mut command = {
+        // On Windows, using /select opens the parent folder and highlights the item.
+        let mut command = std::process::Command::new("explorer");
+        command.arg("/select,").arg(&path);
+        command
+    };
     #[cfg(target_os = "macos")]
-    {
-        // On macOS, -R flag in open command reveals it in Finder
-        let _ = std::process::Command::new("open")
-            .arg("-R")
-            .arg(&path)
-            .spawn();
-    }
+    let mut command = {
+        // On macOS, -R reveals the item in Finder.
+        let mut command = std::process::Command::new("open");
+        command.arg("-R").arg(&path);
+        command
+    };
     #[cfg(not(any(target_os = "windows", target_os = "macos")))]
-    {
-        // For linux, just open the parent for now if it's a folder, or the path directly
-        let _ = std::process::Command::new("xdg-open")
-            .arg(&path)
-            .spawn();
-    }
+    let mut command = std::process::Command::new("xdg-open");
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
+    command.arg(&path);
+
+    command.spawn().map_err(|error| {
+        encode_native_command_error(
+            "TAURI_SHELL_OPEN_FAILED",
+            serde_json::json!({ "path": path }),
+            error.to_string(),
+        )
+    })?;
     Ok(())
 }
 
 #[tauri::command]
 fn open_url(url: String) -> Result<(), String> {
     #[cfg(target_os = "windows")]
-    {
-        let _ = std::process::Command::new("cmd")
-            .args(&["/C", "start", "", &url])
-            .spawn();
-    }
+    let mut command = {
+        let mut command = std::process::Command::new("cmd");
+        command.args(["/C", "start", "", &url]);
+        command
+    };
     #[cfg(target_os = "macos")]
-    {
-        let _ = std::process::Command::new("open")
-            .arg(&url)
-            .spawn();
-    }
+    let mut command = std::process::Command::new("open");
     #[cfg(not(any(target_os = "windows", target_os = "macos")))]
-    {
-        let _ = std::process::Command::new("xdg-open")
-            .arg(&url)
-            .spawn();
-    }
+    let mut command = std::process::Command::new("xdg-open");
+
+    #[cfg(any(target_os = "macos", not(any(target_os = "windows", target_os = "macos"))))]
+    command.arg(&url);
+
+    command.spawn().map_err(|error| {
+        encode_native_command_error(
+            "TAURI_SHELL_OPEN_FAILED",
+            serde_json::json!({ "url": url }),
+            error.to_string(),
+        )
+    })?;
     Ok(())
 }
 
 fn show_desktop_notification_inner(app: &tauri::AppHandle, title: String, body: String) -> Result<(), String> {
     let title = title.trim();
     if title.is_empty() {
-        return Err("notification title is required".to_string());
+        return Err(encode_native_command_error(
+            "TAURI_INVALID_ARGUMENT",
+            serde_json::json!({ "field": "title" }),
+            "notification title is required",
+        ));
     }
 
     let mut builder = app.notification().builder().title(title);
@@ -275,7 +310,13 @@ fn show_desktop_notification_inner(app: &tauri::AppHandle, title: String, body: 
         builder = builder.body(body);
     }
 
-    builder.show().map_err(|error| error.to_string())
+    builder.show().map_err(|error| {
+        encode_native_command_error(
+            "TAURI_NOTIFICATION_FAILED",
+            serde_json::json!({}),
+            error.to_string(),
+        )
+    })
 }
 
 #[tauri::command]

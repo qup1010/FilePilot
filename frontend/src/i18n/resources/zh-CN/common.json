@@ -92,6 +92,19 @@
       "requestRejected": "当前请求暂时无法完成，请检查输入并重试。",
       "operationFailed": "操作失败，请稍后再试。"
     },
+    "nativeCommands": {
+      "pathNotFound": "找不到 {{path}}。",
+      "permissionDenied": "FilePilot 无法访问 {{path}}。请检查文件或文件夹权限后重试。",
+      "iconBackupNotFound": "找不到 {{path}} 对应的历史文件夹图标状态，无法恢复。",
+      "unsupportedPlatform": "文件夹图标操作目前仅支持 Windows。",
+      "shellOpenFailed": "无法打开所选文件夹或链接。",
+      "backgroundRemovalFailed": "无法完成背景去除。请检查模型配置和服务连接。",
+      "iconOperationFailed": "无法更新文件夹图标。请检查文件夹、图片路径及访问权限后重试。",
+      "fileSaveFailed": "无法保存图片。请检查目标位置和写入权限后重试。",
+      "notificationFailed": "无法显示桌面通知。",
+      "invalidArgument": "桌面命令收到的输入无效。",
+      "operationFailed": "桌面操作未能完成，请重试。"
+    },
     "settingsTests": {
       "success": {
         "text": "文本模型连接测试已通过。",
@@ -118,7 +131,8 @@
         "invalidSecretAction": "不支持的密钥更新操作。",
         "unknown": "连接测试失败，请检查配置与网络状态。",
         "requestFailed": "连接测试请求未能完成，请稍后重试。",
-        "desktopUnavailable": "桌面端不可用，无法执行背景去除连接测试。"
+        "desktopUnavailable": "桌面端不可用，无法执行背景去除连接测试。",
+        "bgRemovalFailed": "无法完成背景去除连接测试，请检查服务配置后重试。"
       },
       "issues": {
         "networkBlocked": "这次请求更像是被本机网络层拦截了。请优先检查 Windows 防火墙、安全软件、代理、TUN 或分流规则，而不只是模型配置本身。",
@@ -1380,6 +1394,9 @@
     "deleteErrorFallback": "删除记录时发生错误，请稍后重试。"
   },
   "settingsPage": {
+    "errors": {
+      "openLink": "无法打开此链接。"
+    },
     "categoriesHeading": "设置选项",
     "categories": {
       "text": { "label": "整理模型配置", "description": "配置文本分析与图片理解模型" },

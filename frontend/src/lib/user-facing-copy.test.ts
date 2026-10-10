@@ -3,8 +3,10 @@ import { afterEach, describe, expect, it } from "vitest";
 import i18n from "@/i18n/instance";
 import {
   UserFacingError,
+  createUserFacingTauriCommandError,
   createUserFacingRequestError,
   getUserFacingErrorCode,
+  localizeNativeCommandError,
   localizeSessionLastError,
   localizeUserFacingError,
 } from "./user-facing-copy";
@@ -130,5 +132,33 @@ describe("user-facing copy helpers", () => {
     );
 
     expect(error.message).toBe("The local service encountered an error. Try again shortly.");
+  });
+
+  it("localizes structured Tauri errors while keeping raw details for diagnostics", async () => {
+    await i18n.changeLanguage("en");
+    const error = createUserFacingTauriCommandError(
+      JSON.stringify({
+        code: "TAURI_PATH_NOT_FOUND",
+        params: { path: "D:/Icons/Alpha" },
+        detail: "路径不存在",
+      }),
+      "Could not apply the icon.",
+    );
+
+    expect(error.message).toBe("Could not find D:/Icons/Alpha.");
+    expect(error.rawMessage).toBe("路径不存在");
+    expect(getUserFacingErrorCode(error)).toBe("TAURI_PATH_NOT_FOUND");
+  });
+
+  it("uses the caller fallback for unknown Tauri error codes", async () => {
+    await i18n.changeLanguage("en");
+
+    const message = localizeNativeCommandError(
+      "TAURI_FUTURE_ERROR",
+      {},
+      "Could not apply the icon.",
+    );
+
+    expect(message).toBe("Could not apply the icon.");
   });
 });

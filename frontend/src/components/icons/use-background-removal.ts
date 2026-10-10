@@ -4,7 +4,7 @@ import { useCallback, useMemo, useState, type Dispatch, type SetStateAction } fr
 import { useTranslation } from "react-i18next";
 
 import { createApiClient } from "@/lib/api";
-import { getApiBaseUrl, getApiToken, invokeTauriCommand, waitForRuntimeConfig } from "@/lib/runtime";
+import { getApiBaseUrl, getApiToken, invokeTauriCommandOrThrow, waitForRuntimeConfig } from "@/lib/runtime";
 import { createUserFacingRequestError, localizeUserFacingError } from "@/lib/user-facing-copy";
 import type { BackgroundRemovalBatchProgress, IconPreviewVersion, IconWorkbenchSession } from "@/types/icon-workbench";
 
@@ -68,15 +68,19 @@ export function useBackgroundRemoval({
     try {
       const runtime = await waitForRuntimeConfig();
       const runtimeConfig = await loadBgRemovalRuntime();
-      const processedB64 = await invokeTauriCommand<string>("remove_background_for_image", {
-        imagePath: version.image_path,
-        config: {
-          modelId: runtimeConfig.model_id,
-          apiType: runtimeConfig.api_type,
-          payloadTemplate: runtimeConfig.payload_template,
-          apiToken: runtimeConfig.api_token ?? null,
+      const processedB64 = await invokeTauriCommandOrThrow<string>(
+        "remove_background_for_image",
+        {
+          imagePath: version.image_path,
+          config: {
+            modelId: runtimeConfig.model_id,
+            apiType: runtimeConfig.api_type,
+            payloadTemplate: runtimeConfig.payload_template,
+            apiToken: runtimeConfig.api_token ?? null,
+          },
         },
-      });
+        t("iconWorkbench.errors.cutoutServiceUnavailable"),
+      );
 
       if (!processedB64) {
         throw new Error(t("iconWorkbench.errors.cutoutEmptyResult"));

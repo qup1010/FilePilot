@@ -40,6 +40,8 @@ vi.mock("@/lib/runtime", () => ({
   getApiToken: () => "",
   isTauriDesktop: () => false,
   invokeTauriCommand: vi.fn(),
+  invokeTauriCommandOrThrow: vi.fn(),
+  openUrlWithTauri: vi.fn(),
   waitForRuntimeConfig: vi.fn().mockResolvedValue({ base_url: "http://127.0.0.1:8765" }),
 }));
 

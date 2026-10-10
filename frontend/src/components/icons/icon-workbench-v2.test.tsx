@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import enCommon from "@/i18n/resources/en/common.json";
 import zhCNCommon from "@/i18n/resources/zh-CN/common.json";
-import { invokeTauriCommand, isTauriDesktop } from "@/lib/runtime";
+import { invokeTauriCommandOrThrow, isTauriDesktop } from "@/lib/runtime";
 import IconWorkbenchV2 from "./icon-workbench-v2";
 
 const iconApiMock = {
@@ -93,7 +93,7 @@ vi.mock("@/lib/runtime", () => ({
   getApiToken: () => "",
   isTauriDesktop: vi.fn(() => false),
   inspectPathsWithTauri: vi.fn(),
-  invokeTauriCommand: vi.fn(),
+  invokeTauriCommandOrThrow: vi.fn(),
   openDirectoryWithTauri: vi.fn(),
   pickDirectoriesWithTauri: vi.fn(),
 }));
@@ -335,7 +335,7 @@ beforeEach(() => {
   localStorage.clear();
     Object.values(iconApiMock).forEach((mockFn) => mockFn.mockReset());
     vi.mocked(isTauriDesktop).mockReturnValue(false);
-    vi.mocked(invokeTauriCommand).mockReset();
+    vi.mocked(invokeTauriCommandOrThrow).mockReset();
     iconApiMock.getConfig.mockResolvedValue({
       config: {
         text_model: { base_url: "https://text.example/v1", model: "gpt-text", configured: true },
@@ -742,7 +742,7 @@ beforeEach(() => {
   it("rescans the session after a successful desktop apply if report sync fails", async () => {
     const user = userEvent.setup();
     vi.mocked(isTauriDesktop).mockReturnValue(true);
-    vi.mocked(invokeTauriCommand).mockResolvedValue("已将图标应用到文件夹");
+    vi.mocked(invokeTauriCommandOrThrow).mockResolvedValue(undefined);
     iconApiMock.selectVersion.mockRejectedValueOnce(new Error("select failed"));
     iconApiMock.reportClientAction.mockRejectedValueOnce(new Error("report failed"));
     iconApiMock.scanSession.mockResolvedValue(createSession());
@@ -763,23 +763,23 @@ beforeEach(() => {
     await waitFor(() => {
       expect(iconApiMock.scanSession).toHaveBeenCalledWith("icon-session-1");
     });
-    expect(vi.mocked(invokeTauriCommand)).toHaveBeenCalledWith("apply_folder_icon", {
+    expect(vi.mocked(invokeTauriCommandOrThrow)).toHaveBeenCalledWith("apply_folder_icon", {
       folderPath: "D:/Icons/Alpha",
       imagePath: "D:/preview-b.png",
-    });
+    }, "应用失败");
     expect(screen.getByText("「Alpha」图标已应用，工作区状态已重新同步。")).toBeInTheDocument();
   });
 
   it("reports skipped batch items and surfaces the merged summary", async () => {
     const user = userEvent.setup();
     vi.mocked(isTauriDesktop).mockReturnValue(true);
-    vi.mocked(invokeTauriCommand).mockResolvedValue([
+    vi.mocked(invokeTauriCommandOrThrow).mockResolvedValue([
       {
         folder_id: "folder-1",
         folder_name: "Alpha",
         folder_path: "D:/Icons/Alpha",
         status: "applied",
-        message: "已应用图标: D:/Icons/Alpha",
+        message: "",
       },
     ]);
     iconApiMock.prepareApplyReady.mockResolvedValue({
@@ -845,7 +845,7 @@ beforeEach(() => {
           folder_name: "Alpha",
           folder_path: "D:/Icons/Alpha",
           status: "applied",
-          message: "已应用图标: D:/Icons/Alpha",
+          message: "「Alpha」图标已更新",
           version_id: "version-current",
         },
       ],
@@ -866,7 +866,7 @@ beforeEach(() => {
   it("restores the previous icon state instead of clearing to default", async () => {
     const user = userEvent.setup();
     vi.mocked(isTauriDesktop).mockReturnValue(true);
-    vi.mocked(invokeTauriCommand).mockResolvedValue("已恢复最近一次图标状态");
+    vi.mocked(invokeTauriCommandOrThrow).mockResolvedValue(undefined);
     iconApiMock.reportClientAction.mockRejectedValueOnce(new Error("report failed"));
     iconApiMock.scanSession.mockResolvedValue(createSession());
     localStorage.setItem("icons_workspace_state", JSON.stringify({
@@ -886,9 +886,9 @@ beforeEach(() => {
     await user.click(screen.getByRole("button", { name: "确认" }));
 
     await waitFor(() => {
-      expect(vi.mocked(invokeTauriCommand)).toHaveBeenCalledWith("restore_last_folder_icon", {
+      expect(vi.mocked(invokeTauriCommandOrThrow)).toHaveBeenCalledWith("restore_last_folder_icon", {
         folderPath: "D:/Icons/Alpha",
-      });
+      }, "恢复失败");
     });
     expect(screen.getByText("「Alpha」已恢复上一次图标状态，工作区状态已重新同步。")).toBeInTheDocument();
   });

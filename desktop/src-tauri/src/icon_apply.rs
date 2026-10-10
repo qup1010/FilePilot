@@ -7,9 +7,10 @@ use std::process::Command;
 
 use image::ImageFormat;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use serde_json::{json, Value};
 
 use crate::desktop_ini;
+use crate::native_command_error::{encode_native_command_error, io_failure_code};
 
 const ICON_FILE_NAME: &str = "file-pilot-icon.ico";
 const BACKUP_MANIFEST_FILE_NAME: &str = "manifest.json";
@@ -27,35 +28,51 @@ struct IconBackupManifest {
 }
 
 #[tauri::command]
-pub fn apply_folder_icon(folder_path: String, image_path: String) -> Result<String, String> {
+pub fn apply_folder_icon(folder_path: String, image_path: String) -> Result<(), String> {
     ensure_windows()?;
     let save_mode = load_configured_save_mode();
-    apply_folder_icon_impl(&folder_path, &image_path, &save_mode)?;
-    Ok(format!("已将图标应用到文件夹: {}", folder_path))
+    apply_folder_icon_impl(&folder_path, &image_path, &save_mode)
+        .map_err(|detail| encode_icon_operation_error(&folder_path, Some(&image_path), detail))?;
+    Ok(())
 }
 
 #[tauri::command]
-pub fn clear_folder_icon(folder_path: String) -> Result<String, String> {
+pub fn clear_folder_icon(folder_path: String) -> Result<(), String> {
     ensure_windows()?;
-    clear_folder_icon_impl(&folder_path)?;
-    Ok(format!("已恢复默认图标: {}", folder_path))
+    clear_folder_icon_impl(&folder_path)
+        .map_err(|detail| encode_icon_operation_error(&folder_path, None, detail))?;
+    Ok(())
 }
 
 #[tauri::command]
 pub fn can_restore_folder_icon(folder_path: String) -> Result<bool, String> {
     ensure_windows()?;
     let folder = Path::new(&folder_path);
-    if !folder.exists() || !folder.is_dir() {
-        return Err(format!("文件夹不存在: {}", folder_path));
+    let metadata = fs::metadata(folder).map_err(|error| {
+        encode_native_command_error(
+            io_failure_code(&error),
+            json!({ "path": folder_path }),
+            error.to_string(),
+        )
+    })?;
+    if !metadata.is_dir() {
+        return Err(encode_native_command_error(
+            "TAURI_PATH_NOT_FOUND",
+            json!({ "path": folder_path }),
+            "The target folder does not exist or is not a folder.",
+        ));
     }
-    Ok(folder_backup_dir(&folder_path)?.join(BACKUP_MANIFEST_FILE_NAME).exists())
+    Ok(folder_backup_dir(&folder_path)?
+        .join(BACKUP_MANIFEST_FILE_NAME)
+        .exists())
 }
 
 #[tauri::command]
-pub fn restore_last_folder_icon(folder_path: String) -> Result<String, String> {
+pub fn restore_last_folder_icon(folder_path: String) -> Result<(), String> {
     ensure_windows()?;
-    restore_last_folder_icon_impl(&folder_path)?;
-    Ok(format!("已恢复最近一次图标状态: {}", folder_path))
+    restore_last_folder_icon_impl(&folder_path)
+        .map_err(|detail| encode_restore_icon_error(&folder_path, detail))?;
+    Ok(())
 }
 
 #[derive(Debug, Deserialize)]
@@ -84,6 +101,9 @@ pub struct ApplyIconResult {
     pub folder_path: String,
     pub status: String,
     pub message: String,
+    pub error_code: Option<String>,
+    pub error_params: Option<Value>,
+    pub detail: Option<String>,
 }
 
 #[tauri::command]
@@ -98,15 +118,25 @@ pub fn apply_ready_icons(tasks: Vec<ApplyIconTask>) -> Result<Vec<ApplyIconResul
                 folder_name: task.folder_name.clone(),
                 folder_path: task.folder_path.clone(),
                 status: "applied".to_string(),
-                message: format!("已应用图标: {}", task.folder_path),
+                message: String::new(),
+                error_code: None,
+                error_params: None,
+                detail: None,
             }),
-            Err(error) => results.push(ApplyIconResult {
-                folder_id: task.folder_id.clone(),
-                folder_name: task.folder_name.clone(),
-                folder_path: task.folder_path.clone(),
-                status: "failed".to_string(),
-                message: error,
-            }),
+            Err(detail) => {
+                let failure =
+                    icon_operation_failure(&task.folder_path, Some(&task.image_path), detail);
+                results.push(ApplyIconResult {
+                    folder_id: task.folder_id.clone(),
+                    folder_name: task.folder_name.clone(),
+                    folder_path: task.folder_path.clone(),
+                    status: "failed".to_string(),
+                    message: String::new(),
+                    error_code: Some(failure.code.to_string()),
+                    error_params: Some(failure.params),
+                    detail: Some(failure.detail),
+                });
+            }
         }
     }
     Ok(results)
@@ -123,15 +153,24 @@ pub fn restore_ready_icons(tasks: Vec<RestoreIconTask>) -> Result<Vec<ApplyIconR
                 folder_name: task.folder_name.clone(),
                 folder_path: task.folder_path.clone(),
                 status: "restored".to_string(),
-                message: format!("已恢复最近一次图标状态: {}", task.folder_path),
+                message: String::new(),
+                error_code: None,
+                error_params: None,
+                detail: None,
             }),
-            Err(error) => results.push(ApplyIconResult {
-                folder_id: task.folder_id.clone(),
-                folder_name: task.folder_name.clone(),
-                folder_path: task.folder_path.clone(),
-                status: "failed".to_string(),
-                message: error,
-            }),
+            Err(detail) => {
+                let failure = restore_icon_failure(&task.folder_path, detail);
+                results.push(ApplyIconResult {
+                    folder_id: task.folder_id.clone(),
+                    folder_name: task.folder_name.clone(),
+                    folder_path: task.folder_path.clone(),
+                    status: "failed".to_string(),
+                    message: String::new(),
+                    error_code: Some(failure.code.to_string()),
+                    error_params: Some(failure.params),
+                    detail: Some(failure.detail),
+                });
+            }
         }
     }
     Ok(results)
@@ -141,8 +180,106 @@ fn ensure_windows() -> Result<(), String> {
     if cfg!(target_os = "windows") {
         Ok(())
     } else {
-        Err("文件夹图标应用仅支持 Windows 桌面壳。".to_string())
+        Err(encode_native_command_error(
+            "TAURI_UNSUPPORTED_PLATFORM",
+            json!({ "platform": std::env::consts::OS }),
+            "Folder icon operations are supported only on Windows.",
+        ))
     }
+}
+
+struct IconOperationFailure {
+    code: &'static str,
+    params: Value,
+    detail: String,
+}
+
+fn icon_operation_failure(
+    folder_path: &str,
+    image_path: Option<&str>,
+    detail: String,
+) -> IconOperationFailure {
+    if let Some(failure) = path_state_failure(folder_path, true, &detail) {
+        return failure;
+    }
+    if let Some(image_path) = image_path {
+        if let Some(failure) = path_state_failure(image_path, false, &detail) {
+            return failure;
+        }
+    }
+
+    IconOperationFailure {
+        code: "TAURI_ICON_OPERATION_FAILED",
+        params: json!({ "path": folder_path }),
+        detail,
+    }
+}
+
+fn restore_icon_failure(folder_path: &str, detail: String) -> IconOperationFailure {
+    if let Some(failure) = path_state_failure(folder_path, true, &detail) {
+        return failure;
+    }
+
+    match folder_backup_dir(folder_path) {
+        Ok(backup_dir) if !backup_dir.join(BACKUP_MANIFEST_FILE_NAME).exists() => {
+            IconOperationFailure {
+                code: "TAURI_ICON_BACKUP_NOT_FOUND",
+                params: json!({ "path": folder_path }),
+                detail,
+            }
+        }
+        _ => icon_operation_failure(folder_path, None, detail),
+    }
+}
+
+fn path_state_failure(
+    path: &str,
+    require_directory: bool,
+    detail: &str,
+) -> Option<IconOperationFailure> {
+    let metadata = match fs::metadata(path) {
+        Ok(metadata) => metadata,
+        Err(error) => {
+            let code = match error.kind() {
+                std::io::ErrorKind::NotFound => "TAURI_PATH_NOT_FOUND",
+                std::io::ErrorKind::PermissionDenied => "TAURI_PERMISSION_DENIED",
+                _ => "TAURI_ICON_OPERATION_FAILED",
+            };
+            return Some(IconOperationFailure {
+                code,
+                params: json!({ "path": path }),
+                detail: detail.to_string(),
+            });
+        }
+    };
+    let valid_type = if require_directory {
+        metadata.is_dir()
+    } else {
+        metadata.is_file()
+    };
+    if valid_type {
+        None
+    } else {
+        Some(IconOperationFailure {
+            code: "TAURI_PATH_NOT_FOUND",
+            params: json!({ "path": path }),
+            detail: detail.to_string(),
+        })
+    }
+}
+
+fn encode_icon_operation_error(
+    folder_path: &str,
+    image_path: Option<&str>,
+    detail: String,
+) -> String {
+    let failure = icon_operation_failure(folder_path, image_path, detail);
+    encode_native_command_error(failure.code, failure.params, failure.detail)
+}
+
+fn encode_restore_icon_error(folder_path: &str, detail: String) -> String {
+    let failure = restore_icon_failure(folder_path, detail);
+    encode_native_command_error(failure.code, failure.params, failure.detail)
 }
 
 fn load_configured_save_mode() -> String {
@@ -509,7 +646,7 @@ fn refresh_shell(_folder_path: &str) {
 
 #[cfg(test)]
 mod tests {
-    use super::build_ico_from_pngs;
+    use super::{build_ico_from_pngs, icon_operation_failure};
 
     #[test]
     fn build_ico_from_pngs_creates_non_empty_payload() {
@@ -517,5 +654,21 @@ mod tests {
         let ico = build_ico_from_pngs(&[(16, png_payload), (32, vec![137, 80, 78, 71])])
             .expect("ico should build");
         assert!(ico.len() > 10);
+    }
+
+    #[test]
+    fn icon_operation_failure_uses_a_stable_code_for_missing_paths() {
+        let failure = icon_operation_failure(
+            "D:/FilePilot-tests/missing-folder",
+            Some("D:/FilePilot-tests/missing-image.png"),
+            "原始错误详情".to_string(),
+        );
+
+        assert_eq!(failure.code, "TAURI_PATH_NOT_FOUND");
+        assert_eq!(
+            failure.params["path"],
+            "D:/FilePilot-tests/missing-folder"
+        );
+        assert_eq!(failure.detail, "原始错误详情");
     }
 }

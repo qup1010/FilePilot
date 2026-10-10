@@ -13,7 +13,7 @@ import { createApiClient } from "@/lib/api";
 import { notifyAppContextChange } from "@/lib/app-context-store";
 import { createIconWorkbenchApiClient } from "@/lib/icon-workbench-api";
 import { createIconWorkbenchEventStream, type IconWorkbenchEventStream } from "@/lib/icon-workbench-sse";
-import { getApiBaseUrl, getApiToken, invokeTauriCommand, isTauriDesktop, openDirectoryWithTauri, pickDirectoriesWithTauri } from "@/lib/runtime";
+import { getApiBaseUrl, getApiToken, invokeTauriCommandOrThrow, isTauriDesktop, openDirectoryWithTauri, pickDirectoriesWithTauri } from "@/lib/runtime";
 import {
   findDropZoneForPosition,
   isTauriDragDropPayload,
@@ -21,7 +21,7 @@ import {
   isTauriDragOverPayload,
   listenToTauriDragDrop,
 } from "@/lib/tauri-drag-drop";
-import { localizeUserFacingError } from "@/lib/user-facing-copy";
+import { localizeNativeCommandError, localizeUserFacingError } from "@/lib/user-facing-copy";
 import { cn } from "@/lib/utils";
 import type {
   ApplyIconResult,
@@ -678,7 +678,11 @@ export default function IconWorkbenchV2() {
     try {
       const folder = session.folders.find(f => f.folder_id === folderId);
       if (!folder) return;
-      await invokeTauriCommand("apply_folder_icon", { folderPath: folder.folder_path, imagePath: version.image_path });
+      await invokeTauriCommandOrThrow<void>(
+        "apply_folder_icon",
+        { folderPath: folder.folder_path, imagePath: version.image_path },
+        t("iconWorkbench.errors.apply"),
+      );
       try {
         const nextSession = await iconApi.selectVersion(session.session_id, folderId, version.version_id);
         applySession(nextSession);
@@ -726,7 +730,11 @@ export default function IconWorkbenchV2() {
     setActionState("restoring_icon");
     setError(null);
     try {
-      await invokeTauriCommand("restore_last_folder_icon", { folderPath: folder.folder_path });
+      await invokeTauriCommandOrThrow<void>(
+        "restore_last_folder_icon",
+        { folderPath: folder.folder_path },
+        t("iconWorkbench.errors.restore"),
+      );
       const nextSession = await reportClientAction("restore_icons", [{ folder_id: folder.folder_id, status: "restored", message: t("iconWorkbench.notices.folderRestored", { folderName: folder.folder_name }) }]);
       if (nextSession) {
         applySession(nextSession);
@@ -756,12 +764,26 @@ export default function IconWorkbenchV2() {
     setBatchApplyLoading(true);
     try {
       const prep = await iconApi.prepareApplyReady(session.session_id, allFolderIds);
-      const rawResults = await invokeTauriCommand<ApplyIconResult[]>("apply_ready_icons", { tasks: prep.tasks });
+      const rawResults = await invokeTauriCommandOrThrow<ApplyIconResult[]>(
+        "apply_ready_icons",
+        { tasks: prep.tasks },
+        t("iconWorkbench.errors.batchApply"),
+      );
       const taskByFolderId = new Map(prep.tasks.map((task) => [task.folder_id, task] as const));
-      const results = (rawResults ?? []).map((result) => {
+      const results = rawResults.map((result) => {
         const task = result.folder_id ? taskByFolderId.get(result.folder_id) : null;
         return {
           ...result,
+          message: result.error_code
+            ? localizeNativeCommandError(
+              result.error_code,
+              result.error_params ?? {},
+              t("iconWorkbench.errors.apply"),
+              t,
+            )
+            : t("iconWorkbench.notices.versionApplied", {
+              folderName: result.folder_name || task?.folder_name || "",
+            }),
           version_id: result.version_id ?? task?.version_id ?? null,
         };
       });
@@ -799,6 +821,14 @@ export default function IconWorkbenchV2() {
   }, [apiToken, applySession, baseUrl, closeEventStream, handleWorkbenchEvent, iconApi, session?.session_id, t]);
 
   const shouldShowNotice = Boolean(notice?.message);
+
+  const handleOpenFolder = useCallback(async (path: string) => {
+    try {
+      await openDirectoryWithTauri(path, t("diagnostics.nativeCommands.shellOpenFailed"));
+    } catch (err) {
+      setError(describeWorkbenchError(err, "diagnostics.nativeCommands.shellOpenFailed", t));
+    }
+  }, [t]);
   
   const statusRail = (error || shouldShowNotice || generationConfigBlockedReason || (streamStatus !== "connected" && session)) ? (
     <div className="flex flex-col">
@@ -833,7 +863,7 @@ export default function IconWorkbenchV2() {
           </p>
           {desktopReady && notice?.actionPath ? (
             <button
-              onClick={() => openDirectoryWithTauri(notice.actionPath || "")}
+              onClick={() => void handleOpenFolder(notice.actionPath || "")}
               className="flex h-5 shrink-0 items-center gap-1 rounded bg-primary/10 px-2 text-[11px] font-black uppercase text-primary hover:bg-primary/20"
             >
               <FolderOpen className="h-3 w-3" />
@@ -961,7 +991,7 @@ export default function IconWorkbenchV2() {
       <IconWorkbenchHistoryDrawer open={historyOpen} items={historyItems} loading={historyLoading} error={historyError} activeSessionId={session?.session_id ?? null} openingSessionId={openingHistorySessionId} deletingSessionId={deletingHistorySessionId} onClose={() => setHistoryOpen(false)} onReload={() => void reloadHistoryItems()} onOpenSession={(sessionId) => void handleOpenHistorySession(sessionId)} onDeleteSession={setPendingDeleteHistorySessionId} />
       
       {previewVersion && (
-        <IconWorkbenchPreviewModal src={buildImageSrc(previewVersion, baseUrl, apiToken)} title={`v${previewVersion.version_number}`} subtitle={selectedTemplateDisplayName || t("iconWorkbench.preview.version")} localImagePath={previewVersion.image_path} folderName={previewFolder?.folder_name || t("iconWorkbench.preview.defaultFolderName")} folderPath={previewFolder?.folder_path || ""} onOpenFolder={openDirectoryWithTauri} onClose={() => setPreviewVersion(null)} onApply={() => previewFolder && handleApplyVersion(previewFolder.folder_id, previewVersion)} onRegenerate={() => previewFolder && runGenerateFlow([previewFolder.folder_id])} regenerateDisabled={!!generationConfigBlockedReason || isBusy || !previewFolder} isApplying={isApplyingId === previewVersion.version_id} imageModelName={workbenchConfig?.image_model.model || t("iconWorkbench.common.defaultModel")} isApplied={previewFolder?.applied_version_id === previewVersion.version_id} isCurrentVersion={previewFolder?.current_version_id === previewVersion.version_id} />
+        <IconWorkbenchPreviewModal src={buildImageSrc(previewVersion, baseUrl, apiToken)} title={`v${previewVersion.version_number}`} subtitle={selectedTemplateDisplayName || t("iconWorkbench.preview.version")} localImagePath={previewVersion.image_path} folderName={previewFolder?.folder_name || t("iconWorkbench.preview.defaultFolderName")} folderPath={previewFolder?.folder_path || ""} onOpenFolder={handleOpenFolder} onClose={() => setPreviewVersion(null)} onApply={() => previewFolder && handleApplyVersion(previewFolder.folder_id, previewVersion)} onRegenerate={() => previewFolder && runGenerateFlow([previewFolder.folder_id])} regenerateDisabled={!!generationConfigBlockedReason || isBusy || !previewFolder} isApplying={isApplyingId === previewVersion.version_id} imageModelName={workbenchConfig?.image_model.model || t("iconWorkbench.common.defaultModel")} isApplied={previewFolder?.applied_version_id === previewVersion.version_id} isCurrentVersion={previewFolder?.current_version_id === previewVersion.version_id} />
       )}
 
       <ConfirmDialog open={restoreConfirmOpen} title={t("iconWorkbench.confirm.restoreTitle")} description={t("iconWorkbench.confirm.restoreDescription", { folderName: folderToRestore?.folder_name ?? "" })} loading={actionState === "restoring_icon"} onClose={() => setRestoreConfirmOpen(false)} onConfirm={async () => { if (folderToRestore) await handleRestoreIcon(folderToRestore); setRestoreConfirmOpen(false); }} />

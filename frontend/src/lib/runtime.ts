@@ -1,4 +1,5 @@
 import type { RuntimeConfig } from "@/types/session";
+import { createUserFacingTauriCommandError } from "@/lib/user-facing-copy";
 
 declare global {
   interface Window {
@@ -135,6 +136,23 @@ export async function invokeTauriCommand<T>(
   }
 }
 
+export async function invokeTauriCommandOrThrow<T>(
+  command: string,
+  args: Record<string, unknown> | undefined,
+  fallbackMessage: string,
+): Promise<T> {
+  if (typeof window === "undefined") {
+    throw createUserFacingTauriCommandError(null, fallbackMessage);
+  }
+  try {
+    const { invoke } = await import("@tauri-apps/api/core");
+    return await invoke<T>(command, args);
+  } catch (error) {
+    console.warn(`Tauri command failed: ${command}`, error);
+    throw createUserFacingTauriCommandError(error, fallbackMessage);
+  }
+}
+
 export async function pickDirectoryWithTauri(): Promise<string | null> {
   return invokeTauriCommand<string | null>("pick_directory");
 }
@@ -203,16 +221,15 @@ export async function listDirectoryEntriesResultWithTauri(path: string): Promise
   return result;
 }
 
-export async function openDirectoryWithTauri(path: string): Promise<void> {
-  await invokeTauriCommand<void>("open_directory", { path });
+export async function openDirectoryWithTauri(path: string, fallbackMessage: string): Promise<void> {
+  await invokeTauriCommandOrThrow<void>("open_directory", { path }, fallbackMessage);
 }
 
-export async function saveFileAsTauri(sourcePath: string, filename: string): Promise<boolean> {
-  const result = await invokeTauriCommand<boolean>("save_file_as", { sourcePath, filename });
-  return result ?? false;
+export async function saveFileAsTauri(sourcePath: string, filename: string, fallbackMessage: string): Promise<boolean> {
+  return invokeTauriCommandOrThrow<boolean>("save_file_as", { sourcePath, filename }, fallbackMessage);
 }
 
-export async function openUrlWithTauri(url: string): Promise<void> {
-  await invokeTauriCommand<void>("open_url", { url });
+export async function openUrlWithTauri(url: string, fallbackMessage: string): Promise<void> {
+  await invokeTauriCommandOrThrow<void>("open_url", { url }, fallbackMessage);
 }
 

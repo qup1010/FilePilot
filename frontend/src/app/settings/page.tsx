@@ -51,9 +51,9 @@ import { SystemTab, type UpdateCheckResult } from "@/app/settings/system-tab";
 import { TextTab } from "@/app/settings/text-tab";
 import { createApiClient } from "@/lib/api";
 import { notifyAppContextChange } from "@/lib/app-context-store";
-import { getApiBaseUrl, getApiToken, invokeTauriCommand, isTauriDesktop, pickDirectoryWithTauri, openUrlWithTauri } from "@/lib/runtime";
+import { getApiBaseUrl, getApiToken, invokeTauriCommandOrThrow, isTauriDesktop, pickDirectoryWithTauri, openUrlWithTauri } from "@/lib/runtime";
 import { cn } from "@/lib/utils";
-import { localizeUserFacingError } from "@/lib/user-facing-copy";
+import { getUserFacingErrorCode, localizeUserFacingError } from "@/lib/user-facing-copy";
 import { useUiLocale } from "@/i18n/locale-provider";
 import { normalizeSavedUiLanguage } from "@/i18n/locales";
 import { useTranslation } from "react-i18next";
@@ -209,9 +209,11 @@ export default function SettingsPage() {
   const handleOpenLink = useCallback((url: string, e: React.MouseEvent) => {
     if (isTauriDesktop()) {
       e.preventDefault();
-      void openUrlWithTauri(url);
+      void openUrlWithTauri(url, t("settingsPage.errors.openLink")).catch((err) => {
+        setError(localizeUserFacingError(err, t("settingsPage.errors.openLink")));
+      });
     }
-  }, []);
+  }, [t]);
 
   const categories = useMemo(
     () => [
@@ -778,24 +780,21 @@ export default function SettingsPage() {
           return;
         }
         const runtimeConfig = await resolveBgRemovalRuntimeConfig();
-        const tauriResult = await invokeTauriCommand<{ status: string; message: string }>("test_bg_removal_connection", {
-          config: runtimeConfig,
-        });
+        const tauriResult = await invokeTauriCommandOrThrow<{ status: string; message_code: string }>(
+          "test_bg_removal_connection",
+          { config: runtimeConfig },
+          t("diagnostics.settingsTests.errors.bgRemovalFailed"),
+        );
         setTestResults((current) => ({
           ...current,
-          bg_removal: tauriResult
-            ? {
-              status: tauriResult.status === "ok" ? "ok" : "error",
-              family: "bg_removal",
-              code: tauriResult.status === "ok" ? "ok" : "unknown",
-              message: tauriResult.message,
-            }
-            : {
-              status: "error",
-              family: "bg_removal",
-              code: "desktop_unavailable",
-              message: t("diagnostics.settingsTests.errors.desktopUnavailable"),
-            },
+          bg_removal: {
+            status: tauriResult.status === "ok" && tauriResult.message_code === "BG_REMOVAL_CONNECTION_OK" ? "ok" : "error",
+            family: "bg_removal",
+            code: tauriResult.message_code === "BG_REMOVAL_CONNECTION_OK" ? "ok" : "unknown",
+            message: tauriResult.message_code === "BG_REMOVAL_CONNECTION_OK"
+              ? t("diagnostics.settingsTests.success.bg_removal")
+              : t("diagnostics.settingsTests.errors.bgRemovalFailed"),
+          },
         }));
         return;
       }
@@ -847,7 +846,7 @@ export default function SettingsPage() {
         [family]: {
           status: "error",
           family,
-          code: "request_failed",
+          code: getUserFacingErrorCode(err) || "request_failed",
           message,
         },
       }));

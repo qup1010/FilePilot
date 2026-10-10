@@ -187,6 +187,9 @@ class IconWorkbenchClientActionResultPayload(BaseModel):
     version_id: str | None = None
     status: str
     message: str = ""
+    error_code: str | None = None
+    error_params: dict[str, Any] | None = None
+    detail: str | None = None
 
 
 class IconWorkbenchClientActionReportPayload(BaseModel):

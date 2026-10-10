@@ -81,7 +81,7 @@ export function IconWorkbenchPreviewModal({
 
       // 如果在 Tauri 环境中且有本地路径，优先使用原生全权限保存逻辑，绕过浏览器 CORS 限制
       if (isTauriDesktop() && localImagePath) {
-        await saveFileAsTauri(localImagePath, filename);
+        await saveFileAsTauri(localImagePath, filename, t("iconWorkbench.preview.downloadError"));
         return;
       }
 

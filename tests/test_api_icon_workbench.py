@@ -416,7 +416,20 @@ class ApiIconWorkbenchTests(unittest.TestCase):
                         "version_id": "version-1",
                         "status": "applied",
                         "message": "已应用",
-                    }
+                        "error_code": None,
+                        "error_params": None,
+                        "detail": None,
+                    },
+                    {
+                        "folder_id": "folder-3",
+                        "folder_name": "Gamma",
+                        "folder_path": "D:/Icons/Gamma",
+                        "status": "failed",
+                        "message": "Could not access the folder.",
+                        "error_code": "TAURI_PERMISSION_DENIED",
+                        "error_params": {"path": "D:/Icons/Gamma"},
+                        "detail": "Access is denied.",
+                    },
                 ],
                 "skipped_items": [
                     {
@@ -433,6 +446,8 @@ class ApiIconWorkbenchTests(unittest.TestCase):
         self.assertEqual(response.json()["session"]["last_client_action"]["summary"]["success_count"], 1)
         self.assertEqual(self.fake_service.last_report_payload["action_type"], "apply_icons")
         self.assertEqual(self.fake_service.last_report_payload["results"][0]["version_id"], "version-1")
+        self.assertIsNone(self.fake_service.last_report_payload["results"][0]["error_code"])
+        self.assertEqual(self.fake_service.last_report_payload["results"][1]["error_code"], "TAURI_PERMISSION_DENIED")
         self.assertEqual(self.fake_service.last_report_payload["skipped_items"][0]["status"], "skipped")
 
     def test_image_route_streams_png(self):

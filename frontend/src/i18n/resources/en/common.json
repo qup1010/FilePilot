@@ -93,6 +93,19 @@
       "requestRejected": "The request could not be completed. Check the input and try again.",
       "operationFailed": "The operation failed. Try again shortly."
     },
+    "nativeCommands": {
+      "pathNotFound": "Could not find {{path}}.",
+      "permissionDenied": "FilePilot could not access {{path}}. Check folder and file permissions, then try again.",
+      "iconBackupNotFound": "No previous folder icon state is available to restore for {{path}}.",
+      "unsupportedPlatform": "Folder icon operations are only available on Windows.",
+      "shellOpenFailed": "Could not open the selected folder or link.",
+      "backgroundRemovalFailed": "Background removal could not be completed. Check the model settings and service connection.",
+      "iconOperationFailed": "Could not update this folder icon. Check the folder and image paths and permissions, then try again.",
+      "fileSaveFailed": "Could not save the image. Check the destination and its permissions, then try again.",
+      "notificationFailed": "Could not show the desktop notification.",
+      "invalidArgument": "The desktop command received invalid input.",
+      "operationFailed": "The desktop operation could not be completed. Try again."
+    },
     "settingsTests": {
       "success": {
         "text": "Text model connection test passed.",
@@ -119,7 +132,8 @@
         "invalidSecretAction": "This API key update action is not supported.",
         "unknown": "The connection test failed. Check the configuration and network.",
         "requestFailed": "The connection test request could not be completed. Try again later.",
-        "desktopUnavailable": "The desktop app is unavailable, so the background removal connection cannot be tested."
+        "desktopUnavailable": "The desktop app is unavailable, so the background removal connection cannot be tested.",
+        "bgRemovalFailed": "Could not complete the background removal connection test. Check the service settings and try again."
       },
       "issues": {
         "networkBlocked": "The request appears to have been blocked by your local network. Check the Windows firewall, security software, proxy, VPN, and split-tunnel rules before changing the model configuration.",
@@ -1417,6 +1431,9 @@
     "deleteErrorFallback": "Could not delete the history record. Try again."
   },
   "settingsPage": {
+    "errors": {
+      "openLink": "Could not open this link."
+    },
     "categoriesHeading": "Settings categories",
     "categories": {
       "text": { "label": "Text model settings", "description": "Configure text analysis and image understanding models" },

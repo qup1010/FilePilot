@@ -174,6 +174,9 @@ export interface IconWorkbenchClientActionResult {
   version_id?: string | null;
   status: string;
   message: string;
+  error_code?: string | null;
+  error_params?: Record<string, string | number | boolean | null> | null;
+  detail?: string | null;
 }
 
 export interface IconWorkbenchClientActionReportPayload {
@@ -189,6 +192,9 @@ export interface ApplyIconResult {
   version_id?: string | null;
   status: "applied" | "restored" | "failed" | string;
   message: string;
+  error_code?: string | null;
+  error_params?: Record<string, string | number | boolean | null> | null;
+  detail?: string | null;
 }
 
 export interface BackgroundRemovalBatchProgress {

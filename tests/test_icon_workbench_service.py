@@ -480,6 +480,9 @@ class IconWorkbenchServiceTests(unittest.TestCase):
                         "folder_path": "D:/Icons/Beta",
                         "status": "failed",
                         "message": "权限不足",
+                        "error_code": "TAURI_PERMISSION_DENIED",
+                        "error_params": {"path": "D:/Icons/Beta"},
+                        "detail": "Access is denied.",
                     },
                 ],
                 "skipped_items": [
@@ -498,6 +501,8 @@ class IconWorkbenchServiceTests(unittest.TestCase):
         self.assertEqual(updated["last_client_action"]["summary"]["failed_count"], 1)
         self.assertEqual(updated["last_client_action"]["summary"]["skipped_count"], 1)
         self.assertEqual(updated["last_client_action"]["results"][0]["status"], "applied")
+        self.assertEqual(updated["last_client_action"]["results"][1]["error_code"], "TAURI_PERMISSION_DENIED")
+        self.assertEqual(updated["last_client_action"]["results"][1]["error_params"]["path"], "D:/Icons/Beta")
         self.assertEqual(updated["last_client_action"]["results"][2]["status"], "skipped")
 
     def test_report_client_action_persists_applied_version_and_restore_clears_it(self):
