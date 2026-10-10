@@ -23,6 +23,7 @@ import { cn, formatDisplayDate, } from "@/lib/utils";
 import { getPathBasename } from "@/lib/path-normalization";
 import { localizeSessionLastError, localizeUserFacingError } from "@/lib/user-facing-copy";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useTranslation } from "react-i18next";
 
 import type { JournalSummary, HistoryItem, SessionSnapshot, RollbackPrecheckSummary } from "@/types/session";
 import { FileHistorySearch } from "@/components/file-history-search";
@@ -36,7 +37,6 @@ import {
   getHistoryEntrySummary,
   getHistoryEntryHref,
   getHistoryEntryReadonlyHref,
-  getHistoryDeletePrompt,
   isHistoryCompletedEntry,
   isHistoryPartialFailureEntry,
   isHistoryRollbackPartialFailureEntry,
@@ -72,70 +72,36 @@ function formatMovePath(path: string | null, baseDir: string) {
 
 function getSessionRecoveryCopy(entry: HistoryItem | null, detail: SessionSnapshot | null) {
   const status = String(detail?.stage || entry?.status || "").toLowerCase();
+  const secondaryLabelKey = "history.recovery.readOnly";
   if (status === "draft" || status === "idle") {
-    return {
-      title: "任务还没开始扫描",
-      description: "可以回到工作区继续读取目录并生成第一版整理方案。",
-      primaryLabel: "继续并扫描",
-      secondaryLabel: "只读查看",
-      icon: FileClock,
-    };
+    return { titleKey: "history.recovery.draftTitle", descriptionKey: "history.recovery.draftDescription", primaryLabelKey: "history.recovery.continueAndScan", secondaryLabelKey, icon: FileClock };
   }
   if (status === "scanning") {
-    return {
-      title: "任务正在读取目录",
-      description: "打开工作区可查看当前扫描进度；如果后台已中断，工作区会给出恢复动作。",
-      primaryLabel: "查看进度",
-      secondaryLabel: "只读查看",
-      icon: Compass,
-    };
+    return { titleKey: "history.recovery.scanningTitle", descriptionKey: "history.recovery.scanningDescription", primaryLabelKey: "history.recovery.viewProgress", secondaryLabelKey, icon: Compass };
   }
   if (status === "planning") {
-    return {
-      title: "方案仍在整理或可继续调整",
-      description: "回到工作区后可以继续生成、修改方案，或在方案就绪后进行移动前检查。",
-      primaryLabel: "继续处理任务",
-      secondaryLabel: "只读查看",
-      icon: Sparkles,
-    };
+    return { titleKey: "history.recovery.planningTitle", descriptionKey: "history.recovery.planningDescription", primaryLabelKey: "history.recovery.continue", secondaryLabelKey, icon: Sparkles };
   }
   if (status === "ready_for_precheck") {
-    return {
-      title: "方案已准备好检查",
-      description: "建议先做移动前安全检查，确认无冲突后再执行整理。",
-      primaryLabel: "去做安全检查",
-      secondaryLabel: "只读查看",
-      icon: ShieldCheck,
-    };
+    return { titleKey: "history.recovery.precheckTitle", descriptionKey: "history.recovery.precheckDescription", primaryLabelKey: "history.recovery.runPrecheck", secondaryLabelKey, icon: ShieldCheck };
   }
   if (status === "ready_to_execute") {
-    return {
-      title: "安全检查已通过",
-      description: "可以回到工作区复核检查结果，并输入确认后执行移动。",
-      primaryLabel: "继续执行前确认",
-      secondaryLabel: "只读查看",
-      icon: CheckCircle2,
-    };
+    return { titleKey: "history.recovery.readyToExecuteTitle", descriptionKey: "history.recovery.readyToExecuteDescription", primaryLabelKey: "history.recovery.executeConfirmation", secondaryLabelKey, icon: CheckCircle2 };
   }
   if (status === "interrupted" || status === "stale") {
     return {
-      title: status === "stale" ? "目录内容已变化" : "任务曾经中断",
-      description: "建议回到工作区重新扫描，先确认目录状态再继续。",
-      primaryLabel: "恢复任务",
-      secondaryLabel: "只读查看",
+      titleKey: status === "stale" ? "history.recovery.staleTitle" : "history.recovery.interruptedTitle",
+      descriptionKey: "history.recovery.interruptedDescription",
+      primaryLabelKey: "history.recovery.resume",
+      secondaryLabelKey,
       icon: AlertCircle,
     };
   }
-  return {
-    title: "任务尚未完成",
-    description: "可以继续之前的工作区状态，或只读查看这条任务记录。",
-    primaryLabel: "继续处理任务",
-    secondaryLabel: "只读查看",
-    icon: ArrowRight,
-  };
+  return { titleKey: "history.recovery.unfinishedTitle", descriptionKey: "history.recovery.unfinishedDescription", primaryLabelKey: "history.recovery.continue", secondaryLabelKey, icon: ArrowRight };
 }
 
 export default function HistoryPage() {
+  const { t } = useTranslation("common");
   const HISTORY_CONTEXT_KEY = "history_header_context";
   const searchParams = useSearchParams();
   const requestedEntryId = searchParams.get("entry_id");
@@ -186,7 +152,7 @@ export default function HistoryPage() {
     } catch (err) {
       console.error(err);
       setJournal(null);
-      setDetailError(localizeUserFacingError(err, "读取记录详情失败，请稍后再试。"));
+      setDetailError(localizeUserFacingError(err, t("history.readDetailErrorFallback")));
     } finally {
       setJournalLoading(false);
     }
@@ -202,7 +168,7 @@ export default function HistoryPage() {
     } catch (err) {
       console.error(err);
       setSessionDetail(null);
-      setDetailError(localizeUserFacingError(err, "读取记录详情失败，请稍后再试。"));
+      setDetailError(localizeUserFacingError(err, t("history.readDetailErrorFallback")));
     } finally {
       setJournalLoading(false);
     }
@@ -212,10 +178,19 @@ export default function HistoryPage() {
     ?? history.find((entry) => entry.execution_id === selectedSessionId)
     ?? null;
   const isSelectedSession = Boolean(selectedEntry && isHistorySessionEntry(selectedEntry));
+  const getLocalizedHistorySummary = (entry: HistoryItem | null) => {
+    if (!entry) return "—";
+    const status = String(entry.status || "").toLowerCase();
+    const key = isHistorySessionEntry(entry) ? `workspaceStage.${status}` : `historyStatus.${status}`;
+    return t(key, { defaultValue: getHistoryEntrySummary(entry) });
+  };
   const pendingDeleteEntry = pendingDeleteId
     ? history.find((entry) => entry.execution_id === pendingDeleteId) ?? null
     : null;
-  const pendingDeletePrompt = getHistoryDeletePrompt(pendingDeleteEntry);
+  const pendingDeletePrompt = {
+    title: t(pendingDeleteEntry && isHistorySessionEntry(pendingDeleteEntry) ? "history.deleteTaskTitle" : "history.deleteHistoryTitle"),
+    description: t(pendingDeleteEntry && isHistorySessionEntry(pendingDeleteEntry) ? "history.deleteTaskDescription" : "history.deleteHistoryDescription"),
+  };
 
   useEffect(() => {
     if (requestedEntryHandledRef.current !== requestedEntryId) {
@@ -274,7 +249,7 @@ export default function HistoryPage() {
     if (!selectedEntry) {
       window.localStorage.setItem(
         HISTORY_CONTEXT_KEY,
-        JSON.stringify({ detail: "历史记录" }),
+        JSON.stringify({ detail: t("history.title") }),
       );
       notifyAppContextChange();
       return;
@@ -282,11 +257,11 @@ export default function HistoryPage() {
     window.localStorage.setItem(
       HISTORY_CONTEXT_KEY,
       JSON.stringify({
-        detail: getHistoryEntrySummary(selectedEntry),
+        detail: getLocalizedHistorySummary(selectedEntry),
       }),
     );
     notifyAppContextChange();
-  }, [HISTORY_CONTEXT_KEY, selectedEntry]);
+  }, [HISTORY_CONTEXT_KEY, selectedEntry, t]);
 
   const handleRollback = async (isConfirm: boolean = false) => {
     if (!journal || !selectedSessionId) return;
@@ -311,7 +286,7 @@ export default function HistoryPage() {
         void loadJournal(selectedSessionId, { preserveRollbackResult: true });
       }
     } catch (err) {
-      setError(localizeUserFacingError(err, "回退过程中发生错误。"));
+      setError(localizeUserFacingError(err, t("history.rollbackErrorFallback")));
     } finally {
       setActionLoading(false);
     }
@@ -377,11 +352,11 @@ export default function HistoryPage() {
   const partialFailureCount = history.filter((item) => isHistoryPartialFailureEntry(item)).length;
   const rollbackCount = history.filter((item) => isHistoryRolledBackEntry(item)).length;
   const historyStats = [
-    { id: "all", label: "全部", value: history.length, icon: HistoryIcon, color: "text-on-surface" },
-    { id: "active", label: "进行中", value: activeCount, icon: Activity, color: "text-primary" },
-    { id: "completed", label: "已完成", value: completedCount, icon: CheckCircle2, color: "text-success" },
-    { id: "partial_failure", label: "部分失败", value: partialFailureCount, icon: AlertCircle, color: "text-warning" },
-    { id: "rolled_back", label: "已回退", value: rollbackCount, icon: Undo2, color: "text-ui-muted" },
+    { id: "all", label: t("history.filterAll"), value: history.length, icon: HistoryIcon, color: "text-on-surface" },
+    { id: "active", label: t("history.filterActive"), value: activeCount, icon: Activity, color: "text-primary" },
+    { id: "completed", label: t("history.filterCompleted"), value: completedCount, icon: CheckCircle2, color: "text-success" },
+    { id: "partial_failure", label: t("history.filterPartialFailure"), value: partialFailureCount, icon: AlertCircle, color: "text-warning" },
+    { id: "rolled_back", label: t("history.filterRolledBack"), value: rollbackCount, icon: Undo2, color: "text-ui-muted" },
   ] as const;
 
   const sessionRecoveryCopy = getSessionRecoveryCopy(selectedEntry, sessionDetail);
@@ -398,18 +373,18 @@ export default function HistoryPage() {
             </div>
             <div className="min-w-0 space-y-1">
               <div className="flex flex-wrap items-center gap-2">
-                <h3 className="text-[15px] font-bold tracking-tight text-on-surface">{sessionRecoveryCopy.title}</h3>
+                <h3 className="text-[15px] font-bold tracking-tight text-on-surface">{t(sessionRecoveryCopy.titleKey)}</h3>
                 <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary">
-                  进行中
+                  {t("history.recovery.inProgress")}
                 </span>
               </div>
               <p className="text-[13px] font-medium leading-relaxed text-on-surface-variant/80">
-                {sessionRecoveryCopy.description}
+                {t(sessionRecoveryCopy.descriptionKey)}
               </p>
               <div className="flex items-center gap-2 pt-0.5 text-[11px] font-medium text-on-surface-variant/60">
-                <span>已规划 {planStats?.move_count ?? 0} 个整理项</span>
+                <span>{t("history.recovery.plannedItems", { count: planStats?.move_count ?? 0 })}</span>
                 <span className="h-1 w-1 rounded-full bg-on-surface-variant/30" />
-                <span>最后更新于 {formatDisplayDate(sessionDetail?.updated_at || "")}</span>
+                <span>{t("history.recovery.lastUpdated", { date: formatDisplayDate(sessionDetail?.updated_at || "") })}</span>
               </div>
             </div>
           </div>
@@ -420,14 +395,14 @@ export default function HistoryPage() {
               onClick={() => handleOpenSession(true)}
               className="h-9 rounded-lg px-3.5 text-[12px] font-bold border border-on-surface/10 bg-surface shadow-sm hover:bg-surface-container-low"
             >
-              {sessionRecoveryCopy.secondaryLabel}
+              {t(sessionRecoveryCopy.secondaryLabelKey)}
             </Button>
             <Button
               variant="primary"
               onClick={() => handleOpenSession(false)}
               className="h-9 rounded-lg px-4 text-[12px] font-bold shadow-sm"
             >
-              {sessionRecoveryCopy.primaryLabel}
+              {t(sessionRecoveryCopy.primaryLabelKey)}
               <ArrowRight className="h-3.5 w-3.5" />
             </Button>
           </div>
@@ -438,29 +413,29 @@ export default function HistoryPage() {
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <div className="rounded-xl border border-on-surface/10 bg-surface-container-lowest p-3.5 shadow-sm">
           <div className="flex items-center justify-between text-on-surface-variant/60">
-            <span className="text-[11px] font-bold">待移动文件</span>
+            <span className="text-[11px] font-bold">{t("history.moveFiles")}</span>
             <FolderInput className="h-4 w-4 text-primary/70" />
           </div>
           <p className="mt-2 text-[22px] font-bold tabular-nums text-on-surface">
             {planStats?.move_count ?? 0}
           </p>
-          <p className="mt-0.5 text-[11px] font-medium text-on-surface-variant/50">已识别并规划落点</p>
+          <p className="mt-0.5 text-[11px] font-medium text-on-surface-variant/50">{t("history.plannedDestination")}</p>
         </div>
 
         <div className="rounded-xl border border-on-surface/10 bg-surface-container-lowest p-3.5 shadow-sm">
           <div className="flex items-center justify-between text-on-surface-variant/60">
-            <span className="text-[11px] font-bold">目标归档目录</span>
+            <span className="text-[11px] font-bold">{t("history.archiveFolders")}</span>
             <FolderOpen className="h-4 w-4 text-primary/70" />
           </div>
           <p className="mt-2 text-[22px] font-bold tabular-nums text-on-surface">
             {planStats?.directory_count ?? 0}
           </p>
-          <p className="mt-0.5 text-[11px] font-medium text-on-surface-variant/50">涉及的目标文件夹</p>
+          <p className="mt-0.5 text-[11px] font-medium text-on-surface-variant/50">{t("history.destinationFolders")}</p>
         </div>
 
         <div className="rounded-xl border border-on-surface/10 bg-surface-container-lowest p-3.5 shadow-sm">
           <div className="flex items-center justify-between text-on-surface-variant/60">
-            <span className="text-[11px] font-bold">待确认复核</span>
+            <span className="text-[11px] font-bold">{t("history.reviewNeeded")}</span>
             <ShieldCheck className="h-4 w-4 text-primary/70" />
           </div>
           <p className={cn(
@@ -470,7 +445,7 @@ export default function HistoryPage() {
             {planStats?.unresolved_count ?? 0}
           </p>
           <p className="mt-0.5 text-[11px] font-medium text-on-surface-variant/50">
-            {(planStats?.unresolved_count ?? 0) > 0 ? "需人工确认分类" : "已全部明确分类"}
+            {(planStats?.unresolved_count ?? 0) > 0 ? t("history.needsManualCategorization") : t("history.categoriesClear")}
           </p>
         </div>
       </div>
@@ -478,7 +453,7 @@ export default function HistoryPage() {
       {/* 3. 方案概述说明 */}
       {sessionDetail?.summary && (
         <div className="rounded-xl border border-on-surface/8 bg-surface/50 p-4 shadow-sm">
-          <p className="text-[11px] font-bold text-on-surface-variant/60">整理方案概述</p>
+          <p className="text-[11px] font-bold text-on-surface-variant/60">{t("history.planSummary")}</p>
           <p className="mt-1 text-[13px] leading-relaxed text-on-surface/85">
             {sessionDetail.summary}
           </p>
@@ -487,7 +462,7 @@ export default function HistoryPage() {
 
       {sessionDetail?.last_error && (
         <ErrorAlert 
-          title="上次任务中断" 
+          title={t("history.lastTaskInterrupted")}
           message={localizeSessionLastError(sessionDetail.last_error)} 
         />
       )}
@@ -508,18 +483,18 @@ export default function HistoryPage() {
           <div className="flex-1">
             <h3 className="text-[13px] font-black text-on-surface">
               {rollbackResult.failureCount > 0
-                ? "回退部分完成"
+                ? t("history.rollbackPartial")
                 : rollbackResult.successCount !== null
-                  ? "回退完成"
-                  : "回退已执行"}
+                  ? t("history.rollbackComplete")
+                  : t("history.rollbackExecuted")}
             </h3>
             <p className="text-[12px] font-medium text-ui-muted opacity-70">
               {rollbackResult.successCount !== null
-                ? `成功恢复 ${rollbackResult.successCount} 项`
+                ? t("history.rollbackRecovered", { count: rollbackResult.successCount })
                 : rollbackResult.attemptedCount !== null
-                  ? `已尝试回退 ${rollbackResult.attemptedCount} 项，请在目录中确认结果`
-                  : "已执行回退，请在目录中确认结果"}
-              {rollbackResult.failureCount > 0 ? `，仍有 ${rollbackResult.failureCount} 项失败。` : "。"}
+                  ? t("history.rollbackAttempted", { count: rollbackResult.attemptedCount })
+                  : t("history.rollbackExecutedHelp")}
+              {rollbackResult.failureCount > 0 ? t("history.rollbackFailures", { count: rollbackResult.failureCount }) : ""}
             </p>
           </div>
         </motion.div>
@@ -528,47 +503,47 @@ export default function HistoryPage() {
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
         <div className="rounded-xl border border-on-surface/10 bg-surface-container-lowest p-3.5 shadow-sm">
           <div className="flex items-center justify-between text-on-surface-variant/60">
-            <span className="text-[11px] font-bold">已整理项</span>
+            <span className="text-[11px] font-bold">{t("history.organizedItems")}</span>
             <FolderInput className="h-4 w-4 text-primary/70" />
           </div>
           <p className="mt-2 text-[22px] font-bold tabular-nums text-on-surface">
             {journal?.item_count || 0}
           </p>
-          <p className="mt-0.5 text-[11px] font-medium text-on-surface-variant/50">实际执行文件数</p>
+          <p className="mt-0.5 text-[11px] font-medium text-on-surface-variant/50">{t("history.executedFiles")}</p>
         </div>
 
         <div className="rounded-xl border border-on-surface/10 bg-surface-container-lowest p-3.5 shadow-sm">
           <div className="flex items-center justify-between text-on-surface-variant/60">
-            <span className="text-[11px] font-bold">整理成功</span>
+            <span className="text-[11px] font-bold">{t("history.organizeSucceeded")}</span>
             <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
           </div>
           <p className="mt-2 text-[22px] font-bold tabular-nums text-emerald-600 dark:text-emerald-400">
             {journal?.success_count || 0}
           </p>
-          <p className="mt-0.5 text-[11px] font-medium text-on-surface-variant/50">已成功移动并归档</p>
+          <p className="mt-0.5 text-[11px] font-medium text-on-surface-variant/50">{t("history.movedArchived")}</p>
         </div>
 
         {Boolean(journal?.failure_count) ? (
           <div className="rounded-xl border border-error/20 bg-error/[0.03] p-3.5 shadow-sm">
             <div className="flex items-center justify-between text-error/80">
-              <span className="text-[11px] font-bold">整理失败</span>
+              <span className="text-[11px] font-bold">{t("history.organizeFailed")}</span>
               <AlertCircle className="h-4 w-4 text-error" />
             </div>
             <p className="mt-2 text-[22px] font-bold tabular-nums text-error">
               {journal?.failure_count}
             </p>
-            <p className="mt-0.5 text-[11px] font-medium text-error/60">发生冲突或权限问题</p>
+            <p className="mt-0.5 text-[11px] font-medium text-error/60">{t("history.conflictPermission")}</p>
           </div>
         ) : (
           <div className="rounded-xl border border-on-surface/10 bg-surface-container-lowest p-3.5 shadow-sm">
             <div className="flex items-center justify-between text-on-surface-variant/60">
-              <span className="text-[11px] font-bold">失败项</span>
+              <span className="text-[11px] font-bold">{t("history.failedItems")}</span>
               <ShieldCheck className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
             </div>
             <p className="mt-2 text-[22px] font-bold tabular-nums text-emerald-600 dark:text-emerald-400">
               0
             </p>
-            <p className="mt-0.5 text-[11px] font-medium text-on-surface-variant/50">全部顺利完成</p>
+            <p className="mt-0.5 text-[11px] font-medium text-on-surface-variant/50">{t("history.allComplete")}</p>
           </div>
         )}
       </div>
@@ -577,7 +552,7 @@ export default function HistoryPage() {
         <div className="flex items-center justify-between border-b border-on-surface/8 pb-3 px-1">
           <div className="flex items-center gap-2">
             <FileClock className="h-4 w-4 text-primary/70" />
-            <h3 className="text-[13px] font-bold uppercase tracking-[0.08em] text-on-surface/80">变更执行明细</h3>
+            <h3 className="text-[13px] font-bold uppercase tracking-[0.08em] text-on-surface/80">{t("history.changeDetails")}</h3>
           </div>
 
           {!rollbackResult && (journal?.status === "completed" || journal?.status === "partial_failure") && (
@@ -589,7 +564,7 @@ export default function HistoryPage() {
               className="h-8 rounded-lg px-3.5 text-[12px] font-bold"
             >
               <Undo2 className="h-3.5 w-3.5" />
-              回退执行
+              {t("history.rollbackExecution")}
             </Button>
           )}
         </div>
@@ -601,7 +576,7 @@ export default function HistoryPage() {
             <input
               value={detailQuery}
               onChange={(e) => setDetailQuery(e.target.value)}
-              placeholder="过滤明细文件名或路径..."
+              placeholder={t("history.detailSearchPlaceholder")}
               className="w-full rounded-[6px] border border-on-surface/10 bg-on-surface/[0.015] py-1.5 pl-9 pr-14 text-[12px] font-medium text-on-surface outline-none transition-all placeholder:text-ui-muted/50 focus:bg-surface focus:ring-2 focus:ring-primary/5"
             />
             {detailQuery && (
@@ -609,7 +584,7 @@ export default function HistoryPage() {
                 onClick={() => setDetailQuery("")}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] font-black text-primary hover:text-primary-dark transition-colors"
               >
-                清除
+                {t("history.clear")}
               </button>
             )}
           </div>
@@ -653,7 +628,7 @@ export default function HistoryPage() {
                       <div className="flex flex-col items-center shrink-0 text-ui-muted/30 px-2 min-w-[75px]">
                         <ArrowRight className="h-3 w-3 transition-transform group-hover:translate-x-0.5 group-hover:text-primary/40" />
                         {isRolledBack && (
-                          <span className="mt-0.5 text-[11px] font-black text-ui-muted/40 whitespace-nowrap scale-90 select-none">[已撤销复原]</span>
+                          <span className="mt-0.5 text-[11px] font-black text-ui-muted/40 whitespace-nowrap scale-90 select-none">{t("history.rolledBackTag")}</span>
                         )}
                       </div>
 
@@ -670,17 +645,17 @@ export default function HistoryPage() {
             ) : moveRows.length ? (
               <div className="flex flex-col items-center justify-center py-14 text-center opacity-30">
                 <Search className="h-7 w-7 mb-2 text-ui-muted" />
-                <p className="text-[12px] font-black text-ui-muted">未检索到匹配的明细</p>
+                <p className="text-[12px] font-black text-ui-muted">{t("history.noMatchingDetail")}</p>
               </div>
             ) : (
               <div className="flex flex-col items-center justify-center py-16 text-center opacity-30">
                 <HistoryIcon className="h-8 w-8 mb-4" />
-                <p className="text-[12px] font-bold">没有可显示的变更明细</p>
+                <p className="text-[12px] font-bold">{t("history.noChanges")}</p>
               </div>
             )}
             {filteredMoveRows.length > MOVE_ROWS_DISPLAY_LIMIT && (
               <div className="px-3 py-2.5 text-center text-[11px] font-bold text-ui-muted/60">
-                仅显示前 {MOVE_ROWS_DISPLAY_LIMIT} 条，共 {filteredMoveRows.length} 条，可用上方检索缩小范围。
+                {t("history.limitedRows", { limit: MOVE_ROWS_DISPLAY_LIMIT, count: filteredMoveRows.length })}
               </div>
             )}
           </div>
@@ -697,7 +672,7 @@ export default function HistoryPage() {
             <div className="space-y-4">
               <div className="space-y-1.5 px-1">
                 <h1 className="text-ui-h2 tracking-tight text-on-surface">
-                  整理历史记录
+                  {t("history.title")}
                 </h1>
               </div>
               
@@ -732,7 +707,7 @@ export default function HistoryPage() {
                 <input
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
-                  placeholder="搜索时间、路径或记录 ID..."
+                  placeholder={t("history.searchPlaceholder")}
                   className="w-full rounded-[6px] border border-on-surface/10 bg-on-surface/[0.02] py-2 pl-[2.25rem] pr-4 text-[13px] font-medium text-on-surface outline-none transition-all placeholder:text-ui-muted/50 focus:bg-surface focus:ring-2 focus:ring-primary/5"
                 />
               </div>
@@ -753,7 +728,7 @@ export default function HistoryPage() {
             {loading ? (
               <div className="flex h-full flex-col items-center justify-center gap-3 opacity-30">
                 <Activity className="h-6 w-6 animate-spin text-primary" />
-                <p className="text-[12px] font-bold">正在读取记录...</p>
+                <p className="text-[12px] font-bold">{t("history.loadingRecords")}</p>
               </div>
             ) : filteredHistory.length > 0 ? (
               <div className="relative w-full" style={{ height: `${historyListVirtualizer.getTotalSize()}px` }}>
@@ -766,8 +741,8 @@ export default function HistoryPage() {
                   const sessionLike = isHistorySessionEntry(entry);
                   const isRolledBack = isHistoryRolledBackEntry(entry);
                   const isPartialFailure = isHistoryPartialFailureEntry(entry) || isHistoryRollbackPartialFailureEntry(entry);
-                  const statusSummary = getHistoryEntrySummary(entry);
-                  const dirShortName = getPathBasename(entry.target_dir, entry.target_dir || "未指定目录");
+                  const statusSummary = getLocalizedHistorySummary(entry);
+                  const dirShortName = getPathBasename(entry.target_dir, entry.target_dir || t("history.unspecifiedFolder"));
 
                   return (
                     <div
@@ -856,7 +831,7 @@ export default function HistoryPage() {
             ) : (
               <div className="flex h-full flex-col items-center justify-center px-6 text-center opacity-40">
                 <HistoryIcon className="h-8 w-8 opacity-20" />
-                <h3 className="mt-4 text-[13px] font-bold">没有发现记录</h3>
+                <h3 className="mt-4 text-[13px] font-bold">{t("history.noRecords")}</h3>
               </div>
             )}
           </div>
@@ -874,7 +849,7 @@ export default function HistoryPage() {
                 className="flex h-full min-h-[24rem] flex-col items-center justify-center px-8 text-center"
               >
                 <AlertCircle className="h-10 w-10 text-error/50" />
-                <h3 className="mt-6 text-[15px] font-black text-on-surface">读取记录详情失败</h3>
+                <h3 className="mt-6 text-[15px] font-black text-on-surface">{t("history.detailLoadError")}</h3>
                 <p className="mt-2 max-w-xs text-[12px] font-medium leading-relaxed text-ui-muted/70">
                   {detailError}
                 </p>
@@ -884,7 +859,7 @@ export default function HistoryPage() {
                   disabled={journalLoading}
                   className="mt-5 h-8.5 rounded-lg px-5 text-[11px] font-black"
                 >
-                  重试
+                  {t("history.retry")}
                 </Button>
               </motion.div>
             ) : selectedSessionId && selectedEntry && (isSelectedSession ? sessionDetail : journal) ? (
@@ -903,12 +878,12 @@ export default function HistoryPage() {
                          "truncate text-[15px] font-bold tracking-tight text-on-surface",
                          selectedEntry && isHistoryRolledBackEntry(selectedEntry) && "text-on-surface-variant/70"
                        )}>
-                         {getPathBasename(selectedEntry.target_dir, selectedEntry.target_dir || "未指定目录")}
+                         {getPathBasename(selectedEntry.target_dir, selectedEntry.target_dir || t("history.unspecifiedFolder"))}
                        </h2>
                        <div className="h-4 w-px bg-on-surface/10 shrink-0" />
                        <div className="flex min-w-0 items-center gap-2">
                          <div className="shrink-0 text-[12px] font-semibold text-on-surface-variant/65">
-                           {isSelectedSession ? "任务记录" : "执行结果"}
+                           {isSelectedSession ? t("history.taskRecord") : t("history.executionResult")}
                          </div>
                          <div className="hidden min-w-0 items-center gap-1.5 truncate text-[11px] font-medium text-on-surface-variant/60 xl:flex">
                            <FolderOpen className="h-3 w-3 shrink-0 opacity-40" />
@@ -938,7 +913,7 @@ export default function HistoryPage() {
                               "h-1 w-1 rounded-full",
                               isSelectedSession ? "bg-primary" : entryIsRolledBack ? "bg-on-surface/30" : entryIsPartialFailure ? "bg-warning" : "bg-success",
                             )} />
-                            {selectedEntry ? getHistoryEntrySummary(selectedEntry) : "—"}
+                            {selectedEntry ? getLocalizedHistorySummary(selectedEntry) : "—"}
                           </div>
                         );
                       })()}
@@ -946,7 +921,7 @@ export default function HistoryPage() {
                       {!isSelectedSession && (journal?.status === "completed" || journal?.status === "partial_failure") && (
                         <div className="flex items-center gap-1.5 rounded-[6px] border border-warning/30 bg-warning/5 px-2 py-1 text-[12px] font-bold text-warning">
                           <ShieldCheck className="h-3 w-3" />
-                          <span className="hidden lg:inline">支持回退</span>
+                          <span className="hidden lg:inline">{t("history.rollbackSupported")}</span>
                         </div>
                       )}
                     </div>
@@ -956,13 +931,13 @@ export default function HistoryPage() {
                 <div className="flex-1 overflow-y-auto bg-surface relative px-4 py-4 scrollbar-thin lg:px-6 lg:py-6">
                   {error && (
                     <div className="mb-6">
-                      <ErrorAlert title="操作执行失败" message={error} onClose={() => setError(null)} />
+                      <ErrorAlert title={t("history.operationFailed")} message={error} onClose={() => setError(null)} />
                     </div>
                   )}
                   {journalLoading ? (
                     <div className="flex h-full min-h-[16rem] flex-col items-center justify-center gap-3 opacity-30">
                       <Activity className="h-6 w-6 animate-spin text-primary" />
-                      <p className="text-[12px] font-bold">正在读取详情...</p>
+                      <p className="text-[12px] font-bold">{t("history.loadingDetail")}</p>
                     </div>
                   ) : isSelectedSession ? (
                     sessionDetailInterior
@@ -974,9 +949,9 @@ export default function HistoryPage() {
             ) : (
               <div className="flex h-full min-h-[24rem] flex-col items-center justify-center px-8 text-center opacity-30">
                 <HistoryIcon className="h-10 w-10 opacity-20" />
-                <h3 className="mt-6 text-[15px] font-black text-on-surface">选择记录查看详情</h3>
+                <h3 className="mt-6 text-[15px] font-black text-on-surface">{t("history.selectRecordTitle")}</h3>
                 <p className="mt-2 max-w-xs text-[12px] font-medium leading-relaxed">
-                  在左侧列表中点击任意任务，即可查看其执行报告、变更明细或继续处理。
+                  {t("history.selectRecordDescription")}
                 </p>
               </div>
             )}
@@ -998,8 +973,8 @@ export default function HistoryPage() {
         open={Boolean(pendingDeleteId)}
         title={pendingDeletePrompt.title}
         description={pendingDeletePrompt.description}
-        confirmLabel="确认删除"
-        cancelLabel="取消"
+        confirmLabel={t("history.confirmDelete")}
+        cancelLabel={t("history.cancel")}
         tone="danger"
         loading={Boolean(deletingId)}
         onConfirm={handleDeleteHistory}

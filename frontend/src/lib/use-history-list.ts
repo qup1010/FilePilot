@@ -8,6 +8,7 @@ import { getPathBasename } from "@/lib/path-normalization";
 import { localizeUserFacingError } from "@/lib/user-facing-copy";
 import { getFriendlyStage, getFriendlyStatus } from "@/lib/utils";
 import { getWorkspaceRouteForHistoryEntry } from "@/lib/workspace-routes";
+import i18n from "@/i18n/instance";
 import type { HistoryItem } from "@/types/session";
 
 export type HistoryFilter = "all" | "active" | "completed" | "partial_failure" | "rolled_back" | "rollback_partial_failure";
@@ -178,7 +179,7 @@ export function useHistoryList({ autoLoad = true }: { autoLoad?: boolean } = {})
       setHistory(data);
       return data;
     } catch (err) {
-      setError(toErrorMessage(err, "读取历史记录失败"));
+      setError(toErrorMessage(err, i18n.t("history.loadErrorFallback")));
       return null;
     } finally {
       setLoading(false);
@@ -220,7 +221,7 @@ export function useHistoryList({ autoLoad = true }: { autoLoad?: boolean } = {})
       setPendingDeleteId(null);
       return deletedId;
     } catch (err) {
-      setError(toErrorMessage(err, "删除记录时发生错误"));
+      setError(toErrorMessage(err, i18n.t("history.deleteErrorFallback")));
       return null;
     } finally {
       setDeletingId(null);
