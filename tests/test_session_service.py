@@ -77,6 +77,25 @@ class OrganizerSessionServiceTests(unittest.TestCase):
         self.assertEqual(result.session.stage, "draft")
         self.assertIsNone(result.restorable_session)
 
+    def test_seeded_initial_plan_request_has_structured_internal_visibility(self):
+        session = self.service.create_session(str(self.target_dir), resume_if_exists=False).session
+        session.scan_lines = "F001 | file | report.pdf | document | annual report"
+
+        self.service._seed_initial_messages(session)
+
+        initial_request = next(message for message in session.messages if message.get("role") == "user")
+        self.assertEqual(initial_request.get("visibility"), "internal")
+        self.assertEqual(initial_request.get("message_type"), "initial_plan_request")
+
+    def test_placeholder_scan_count_prefers_structured_status_and_keeps_legacy_fallback(self):
+        entries = [
+            {"analysis_status": "needs_review", "suggested_purpose": "Needs review", "summary": "Not covered"},
+            {"analysis_status": "completed", "suggested_purpose": "待判断", "summary": "分析未覆盖，需手动确认"},
+            {"suggested_purpose": "待判断", "summary": "分析未覆盖，需手动确认"},
+        ]
+
+        self.assertEqual(self.service._placeholder_scan_item_count(entries), 2)
+
     def test_create_session_returns_resume_available_when_session_exists(self):
         created = self.service.create_session(str(self.target_dir), resume_if_exists=False)
         self.store.save(created.session)

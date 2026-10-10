@@ -310,6 +310,10 @@ class ExecutionAppServiceTests(unittest.TestCase):
         self.assertTrue(precheck["can_execute"])
         self.assertTrue(any("高影响移动" in item for item in precheck["warnings"]))
         warning_issues = [item for item in precheck["issues"] if item["issue_type"] == "precheck_warning"]
+        risky_issue = next(item for item in warning_issues if item.get("code") == "risky_move")
+        self.assertEqual(risky_issue["related_item_ids"], ["F001"])
+        self.assertEqual(risky_issue["params"]["reason_code"], "RISKY_MOVE_PROJECT_ENTRY")
+        self.assertEqual(risky_issue["params"]["source"], "package-lock.json")
         self.assertTrue(any("F001" in item["related_item_ids"] for item in warning_issues))
 
     def test_run_precheck_rejects_empty_completed_session(self):

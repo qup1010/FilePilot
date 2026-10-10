@@ -4,6 +4,15 @@ import { FolderDown, LoaderCircle, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { BackgroundRemovalBatchProgress } from "@/types/icon-workbench";
+import type { IconGenerationBlockedReason } from "@/types/icon-workbench";
+
+const BLOCKED_REASON_COPY: Record<IconGenerationBlockedReason, string> = {
+  no_targets: "先选择目标文件夹",
+  no_selected_style: "请先在右上角选择风格模板，再开始生成。",
+  text_model_unconfigured: "请先在设置中配置文本模型",
+  image_model_unconfigured: "请先在设置中配置图标生图模型",
+  busy: "正在生成...",
+};
 
 interface IconWorkbenchFooterBarProps {
   targetCount: number;
@@ -17,8 +26,12 @@ interface IconWorkbenchFooterBarProps {
   isRemovingBgBatch: boolean;
   removeBgBatchProgress?: BackgroundRemovalBatchProgress | null;
   selectedTemplateName?: string | null;
-  generateBlockedReason?: string | null;
+  generateBlockedReason?: IconGenerationBlockedReason | string | null;
   generateProgressHint?: string | null;
+}
+
+function blockedReasonCopy(reason: string): string {
+  return BLOCKED_REASON_COPY[reason as IconGenerationBlockedReason] || reason;
 }
 
 export function IconWorkbenchFooterBar({
@@ -74,8 +87,7 @@ export function IconWorkbenchFooterBar({
              {isGenerating ? (generateProgressHint || "正在分析语义并生成图标方案...") :
               isRemovingBgBatch ? removingBgProgressLabel :
               isApplying ? "正在将图标应用至本地文件夹..." :
-              generateBlockedReason === "先选择风格模板" ? "请先在右上角选择风格模板，再开始生成。" :
-              generateBlockedReason || "生成预览满意后点击应用，将自动替换为您电脑上的文件夹图标。"}
+              generateBlockedReason ? blockedReasonCopy(generateBlockedReason) : "生成预览满意后点击应用，将自动替换为您电脑上的文件夹图标。"}
            </p>
         </div>
 

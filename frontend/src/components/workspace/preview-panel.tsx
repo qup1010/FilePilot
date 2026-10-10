@@ -28,12 +28,14 @@ import {
   isAbsolutePath,
   isItemChanged,
   isReviewDirectory,
+  isReviewPlanItem,
   isReviewTargetSlot,
   itemStatusMeta,
   mappingStatusLabel,
   matchesFilter,
   normalizePath,
   resolveItemDirectory,
+  resolveItemDirectoryTarget,
   resolveItemTargetPath,
   REVIEW_DIRECTORY,
   REVIEW_LABEL,
@@ -610,7 +612,7 @@ export function PreviewPanel(props: PreviewPanelProps) {
     return { directoryLabel, fullTargetPath, mappingLabel };
   };
   const reviewTargetUnresolvedItems = useMemo(
-    () => unresolvedItems.filter((item) => resolveItemDirectory(item, targetSlotById, placement) === REVIEW_DIRECTORY),
+    () => unresolvedItems.filter((item) => isReviewPlanItem(item, targetSlotById)),
     [placement, targetSlotById, unresolvedItems],
   );
   const filteredItems = useMemo(() => {
@@ -797,8 +799,8 @@ export function PreviewPanel(props: PreviewPanelProps) {
       setManualTarget("");
       return;
     }
-    const directory = resolveItemDirectory(editingItem, targetSlotById, placement);
-    setManualTarget(directory === "当前目录" || directory === REVIEW_DIRECTORY ? "" : directory);
+    const directory = resolveItemDirectoryTarget(editingItem, targetSlotById);
+    setManualTarget(directory.kind === "directory" ? directory.relpath : "");
   }, [editingItem, placement, targetSlotById]);
 
   useEffect(() => {

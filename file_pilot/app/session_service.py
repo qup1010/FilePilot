@@ -1445,6 +1445,7 @@ class OrganizerSessionService:
         warnings: list[str],
         plan_moves: list[PlanMove],
         planner_by_source: dict[str, dict],
+        structured_warning_details: dict[int, dict] | None = None,
     ) -> list[dict]:
         issues: list[dict] = []
         for index, message in enumerate(blocking_errors):
@@ -1458,13 +1459,26 @@ class OrganizerSessionService:
                 }
             )
         for index, message in enumerate(warnings):
+            structured_detail = (structured_warning_details or {}).get(index)
             issues.append(
                 {
                     "id": f"warning-{index + 1}",
                     "severity": "warning",
                     "issue_type": "precheck_warning",
                     "message": message,
-                    "related_item_ids": self._related_item_ids_for_message(message, planner_by_source, plan_moves),
+                    "related_item_ids": (
+                        list(structured_detail.get("related_item_ids") or [])
+                        if structured_detail is not None
+                        else self._related_item_ids_for_message(message, planner_by_source, plan_moves)
+                    ),
+                    **(
+                        {
+                            "code": structured_detail["code"],
+                            "params": dict(structured_detail.get("params") or {}),
+                        }
+                        if structured_detail is not None
+                        else {}
+                    ),
                 }
             )
         review_item_ids = [
@@ -1588,6 +1602,7 @@ class OrganizerSessionService:
             "processed_count": total_count,
             "total_count": total_count,
             "current_item": discovery_entries[-1]["display_name"] if discovery_entries else None,
+            "current_item_kind": "entry" if discovery_entries else None,
             "recent_analysis_items": discovery_entries[-5:],
             "message": f"已发现 {total_count} 个根目录条目，请先选择目标目录。",
         }
@@ -2110,6 +2125,11 @@ class OrganizerSessionService:
             user_constraints=list(session.user_constraints),
             planning_context=self._planning_context(session),
         )
+        for message in session.messages:
+            if message.get("role") == "user":
+                message["visibility"] = "internal"
+                message["message_type"] = "initial_plan_request"
+                break
         self._ensure_message_ids(session.messages)
 
     def _normalized_target_directory(
@@ -2217,6 +2237,7 @@ class OrganizerSessionService:
                 "entry_type": self._detect_entry_type(target_dir, entry),
                 "suggested_purpose": "准备分析",
                 "summary": "等待分配并进行文件内容分析...",
+                "analysis_status": "queued",
             }
             for entry in entries
         ]
@@ -2225,6 +2246,7 @@ class OrganizerSessionService:
             "processed_count": 0,
             "total_count": self._count_visible_entries(target_dir),
             "current_item": "正在准备扫描任务",
+            "current_item_kind": "preparing",
             "recent_analysis_items": recent_items,
             "completed_batches": 0,
             "had_failed_batches": False,
@@ -2246,6 +2268,7 @@ class OrganizerSessionService:
                 "entry_type": str(item.get("entry_type") or "file"),
                 "suggested_purpose": "准备分析",
                 "summary": "等待分配并进行文件内容分析...",
+                "analysis_status": "queued",
             }
             for index, item in enumerate(list(entry_context.values())[:10], start=1)
         ]
@@ -2254,6 +2277,7 @@ class OrganizerSessionService:
             "processed_count": 0,
             "total_count": len(entry_context),
             "current_item": "正在准备扫描任务",
+            "current_item_kind": "preparing",
             "recent_analysis_items": recent_items,
             "completed_batches": 0,
             "had_failed_batches": False,
@@ -2288,19 +2312,6 @@ class OrganizerSessionService:
             return None
         return relative.parts[0]
 
-    @staticmethod
-    def _is_specific_scan_target(value: str | None) -> bool:
-        text = str(value or "").strip()
-        if not text:
-            return False
-        generic_prefixes = ("已启动 ", "第 ")
-        generic_labels = {
-            "当前目录",
-            "正在准备扫描任务",
-            "正在等待模型响应",
-        }
-        return text not in generic_labels and not text.startswith(generic_prefixes)
-
     def _update_single_scan_progress(
         self,
         session: OrganizerSession,
@@ -2324,6 +2335,7 @@ class OrganizerSessionService:
             set_field("message", data.get("message") or "正在分析目录内容")
             if not progress.get("current_item"):
                 set_field("current_item", "正在等待模型响应")
+                set_field("current_item_kind", "preparing")
         elif event_type == "api_retry":
             attempt = max(1, int(data.get("attempt") or 1))
             max_attempts = max(attempt, int(data.get("max_attempts") or attempt))
@@ -2343,6 +2355,7 @@ class OrganizerSessionService:
             set_field("retry_attempt", attempt)
             set_field("retry_max_attempts", max_attempts)
             set_field("current_item", "正在等待模型服务恢复")
+            set_field("current_item_kind", "preparing")
             if wait_seconds > 0:
                 set_field("message", f"{summary}，将在约 {wait_seconds} 秒后重试（{attempt}/{max_attempts}）")
             else:
@@ -2353,25 +2366,30 @@ class OrganizerSessionService:
             args = data.get("args") or {}
             tool_name = data.get("name") or ""
             target_name = None
+            target_kind = None
             message = "正在补充扫描证据"
 
             if tool_name == "read_local_file":
                 raw_filename = args.get("filename")
                 target_name = self._top_level_scan_entry(target_dir, raw_filename) or Path(str(raw_filename or "文件")).name
+                target_kind = "entry"
                 message = f"正在读取 {target_name}"
             elif tool_name == "list_local_files":
                 raw_directory = args.get("directory")
                 target_name = self._top_level_scan_entry(target_dir, raw_directory)
                 if target_name:
+                    target_kind = "entry"
                     message = f"正在查看 {target_name} 的目录内容"
                 else:
+                    target_kind = "directory"
                     target_name = "当前目录"
                     message = "正在读取目录结构"
 
             if target_name:
                 set_field("current_item", target_name)
+                set_field("current_item_kind", target_kind)
                 # 实时追加到最近分析项列表中，用于前端“正在看什么”的可视化
-                if target_name not in {"当前目录", "正在准备扫描任务"}:
+                if target_kind == "entry":
                     recent = list(progress.get("recent_analysis_items") or [])
                     # 避免重复添加同一个正在处理的项目
                     if not any(item.get("display_name") == target_name for item in recent):
@@ -2381,13 +2399,14 @@ class OrganizerSessionService:
                             "source_relpath": target_name,
                             "entry_type": self._detect_entry_type(target_dir, target_name),
                             "suggested_purpose": "分析中",
-                            "summary": "正在读取内容"
+                            "summary": "正在读取内容",
+                            "analysis_status": "in_progress",
                         })
                         set_field("recent_analysis_items", recent[:8]) # 保留最近 8 条
 
             set_field("message", message)
 
-            if target_name and target_name not in {"当前目录", "正在准备扫描任务"} and target_name not in seen_entries:
+            if target_name and target_kind == "entry" and target_name not in seen_entries:
                 seen_entries.add(target_name)
                 set_field("processed_count", min(total_count, len(seen_entries)) if total_count else len(seen_entries))
         elif event_type == "ai_streaming_start":
@@ -2417,6 +2436,7 @@ class OrganizerSessionService:
                         "entry_type": item.get("entry_type", ""),
                         "suggested_purpose": item.get("suggested_purpose", "待判断"),
                         "summary": item.get("summary", ""),
+                        "analysis_status": item.get("analysis_status", "completed"),
                     })
                 
                 # 合并并去重（优先使用最新的真实分析结果）
@@ -2455,8 +2475,10 @@ class OrganizerSessionService:
                     retry_size = max(0, int(data.get("batch_size") or 0))
                     if retry_size:
                         set_field("current_item", f"正在重试失败批次（{retry_size} 项）")
+                        set_field("current_item_kind", "preparing")
                     else:
                         set_field("current_item", "正在重试失败批次")
+                        set_field("current_item_kind", "preparing")
                 else:
                     is_retry_completion = (
                         total_batches > 0
@@ -2522,6 +2544,7 @@ class OrganizerSessionService:
                 "processed_count": 0,
                 "total_count": 0,
                 "current_item": None,
+                "current_item_kind": None,
                 "recent_analysis_items": [],
                 "message": "目录为空，无需整理",
             }
@@ -2544,6 +2567,7 @@ class OrganizerSessionService:
             "status": "failed",
             "processed_count": 0,
             "current_item": None,
+            "current_item_kind": None,
             "recent_analysis_items": [],
             "message": "扫描未返回任何条目，请检查模型输出或调试日志",
         }
@@ -2563,8 +2587,14 @@ class OrganizerSessionService:
         return sum(
             1
             for entry in entries
-            if str(entry.get("suggested_purpose") or "").strip() == "待判断"
-            and str(entry.get("summary") or "").strip() == "分析未覆盖，需手动确认"
+            if (
+                str(entry.get("analysis_status") or "").strip() == "needs_review"
+                or (
+                    not str(entry.get("analysis_status") or "").strip()
+                    and str(entry.get("suggested_purpose") or "").strip() == "待判断"
+                    and str(entry.get("summary") or "").strip() == "分析未覆盖，需手动确认"
+                )
+            )
         )
 
     @staticmethod
@@ -2627,6 +2657,7 @@ class OrganizerSessionService:
             "processed_count": len(entries),
             "total_count": total_count,
             "current_item": None,
+            "current_item_kind": None,
             "recent_analysis_items": recent_items,
             "placeholder_count": placeholder_count,
             "ai_thinking": False,
@@ -2689,6 +2720,7 @@ class OrganizerSessionService:
                 "processed_count": len(all_entries),
                 "total_count": total_count,
                 "current_item": recent_items[-1]["display_name"] if recent_items else None,
+                "current_item_kind": "entry" if recent_items else None,
                 "recent_analysis_items": recent_items,
                 "placeholder_count": placeholder_count,
                 "ai_thinking": False,
@@ -2903,6 +2935,7 @@ class OrganizerSessionService:
                 "processed_count": len(all_entries),
                 "total_count": total_count,
                 "current_item": recent_items[-1]["display_name"] if recent_items else None,
+                "current_item_kind": "entry" if recent_items else None,
                 "recent_analysis_items": recent_items,
                 "message": self._scan_completion_message(all_entries, parallel=False),
             }

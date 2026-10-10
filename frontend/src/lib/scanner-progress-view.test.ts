@@ -63,4 +63,38 @@ describe("scanner-progress-view", () => {
     expect(view.phase).toBe("ready");
     expect(view.steps.map((step) => step.state)).toEqual(["done", "done", "done"]);
   });
+
+  it("uses explicit scan states instead of the analysis text language", () => {
+    const view = deriveScannerProgressViewModel(
+      {
+        status: "running",
+        processed_count: 1,
+        total_count: 2,
+        current_item: "当前目录",
+        current_item_kind: "entry",
+        recent_analysis_items: [
+          {
+            item_id: "F001",
+            display_name: "unknown.txt",
+            source_relpath: "unknown.txt",
+            suggested_purpose: "待判断",
+            summary: "摘要本身已完成",
+            analysis_status: "completed",
+          },
+          {
+            item_id: "F002",
+            display_name: "uncovered.txt",
+            source_relpath: "uncovered.txt",
+            suggested_purpose: "Needs review",
+            summary: "Analysis was not covered",
+            analysis_status: "needs_review",
+          },
+        ],
+      },
+      50,
+    );
+
+    expect(view.currentItem).toBe("当前目录");
+    expect(view.recentCompletedItems.map((item) => item.item_id)).toEqual(["F001"]);
+  });
 });

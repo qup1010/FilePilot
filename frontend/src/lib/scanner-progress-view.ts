@@ -55,8 +55,11 @@ function normalizeText(value: string | null | undefined): string {
   return String(value || "").trim();
 }
 
-function isSpecificScanItem(value: string | null | undefined): boolean {
+function isSpecificScanItem(value: string | null | undefined, currentItemKind?: string): boolean {
   const text = normalizeText(value);
+  if (currentItemKind) {
+    return currentItemKind === "entry" && Boolean(text);
+  }
   if (!text || GENERIC_SCAN_ITEMS.has(text)) {
     return false;
   }
@@ -64,6 +67,9 @@ function isSpecificScanItem(value: string | null | undefined): boolean {
 }
 
 function isCompletedItem(item: RecentAnalysisItem): boolean {
+  if (item.analysis_status) {
+    return item.analysis_status === "completed";
+  }
   const purpose = normalizeText(item.suggested_purpose);
   const summary = normalizeText(item.summary);
   return !PLACEHOLDER_TERMS.some((term) => purpose.includes(term) || summary.includes(term));
@@ -95,7 +101,7 @@ export function deriveScannerProgressViewModel(
   const status = normalizeText(scanner.status || "running").toLowerCase();
   const backendMessage = normalizeText(scanner.message) || null;
   const currentItemRaw = normalizeText(scanner.current_item);
-  const currentItem = isSpecificScanItem(currentItemRaw) ? currentItemRaw : null;
+  const currentItem = isSpecificScanItem(currentItemRaw, scanner.current_item_kind) ? currentItemRaw : null;
   const isRetrying = Boolean(scanner.is_retrying);
   const isApiRetrying = isRetrying && normalizeText(scanner.retry_kind) === "api";
   const isThinking = Boolean(scanner.ai_thinking);

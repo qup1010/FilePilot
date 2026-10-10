@@ -112,7 +112,8 @@ export function PrecheckView({
     for (const issue of summary.issues || []) {
         if (issue.severity !== "warning") continue;
         const message = String(issue.message || "");
-        if (!message.includes("高影响移动")) continue;
+        // New issues use stable codes; keep the text check for persisted precheck snapshots.
+        if (issue.code !== "risky_move" && !message.includes("高影响移动")) continue;
         for (const itemId of issue.related_item_ids || []) {
             const existing = riskMessagesByItemId.get(itemId) || [];
             existing.push(message);

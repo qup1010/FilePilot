@@ -80,6 +80,11 @@ export type TargetSlotLookup = Map<string, PlanTargetSlot>;
 export const REVIEW_DIRECTORY = "Review";
 export const REVIEW_LABEL = "待确认区";
 
+export type ItemDirectoryTarget =
+  | { kind: "root" }
+  | { kind: "review" }
+  | { kind: "directory"; relpath: string };
+
 export function normalizePath(path: string | null | undefined): string {
   return String(path || "").replace(/\\/g, "/").replace(/\/+/g, "/").replace(/^\/+|\/+$/g, "").trim();
 }
@@ -155,12 +160,19 @@ export function itemStatusMeta(item: PlanItem, acceptedReviewItemIds: string[]) 
   return statusMeta(item.status);
 }
 
-export function resolveItemDirectory(item: PlanItem, targetSlotById: TargetSlotLookup, placement: PlacementConfig): string {
-  if (isReviewPlanItem(item, targetSlotById)) return REVIEW_DIRECTORY;
+export function resolveItemDirectoryTarget(item: PlanItem, targetSlotById: TargetSlotLookup): ItemDirectoryTarget {
+  if (isReviewPlanItem(item, targetSlotById)) return { kind: "review" };
   if (item.target_slot_id) {
     const slot = targetSlotById.get(item.target_slot_id);
-    if (slot?.relpath) return slot.relpath;
+    if (slot?.relpath) return { kind: "directory", relpath: slot.relpath };
   }
+  return { kind: "root" };
+}
+
+export function resolveItemDirectory(item: PlanItem, targetSlotById: TargetSlotLookup, _placement: PlacementConfig): string {
+  const target = resolveItemDirectoryTarget(item, targetSlotById);
+  if (target.kind === "review") return REVIEW_DIRECTORY;
+  if (target.kind === "directory") return target.relpath;
   return "当前目录";
 }
 
@@ -171,23 +183,25 @@ export function displayDirectoryLabel(directory: string, isAssignExisting: boole
   return directory;
 }
 
-export function resolveItemTargetPath(item: PlanItem, targetSlotById: TargetSlotLookup, placement: PlacementConfig, isAssignExisting: boolean = false): string {
-  const directoryLabel = resolveItemDirectory(item, targetSlotById, placement);
+export function resolveItemTargetPath(item: PlanItem, targetSlotById: TargetSlotLookup, _placement: PlacementConfig, isAssignExisting: boolean = false): string {
+  const directoryTarget = resolveItemDirectoryTarget(item, targetSlotById);
   const filename = item.display_name || item.source_relpath.split("/").pop() || item.source_relpath;
-  if (!directoryLabel || directoryLabel === "当前目录") return filename;
-  if (directoryLabel === REVIEW_DIRECTORY && isAssignExisting) return `保留在原地/${filename}`;
-  return `${displayDirectoryLabel(directoryLabel, isAssignExisting)}/${filename}`;
+  if (directoryTarget.kind === "root") return filename;
+  if (directoryTarget.kind === "review" && isAssignExisting) return `保留在原地/${filename}`;
+  const directory = directoryTarget.kind === "review" ? REVIEW_DIRECTORY : directoryTarget.relpath;
+  return `${displayDirectoryLabel(directory, isAssignExisting)}/${filename}`;
 }
 
 export function isItemChanged(item: PlanItem, targetSlotById: TargetSlotLookup, placement: PlacementConfig) {
   return normalizePath(item.source_relpath) !== normalizePath(resolveItemTargetPath(item, targetSlotById, placement));
 }
 
-export function groupItemsByTargetSlot(items: PlanItem[], targetSlotById: TargetSlotLookup, placement: PlacementConfig) {
+export function groupItemsByTargetSlot(items: PlanItem[], targetSlotById: TargetSlotLookup, _placement: PlacementConfig) {
   const groups = new Map<string, PlanItem[]>();
   items.forEach((item) => {
-    const directory = resolveItemDirectory(item, targetSlotById, placement);
-    if (!directory || directory === "当前目录") return;
+    const target = resolveItemDirectoryTarget(item, targetSlotById);
+    if (target.kind === "root") return;
+    const directory = target.kind === "review" ? REVIEW_DIRECTORY : target.relpath;
     const existing = groups.get(directory) || [];
     existing.push(item);
     groups.set(directory, existing);

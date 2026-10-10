@@ -2,6 +2,8 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { optionDirectoryForTarget, optionIdentityForTarget, PreviewPanel } from "./preview-panel";
+import { groupItemsByTargetSlot, resolveItemDirectoryTarget, resolveItemTargetPath } from "./preview/preview-utils";
+import type { PlanItem } from "@/types/session";
 
 vi.mock("motion/react", () => ({
   AnimatePresence: ({ children }: { children: React.ReactNode }) => <>{children}</>,
@@ -49,6 +51,26 @@ describe("PreviewPanel", () => {
     readiness: {
       can_precheck: false,
     },
+  });
+
+  it("keeps root and directory semantics independent from localized directory labels", () => {
+    const item: PlanItem = {
+      item_id: "F001",
+      display_name: "report.pdf",
+      source_relpath: "report.pdf",
+      target_slot_id: "slot-root-label",
+      mapping_status: "assigned",
+      status: "planned",
+    };
+    const slotLookup = new Map([
+      ["slot-root-label", { slot_id: "slot-root-label", display_name: "Folder", relpath: "当前目录", depth: 0, is_new: true }],
+    ]);
+    const placement = { new_directory_root: "", review_root: "" };
+
+    expect(resolveItemDirectoryTarget(item, slotLookup)).toEqual({ kind: "directory", relpath: "当前目录" });
+    expect(resolveItemTargetPath(item, slotLookup, placement)).toBe("当前目录/report.pdf");
+    expect(groupItemsByTargetSlot([item], slotLookup, placement).get("当前目录")).toEqual([item]);
+    expect(resolveItemDirectoryTarget({ ...item, target_slot_id: "" }, slotLookup)).toEqual({ kind: "root" });
   });
 
   it("shows previous-plan sync hint while a new plan is running", () => {

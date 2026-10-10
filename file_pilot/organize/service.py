@@ -363,6 +363,23 @@ def _parse_tool_call_arguments(tool_call) -> dict:
     return parsed if isinstance(parsed, dict) else {}
 
 
+def _legacy_inspection_error_code(content: str) -> str | None:
+    """Map legacy file-reader prose to stable codes while reader results migrate."""
+    text = str(content or "").strip()
+    legacy_prefixes = (
+        ("错误：基于安全考虑", "PATH_NOT_ALLOWED"),
+        ("错误：文件 ", "FILE_NOT_FOUND"),
+        ("错误：目录 ", "DIRECTORY_NOT_FOUND"),
+        ("读取 PDF 失败", "PDF_READ_FAILED"),
+        ("读取 Word 失败", "WORD_READ_FAILED"),
+        ("读取 Excel 失败", "SPREADSHEET_READ_FAILED"),
+        ("无法读取文件", "FILE_READ_FAILED"),
+        ("无法列出目录", "DIRECTORY_LIST_FAILED"),
+        ("错误：", "FILE_READ_ERROR"),
+    )
+    return next((code for prefix, code in legacy_prefixes if text.startswith(prefix)), None)
+
+
 def _compress_inspection_item(item: dict) -> dict:
     item_id = str(item.get("item_id") or "").strip()
     display_name = str(item.get("display_name") or item_id).strip()
@@ -380,6 +397,7 @@ def _compress_inspection_item(item: dict) -> dict:
         "summary": summary,
         "truncated": truncated,
         "error": error,
+        "error_code": str(item.get("error_code") or "").strip() or None,
     }
 
 
@@ -414,6 +432,7 @@ def _execute_inspection_tool(
                     "content": "",
                     "truncated": False,
                     "error": "ITEM_NOT_FOUND",
+                    "error_code": "ITEM_NOT_FOUND",
                 }
             )
             continue
@@ -423,6 +442,7 @@ def _execute_inspection_tool(
             max_len=INSPECT_MAX_LEN,
             allowed_base_dir=str(context_item.get("allowed_base_dir") or ""),
         )
+        error_code = _legacy_inspection_error_code(content)
         items.append(
             {
                 "item_id": item_id,
@@ -430,7 +450,8 @@ def _execute_inspection_tool(
                 "entry_type": str(context_item.get("entry_type") or "file"),
                 "content": content,
                 "truncated": "...[内容过长已截断]" in content or "...[目录结果过长已截断]" in content,
-                "error": "" if not str(content).startswith(("错误：", "无法读取文件", "读取 PDF 失败", "读取 Word 失败", "读取 Excel 失败")) else str(content),
+                "error": str(content) if error_code else "",
+                "error_code": error_code,
             }
         )
 

@@ -145,6 +145,53 @@ describe("PrecheckView", () => {
     expect(screen.queryByText("D:/custom-review-root/unknown.pdf")).not.toBeInTheDocument();
   });
 
+  it("uses the structured risk code to mark an item without parsing its message", () => {
+    render(
+      <PrecheckView
+        summary={{
+          can_execute: true,
+          blocking_errors: [],
+          warnings: ["A high-impact move needs review."],
+          mkdir_preview: [],
+          move_preview: [
+            {
+              item_id: "F001",
+              source: "D:/project/package-lock.json",
+              target: "D:/archive/package-lock.json",
+            },
+          ],
+          issues: [
+            {
+              id: "warning-1",
+              severity: "warning",
+              issue_type: "precheck_warning",
+              code: "risky_move",
+              params: { reason_code: "RISKY_MOVE_PROJECT_ENTRY" },
+              message: "A high-impact move needs review.",
+              related_item_ids: ["F001"],
+            },
+          ],
+        }}
+        planItems={[
+          {
+            item_id: "F001",
+            display_name: "package-lock.json",
+            source_relpath: "package-lock.json",
+            target_slot_id: "D001",
+            status: "planned",
+            mapping_status: "planned",
+          },
+        ]}
+        targetSlots={[]}
+        isBusy={false}
+        onRequestExecute={() => {}}
+        onBack={() => {}}
+      />,
+    );
+
+    expect(screen.getByText("重要变动")).toBeInTheDocument();
+  });
+
   it("falls back to source file names instead of internal item ids", () => {
     render(
       <PrecheckView

@@ -330,6 +330,37 @@ describe("useSession assistant draft", () => {
     });
   });
 
+  it("filters structured internal plan requests and legacy Chinese requests while keeping public English user messages", async () => {
+    getSession.mockResolvedValue({
+      session_id: "session-1",
+      session_snapshot: createSnapshot({
+        messages: [
+          {
+            id: "internal-new",
+            role: "user",
+            content: "Generate the initial organization plan.",
+            visibility: "internal",
+            message_type: "initial_plan_request",
+          },
+          {
+            id: "internal-legacy",
+            role: "user",
+            content: "请基于上述的目录扫描结果和整理规则，为我生成整理计划。按系统要求的 Markdown 结构简要说明判断。",
+          },
+          { id: "public-en", role: "user", content: "Please keep the photos together." },
+        ],
+      }),
+    });
+
+    const { result } = renderHook(() => useSession("session-1"));
+
+    await waitFor(() => {
+      expect(result.current.chatMessages).toEqual([
+        expect.objectContaining({ id: "public-en", content: "Please keep the photos together." }),
+      ]);
+    });
+  });
+
   it("deduplicates assistant_message when the stored history already contains the same reply with a different id", async () => {
     getSession.mockResolvedValue({
       session_id: "session-1",

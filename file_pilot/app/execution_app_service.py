@@ -283,6 +283,7 @@ class ExecutionAppService:
         plan = execution_service.build_execution_plan_from_mapped(mapped_plan)
         precheck = execution_service.validate_execution_preconditions(plan)
         safety_warnings: list[str] = []
+        structured_safety_warnings: dict[int, dict] = {}
         for action in mapped_plan.move_actions:
             if action.source_path is None:
                 continue
@@ -292,9 +293,20 @@ class ExecutionAppService:
             if reason_code:
                 reason_text = RISKY_MOVE_REASON_COPY.get(reason_code, reason_code)
                 display_name = action.display_name or action.item_id or self._display_path(action.source_path, mapped_plan.base_dir)
-                # 注意：「高影响移动」前缀与「来源：{source_label}」后缀是前端匹配契约，
-                # 见 precheck-view.tsx 与 _related_item_ids_for_message，勿改格式。
-                safety_warnings.append(f"高影响移动：{display_name}（{reason_text}，来源：{source_label}）")
+                warning = f"高影响移动：{display_name}（{reason_text}，来源：{source_label}）"
+                safety_warnings.append(warning)
+                planner_item = planner_by_source.get(source_label, {})
+                warning_index = len(precheck.warnings) + len(safety_warnings) - 1
+                structured_safety_warnings[warning_index] = {
+                    "code": "risky_move",
+                    "params": {
+                        "display_name": display_name,
+                        "reason_code": reason_code,
+                        "source": source_label,
+                        "target": target_label,
+                    },
+                    "related_item_ids": [str(planner_item.get("planner_id") or action.item_id or source_label)],
+                }
         if missing_target_errors:
             precheck.can_execute = False
             precheck.blocking_errors = list(precheck.blocking_errors) + missing_target_errors
@@ -332,6 +344,7 @@ class ExecutionAppService:
                 list(precheck.warnings) + item_skip_messages,
                 final_plan.moves,
                 planner_by_source,
+                structured_warning_details=structured_safety_warnings,
             ),
         }
         session.stage = STAGE_READY_TO_EXECUTE if precheck.can_execute else STAGE_PLANNING

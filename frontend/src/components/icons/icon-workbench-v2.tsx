@@ -25,6 +25,7 @@ import type {
   FolderIconCandidate,
   IconWorkbenchClientActionResult,
   IconWorkbenchConfig,
+  IconGenerationBlockedReason,
   IconWorkbenchEvent,
   IconWorkbenchHistoryItem,
   IconPreviewVersion,
@@ -50,6 +51,24 @@ import { useIconTemplates } from "./use-icon-templates";
 const ICONS_CONTEXT_KEY = "icons_header_context";
 const ICONS_WORKSPACE_STATE_KEY = "icons_workspace_state";
 type IconWorkbenchStreamStatus = "connecting" | "connected" | "reconnecting" | "offline";
+type IconWorkbenchActionState =
+  | "adding_targets"
+  | "creating_session"
+  | "resetting"
+  | "removing_target"
+  | "deleting_version"
+  | "switching_version"
+  | "restoring_icon";
+
+const ICON_ACTION_LABELS: Record<IconWorkbenchActionState, string> = {
+  adding_targets: "正在添加目标...",
+  creating_session: "正在创建任务...",
+  resetting: "正在重置...",
+  removing_target: "正在移除...",
+  deleting_version: "正在删除版本...",
+  switching_version: "正在切换版本...",
+  restoring_icon: "正在恢复...",
+};
 
 interface PersistedIconsWorkspaceState {
   sessionId: string;
@@ -92,7 +111,7 @@ export default function IconWorkbenchV2() {
   const [session, setSession] = useState<IconWorkbenchSession | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<NoticeState | null>(null);
-  const [actionLabel, setActionLabel] = useState<string | null>(null);
+  const [actionState, setActionState] = useState<IconWorkbenchActionState | null>(null);
   const [generateProgress, setGenerateProgress] = useState<GenerateFlowProgress | null>(null);
 
   const [expandedFolderId, setExpandedFolderId] = useState<string | null>(null);
@@ -243,7 +262,7 @@ export default function IconWorkbenchV2() {
   const targetCount = session?.folders.length ?? 0;
   const hasTargets = targetCount > 0;
   const isGeneratingFlow = Boolean(generateProgress);
-  const isBusy = Boolean(actionLabel) || isGeneratingFlow;
+  const isBusy = Boolean(actionState) || isGeneratingFlow;
   const pendingDeleteHistorySession = useMemo(
     () => historyItems.find((item) => item.session_id === pendingDeleteHistorySessionId) ?? null,
     [historyItems, pendingDeleteHistorySessionId],
@@ -448,19 +467,27 @@ export default function IconWorkbenchV2() {
     return closeEventStream;
   }, [apiToken, baseUrl, closeEventStream, handleWorkbenchEvent, scheduleOfflineState, session?.session_id]);
 
-  const generationConfigBlockedReason = !isTextModelConfigured ? "请先在设置中配置文本模型" : !isImageModelConfigured ? "请先在设置中配置图标生图模型" : null;
-  const generateBlockedReason = !hasTargets ? "先选择目标文件夹" : !hasSelectedStyle ? "先选择风格模板" : generationConfigBlockedReason || (isBusy ? "正在生成..." : null);
+  const generationConfigBlockedReason: IconGenerationBlockedReason | null = !isTextModelConfigured
+    ? "text_model_unconfigured"
+    : !isImageModelConfigured
+      ? "image_model_unconfigured"
+      : null;
+  const generateBlockedReason: IconGenerationBlockedReason | null = !hasTargets
+    ? "no_targets"
+    : !hasSelectedStyle
+      ? "no_selected_style"
+      : generationConfigBlockedReason || (isBusy ? "busy" : null);
 
   const appendTargetPaths = useCallback(async (nextTargetPaths: string[]) => {
     if (nextTargetPaths.length === 0) return;
     setError(null);
-    setActionLabel(session ? "正在添加目标..." : "正在创建任务...");
+    setActionState(session ? "adding_targets" : "creating_session");
     try {
       const nextSession = session ? await iconApi.updateTargets(session.session_id, { target_paths: nextTargetPaths, mode: "append" }) : await iconApi.createSession(nextTargetPaths);
       applySession(nextSession);
     } catch (err) {
       setError(describeWorkbenchError(err, "载入文件夹失败"));
-    } finally { setActionLabel(null); }
+    } finally { setActionState(null); }
   }, [applySession, iconApi, session]);
 
   const handleChooseTargets = useCallback(async () => {
@@ -548,7 +575,7 @@ export default function IconWorkbenchV2() {
       setResetConfirmOpen(false);
       return;
     }
-    setActionLabel("正在重置...");
+    setActionState("resetting");
     setError(null);
     try {
       applySession(await iconApi.updateTargets(session.session_id, { target_paths: [], mode: "replace" }));
@@ -556,7 +583,7 @@ export default function IconWorkbenchV2() {
     } catch (err) {
       setError(describeWorkbenchError(err, "重置工作台失败"));
     } finally {
-      setActionLabel(null);
+      setActionState(null);
     }
   };
 
@@ -648,37 +675,37 @@ export default function IconWorkbenchV2() {
 
   const handleRemoveTarget = async (folderId: string) => {
     if (!session) return;
-    setActionLabel("正在移除...");
+    setActionState("removing_target");
     try {
       applySession(await iconApi.removeTarget(session.session_id, folderId));
-    } catch (err) { setError(describeWorkbenchError(err, "移除失败")); } finally { setActionLabel(null); }
+    } catch (err) { setError(describeWorkbenchError(err, "移除失败")); } finally { setActionState(null); }
   };
 
   const handleDeleteVersion = async (folderId: string, versionId: string) => {
     if (!session) return;
-    setActionLabel("正在删除版本...");
+    setActionState("deleting_version");
     try {
       applySession(await iconApi.deleteVersion(session.session_id, folderId, versionId));
       showNotice("已删除该图标版本");
-    } catch (err) { setError(describeWorkbenchError(err, "删除失败")); } finally { setActionLabel(null); }
+    } catch (err) { setError(describeWorkbenchError(err, "删除失败")); } finally { setActionState(null); }
   };
 
   const handleSelectVersion = async (folderId: string, versionId: string) => {
     if (!session) return;
-    setActionLabel("正在切换版本...");
+    setActionState("switching_version");
     setError(null);
     try {
       applySession(await iconApi.selectVersion(session.session_id, folderId, versionId));
     } catch (err) {
       setError(describeWorkbenchError(err, "切换版本失败"));
     } finally {
-      setActionLabel(null);
+      setActionState(null);
     }
   };
 
   const handleRestoreIcon = async (folder: FolderIconCandidate) => {
     if (!desktopReady) return;
-    setActionLabel("正在恢复...");
+    setActionState("restoring_icon");
     setError(null);
     try {
       await invokeTauriCommand("restore_last_folder_icon", { folderPath: folder.folder_path });
@@ -696,7 +723,7 @@ export default function IconWorkbenchV2() {
     } catch (err) {
       setError(describeWorkbenchError(err, "恢复失败"));
     } finally {
-      setActionLabel(null);
+      setActionState(null);
     }
   };
 
@@ -820,10 +847,10 @@ export default function IconWorkbenchV2() {
         </div>
       </div>
     </div>
-  ) : actionLabel ? (
+  ) : actionState ? (
     <div className="flex h-7 items-center gap-2 bg-primary/[0.04] border-b border-primary/8 px-5">
       <LoaderCircle className="h-2.5 w-2.5 animate-spin text-primary" />
-      <span className="text-[11px] font-black uppercase tracking-[0.2em] text-primary/70">{actionLabel}</span>
+      <span className="text-[11px] font-black uppercase tracking-[0.2em] text-primary/70">{ICON_ACTION_LABELS[actionState]}</span>
     </div>
   ) : null;
   const isLoading = (!templatesInitialized && templatesLoading) || restoringSession;
@@ -841,7 +868,7 @@ export default function IconWorkbenchV2() {
             </motion.div>
           ) : (
             <motion.div key="main" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex flex-1 flex-col overflow-hidden">
-              <IconWorkbenchToolbar targetCount={targetCount} latestTargetPath={latestTargetPath} onAddTargets={handleChooseTargets} onClearTargets={() => setResetConfirmOpen(true)} onOpenHistory={handleOpenHistoryDrawer} onOpenStylePanel={() => setStylePanelOpen(true)} onOpenTemplateDrawer={() => setTemplateDrawerOpen(true)} selectedTemplateName={selectedTemplate?.name || "请选择风格"} />
+              <IconWorkbenchToolbar targetCount={targetCount} latestTargetPath={latestTargetPath} onAddTargets={handleChooseTargets} onClearTargets={() => setResetConfirmOpen(true)} onOpenHistory={handleOpenHistoryDrawer} onOpenStylePanel={() => setStylePanelOpen(true)} onOpenTemplateDrawer={() => setTemplateDrawerOpen(true)} selectedTemplateName={selectedTemplate?.name || "请选择风格"} hasSelectedStyle={Boolean(selectedTemplate)} />
               {statusRail}
               {processingBanner}
               <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
@@ -914,8 +941,8 @@ export default function IconWorkbenchV2() {
         <IconWorkbenchPreviewModal src={buildImageSrc(previewVersion, baseUrl, apiToken)} title={`v${previewVersion.version_number}`} subtitle={selectedTemplate?.name || "预览"} localImagePath={previewVersion.image_path} folderName={previewFolder?.folder_name || "预览"} folderPath={previewFolder?.folder_path || ""} onOpenFolder={openDirectoryWithTauri} onClose={() => setPreviewVersion(null)} onApply={() => previewFolder && handleApplyVersion(previewFolder.folder_id, previewVersion)} onRegenerate={() => previewFolder && runGenerateFlow([previewFolder.folder_id])} regenerateDisabled={!!generationConfigBlockedReason || isBusy || !previewFolder} isApplying={isApplyingId === previewVersion.version_id} imageModelName={workbenchConfig?.image_model.model || "默认模型"} isApplied={previewFolder?.applied_version_id === previewVersion.version_id} isCurrentVersion={previewFolder?.current_version_id === previewVersion.version_id} />
       )}
 
-      <ConfirmDialog open={restoreConfirmOpen} title="恢复上一次图标状态？" description={`确定要将「${folderToRestore?.folder_name}」恢复到进入前状态吗？`} loading={actionLabel === "正在恢复..."} onClose={() => setRestoreConfirmOpen(false)} onConfirm={async () => { if (folderToRestore) await handleRestoreIcon(folderToRestore); setRestoreConfirmOpen(false); }} />
-      <ConfirmDialog open={resetConfirmOpen} title="重置工作台？" description="确定要清空当前所有目标文件夹吗？此操作不会删除文件。" loading={actionLabel === "正在重置..."} onClose={() => setResetConfirmOpen(false)} onConfirm={handleResetWorkbench} />
+      <ConfirmDialog open={restoreConfirmOpen} title="恢复上一次图标状态？" description={`确定要将「${folderToRestore?.folder_name}」恢复到进入前状态吗？`} loading={actionState === "restoring_icon"} onClose={() => setRestoreConfirmOpen(false)} onConfirm={async () => { if (folderToRestore) await handleRestoreIcon(folderToRestore); setRestoreConfirmOpen(false); }} />
+      <ConfirmDialog open={resetConfirmOpen} title="重置工作台？" description="确定要清空当前所有目标文件夹吗？此操作不会删除文件。" loading={actionState === "resetting"} onClose={() => setResetConfirmOpen(false)} onConfirm={handleResetWorkbench} />
       <ConfirmDialog
         open={Boolean(pendingDeleteHistorySessionId)}
         title="删除历史工作区？"

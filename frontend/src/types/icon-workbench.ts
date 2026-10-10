@@ -16,6 +16,13 @@ export interface IconWorkbenchConfig {
   save_mode: "in_folder" | "centralized";
 }
 
+export type IconGenerationBlockedReason =
+  | "no_targets"
+  | "no_selected_style"
+  | "text_model_unconfigured"
+  | "image_model_unconfigured"
+  | "busy";
+
 export interface IconWorkbenchConfigPayload {
   config: IconWorkbenchConfig;
   presets: Array<{ id: string; name: string }>;

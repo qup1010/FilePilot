@@ -663,6 +663,17 @@ class StructuredOrganizerServiceTests(unittest.TestCase):
         self.assertIn("summary 不足", tool["function"]["description"])
         self.assertIn("不要批量查看全部条目", tool["function"]["description"])
 
+    def test_legacy_inspection_read_errors_are_normalized_to_codes(self):
+        self.assertEqual(
+            organizer_service._legacy_inspection_error_code("错误：基于安全考虑，本程序仅限读取允许目录内的文件。"),
+            "PATH_NOT_ALLOWED",
+        )
+        self.assertEqual(
+            organizer_service._legacy_inspection_error_code("读取 PDF 失败: malformed document"),
+            "PDF_READ_FAILED",
+        )
+        self.assertIsNone(organizer_service._legacy_inspection_error_code("Document contents"))
+
     def test_run_organizer_cycle_inspects_entry_content_before_submitting_plan_diff(self):
         inspect_message = SimpleNamespace(
             content="我先查看这个文件的具体内容。",

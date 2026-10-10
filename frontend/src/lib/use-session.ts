@@ -31,11 +31,10 @@ function _nowLabel(): string {
   });
 }
 
-const INITIAL_PLAN_REQUEST_PREFIX = "请基于上述的目录扫描结果和整理规则，为我生成整理计划。简要聊聊你为何这样计划，以及你对此目录的理解和分析。";
 const TOOL_ONLY_PLAN_FALLBACK_REPLY = "我已经更新了整理计划，请您查看。";
 const PLAN_FALLBACK_MESSAGE_ID = "local-plan-fallback";
 
-function isInternalPlanRequest(content: string): boolean {
+function isLegacyInternalPlanRequest(content: string): boolean {
   return content.includes("请基于上述")
     && content.includes("目录扫描结果")
     && content.includes("整理规则")
@@ -48,7 +47,7 @@ function shouldDisplayMessage(message: AssistantMessage): boolean {
   const content = String(message.content || "").trim();
   const visibility = String(message.visibility || "public").trim();
 
-  if (visibility === "internal") {
+  if (visibility === "internal" || message.message_type === "initial_plan_request") {
     return false;
   }
 
@@ -56,7 +55,7 @@ function shouldDisplayMessage(message: AssistantMessage): boolean {
     return false;
   }
 
-  if (role === "user" && (content.startsWith(INITIAL_PLAN_REQUEST_PREFIX) || isInternalPlanRequest(content))) {
+  if (role === "user" && isLegacyInternalPlanRequest(content)) {
     return false;
   }
 

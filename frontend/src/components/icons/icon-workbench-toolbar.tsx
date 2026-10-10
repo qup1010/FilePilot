@@ -12,6 +12,7 @@ interface IconWorkbenchToolbarProps {
   onOpenStylePanel: () => void;
   onOpenTemplateDrawer: () => void;
   selectedTemplateName?: string;
+  hasSelectedStyle: boolean;
 }
 
 export function IconWorkbenchToolbar({
@@ -23,8 +24,9 @@ export function IconWorkbenchToolbar({
   onOpenStylePanel,
   onOpenTemplateDrawer,
   selectedTemplateName = "请选择风格模板",
+  hasSelectedStyle,
 }: IconWorkbenchToolbarProps) {
-  const isNoStyleSelected = !selectedTemplateName || selectedTemplateName === "请选择风格模板" || selectedTemplateName === "请选择风格" || selectedTemplateName === "请先选择风格模板";
+  const isNoStyleSelected = !hasSelectedStyle;
   const targetSummary = targetCount > 0 ? `${targetCount} 个文件夹` : "未选择文件夹";
   const _targetDetail = targetCount > 0
     ? latestTargetPath || "继续添加文件夹..."

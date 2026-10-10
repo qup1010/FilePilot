@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-import type { FolderIconCandidate, IconPreviewVersion } from "@/types/icon-workbench";
+import type { FolderIconCandidate, IconGenerationBlockedReason, IconPreviewVersion } from "@/types/icon-workbench";
 import { buildImageSrc, getCurrentVersion, hasReadyVersion, resolvePreviewVersion } from "./icon-workbench-utils";
 import { IconWorkbenchVersionThumb } from "./icon-workbench-version-thumb";
 
@@ -37,7 +37,7 @@ interface IconWorkbenchFolderCardProps {
   isApplyingId?: string | null;
   desktopReady: boolean;
   hasSelectedStyle: boolean;
-  generateBlockedReason?: string | null;
+  generateBlockedReason?: IconGenerationBlockedReason | null;
   isProcessing?: boolean;
   isActiveProcessing?: boolean;
   generateStage?: "analyzing" | "applying_template" | "generating" | null;

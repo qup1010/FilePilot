@@ -824,16 +824,21 @@ def _validate_failed_image_probe_items(
 ) -> list[str]:
     if not image_probe_statuses:
         return []
-    generic_tokens = ("待判断", "待确认", "未识别", "未成功识别", "仅凭文件名", "内容待确认", "图片文件")
     failures: list[str] = []
     for item in items:
         status = (image_probe_statuses.get(item.entry_id) or {}).get("status", "")
         if status in {"", "ok"}:
             continue
-        combined = f"{item.suggested_purpose} {item.summary}"
-        if not any(token in combined for token in generic_tokens):
+        if not _has_legacy_generic_image_fallback(item):
             failures.append(item.entry_id or item.entry_name)
     return failures
+
+
+def _has_legacy_generic_image_fallback(item: AnalysisItem) -> bool:
+    """Recognize old Chinese fallback prose until image status is explicit in model output."""
+    combined = f"{item.suggested_purpose} {item.summary}"
+    legacy_tokens = ("待判断", "待确认", "未识别", "未成功识别", "仅凭文件名", "内容待确认", "图片文件")
+    return any(token in combined for token in legacy_tokens)
 
 
 def _run_analysis_worker(
@@ -1258,6 +1263,7 @@ def _placeholder_analysis_item(entry_name: str) -> AnalysisItem:
         entry_name=entry_name,
         suggested_purpose="待判断",
         summary="分析未覆盖，需手动确认",
+        analysis_status="needs_review",
     )
 
 
@@ -1318,6 +1324,7 @@ def _merge_context_batch_results(
                 entry_type=context_item["entry_type"],
                 suggested_purpose="待判断",
                 summary="分析未覆盖，需手动确认",
+                analysis_status="needs_review",
             )
         )
     return ordered_items

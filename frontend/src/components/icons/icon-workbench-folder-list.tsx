@@ -5,7 +5,7 @@ import { FolderOpen, FolderPlus, Plus, Sparkles } from "lucide-react";
 import { motion, } from "motion/react";
 
 import { DropZoneOverlay, getDropZoneSurfaceClassName } from "@/components/ui/drop-zone-feedback";
-import type { FolderIconCandidate, IconPreviewVersion } from "@/types/icon-workbench";
+import type { FolderIconCandidate, IconGenerationBlockedReason, IconPreviewVersion } from "@/types/icon-workbench";
 import { IconWorkbenchFolderCard } from "./icon-workbench-folder-card";
 
 interface IconWorkbenchFolderListProps {
@@ -27,7 +27,7 @@ interface IconWorkbenchFolderListProps {
   activeProcessingId?: string | null;
   desktopReady: boolean;
   hasSelectedStyle: boolean;
-  generateBlockedReason?: string | null;
+  generateBlockedReason?: IconGenerationBlockedReason | null;
   isProcessing?: boolean;
   processingFolderId?: string | null;
   generateStage?: "analyzing" | "applying_template" | "generating" | null;

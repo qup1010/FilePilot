@@ -158,6 +158,7 @@ export interface RecentAnalysisItem {
   entry_type?: string;
   suggested_purpose: string;
   summary: string;
+  analysis_status?: "queued" | "in_progress" | "completed" | "needs_review" | string;
 }
 
 export interface ScannerProgress {
@@ -165,6 +166,7 @@ export interface ScannerProgress {
   processed_count?: number;
   total_count?: number;
   current_item?: string | null;
+  current_item_kind?: "preparing" | "directory" | "entry" | string;
   recent_analysis_items?: RecentAnalysisItem[];
   batch_count?: number;
   completed_batches?: number;
@@ -332,6 +334,8 @@ export interface PrecheckIssue {
   id: string;
   severity: "blocking" | "warning" | "review";
   issue_type: string;
+  code?: string;
+  params?: Record<string, string | number | boolean | null>;
   message: string;
   related_item_ids: string[];
 }
@@ -381,6 +385,7 @@ export interface AssistantMessage {
   content: string;
   blocks?: Array<Record<string, unknown>>;
   visibility?: "public" | "internal" | string;
+  message_type?: string;
 }
 
 export interface ActivityFeedEntry {
