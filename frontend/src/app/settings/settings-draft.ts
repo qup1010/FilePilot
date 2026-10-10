@@ -4,7 +4,6 @@ import type {
   SettingsFamily,
   SettingsModelListResult,
   SettingsSnapshot,
-  SettingsTestResult,
   TextSettingsPreset,
   VisionSourceMode,
   VisionSettingsPreset,
@@ -210,29 +209,6 @@ export function createSecretDraftsFromSnapshot(snapshot: SettingsSnapshot): Reco
       snapshot.families.bg_removal.active_preset.secret_state === "stored"
     ),
   };
-}
-
-export function describeConnectionIssue(result: SettingsTestResult) {
-  if (result.code === "network_blocked") {
-    return "这次请求更像是被本机网络层拦截了。请优先检查 Windows 防火墙、安全软件、代理、TUN 或分流规则，而不只是模型配置本身。";
-  }
-  if (result.code === "vision_image_format_rejected") {
-    return "接口已经返回响应，但当前服务商可能不接受这次测试使用的图片传入格式。通常需要改供应商兼容适配，而不是单纯重填模型名称。";
-  }
-  const haystack = `${result.code} ${result.message}`.toLowerCase();
-  if (/(timeout|timed out|504|gateway)/.test(haystack)) {
-    return "远端服务响应超时或代理网关过慢，可以稍后重试，或换一个更稳定的接口地址。";
-  }
-  if (/(401|403|unauthori[sz]ed|forbidden|api key|apikey|密钥|key)/.test(haystack)) {
-    return "密钥或访问权限可能不正确，请检查 API Key、账号额度和接口权限。";
-  }
-  if (/(model|模型|not found|404)/.test(haystack)) {
-    return "模型名称可能不可用，或当前账号没有该模型的调用权限。";
-  }
-  if (/(network|fetch|connect|econn|dns|refused|unreachable|不可达|连接)/.test(haystack)) {
-    return "本地或远端服务不可达，请检查接口地址、网络代理和后端服务状态。";
-  }
-  return "请求没有成功完成，请根据错误信息检查当前配置。";
 }
 
 export function getVisionSourceMode(globalConfig: SettingsSnapshot["global_config"] | null | undefined): VisionSourceMode {

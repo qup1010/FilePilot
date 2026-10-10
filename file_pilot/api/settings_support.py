@@ -83,6 +83,8 @@ def _collect_exception_text(exc: Exception) -> str:
 
 
 def classify_test_error(exc: Exception) -> tuple[str, str]:
+    if str(exc) == "不支持的密钥操作":
+        return "settings_secret_action_invalid", "不支持的密钥操作。"
     status_code = getattr(exc, "status_code", None)
     if status_code is None:
         response = getattr(exc, "response", None)

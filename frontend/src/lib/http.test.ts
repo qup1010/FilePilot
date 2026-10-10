@@ -136,14 +136,14 @@ describe("requestJson", () => {
     expect((init.headers as Headers).get("Content-Type")).toBe("application/json");
   });
 
-  it("throws a UserFacingError with a Chinese message on 404", async () => {
+  it("uses a generic Chinese not-found message when a 404 has no machine code", async () => {
     fetchMock.mockResolvedValue(textResponse("", { status: 404, statusText: "Not Found" }));
 
     const error = await requestJson("http://127.0.0.1:8765", "/api/demo").catch((err: unknown) => err);
 
     expect(error).toBeInstanceOf(UserFacingError);
     const facing = error as UserFacingError;
-    expect(facing.message).toBe("这条任务记录已不存在或已被删除。");
+    expect(facing.message).toBe("请求的记录或资源已不存在。");
     expect(facing.status).toBe(404);
   });
 

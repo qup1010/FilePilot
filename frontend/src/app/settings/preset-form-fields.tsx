@@ -16,10 +16,11 @@ import {
 
 import { Button } from "@/components/ui/button";
 import { FieldGroup, InputShell } from "@/components/settings/settings-primitives";
+import { getSettingsTestIssueHint, getSettingsTestMessage } from "@/i18n/diagnostics";
+import { useTranslation } from "react-i18next";
 import { getApiBaseUrl, getApiToken } from "@/lib/runtime";
 import { cn } from "@/lib/utils";
 import {
-  describeConnectionIssue,
   describeSecret,
   type ModelLookupState,
   type PresetConfigFamily,
@@ -111,6 +112,7 @@ export interface ConnectionTestResultProps {
 }
 
 export function ConnectionTestResult({ family, result, isTesting }: ConnectionTestResultProps) {
+  const { t } = useTranslation("common");
   const isVision = family === "vision";
 
   if (isTesting) {
@@ -124,10 +126,10 @@ export function ConnectionTestResult({ family, result, isTesting }: ConnectionTe
         </div>
         <div className="min-w-0">
           <p className="text-[13px] font-bold tracking-tight text-on-surface">
-            {isVision ? "正在验证图片理解能力..." : "正在进行连接测试..."}
+            {isVision ? t("diagnostics.settingsTests.presentation.testingVision") : t("diagnostics.settingsTests.presentation.testingConnection")}
           </p>
           <p className="mt-0.5 text-[11px] font-bold tracking-widest text-primary/60">
-            {isVision ? "图片能力验证" : "连接探测"}
+            {isVision ? t("diagnostics.settingsTests.presentation.visionValidation") : t("diagnostics.settingsTests.presentation.connectionProbe")}
           </p>
         </div>
       </div>
@@ -139,7 +141,7 @@ export function ConnectionTestResult({ family, result, isTesting }: ConnectionTe
   }
 
   const isOk = result.status === "ok";
-  const issueHint = isOk ? null : describeConnectionIssue(result);
+  const issueHint = isOk ? null : getSettingsTestIssueHint(result, t);
 
   return (
     <motion.div
@@ -161,16 +163,22 @@ export function ConnectionTestResult({ family, result, isTesting }: ConnectionTe
       <div className="min-w-0 flex-1 space-y-1">
         <div className="flex items-center justify-between gap-4">
           <h4 className={cn("text-[13px] font-bold tracking-tight", isOk ? "text-success-dim" : "text-error-dim")}>
-            {isVision ? (isOk ? "图片能力已验证" : "图片能力验证失败") : isOk ? "连接成功，模型可用" : "连接测试失败"}
+            {isVision
+              ? isOk
+                ? t("diagnostics.settingsTests.presentation.visionVerified")
+                : t("diagnostics.settingsTests.presentation.visionFailed")
+              : isOk
+                ? t("diagnostics.settingsTests.presentation.connectionSuccess")
+                : t("diagnostics.settingsTests.presentation.connectionFailed")}
           </h4>
           {isOk && (
             <div className="flex items-center gap-1.5 rounded-[4px] bg-success/10 px-2 py-0.5 text-[11px] font-black uppercase tracking-widest text-success-dim">
               <div className="h-1 w-1 rounded-full bg-success animate-pulse" />
-              可用
+              {t("diagnostics.settingsTests.presentation.available")}
             </div>
           )}
         </div>
-        <p className="text-[12px] leading-relaxed text-on-surface/70">{result.message}</p>
+        <p className="text-[12px] leading-relaxed text-on-surface/70">{getSettingsTestMessage(result, t)}</p>
         {!isOk && issueHint ? (
           <p className="rounded-[6px] border border-error/10 bg-error/[0.04] px-3 py-2 text-[12px] font-medium leading-relaxed text-error-dim">
             {issueHint}
@@ -178,8 +186,8 @@ export function ConnectionTestResult({ family, result, isTesting }: ConnectionTe
         ) : null}
         {isVision && result.details ? (
           <div className="rounded-[6px] border border-on-surface/8 bg-surface-container-low px-3 py-2 text-[11px] leading-relaxed text-on-surface/70">
-            <p>期望结果：{result.details.expected}</p>
-            <p>实际返回：{result.details.actual?.trim() ? result.details.actual : "空响应"}</p>
+            <p>{t("diagnostics.settingsTests.presentation.expected")}: {result.details.expected}</p>
+            <p>{t("diagnostics.settingsTests.presentation.actual")}: {result.details.actual?.trim() ? result.details.actual : t("diagnostics.settingsTests.presentation.emptyResponse")}</p>
           </div>
         ) : null}
         {!isOk && <p className="text-[11px] font-mono opacity-50">Code: {result.code}</p>}

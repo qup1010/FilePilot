@@ -53,8 +53,10 @@ import { createApiClient } from "@/lib/api";
 import { notifyAppContextChange } from "@/lib/app-context-store";
 import { getApiBaseUrl, getApiToken, invokeTauriCommand, isTauriDesktop, pickDirectoryWithTauri, openUrlWithTauri } from "@/lib/runtime";
 import { cn } from "@/lib/utils";
+import { localizeUserFacingError } from "@/lib/user-facing-copy";
 import { useUiLocale } from "@/i18n/locale-provider";
 import { normalizeSavedUiLanguage } from "@/i18n/locales";
+import { useTranslation } from "react-i18next";
 import type {
   SettingsFamily,
   SettingsSnapshot,
@@ -82,6 +84,7 @@ const SETTINGS_CONTEXT_KEY = "settings_header_context";
 const COMPACT_SETTINGS_BREAKPOINT = 960;
 
 export default function SettingsPage() {
+  const { t } = useTranslation("common");
   const { saveUiLanguage } = useUiLocale();
   const searchParams = useSearchParams();
   const initialTab = searchParams.get("tab");
@@ -756,7 +759,16 @@ export default function SettingsPage() {
     try {
       if (family === "bg_removal") {
         if (!desktopReady) {
-          throw new Error("抠图服务测试仅支持桌面端。");
+          setTestResults((current) => ({
+            ...current,
+            bg_removal: {
+              status: "error",
+              family: "bg_removal",
+              code: "desktop_unavailable",
+              message: t("diagnostics.settingsTests.errors.desktopUnavailable"),
+            },
+          }));
+          return;
         }
         const runtimeConfig = await resolveBgRemovalRuntimeConfig();
         const tauriResult = await invokeTauriCommand<{ status: string; message: string }>("test_bg_removal_connection", {
@@ -775,7 +787,7 @@ export default function SettingsPage() {
               status: "error",
               family: "bg_removal",
               code: "desktop_unavailable",
-              message: "桌面端不可用，无法执行抠图连接测试。",
+              message: t("diagnostics.settingsTests.errors.desktopUnavailable"),
             },
         }));
         return;
@@ -822,7 +834,7 @@ export default function SettingsPage() {
             });
       setTestResults((current) => ({ ...current, [family]: result }));
     } catch (err) {
-      const message = err instanceof Error ? err.message : "连接测试失败";
+      const message = localizeUserFacingError(err, t("diagnostics.settingsTests.errors.requestFailed"));
       setTestResults((current) => ({
         ...current,
         [family]: {

@@ -522,8 +522,8 @@ describe("SettingsPage preset flow", () => {
     await user.click(await screen.findByRole("button", { name: /测试图片理解能力/i }));
 
     expect(await screen.findByText("图片能力已验证")).toBeInTheDocument();
-    expect(screen.getByText('期望结果：VISION TEST 42')).toBeInTheDocument();
-    expect(screen.getByText('实际返回：VISION TEST 42')).toBeInTheDocument();
+    expect(screen.getByText('期望结果: VISION TEST 42')).toBeInTheDocument();
+    expect(screen.getByText('实际返回: VISION TEST 42')).toBeInTheDocument();
   });
 
   it("shows vision-specific loading copy while verifying image capability", async () => {
@@ -568,7 +568,12 @@ describe("SettingsPage preset flow", () => {
   it("keeps connection test failures inside the related test panel", async () => {
     const user = userEvent.setup();
     getSettings.mockResolvedValue(createSnapshotWithEditableVisionPreset());
-    testSettings.mockRejectedValueOnce(new Error("HTTP 504 Gateway Timeout"));
+    testSettings.mockResolvedValueOnce({
+      status: "error",
+      family: "vision",
+      code: "timeout",
+      message: "后端返回的中文错误详情",
+    });
 
     render(<SettingsPage />);
 
@@ -577,8 +582,9 @@ describe("SettingsPage preset flow", () => {
     await user.click(await screen.findByRole("button", { name: /测试图片理解能力/i }));
 
     expect(await screen.findByText("图片能力验证失败")).toBeInTheDocument();
-    expect(screen.getByText("HTTP 504 Gateway Timeout")).toBeInTheDocument();
+    expect(screen.getByText("连接超时，请检查网络或服务响应速度。")).toBeInTheDocument();
     expect(screen.getByText(/远端服务响应超时/)).toBeInTheDocument();
+    expect(screen.queryByText("后端返回的中文错误详情")).not.toBeInTheDocument();
     expect(screen.queryByText("操作执行失败")).not.toBeInTheDocument();
   });
 

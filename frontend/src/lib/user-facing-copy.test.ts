@@ -21,6 +21,20 @@ describe("user-facing copy helpers", () => {
     expect(getUserFacingErrorCode(error)).toBe("SESSION_NOT_FOUND");
   });
 
+  it("localizes machine-coded HTTP failures to the selected language", async () => {
+    await i18n.changeLanguage("en");
+    const error = createUserFacingRequestError(
+      502,
+      "Bad Gateway",
+      JSON.stringify({ error_code: "SOME_NEW_BACKEND_CODE", message: "模型服务暂时不可用，请稍后再试。" }),
+    );
+
+    expect(error.message).toBe("The local service encountered an error. Try again shortly.");
+    expect(error.message).not.toContain("模型服务");
+    expect(error.rawMessage).toContain("模型服务暂时不可用，请稍后再试。");
+    expect(getUserFacingErrorCode(error)).toBe("SOME_NEW_BACKEND_CODE");
+  });
+
   it("maps network failures to a backend connection hint", () => {
     expect(localizeUserFacingError(new TypeError("Failed to fetch"), "fallback")).toBe(
       "暂时无法连接本地服务，请确认 FilePilot 后台仍在运行。",
@@ -95,7 +109,8 @@ describe("user-facing copy helpers", () => {
     expect(getUserFacingErrorCode(error)).toBe("RULE_DRAFTS_THINKING_TOOL_UNSUPPORTED");
   });
 
-  it("prefers backend Chinese message when code is unknown but message is provided", () => {
+  it("does not expose backend Chinese messages for unknown HTTP codes", async () => {
+    await i18n.changeLanguage("en");
     const error = createUserFacingRequestError(
       502,
       "Bad Gateway",
@@ -105,6 +120,6 @@ describe("user-facing copy helpers", () => {
       }),
     );
 
-    expect(error.message).toBe("模型服务暂时不可用，请稍后再试。");
+    expect(error.message).toBe("The local service encountered an error. Try again shortly.");
   });
 });
