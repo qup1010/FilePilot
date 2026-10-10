@@ -124,6 +124,26 @@ jobs:
           CI: "true"
         run: npm run tauri:build
 
+      - name: Verify localized Windows installers
+        shell: pwsh
+        run: |
+          $msiDirectory = 'desktop/src-tauri/target/release/bundle/msi'
+          $msis = @(Get-ChildItem $msiDirectory -Recurse -Filter *.msi)
+          foreach ($language in @('en-US', 'zh-CN')) {
+            $localizedMsi = @($msis | Where-Object { $_.BaseName.Contains($language) })
+            if ($localizedMsi.Count -eq 0) {
+              throw "WiX installer for $language was not generated."
+            }
+            Write-Output "Found WiX installer for ${language}: $($localizedMsi[0].Name)"
+          }
+
+          $nsisDirectory = 'desktop/src-tauri/target/release/bundle/nsis'
+          $nsisInstallers = @(Get-ChildItem $nsisDirectory -Recurse -Filter *.exe)
+          if ($nsisInstallers.Count -eq 0) {
+            throw 'NSIS installer was not generated.'
+          }
+          Write-Output "Found NSIS multilingual installer: $($nsisInstallers[0].Name)"
+
       - name: Smoke test installed desktop bundle
         shell: pwsh
         run: |
@@ -135,9 +155,11 @@ jobs:
           }
           $desktopExeName = $builtExe.Name
 
-          $msi = Get-ChildItem 'desktop/src-tauri/target/release/bundle/msi' -Recurse -Filter *.msi | Select-Object -First 1
+          $msi = Get-ChildItem 'desktop/src-tauri/target/release/bundle/msi' -Recurse -Filter *.msi |
+            Where-Object { $_.BaseName.Contains('en-US') } |
+            Select-Object -First 1
           if (-not $msi) {
-            throw "MSI bundle was not found."
+            throw "English MSI bundle was not found."
           }
 
           $install = Start-Process msiexec.exe -ArgumentList '/i', $msi.FullName, '/qn', '/norestart' -PassThru -Wait
