@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Check, LoaderCircle, AlertCircle, Maximize2, Scissors, Trash2, CheckCircle2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { IconPreviewVersion } from "@/types/icon-workbench";
@@ -37,6 +38,7 @@ export function IconWorkbenchVersionThumb({
   isRemovingBg = false,
   isProcessing = false,
 }: IconWorkbenchVersionThumbProps) {
+  const { t } = useTranslation("common");
   const isReady = version.status === "ready";
   const isGenerating = version.status === "generating";
   const [imageLoaded, setImageLoaded] = useState(false);
@@ -85,10 +87,10 @@ export function IconWorkbenchVersionThumb({
         <div className="absolute left-1 top-1 flex items-center gap-1">
            <span className="rounded bg-black/60 px-1 py-0.5 text-[11px] font-black text-white/90 backdrop-blur-sm">V{version.version_number}</span>
            {isSelected && !isApplied && (
-             <span className="rounded bg-primary/80 px-1 py-0.5 text-[11px] font-black text-white/90 backdrop-blur-sm">当前版本</span>
+             <span className="rounded bg-primary/80 px-1 py-0.5 text-[11px] font-black text-white/90 backdrop-blur-sm">{t("iconWorkbench.version.current")}</span>
            )}
            {isApplied && (
-             <span className="rounded bg-primary/80 px-1 py-0.5 text-[11px] font-black text-white/90 backdrop-blur-sm">已应用</span>
+             <span className="rounded bg-primary/80 px-1 py-0.5 text-[11px] font-black text-white/90 backdrop-blur-sm">{t("iconWorkbench.version.applied")}</span>
            )}
            {isApplied && (
              <div className="bg-primary rounded-full p-0.5 ring-1 ring-white/20">
@@ -100,10 +102,10 @@ export function IconWorkbenchVersionThumb({
         {/* Hover 操作浮层 */}
         {isReady && !isProcessing && (
           <div className="absolute inset-x-0 bottom-0 flex h-7 translate-y-full items-center justify-around bg-black/70 px-1 backdrop-blur-md transition-transform group-hover/version:translate-y-0">
-             <button aria-label="放大预览" onClick={(e) => { e.stopPropagation(); onZoom(); }} className="p-1 text-white hover:text-primary transition-colors"><Maximize2 className="h-3 w-3" /></button>
-             <button aria-label="去除背景" onClick={(e) => { e.stopPropagation(); onRemoveBg(); }} className="p-1 text-white hover:text-primary transition-colors"><Scissors className="h-3 w-3" /></button>
-             <button aria-label={isApplied ? "重新应用" : "应用到系统"} onClick={(e) => { e.stopPropagation(); onApply(); }} className="p-1 text-white hover:text-primary transition-colors"><CheckCircle2 className="h-3.5 w-3.5 text-primary" /></button>
-             <button aria-label="删除版本" onClick={(e) => { e.stopPropagation(); onDelete(); }} className="p-1 text-white hover:text-error transition-colors"><Trash2 className="h-3 w-3" /></button>
+             <button aria-label={t("iconWorkbench.version.zoom")} onClick={(e) => { e.stopPropagation(); onZoom(); }} className="p-1 text-white hover:text-primary transition-colors"><Maximize2 className="h-3 w-3" /></button>
+             <button aria-label={t("iconWorkbench.version.removeBackground")} onClick={(e) => { e.stopPropagation(); onRemoveBg(); }} className="p-1 text-white hover:text-primary transition-colors"><Scissors className="h-3 w-3" /></button>
+             <button aria-label={t(isApplied ? "iconWorkbench.version.reapply" : "iconWorkbench.version.applyToSystem")} onClick={(e) => { e.stopPropagation(); onApply(); }} className="p-1 text-white hover:text-primary transition-colors"><CheckCircle2 className="h-3.5 w-3.5 text-primary" /></button>
+             <button aria-label={t("iconWorkbench.version.delete")} onClick={(e) => { e.stopPropagation(); onDelete(); }} className="p-1 text-white hover:text-error transition-colors"><Trash2 className="h-3 w-3" /></button>
           </div>
         )}
 

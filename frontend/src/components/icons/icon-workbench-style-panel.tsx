@@ -2,8 +2,10 @@
 
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { X, Check, Palette, Plus } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import type { IconTemplate } from "@/types/icon-workbench";
+import { getIconTemplateDisplayDescription, getIconTemplateDisplayName } from "./icon-workbench-utils";
 
 interface IconWorkbenchStylePanelProps {
   isOpen: boolean;
@@ -26,6 +28,7 @@ export function IconWorkbenchStylePanel({
   selectedTemplateId,
   onRequestManageTemplate,
 }: IconWorkbenchStylePanelProps) {
+  const { t } = useTranslation("common");
   return (
     <DialogPrimitive.Root
       open={isOpen}
@@ -47,13 +50,13 @@ export function IconWorkbenchStylePanel({
             </div>
             <div>
               <DialogPrimitive.Title asChild>
-                <h2 className="text-[20px] font-black tracking-tight text-on-surface leading-tight">选择风格模板</h2>
+                <h2 className="text-[20px] font-black tracking-tight text-on-surface leading-tight">{t("iconWorkbench.stylePicker.title")}</h2>
               </DialogPrimitive.Title>
               <div className="mt-1 flex items-center gap-2">
-                <span className="text-[11px] font-black uppercase tracking-[0.15em] text-primary/70">画风基准</span>
+                <span className="text-[11px] font-black uppercase tracking-[0.15em] text-primary/70">{t("iconWorkbench.stylePicker.basis")}</span>
                 <span className="h-1 w-1 rounded-full bg-on-surface/20" />
                 <DialogPrimitive.Description asChild>
-                  <p className="text-[12px] font-bold text-ui-muted opacity-60">选择后将作为本次图标生成的画风基准</p>
+                  <p className="text-[12px] font-bold text-ui-muted opacity-60">{t("iconWorkbench.stylePicker.description")}</p>
                 </DialogPrimitive.Description>
               </div>
             </div>
@@ -90,7 +93,7 @@ export function IconWorkbenchStylePanel({
                     {template.cover_image ? (
                       <img
                         src={template.cover_image}
-                        alt={template.name}
+                        alt={getIconTemplateDisplayName(template, t)}
                         className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-110"
                       />
                     ) : (
@@ -110,10 +113,10 @@ export function IconWorkbenchStylePanel({
                   {/* 文本信息 */}
                   <div className="flex-1 space-y-1.5 px-0.5">
                     <h3 className="truncate text-[14px] font-black tracking-tight text-on-surface group-hover:text-primary transition-colors">
-                      {template.name}
+                      {getIconTemplateDisplayName(template, t)}
                     </h3>
                     <p className="line-clamp-2 text-[11px] leading-relaxed text-ui-muted/70 font-medium italic">
-                      {template.description || "用于生成这一类文件夹图标的默认风格。"}
+                      {getIconTemplateDisplayDescription(template, t)}
                     </p>
                   </div>
 
@@ -123,7 +126,7 @@ export function IconWorkbenchStylePanel({
                       "rounded-md px-1.5 py-0.5 text-[11px] font-black uppercase tracking-widest border",
                       template.is_builtin ? "bg-on-surface/5 border-on-surface/10 text-ui-muted/60" : "bg-primary/5 border-primary/20 text-primary"
                     )}>
-                      {template.is_builtin ? "系统内置" : "自定义"}
+                      {template.is_builtin ? t("iconWorkbench.stylePicker.builtIn") : t("iconWorkbench.stylePicker.custom")}
                     </span>
                     {!template.is_builtin && onRequestManageTemplate ? (
                       <button
@@ -134,11 +137,11 @@ export function IconWorkbenchStylePanel({
                         }}
                         className="text-[11px] font-black text-primary hover:text-primary-dim transition-colors"
                       >
-                        编辑
+                        {t("iconWorkbench.stylePicker.edit")}
                       </button>
                     ) : (
                       <span className="text-[11px] font-black text-primary opacity-0 transition-all translate-x-2 group-hover:opacity-100 group-hover:translate-x-0">
-                        应用
+                        {t("iconWorkbench.stylePicker.apply")}
                       </span>
                     )}
                   </div>
@@ -160,10 +163,10 @@ export function IconWorkbenchStylePanel({
                 </div>
                 <div className="flex-1 space-y-1.5 px-0.5">
                   <h3 className="text-[14px] font-black tracking-tight text-on-surface group-hover:text-primary transition-colors">
-                    创建新模板
+                    {t("iconWorkbench.stylePicker.create")}
                   </h3>
                   <p className="line-clamp-2 text-[11px] leading-relaxed text-ui-muted/70 font-medium italic">
-                    通过自定义提示词创建专属图标画风。
+                    {t("iconWorkbench.stylePicker.createDescription")}
                   </p>
                 </div>
               </button>

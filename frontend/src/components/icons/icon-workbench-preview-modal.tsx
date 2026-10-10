@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import {
   X,
@@ -65,6 +66,7 @@ export function IconWorkbenchPreviewModal({
   regenerateDisabled = false,
   imageModelName,
 }: IconWorkbenchPreviewModalProps) {
+  const { t } = useTranslation("common");
   const [showMockup, setShowMockup] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
@@ -96,7 +98,7 @@ export function IconWorkbenchPreviewModal({
       window.URL.revokeObjectURL(url);
     } catch (error) {
       console.error("Download failed", error);
-      setDownloadError("下载失败。请在桌面版中保存，或对图片右键另存为。");
+      setDownloadError(t("iconWorkbench.preview.downloadError"));
     } finally {
       setIsDownloading(false);
     }
@@ -118,7 +120,7 @@ export function IconWorkbenchPreviewModal({
         {/* Mobile Header */}
         <div className="flex shrink-0 items-center justify-between border-b border-white/5 px-6 py-4 lg:hidden">
           <div className="min-w-0">
-             <h3 className="truncate text-[15px] font-black text-white">{folderName || "版本预览"}</h3>
+             <h3 className="truncate text-[15px] font-black text-white">{folderName || t("iconWorkbench.preview.defaultFolderName")}</h3>
              <p className="truncate text-[11px] font-bold text-white/40 uppercase tracking-widest">{subtitle}</p>
           </div>
           <button onClick={onClose} className="rounded-full bg-white/5 p-2 text-white/60 hover:bg-white/10">
@@ -163,11 +165,11 @@ export function IconWorkbenchPreviewModal({
                              <ChevronRight className="h-4 w-4 text-white/40" />
                           </div>
                           <div className="flex items-center gap-2 text-[12px] text-white/60">
-                             <span className="opacity-40">此电脑</span>
+                             <span className="opacity-40">{t("iconWorkbench.preview.mockupComputer")}</span>
                              <ChevronRight className="h-3 w-3 opacity-20" />
-                             <span className="opacity-40">图片</span>
+                             <span className="opacity-40">{t("iconWorkbench.preview.mockupPictures")}</span>
                              <ChevronRight className="h-3 w-3 opacity-20" />
-                             <span>演示目录</span>
+                             <span>{t("iconWorkbench.preview.mockupFolder")}</span>
                           </div>
                        </div>
 
@@ -187,10 +189,10 @@ export function IconWorkbenchPreviewModal({
                     <div className="flex h-12 items-center gap-4 border-b border-white/5 bg-[#1e1e1e] px-4">
                        <div className="flex items-center gap-2 rounded-[4px] bg-white/5 px-3 py-1 text-[12px] font-medium text-white/80">
                           <LayoutGrid className="h-3.5 w-3.5" />
-                          <span>查看</span>
+                          <span>{t("iconWorkbench.preview.mockupView")}</span>
                        </div>
                        <div className="ml-auto flex w-40 items-center justify-between rounded-[4px] border border-white/10 bg-white/5 px-2 py-1">
-                          <span className="text-[11px] text-white/20">搜索图片...</span>
+                          <span className="text-[11px] text-white/20">{t("iconWorkbench.preview.mockupSearch")}</span>
                           <Search className="h-3.5 w-3.5 text-white/20" />
                        </div>
                     </div>
@@ -207,7 +209,7 @@ export function IconWorkbenchPreviewModal({
                                 <div className="absolute -inset-3 ring-[1.5px] ring-primary/60 bg-primary/10 rounded-[6px] opacity-100" />
                              </div>
                              <div className="z-10 rounded-[4px] bg-primary px-3 py-1 text-[11px] font-black text-white">
-                                {folderName || "扫描与报告"}
+                                {folderName || t("iconWorkbench.preview.mockupFolder")}
                              </div>
                           </div>
 
@@ -221,14 +223,14 @@ export function IconWorkbenchPreviewModal({
                     </div>
 
                     <div className="h-7 border-t border-white/5 bg-[#252525] px-4 flex items-center justify-between text-[11px] text-white/20">
-                       <span>已选择 1 个项目</span>
+                       <span>{t("iconWorkbench.preview.mockupSelection")}</span>
                        <div className="h-2 w-12 rounded-full bg-white/5" />
                     </div>
                  </div>
 
                  <div className="space-y-1 text-center">
-                    <p className="text-[14px] font-black text-white/50 tracking-tight">Windows 预览模拟</p>
-                    <p className="text-[11px] font-medium text-white/25">当前展示图标直接作为文件夹图标后的视觉效果</p>
+                    <p className="text-[14px] font-black text-white/50 tracking-tight">{t("iconWorkbench.preview.mockupTitle")}</p>
+                    <p className="text-[11px] font-medium text-white/25">{t("iconWorkbench.preview.mockupDescription")}</p>
                  </div>
               </motion.div>
             )}
@@ -244,7 +246,7 @@ export function IconWorkbenchPreviewModal({
                )}
              >
                <Maximize2 className="h-3.5 w-3.5" />
-               单体预览
+               {t("iconWorkbench.preview.singleView")}
              </button>
              <button
                onClick={() => setShowMockup(true)}
@@ -254,7 +256,7 @@ export function IconWorkbenchPreviewModal({
                )}
              >
                <Monitor className="h-3.5 w-3.5" />
-               系统模拟
+               {t("iconWorkbench.preview.systemView")}
              </button>
           </div>
         </div>
@@ -265,14 +267,14 @@ export function IconWorkbenchPreviewModal({
             <div className="flex items-center justify-between">
                <div className="flex items-center gap-2 text-primary">
                   <Sparkles className="h-4 w-4" />
-                  <span className="text-[11px] font-black">效果预览</span>
+                  <span className="text-[11px] font-black">{t("iconWorkbench.preview.effectPreview")}</span>
                </div>
                <button onClick={onClose} className="text-white/30 hover:text-white">
                  <X className="h-5 w-5" />
                </button>
             </div>
             <DialogPrimitive.Title asChild>
-              <h2 className="mt-6 text-[1.4rem] font-black tracking-tight text-white">{folderName || "方案预览"}</h2>
+              <h2 className="mt-6 text-[1.4rem] font-black tracking-tight text-white">{folderName || t("iconWorkbench.preview.defaultFolderName")}</h2>
             </DialogPrimitive.Title>
             <p className="mt-1.5 text-[12px] font-bold text-white/40 uppercase tracking-[0.05em]">{subtitle}</p>
           </div>
@@ -282,34 +284,34 @@ export function IconWorkbenchPreviewModal({
                 <div className="space-y-3">
                    <p className="flex items-center gap-2 text-[11px] font-black uppercase tracking-widest text-white/30">
                      <Info className="h-3 w-3" />
-                     版本详情
+                     {t("iconWorkbench.preview.versionDetails")}
                    </p>
                    <div className="grid grid-cols-2 gap-2">
                       <div className="rounded-[12px] border border-white/5 bg-white/5 p-3">
-                         <p className="text-[11px] font-bold text-white/30 uppercase">分辨率</p>
+                         <p className="text-[11px] font-bold text-white/30 uppercase">{t("iconWorkbench.preview.resolution")}</p>
                          <p className="mt-1 text-[13px] font-black text-white/80">1024 × 1024</p>
                       </div>
                       <div className="rounded-[12px] border border-white/5 bg-white/5 p-3">
-                         <p className="text-[11px] font-bold text-white/30 uppercase">状态</p>
+                         <p className="text-[11px] font-bold text-white/30 uppercase">{t("iconWorkbench.preview.status")}</p>
                          <p className={cn(
                            "mt-1 text-[13px] font-black",
                            isApplied ? "text-success-dim" : "text-success-dim/60"
                          )}>
-                            {isApplied ? "已应用" : "未应用"}
+                            {t(isApplied ? "iconWorkbench.preview.applied" : "iconWorkbench.preview.notApplied")}
                          </p>
                          <p className="mt-1 text-[11px] font-bold leading-4 text-white/35">
-                           {isCurrentVersion ? "当前选中的预览版本，点击下方按钮即可应用至文件夹。" : "支持在多个历史版本中对比选择后再应用。"}
+                           {t(isCurrentVersion ? "iconWorkbench.preview.currentVersionHelp" : "iconWorkbench.preview.otherVersionHelp")}
                          </p>
                       </div>
                    </div>
                 </div>
 
                 <div className="space-y-3">
-                   <p className="text-[11px] font-black uppercase tracking-widest text-white/30">生图模型</p>
+                   <p className="text-[11px] font-black uppercase tracking-widest text-white/30">{t("iconWorkbench.preview.imageModel")}</p>
                    <div className="flex items-center gap-2 rounded-[12px] border border-white/5 bg-white/5 px-4 py-3">
                       <div className="h-2 w-2 rounded-full bg-primary/60" />
                       <span className="text-[12px] font-bold text-white/70">
-                        {imageModelName || "默认模型"}
+                        {imageModelName || t("iconWorkbench.preview.defaultModel")}
                       </span>
                    </div>
                 </div>
@@ -341,7 +343,7 @@ export function IconWorkbenchPreviewModal({
                   ) : (
                     <CheckCircle2 className="mr-2 h-4 w-4" />
                   )}
-                  {isApplied ? "打开文件夹查看" : "应用到文件夹"}
+                  {t(isApplied ? "iconWorkbench.preview.openFolder" : "iconWorkbench.preview.applyToFolder")}
                 </Button>
              )}
 
@@ -353,7 +355,7 @@ export function IconWorkbenchPreviewModal({
                   className="h-11 rounded-[8px] border-white/10 bg-white/5 text-[12px] font-black text-white hover:bg-white/10 disabled:opacity-40"
                 >
                   <RefreshCw className="mr-2 h-3.5 w-3.5" />
-                  重新生成
+                  {t("iconWorkbench.preview.regenerate")}
                 </Button>
                 <Button
                   variant="secondary"
@@ -362,7 +364,7 @@ export function IconWorkbenchPreviewModal({
                   className="h-11 rounded-[8px] border-white/10 bg-white/5 text-[12px] font-black text-white hover:bg-white/10"
                 >
                    {isDownloading ? <LoaderCircle className="mr-2 h-3.5 w-3.5 animate-spin" /> : <Download className="mr-2 h-3.5 w-3.5" />}
-                   下载 PNG
+                   {t("iconWorkbench.preview.downloadPng")}
                 </Button>
              </div>
 
@@ -370,7 +372,7 @@ export function IconWorkbenchPreviewModal({
                onClick={onClose}
                className="h-11 w-full text-[12px] font-bold text-white/40 hover:text-white"
              >
-               取消预览
+               {t("iconWorkbench.preview.cancel")}
              </button>
           </div>
         </div>

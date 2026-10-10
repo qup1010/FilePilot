@@ -1,8 +1,12 @@
 import React from "react";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { createInstance } from "i18next";
+import { I18nextProvider, initReactI18next } from "react-i18next";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import enCommon from "@/i18n/resources/en/common.json";
+import zhCNCommon from "@/i18n/resources/zh-CN/common.json";
 import { invokeTauriCommand, isTauriDesktop } from "@/lib/runtime";
 import IconWorkbenchV2 from "./icon-workbench-v2";
 
@@ -672,6 +676,47 @@ beforeEach(() => {
     expect(screen.getByRole("button", { name: /重新连接/i })).toBeInTheDocument();
   });
 
+  it("localizes stream status in English without recreating the active stream when the UI language changes", async () => {
+    const testI18n = createInstance();
+    await testI18n.use(initReactI18next).init({
+      resources: {
+        en: { common: enCommon },
+        "zh-CN": { common: zhCNCommon },
+      },
+      lng: "en",
+      fallbackLng: "zh-CN",
+      defaultNS: "common",
+      interpolation: { escapeValue: false },
+    });
+    localStorage.setItem("icons_workspace_state", JSON.stringify({
+      sessionId: "icon-session-1",
+      selectedTemplateId: "",
+      expandedFolderId: null,
+    }));
+
+    render(<I18nextProvider i18n={testI18n}><IconWorkbenchV2 /></I18nextProvider>);
+
+    await waitFor(() => {
+      expect(latestStreamOptions).not.toBeNull();
+    });
+    const activeStreamOptions = latestStreamOptions;
+
+    act(() => {
+      latestStreamOptions?.onError?.(new Event("error"));
+    });
+
+    expect(await screen.findByText("Reconnecting")).toBeInTheDocument();
+    expect(screen.getByText("The live Icon Studio connection was interrupted. Progress may be out of date.")).toBeInTheDocument();
+
+    await act(async () => {
+      await testI18n.changeLanguage("zh-CN");
+    });
+
+    expect(await screen.findByText("重连中")).toBeInTheDocument();
+    expect(screen.getByText("The live Icon Studio connection was interrupted. Progress may be out of date.")).toBeInTheDocument();
+    expect(latestStreamOptions).toBe(activeStreamOptions);
+  });
+
   it("shows the image-model banner when only the image model is missing", async () => {
     iconApiMock.getConfig.mockResolvedValueOnce({
       config: {
@@ -687,11 +732,11 @@ beforeEach(() => {
     render(<IconWorkbenchV2 />);
 
     await waitFor(() => {
-      expect(screen.getByText("AI 生图模型尚未配置")).toBeInTheDocument();
+      expect(screen.getByText("尚未配置生图模型")).toBeInTheDocument();
     });
 
-    expect(screen.getByText("去配置图标生图")).toBeInTheDocument();
-    expect(screen.queryByText("AI 文本模型尚未配置")).not.toBeInTheDocument();
+    expect(screen.getByText("打开图标生图设置")).toBeInTheDocument();
+    expect(screen.queryByText("尚未配置文本模型")).not.toBeInTheDocument();
   });
 
   it("rescans the session after a successful desktop apply if report sync fails", async () => {
@@ -894,7 +939,7 @@ beforeEach(() => {
       expect(iconApiMock.generatePreviews).toHaveBeenCalledWith("icon-session-1", ["folder-1"]);
     });
     expect(screen.getByText("图标生成已完成：成功 0，失败 1，跳过 0。")).toBeInTheDocument();
-    expect(screen.getByText("生成失败：「Alpha」。")).toBeInTheDocument();
+    expect(screen.getByText("以下文件夹生成失败：“Alpha”。")).toBeInTheDocument();
   });
 
   it("skips the analyzing step in the progress rail when the folder is already analyzed", async () => {

@@ -1,17 +1,18 @@
 "use client";
 import { FolderDown, LoaderCircle, Sparkles } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { BackgroundRemovalBatchProgress } from "@/types/icon-workbench";
 import type { IconGenerationBlockedReason } from "@/types/icon-workbench";
 
-const BLOCKED_REASON_COPY: Record<IconGenerationBlockedReason, string> = {
-  no_targets: "先选择目标文件夹",
-  no_selected_style: "请先在右上角选择风格模板，再开始生成。",
-  text_model_unconfigured: "请先在设置中配置文本模型",
-  image_model_unconfigured: "请先在设置中配置图标生图模型",
-  busy: "正在生成...",
+const BLOCKED_REASON_KEYS: Record<IconGenerationBlockedReason, string> = {
+  no_targets: "iconWorkbench.blocked.no_targets",
+  no_selected_style: "iconWorkbench.blocked.no_selected_style",
+  text_model_unconfigured: "iconWorkbench.blocked.text_model_unconfigured",
+  image_model_unconfigured: "iconWorkbench.blocked.image_model_unconfigured",
+  busy: "iconWorkbench.blocked.busy",
 };
 
 interface IconWorkbenchFooterBarProps {
@@ -30,8 +31,9 @@ interface IconWorkbenchFooterBarProps {
   generateProgressHint?: string | null;
 }
 
-function blockedReasonCopy(reason: string): string {
-  return BLOCKED_REASON_COPY[reason as IconGenerationBlockedReason] || reason;
+function blockedReasonCopy(reason: string, t: (key: string) => string): string {
+  const key = BLOCKED_REASON_KEYS[reason as IconGenerationBlockedReason];
+  return key ? t(key) : reason;
 }
 
 export function IconWorkbenchFooterBar({
@@ -49,13 +51,20 @@ export function IconWorkbenchFooterBar({
   generateBlockedReason,
   generateProgressHint,
 }: IconWorkbenchFooterBarProps) {
+  const { t, i18n } = useTranslation("common");
   if (targetCount <= 0) return null;
 
   const isBusy = isGenerating || isApplying || isRemovingBgBatch;
   const removingBgProgressLabel =
     removeBgBatchProgress && removeBgBatchProgress.activeFolderNames.length > 0
-      ? `正在同时为 ${removeBgBatchProgress.activeFolderNames.map((name) => `「${name}」`).join("、")} 去除背景，已完成 ${removeBgBatchProgress.completed}/${removeBgBatchProgress.total}。`
-      : "正在批量去除背景...";
+      ? t("iconWorkbench.footer.backgroundProgress", {
+          folders: removeBgBatchProgress.activeFolderNames
+            .map((name) => i18n.resolvedLanguage?.startsWith("zh") ? `「${name}」` : `“${name}”`)
+            .join(i18n.resolvedLanguage?.startsWith("zh") ? "、" : ", "),
+          completed: removeBgBatchProgress.completed,
+          total: removeBgBatchProgress.total,
+        })
+      : t("iconWorkbench.footer.backgroundBatchRunning");
 
   return (
     <div className="border-t border-on-surface/8 bg-surface-container-lowest/80 backdrop-blur-md px-5 h-[52px] flex items-center shrink-0">
@@ -70,10 +79,10 @@ export function IconWorkbenchFooterBar({
              {isBusy ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <FolderDown className="h-3.5 w-3.5" />}
            </div>
            <div className="flex items-center gap-2">
-              <span className="text-[12px] font-black text-on-surface/80">{targetCount} 个文件夹</span>
+              <span className="text-[12px] font-black text-on-surface/80">{t("iconWorkbench.counts.folder", { count: targetCount })}</span>
               <div className="h-3 w-[1px] bg-on-surface/10 mx-1" />
               <span className="text-[11px] font-black uppercase tracking-widest text-ui-muted opacity-40 truncate max-w-[200px]">
-                {selectedTemplateName || "等待风格配置"}
+                {selectedTemplateName || t("iconWorkbench.footer.waitingForStyle")}
               </span>
            </div>
         </div>
@@ -84,10 +93,10 @@ export function IconWorkbenchFooterBar({
               "text-[11px] font-bold tracking-tight truncate px-4",
               isBusy ? "text-primary/70 animate-pulse" : "text-ui-muted/30"
            )}>
-             {isGenerating ? (generateProgressHint || "正在分析语义并生成图标方案...") :
+             {isGenerating ? (generateProgressHint || t("iconWorkbench.footer.analyzing")) :
               isRemovingBgBatch ? removingBgProgressLabel :
-              isApplying ? "正在将图标应用至本地文件夹..." :
-              generateBlockedReason ? blockedReasonCopy(generateBlockedReason) : "生成预览满意后点击应用，将自动替换为您电脑上的文件夹图标。"}
+              isApplying ? t("iconWorkbench.footer.applying") :
+              generateBlockedReason ? blockedReasonCopy(generateBlockedReason, t) : t("iconWorkbench.footer.idleHint")}
            </p>
         </div>
 
@@ -99,14 +108,14 @@ export function IconWorkbenchFooterBar({
                 disabled={!canRemoveBgBatch || isBusy}
                 className="h-7 rounded px-3 text-[11px] font-black uppercase text-on-surface/60 hover:bg-on-surface/10 disabled:opacity-20 transition-all"
               >
-                批量去背景
+                {t("iconWorkbench.footer.removeBackgroundBatch")}
               </button>
               <button
                 onClick={(e) => { e.stopPropagation(); onApplyBatch(); }}
                 disabled={!canApplyBatch || isBusy}
                 className="h-7 rounded px-3 text-[11px] font-black uppercase text-on-surface/60 hover:bg-on-surface/10 disabled:opacity-20 transition-all"
               >
-                全部应用
+                {t("iconWorkbench.footer.applyAll")}
               </button>
            </div>
 
@@ -116,7 +125,7 @@ export function IconWorkbenchFooterBar({
              className="h-8 rounded border border-primary/25 bg-primary px-5 text-[11px] font-black uppercase tracking-widest text-white hover:bg-primary-dim active:scale-95 transition-all"
            >
              {isGenerating ? <LoaderCircle className="h-3 w-3 animate-spin mr-2" /> : <Sparkles className="h-3 w-3 mr-2" />}
-             {isGenerating ? "正在生成" : "生成预览"}
+             {isGenerating ? t("iconWorkbench.footer.generating") : t("iconWorkbench.footer.generatePreview")}
            </Button>
         </div>
 

@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { render, screen } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -26,6 +26,7 @@ vi.mock("@/lib/runtime", () => ({
 
 describe("Icon workbench primitives", () => {
   afterEach(() => {
+    cleanup();
     document.body.innerHTML = "";
   });
 

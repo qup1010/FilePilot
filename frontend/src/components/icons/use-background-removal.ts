@@ -1,9 +1,11 @@
 "use client";
 
 import { useCallback, useMemo, useState, type Dispatch, type SetStateAction } from "react";
+import { useTranslation } from "react-i18next";
 
 import { createApiClient } from "@/lib/api";
 import { getApiBaseUrl, getApiToken, invokeTauriCommand, waitForRuntimeConfig } from "@/lib/runtime";
+import { createUserFacingRequestError, localizeUserFacingError } from "@/lib/user-facing-copy";
 import type { BackgroundRemovalBatchProgress, IconPreviewVersion, IconWorkbenchSession } from "@/types/icon-workbench";
 
 interface UseBackgroundRemovalOptions {
@@ -28,6 +30,7 @@ export function useBackgroundRemoval({
   setError,
   showNotice,
 }: UseBackgroundRemovalOptions) {
+  const { t, i18n } = useTranslation("common");
   const api = useMemo(() => createApiClient(getApiBaseUrl(), getApiToken()), []);
   const [processingBgVersionIds, setProcessingBgVersionIds] = useState<Set<string>>(new Set());
   const [isRemovingBgBatch, setIsRemovingBgBatch] = useState(false);
@@ -52,7 +55,7 @@ export function useBackgroundRemoval({
     },
   ): Promise<RemoveBgOutcome> => {
     if (!desktopReady || !session) {
-      const message = "抠图功能目前仅支持桌面端。";
+      const message = t("iconWorkbench.errors.desktopOnlyCutout");
       if (options?.showErrorNotice ?? true) {
         setError(message);
       }
@@ -76,7 +79,7 @@ export function useBackgroundRemoval({
       });
 
       if (!processedB64) {
-        throw new Error("移除背景返回的结果为空");
+        throw new Error(t("iconWorkbench.errors.cutoutEmptyResult"));
       }
 
       // decode base64
@@ -101,8 +104,8 @@ export function useBackgroundRemoval({
       );
 
       if (!response.ok) {
-        const errData = await response.json();
-        throw new Error(errData.detail || "注册新版本失败");
+        const errorText = await response.text();
+        throw createUserFacingRequestError(response.status, response.statusText, errorText);
       }
 
       const result = await response.json();
@@ -111,19 +114,22 @@ export function useBackgroundRemoval({
       }
 
       const successMessage = options?.folderName
-        ? `已为「${options.folderName}」基于 v${version.version_number} 生成去背景版本。`
-        : `已基于 v${version.version_number} 生成了移除背景的新版本。`;
+        ? t("iconWorkbench.notices.cutoutSuccessFolder", { folderName: options.folderName, version: version.version_number })
+        : t("iconWorkbench.notices.cutoutSuccess", { version: version.version_number });
       if (options?.showSuccessNotice ?? true) {
         showNotice(successMessage);
       }
       return { ok: true, message: successMessage };
     } catch (err) {
       console.error("抠图异常详情 (Trace):", err);
-      const isNetworkError = err instanceof TypeError && err.message === "Failed to fetch";
-      const errorMsg = isNetworkError 
-        ? "Failed to fetch (无法连接至本地服务，请确认后端 API 是否连接正常且 Token 正确)" 
-        : (err instanceof Error ? err.message : String(err));
-      const message = `抠图失败: ${errorMsg}`;
+      const isNetworkError = err instanceof TypeError && /failed to fetch|networkerror|load failed/i.test(err.message);
+      const localizedDetail = isNetworkError
+        ? t("iconWorkbench.errors.cutoutNetwork")
+        : localizeUserFacingError(err, t("iconWorkbench.errors.cutoutServiceUnavailable"));
+      const detail = /^en(-|$)/i.test(i18n.language) && /[\u3400-\u9fff]/.test(localizedDetail)
+        ? t("iconWorkbench.errors.cutoutServiceUnavailable")
+        : localizedDetail;
+      const message = t("iconWorkbench.errors.cutoutFailed", { detail });
       if (options?.showErrorNotice ?? true) {
         setError(message);
       }
@@ -135,7 +141,7 @@ export function useBackgroundRemoval({
         return next;
       });
     }
-  }, [desktopReady, loadBgRemovalRuntime, session, setError, setSession, showNotice]);
+  }, [desktopReady, loadBgRemovalRuntime, session, setError, setSession, showNotice, t]);
 
   const handleRemoveBg = useCallback(async (folderId: string, version: IconPreviewVersion) => {
     await removeBackgroundForVersion(folderId, version, {
@@ -167,7 +173,7 @@ export function useBackgroundRemoval({
     });
 
     if (tasks.length === 0) {
-      showNotice("没有可去除背景的就绪版本。");
+      showNotice(t("iconWorkbench.errors.noCutoutVersions"));
       return;
     }
 
@@ -225,14 +231,14 @@ export function useBackgroundRemoval({
         Array.from({ length: Math.min(BG_BATCH_CONCURRENCY, tasks.length) }, () => worker()),
       );
       const summaryNotice = failedCount > 0
-        ? `批量去除背景完成：成功 ${successCount}，失败 ${failedCount}。`
-        : `批量去除背景完成：已为 ${successCount} 个目标生成去背景版本。`;
+        ? t("iconWorkbench.notices.cutoutBatchFailed", { success: successCount, failed: failedCount })
+        : t("iconWorkbench.notices.cutoutBatchSuccess", { count: successCount });
       showNotice(summaryNotice);
     } finally {
       setIsRemovingBgBatch(false);
       setBatchProgress(null);
     }
-  }, [desktopReady, removeBackgroundForVersion, session, showNotice]);
+  }, [desktopReady, removeBackgroundForVersion, session, showNotice, t]);
 
   return {
     processingBgVersionIds,

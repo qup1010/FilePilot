@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
+import { useTranslation } from "react-i18next";
 import {
   AlertCircle,
   CheckCircle2,
@@ -66,6 +67,7 @@ export function IconWorkbenchFolderCard({
   isActiveProcessing,
   generateStage,
 }: IconWorkbenchFolderCardProps) {
+  const { t } = useTranslation("common");
   const currentVersion = useMemo(() => getCurrentVersion(folder), [folder]);
   const currentPreview = useMemo(() => resolvePreviewVersion(folder), [folder]);
   const hasVersions = folder.versions.length > 0;
@@ -79,19 +81,19 @@ export function IconWorkbenchFolderCard({
 
   const status = useMemo(() => {
     if (isActiveProcessing) {
-      let label = "正在处理";
-      if (generateStage === "analyzing") label = "分析目录结构";
-      else if (generateStage === "applying_template") label = "套用风格预设";
-      else if (generateStage === "generating") label = "正在绘制图标";
+      let label = t("iconWorkbench.folder.status.processing");
+      if (generateStage === "analyzing") label = t("iconWorkbench.folder.status.analyzing");
+      else if (generateStage === "applying_template") label = t("iconWorkbench.folder.status.applyingTemplate");
+      else if (generateStage === "generating") label = t("iconWorkbench.folder.status.drawing");
       return { label, color: "text-primary", icon: LoaderCircle, animate: true };
     }
-    if (currentVersion?.status === "error") return { label: "错误", color: "text-error", icon: AlertCircle };
-    if (currentVersion?.status === "ready") return { label: "已就绪", color: "text-primary", icon: CheckCircle2 };
-    if (folder.last_error) return { label: "存在问题", color: "text-error", icon: AlertCircle };
-    if (hasReadyVersion(folder)) return { label: "有可用预览", color: "text-primary/70", icon: CheckCircle2 };
-    if (folder.analysis_status === "ready") return { label: "已分析", color: "text-primary/50", icon: CheckCircle2 };
-    return { label: "等待处理", color: "text-ui-muted", icon: CircleDashed };
-  }, [currentVersion, folder, isActiveProcessing]);
+    if (currentVersion?.status === "error") return { label: t("iconWorkbench.folder.status.error"), color: "text-error", icon: AlertCircle };
+    if (currentVersion?.status === "ready") return { label: t("iconWorkbench.folder.status.ready"), color: "text-primary", icon: CheckCircle2 };
+    if (folder.last_error) return { label: t("iconWorkbench.folder.status.problem"), color: "text-error", icon: AlertCircle };
+    if (hasReadyVersion(folder)) return { label: t("iconWorkbench.folder.status.previewReady"), color: "text-primary/70", icon: CheckCircle2 };
+    if (folder.analysis_status === "ready") return { label: t("iconWorkbench.folder.status.analyzed"), color: "text-primary/50", icon: CheckCircle2 };
+    return { label: t("iconWorkbench.folder.status.waiting"), color: "text-ui-muted", icon: CircleDashed };
+  }, [currentVersion, folder, isActiveProcessing, generateStage, t]);
 
   const StatusIcon = status.icon;
 
@@ -133,7 +135,7 @@ export function IconWorkbenchFolderCard({
         <div className="min-w-0 flex-1 leading-none">
           <div className="flex items-center gap-2">
              <h3 className="truncate text-[13px] font-black tracking-tight text-on-surface/90">{folder.folder_name}</h3>
-             {folder.applied_version_id && <span className="shrink-0 rounded-md bg-primary/10 px-1.5 py-0.5 text-[11px] font-black uppercase text-primary">已应用</span>}
+             {folder.applied_version_id && <span className="shrink-0 rounded-md bg-primary/10 px-1.5 py-0.5 text-[11px] font-black uppercase text-primary">{t("iconWorkbench.folder.applied")}</span>}
           </div>
           <p className="truncate text-[11px] font-medium text-ui-muted/50 mt-1 uppercase tracking-tight font-mono">{folder.folder_path}</p>
         </div>
@@ -147,9 +149,9 @@ export function IconWorkbenchFolderCard({
         {/* Quick Actions */}
         <div className={cn("flex items-center gap-1", !isExpanded && "opacity-0 group-hover:opacity-100 transition-opacity")}>
           {!isExpanded && currentVersion?.status === "ready" && (
-            <button onClick={(e) => { e.stopPropagation(); onApplyVersion(currentVersion); }} disabled={isProcessing || !desktopReady} className="h-6 items-center rounded-md bg-primary/10 px-2.5 text-[11px] font-black uppercase text-primary hover:bg-primary/20 active:scale-95 disabled:opacity-30 hidden lg:flex transition-all">应用图标</button>
+            <button onClick={(e) => { e.stopPropagation(); onApplyVersion(currentVersion); }} disabled={isProcessing || !desktopReady} className="h-6 items-center rounded-md bg-primary/10 px-2.5 text-[11px] font-black uppercase text-primary hover:bg-primary/20 active:scale-95 disabled:opacity-30 hidden lg:flex transition-all">{t("iconWorkbench.folder.applyIcon")}</button>
           )}
-          <button onClick={(e) => { e.stopPropagation(); onRemoveTarget(); }} className="h-7 w-7 flex items-center justify-center rounded-md hover:bg-error/10 text-ui-muted/50 hover:text-error active:scale-90 transition-all"><X className="h-3.5 w-3.5" /></button>
+          <button onClick={(e) => { e.stopPropagation(); onRemoveTarget(); }} aria-label={t("iconWorkbench.folder.removeTarget")} className="h-7 w-7 flex items-center justify-center rounded-md hover:bg-error/10 text-ui-muted/50 hover:text-error active:scale-90 transition-all"><X className="h-3.5 w-3.5" /></button>
           <div className={cn("h-7 w-7 flex items-center justify-center rounded-md transition-transform text-ui-muted/40", isExpanded && "rotate-180 text-primary")}><ChevronDown className="h-3.5 w-3.5" /></div>
         </div>
       </div>
@@ -160,12 +162,12 @@ export function IconWorkbenchFolderCard({
             <div className="p-3.5 space-y-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                   <span className="text-[11px] font-black uppercase tracking-widest text-ui-muted/60">版本历史</span>
+                   <span className="text-[11px] font-black uppercase tracking-widest text-ui-muted/60">{t("iconWorkbench.folder.versionHistory")}</span>
                    <span className="rounded-full bg-on-surface/5 px-2 py-0.5 text-[11px] font-bold text-ui-muted/70">{folder.versions.length}</span>
                 </div>
                 <div className="flex gap-2">
-                  <button onClick={(e) => { e.stopPropagation(); onRegenerate(); }} disabled={isProcessing || !hasSelectedStyle || !!generateBlockedReason} className="h-6.5 items-center rounded-md bg-primary px-3 text-[11px] font-black uppercase text-white hover:bg-primary-dim active:scale-95 disabled:opacity-30 flex gap-1.5 transition-all shadow-sm"><RefreshCw className="h-3 w-3" /> 生成预览</button>
-                  <button disabled={isProcessing || !desktopReady} onClick={(e) => { e.stopPropagation(); onRestore(); }} className="h-6.5 items-center rounded-md border border-on-surface/10 bg-surface px-3 text-[11px] font-bold uppercase text-on-surface hover:bg-on-surface/5 active:scale-95 disabled:opacity-30 transition-all">还原默认图标</button>
+                  <button onClick={(e) => { e.stopPropagation(); onRegenerate(); }} disabled={isProcessing || !hasSelectedStyle || !!generateBlockedReason} className="h-6.5 items-center rounded-md bg-primary px-3 text-[11px] font-black uppercase text-white hover:bg-primary-dim active:scale-95 disabled:opacity-30 flex gap-1.5 transition-all shadow-sm"><RefreshCw className="h-3 w-3" /> {t("iconWorkbench.folder.generatePreview")}</button>
+                  <button disabled={isProcessing || !desktopReady} onClick={(e) => { e.stopPropagation(); onRestore(); }} className="h-6.5 items-center rounded-md border border-on-surface/10 bg-surface px-3 text-[11px] font-bold uppercase text-on-surface hover:bg-on-surface/5 active:scale-95 disabled:opacity-30 transition-all">{t("iconWorkbench.folder.restoreDefault")}</button>
                 </div>
               </div>
 
@@ -179,17 +181,17 @@ export function IconWorkbenchFolderCard({
                   ))}
                 </div>
               ) : (
-                <div className="flex h-20 items-center justify-center rounded border border-dashed border-on-surface/10 text-[11px] font-bold text-ui-muted/40 uppercase tracking-widest">尚未生成图标预览</div>
+                <div className="flex h-20 items-center justify-center rounded border border-dashed border-on-surface/10 text-[11px] font-bold text-ui-muted/40 uppercase tracking-widest">{t("iconWorkbench.folder.noPreview")}</div>
               )}
 
               {folder.analysis && (
                 <div className="flex flex-wrap gap-2 pt-2 border-t border-on-surface/5">
                   <div className="flex items-center gap-2 rounded bg-on-surface/5 px-2 py-1">
-                    <span className="text-[11px] font-black uppercase tracking-widest text-ui-muted/50">识别主体</span>
+                    <span className="text-[11px] font-black uppercase tracking-widest text-ui-muted/50">{t("iconWorkbench.folder.recognizedSubject")}</span>
                     <span className="text-[11px] font-bold text-on-surface/70">{folder.analysis.visual_subject}</span>
                   </div>
                   <div className="flex items-center gap-2 rounded bg-on-surface/5 px-2 py-1">
-                    <span className="text-[11px] font-black uppercase tracking-widest text-ui-muted/50">分类建议</span>
+                    <span className="text-[11px] font-black uppercase tracking-widest text-ui-muted/50">{t("iconWorkbench.folder.suggestedCategory")}</span>
                     <span className="text-[11px] font-bold text-on-surface/70">{folder.analysis.category}</span>
                   </div>
                 </div>
