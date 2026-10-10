@@ -16,6 +16,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { SettingsSection, ToggleSwitch } from "@/components/settings/settings-primitives";
 import { cn } from "@/lib/utils";
+import type { UiLanguagePreference } from "@/i18n/locales";
 
 export type UpdateCheckResult = {
   hasUpdate: boolean;
@@ -31,11 +32,13 @@ export interface SystemTabProps {
   updateResult: UpdateCheckResult | null;
   updateError: string | null;
   debugMode: boolean;
+  uiLanguage: UiLanguagePreference;
   runtimeLogPath: string;
   debugLogPath: string;
   onCheckUpdate: () => void;
   onOpenLink: (url: string, event: ReactMouseEvent) => void;
   onToggleDebugMode: () => void;
+  onChangeUiLanguage: (language: UiLanguagePreference) => void;
   onCopyPath: (path: string) => void;
 }
 
@@ -46,11 +49,13 @@ export function SystemTab({
   updateResult,
   updateError,
   debugMode,
+  uiLanguage,
   runtimeLogPath,
   debugLogPath,
   onCheckUpdate,
   onOpenLink,
   onToggleDebugMode,
+  onChangeUiLanguage,
   onCopyPath,
 }: SystemTabProps) {
   return (
@@ -59,6 +64,25 @@ export function SystemTab({
       title="关于与运行日志"
       description="项目版本、检查更新、调试开关及系统运行日志。"
     >
+      <div className="rounded-[12px] border border-on-surface/8 bg-surface p-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h3 className="text-[13px] font-semibold text-on-surface">界面语言</h3>
+            <p className="mt-1 text-[12px] leading-5 text-on-surface-variant/65">选择应用界面显示语言；更改会在保存设置后生效。</p>
+          </div>
+          <select
+            aria-label="界面语言"
+            value={uiLanguage}
+            onChange={(event) => onChangeUiLanguage(event.target.value as UiLanguagePreference)}
+            className="h-9 min-w-44 rounded-[8px] border border-on-surface/10 bg-surface-container-lowest px-3 text-[12px] font-semibold text-on-surface outline-none focus:border-primary/40"
+          >
+            <option value="system">跟随系统</option>
+            <option value="zh-CN">简体中文</option>
+            <option value="en">English</option>
+          </select>
+        </div>
+      </div>
+
       {/* 1. 关于与检查更新卡片 */}
       <div className="rounded-[12px] border border-on-surface/8 bg-surface p-4">
         <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">

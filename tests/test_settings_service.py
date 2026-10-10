@@ -22,6 +22,45 @@ class SettingsServiceTests(unittest.TestCase):
         if self.root.exists():
             shutil.rmtree(self.root)
 
+    def test_new_install_uses_system_ui_language(self):
+        service = SettingsService(
+            config_path=self.config_path,
+            legacy_icon_config_path=self.legacy_icon_path,
+        )
+
+        self.assertEqual(service.get_settings_snapshot()["global_config"]["UI_LANGUAGE"], "system")
+
+    def test_existing_settings_without_ui_language_migrate_to_chinese(self):
+        self.config_path.write_text(
+            json.dumps({"settings_version": 2, "global_config": {"DEBUG_MODE": True}}),
+            encoding="utf-8",
+        )
+
+        service = SettingsService(
+            config_path=self.config_path,
+            legacy_icon_config_path=self.legacy_icon_path,
+        )
+
+        self.assertEqual(service.get_settings_snapshot()["global_config"]["UI_LANGUAGE"], "zh-CN")
+        self.assertEqual(json.loads(self.config_path.read_text(encoding="utf-8"))["global_config"]["UI_LANGUAGE"], "zh-CN")
+
+    def test_corrupted_ui_language_falls_back_to_chinese_and_invalid_updates_are_rejected(self):
+        self.config_path.write_text(
+            json.dumps({"settings_version": 2, "global_config": {"UI_LANGUAGE": "fr"}}),
+            encoding="utf-8",
+        )
+        service = SettingsService(
+            config_path=self.config_path,
+            legacy_icon_config_path=self.legacy_icon_path,
+        )
+
+        self.assertEqual(service.get_settings_snapshot()["global_config"]["UI_LANGUAGE"], "zh-CN")
+        with self.assertRaisesRegex(ValueError, "UI_LANGUAGE_INVALID"):
+            service.update_settings({"global_config": {"UI_LANGUAGE": "fr"}})
+        with self.assertRaisesRegex(ValueError, "UI_LANGUAGE_INVALID"):
+            service.update_settings({"global_config": {"UI_LANGUAGE": []}})
+        self.assertEqual(service.get_settings_snapshot()["global_config"]["UI_LANGUAGE"], "zh-CN")
+
     def test_migrates_legacy_icon_config_into_unified_root_schema(self):
         self.config_path.write_text(
             json.dumps(

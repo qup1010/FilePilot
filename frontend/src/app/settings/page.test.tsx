@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { ApiClient } from "@/lib/api";
 import type { SettingsSnapshot, SettingsTestResult } from "@/types/settings";
+import { UiLocaleProvider } from "@/i18n/locale-provider";
 
 import SettingsPage from "./page";
 
@@ -38,6 +39,7 @@ vi.mock("@/lib/runtime", () => ({
   getApiToken: () => "",
   isTauriDesktop: () => false,
   invokeTauriCommand: vi.fn(),
+  waitForRuntimeConfig: vi.fn().mockResolvedValue({ base_url: "http://127.0.0.1:8765" }),
 }));
 
 vi.mock("@/lib/api", () => ({
@@ -67,6 +69,7 @@ function createSnapshot(): SettingsSnapshot {
       LAUNCH_DEFAULT_DENSITY: "normal",
       LAUNCH_DEFAULT_PREFIX_STYLE: "none",
       DEBUG_MODE: false,
+      UI_LANGUAGE: "zh-CN",
     },
     families: {
       text: {
@@ -434,6 +437,41 @@ describe("SettingsPage preset flow", () => {
     expect(screen.getByPlaceholderText("例如：D:/archive/sorted")).toBeInTheDocument();
     expect(screen.getByText("待确认区跟随新目录位置")).toBeInTheDocument();
     expect(screen.getByPlaceholderText("新目录生成位置/Review")).toBeDisabled();
+  });
+
+  it("persists the selected UI language through the existing settings draft save flow", async () => {
+    const user = userEvent.setup();
+    currentSearchParams = new URLSearchParams("tab=system");
+
+    render(<SettingsPage />);
+
+    const languageSelect = await screen.findByRole("combobox", { name: "界面语言" });
+    await user.selectOptions(languageSelect, "en");
+    await user.click(await screen.findByRole("button", { name: "保存当前修改" }));
+
+    await waitFor(() => {
+      expect(updateSettings).toHaveBeenCalledWith(
+        expect.objectContaining({
+          global_config: expect.objectContaining({ UI_LANGUAGE: "en" }),
+        }),
+      );
+    });
+  });
+
+  it("keeps the active UI language when saving a new preference fails", async () => {
+    const user = userEvent.setup();
+    currentSearchParams = new URLSearchParams("tab=system");
+    updateSettings.mockRejectedValue(new Error("save failed"));
+
+    render(<UiLocaleProvider><SettingsPage /></UiLocaleProvider>);
+
+    const languageSelect = await screen.findByRole("combobox", { name: "界面语言" });
+    await user.selectOptions(languageSelect, "en");
+    await user.click(await screen.findByRole("button", { name: "保存当前修改" }));
+
+    expect(await screen.findByText("save failed")).toBeInTheDocument();
+    expect(document.documentElement.lang).toBe("zh-CN");
+    expect(localStorage.getItem("filepilot-ui-language")).toBe("zh-CN");
   });
 
   it("keeps general organize as the selected default template and applies template suggestions", async () => {

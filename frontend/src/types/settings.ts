@@ -1,11 +1,14 @@
 import type { LaunchStrategyConfig } from "@/types/session";
+import type { UiLanguagePreference } from "@/i18n/locales";
 
 export type SettingsFamily = "text" | "vision" | "icon_image" | "bg_removal";
 export type SecretState = "empty" | "stored";
 export type SecretAction = "keep" | "replace" | "clear";
 export type VisionSourceMode = "shared_text" | "separate";
 
-export type SettingsGlobalConfig = Record<string, any> & LaunchStrategyConfig;
+export type SettingsGlobalConfig = Record<string, any> & LaunchStrategyConfig & {
+  UI_LANGUAGE?: UiLanguagePreference;
+};
 
 export interface PresetSummary {
   id: string;

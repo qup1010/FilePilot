@@ -159,6 +159,16 @@ class ApiConfigTests(unittest.TestCase):
         self.assertEqual(response.json(), expected_snapshot)
         update_mock.assert_called_once_with(payload)
 
+    def test_patch_settings_returns_validation_code_for_unsupported_ui_language(self):
+        with mock.patch(
+            "file_pilot.shared.config_manager.config_manager.service.update_settings",
+            side_effect=ValueError("UI_LANGUAGE_INVALID"),
+        ):
+            response = self.client.patch("/api/settings", json={"global_config": {"UI_LANGUAGE": "fr"}})
+
+        self.assertEqual(response.status_code, 422)
+        self.assertEqual(response.json(), {"error_code": "UI_LANGUAGE_INVALID"})
+
     def test_get_runtime_family_returns_live_runtime_config(self):
         with mock.patch(
             "file_pilot.shared.config_manager.config_manager.service.get_runtime_family_config",

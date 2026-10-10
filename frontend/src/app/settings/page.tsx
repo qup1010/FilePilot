@@ -53,6 +53,8 @@ import { createApiClient } from "@/lib/api";
 import { notifyAppContextChange } from "@/lib/app-context-store";
 import { getApiBaseUrl, getApiToken, invokeTauriCommand, isTauriDesktop, pickDirectoryWithTauri, openUrlWithTauri } from "@/lib/runtime";
 import { cn } from "@/lib/utils";
+import { useUiLocale } from "@/i18n/locale-provider";
+import { normalizeSavedUiLanguage } from "@/i18n/locales";
 import type {
   SettingsFamily,
   SettingsSnapshot,
@@ -80,6 +82,7 @@ const SETTINGS_CONTEXT_KEY = "settings_header_context";
 const COMPACT_SETTINGS_BREAKPOINT = 960;
 
 export default function SettingsPage() {
+  const { saveUiLanguage } = useUiLocale();
   const searchParams = useSearchParams();
   const initialTab = searchParams.get("tab");
   const normalizedInitialTab =
@@ -701,6 +704,7 @@ export default function SettingsPage() {
     try {
       const nextSnapshot = await api.updateSettings(payload);
       hydrate(nextSnapshot);
+      saveUiLanguage(normalizeSavedUiLanguage(nextSnapshot.global_config.UI_LANGUAGE));
       setSuccess("设置已保存并生效");
     } catch (err) {
       setError(err instanceof Error ? err.message : "保存失败");
@@ -1097,11 +1101,13 @@ export default function SettingsPage() {
                 updateResult={updateResult}
                 updateError={updateError}
                 debugMode={Boolean(draft.global_config.DEBUG_MODE)}
+                uiLanguage={normalizeSavedUiLanguage(draft.global_config.UI_LANGUAGE)}
                 runtimeLogPath={snapshot?.runtime.log_paths.runtime_log || ""}
                 debugLogPath={snapshot?.runtime.log_paths.debug_log || ""}
                 onCheckUpdate={() => void handleCheckUpdate()}
                 onOpenLink={handleOpenLink}
                 onToggleDebugMode={() => updateGlobal("DEBUG_MODE", !draft.global_config.DEBUG_MODE)}
+                onChangeUiLanguage={(language) => updateGlobal("UI_LANGUAGE", language)}
                 onCopyPath={(path) => copyTextToClipboard(path, setSuccess, setError)}
               />
             )}

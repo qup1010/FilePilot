@@ -22,6 +22,11 @@ SETTINGS_FAMILIES = {TEXT_FAMILY, VISION_FAMILY, ICON_IMAGE_FAMILY, BG_REMOVAL_F
 VISION_SOURCE_SHARED_TEXT = "shared_text"
 VISION_SOURCE_SEPARATE = "separate"
 VISION_SOURCE_MODES = {VISION_SOURCE_SHARED_TEXT, VISION_SOURCE_SEPARATE}
+UI_LANGUAGE_VALUES = {"system", "zh-CN", "en"}
+
+
+def _is_supported_ui_language(value: Any) -> bool:
+    return isinstance(value, str) and value in UI_LANGUAGE_VALUES
 
 TEXT_SECRET_KEY = "OPENAI_API_KEY"
 VISION_SECRET_KEY = "IMAGE_ANALYSIS_API_KEY"
@@ -29,6 +34,7 @@ VISION_SECRET_KEY = "IMAGE_ANALYSIS_API_KEY"
 GLOBAL_ALLOWED_KEYS = {
     "IMAGE_ANALYSIS_ENABLED",
     "IMAGE_ANALYSIS_SOURCE_MODE",
+    "UI_LANGUAGE",
     "DEBUG_MODE",
     "LAUNCH_DEFAULT_ORGANIZE_METHOD",
     "LAUNCH_DEFAULT_TARGET_PROFILE_ID",
@@ -47,6 +53,7 @@ GLOBAL_ALLOWED_KEYS = {
 DEFAULT_GLOBAL_CONFIG = {
     "IMAGE_ANALYSIS_ENABLED": False,
     "IMAGE_ANALYSIS_SOURCE_MODE": VISION_SOURCE_SHARED_TEXT,
+    "UI_LANGUAGE": "system",
     "DEBUG_MODE": False,
     "LAUNCH_DEFAULT_ORGANIZE_METHOD": "categorize_into_new_structure",
     "LAUNCH_DEFAULT_TARGET_PROFILE_ID": "",
@@ -209,6 +216,8 @@ class SettingsService:
                 config[key] = bool(value)
             elif key == "IMAGE_ANALYSIS_SOURCE_MODE":
                 config[key] = self._sanitize_vision_mode(value)
+            elif key == "UI_LANGUAGE":
+                config[key] = value if _is_supported_ui_language(value) else "zh-CN"
             else:
                 config[key] = value
         return config
@@ -396,6 +405,8 @@ class SettingsService:
     def _apply_env_overrides(self, target: dict[str, Any]) -> dict[str, Any]:
         next_payload = copy.deepcopy(target)
         for key, default in list(target.items()):
+            if key == "UI_LANGUAGE":
+                continue
             raw = os.getenv(key)
             if raw is None:
                 continue
@@ -437,7 +448,10 @@ class SettingsService:
         return presets, active_id
 
     def _load_new_schema(self, data: dict[str, Any]) -> None:
-        self._global_config = self._sanitize_global(data.get("global_config"))
+        global_config = dict(data.get("global_config") or {})
+        # Existing installs keep their established Chinese UI when the field is absent.
+        global_config.setdefault("UI_LANGUAGE", "zh-CN")
+        self._global_config = self._sanitize_global(global_config)
         self._text_presets = {
             str(preset_id): self._sanitize_text_preset(preset)
             for preset_id, preset in dict(data.get("text_presets", {}) or {}).items()
@@ -466,7 +480,9 @@ class SettingsService:
 
     def _load_old_root_schema(self, data: dict[str, Any]) -> None:
         if "global_config" in data or "text_presets" in data or "vision_presets" in data:
-            self._global_config = self._sanitize_global(data.get("global_config"))
+            global_config = dict(data.get("global_config") or {})
+            global_config.setdefault("UI_LANGUAGE", "zh-CN")
+            self._global_config = self._sanitize_global(global_config)
             self._text_presets = {
                 str(preset_id): self._sanitize_text_preset(preset)
                 for preset_id, preset in dict(data.get("text_presets", {}) or {}).items()
@@ -485,6 +501,7 @@ class SettingsService:
             active_profile_id = str(data.get("active_profile_id") or DEFAULT_PRESET_ID)
             profiles = dict(data.get("profiles", {}) or {})
             flat = dict(profiles.get(active_profile_id) or profiles.get(DEFAULT_PRESET_ID) or {})
+        flat.setdefault("UI_LANGUAGE", "zh-CN")
         self._global_config = self._sanitize_global(flat)
         self._text_presets = {DEFAULT_PRESET_ID: self._sanitize_text_preset(flat)}
         self._vision_presets = {DEFAULT_PRESET_ID: self._sanitize_vision_preset(flat)}
@@ -497,6 +514,9 @@ class SettingsService:
             data = json.loads(self._config_path.read_text(encoding="utf-8"))
             if int(data.get("settings_version", 0) or 0) >= SETTINGS_VERSION:
                 self._load_new_schema(data)
+                raw_global_config = dict(data.get("global_config") or {})
+                if not _is_supported_ui_language(raw_global_config.get("UI_LANGUAGE")):
+                    needs_save = True
                 if "IMAGE_ANALYSIS_SOURCE_MODE" not in dict(data.get("global_config") or {}):
                     needs_save = True
                 if "bg_removal" not in data:
@@ -534,7 +554,7 @@ class SettingsService:
     def _apply_to_env(self) -> None:
         active = self.get_flat_active_config(mask_secrets=False)
         for key, value in active.items():
-            if key == "name":
+            if key in {"name", "UI_LANGUAGE"}:
                 continue
             if key == "OPENAI_MODEL":
                 os.environ["OPENAI_ANALYSIS_MODEL"] = str(value)
@@ -859,6 +879,10 @@ class SettingsService:
         raise ValueError("不支持的密钥操作")
 
     def update_settings(self, payload: dict[str, Any]) -> dict[str, Any]:
+        incoming_global = dict(payload.get("global_config") or {})
+        if "UI_LANGUAGE" in incoming_global and not _is_supported_ui_language(incoming_global["UI_LANGUAGE"]):
+            raise ValueError("UI_LANGUAGE_INVALID")
+
         next_global = copy.deepcopy(self._global_config)
         next_text = copy.deepcopy(self._text_presets)
         next_vision = copy.deepcopy(self._vision_presets)

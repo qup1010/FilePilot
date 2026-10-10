@@ -41,7 +41,12 @@ def get_settings_runtime_family(family: str):
 @router.patch("")
 def update_settings(payload: SettingsUpdatePayload):
     from file_pilot.shared.config_manager import config_manager
-    return config_manager.service.update_settings(payload.model_dump(exclude_none=True))
+    try:
+        return config_manager.service.update_settings(payload.model_dump(exclude_none=True))
+    except ValueError as exc:
+        if str(exc) == "UI_LANGUAGE_INVALID":
+            return JSONResponse(status_code=422, content={"error_code": str(exc)})
+        raise
 
 
 @router.post("/presets/{family}")
