@@ -92,6 +92,53 @@ class OrganizerSessionServiceTests(unittest.TestCase):
         legacy = OrganizerSession.from_dict(legacy_payload)
         self.assertEqual(legacy.content_locale, "zh-CN")
 
+    def test_planner_cycles_keep_locale_isolated_per_restored_session(self):
+        english = self.service.create_session(
+            str(self.target_dir),
+            resume_if_exists=False,
+            content_locale="en",
+        ).session
+        assert english is not None
+
+        # Simulate switching the UI to Chinese and starting another task before
+        # the English task reaches its planner.
+        chinese_target_dir = self.root / "OtherInbox"
+        chinese_target_dir.mkdir(parents=True, exist_ok=True)
+        chinese = self.service.create_session(
+            str(chinese_target_dir),
+            resume_if_exists=False,
+            content_locale="zh-CN",
+        ).session
+        assert chinese is not None
+
+        restored_english = self.store.load(english.session_id)
+        restored_chinese = self.store.load(chinese.session_id)
+        self.assertIsNotNone(restored_english)
+        self.assertIsNotNone(restored_chinese)
+        assert restored_english is not None
+        assert restored_chinese is not None
+
+        cycle_result = (
+            "Plan updated",
+            {
+                "pending_plan": PendingPlan(),
+                "assistant_message": {"role": "assistant", "content": "Plan updated"},
+            },
+        )
+        with mock.patch(
+            "file_pilot.app.session_orchestrator.organize_service.run_organizer_cycle",
+            return_value=cycle_result,
+        ) as run_organizer_cycle:
+            self.service.orchestrator.run_planner_cycle_for_session(restored_english, source="test")
+            self.service.orchestrator.run_planner_cycle_for_session(restored_chinese, source="test")
+
+        self.assertEqual(
+            [call.kwargs["planning_context"]["content_locale"] for call in run_organizer_cycle.call_args_list],
+            ["en", "zh-CN"],
+        )
+        self.assertEqual(self.store.load(english.session_id).content_locale, "en")
+        self.assertEqual(self.store.load(chinese.session_id).content_locale, "zh-CN")
+
     def test_default_scan_runner_receives_the_session_content_locale(self):
         with mock.patch("file_pilot.app.session_service.analysis_service.run_analysis_cycle", return_value="scan") as run_analysis:
             result = self.service._default_scan_runner(self.target_dir, content_locale="en")
