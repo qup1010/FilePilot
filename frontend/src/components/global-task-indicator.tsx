@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
+import { useTranslation } from "react-i18next";
 import { createApiClient } from "@/lib/api";
 import { getApiBaseUrl, getApiToken } from "@/lib/runtime";
 import { cn } from "@/lib/utils";
@@ -17,6 +18,7 @@ import {
 } from "@/lib/app-context-store";
 
 export function GlobalTaskIndicator() {
+  const { t } = useTranslation("common");
   const pathname = usePathname();
   const router = useRouter();
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
@@ -84,7 +86,9 @@ export function GlobalTaskIndicator() {
       const p = s.scanner_progress;
       const percent = p.total_count ? Math.round((p.processed_count || 0) / p.total_count * 100) : 0;
       return {
-        label: p.processed_count ? `正在分析内容（${p.processed_count}/${p.total_count}）` : "正在读取目录",
+        label: p.processed_count
+          ? t("task.analyzingContent", { count: p.total_count || 0, processed: p.processed_count })
+          : t("task.readingDirectory"),
         percent,
         status: "active" as const
       };
@@ -92,7 +96,7 @@ export function GlobalTaskIndicator() {
     
     if (s.planner_progress?.status === "running") {
       return {
-        label: s.planner_progress.message || "正在生成方案",
+        label: t("task.creatingPlan"),
         percent: 0,
         status: "active" as const,
         indeterminate: true
@@ -101,7 +105,7 @@ export function GlobalTaskIndicator() {
 
     if (stage === "executing") {
       return {
-        label: "正在执行整理",
+        label: t("task.organizing"),
         percent: 0,
         status: "active" as const,
         indeterminate: true
@@ -110,7 +114,7 @@ export function GlobalTaskIndicator() {
 
     if (stage === "rolling_back") {
       return {
-        label: "正在执行回退",
+        label: t("task.rollingBack"),
         percent: 0,
         status: "active" as const,
         indeterminate: true
@@ -118,7 +122,7 @@ export function GlobalTaskIndicator() {
     }
 
     return null;
-  }, [snapshot]);
+  }, [snapshot, t]);
 
   // 只在当前任务页之外显示，避免和工作区主提示重复。
   useEffect(() => {
@@ -164,7 +168,7 @@ export function GlobalTaskIndicator() {
                  {taskState.label}
                </span>
                <span className="mt-1 text-[11px] font-bold uppercase tracking-widest text-primary/60 leading-none">
-                 后台任务
+                 {t("task.background")}
                </span>
              </div>
           </div>
@@ -173,7 +177,7 @@ export function GlobalTaskIndicator() {
               <button 
                 onClick={() => router.push(snapshot ? getWorkspaceRouteForSnapshot(snapshot) : activeRoute || `/workspace/progress?session_id=${activeSessionId}`)}
                 className="group flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-primary transition-all hover:bg-primary hover:text-white"
-                title="查看任务详情"
+                title={t("task.viewDetails")}
               >
                <Loader2 className="h-3.5 w-3.5" />
              </button>

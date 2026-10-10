@@ -275,7 +275,11 @@ export default function IconWorkbenchV2() {
   useEffect(() => {
     if (typeof window === "undefined") return;
     const detail = hasTargets ? `${targetCount} 个目标` : "图标生成";
-    window.localStorage.setItem(ICONS_CONTEXT_KEY, JSON.stringify({ detail }));
+    window.localStorage.setItem(ICONS_CONTEXT_KEY, JSON.stringify({
+      detail,
+      detail_code: hasTargets ? "targets" : "icon_generation",
+      target_count: targetCount,
+    }));
     notifyAppContextChange();
   }, [hasTargets, targetCount]);
 

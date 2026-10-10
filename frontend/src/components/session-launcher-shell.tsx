@@ -88,7 +88,6 @@ import {
   DEFAULT_STRATEGY_SELECTION,
   DENSITY_OPTIONS,
   getLaunchStrategyFromConfig,
-  getTemplateMeta,
   shouldSkipLaunchStrategyPrompt,
 } from "@/lib/strategy-templates";
 import { cn } from "@/lib/utils";
@@ -441,7 +440,6 @@ export function SessionLauncherShell() {
     [effectiveNewDirectoryRoot, effectiveOutputDir, effectiveReviewRoot, effectiveTargetDirectories, isAssignExisting, organizeMethod, selectedTargetProfileId, strategy],
   );
 
-  const currentTemplate = getTemplateMeta(strategy.template_id);
   const resumeStrategy = resumePrompt?.snapshot.strategy || currentSummary;
   const resumeStage = resumePrompt?.snapshot.stage;
   const resumeStageView = useMemo(
@@ -2257,7 +2255,6 @@ export function SessionLauncherShell() {
                           isFullCategorize={isFullCategorize}
                           newDirectoryRoot={newDirectoryRoot}
                           previewDirectories={currentSummary.preview_directories}
-                          templateDescription={currentTemplate.description}
                           onUpdateStrategy={updateStrategy}
                           onOpenAdvancedSettings={() => setAdvancedSettingsDialogOpen(true)}
                         />

@@ -1,4 +1,5 @@
 import { Activity, FileText, FolderOpen, Sparkles } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 import {
   CAUTION_LEVEL_OPTIONS,
@@ -20,7 +21,6 @@ interface StrategyStepProps {
   isFullCategorize: boolean;
   newDirectoryRoot: string;
   previewDirectories: string[] | undefined;
-  templateDescription: string;
   onUpdateStrategy: (updater: (previous: SessionStrategySelection) => SessionStrategySelection) => void;
   onOpenAdvancedSettings: () => void;
 }
@@ -31,10 +31,13 @@ export function StrategyStep({
   isFullCategorize,
   newDirectoryRoot,
   previewDirectories,
-  templateDescription,
   onUpdateStrategy,
   onOpenAdvancedSettings,
 }: StrategyStepProps) {
+  const { t } = useTranslation("common");
+  const templateDescription = t(`strategy.templates.${strategy.template_id}.description`, {
+    defaultValue: "",
+  });
   return (
     <div className="grid gap-4 md:grid-cols-2">
       {isFullCategorize ? (
@@ -45,14 +48,14 @@ export function StrategyStep({
               <div className="flex items-center justify-between">
                 <h2 className="text-[13px] font-bold text-on-surface flex items-center gap-1.5">
                   <Sparkles className="h-3.5 w-3.5 text-primary" />
-                  分类控制参数
+                  {t("strategy.controlsTitle")}
                 </h2>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 {/* 分类模板 */}
                 <div className="space-y-1">
-                  <div className="text-[11px] font-bold text-on-surface/60">分类模板</div>
+                  <div className="text-[11px] font-bold text-on-surface/60">{t("strategy.template")}</div>
                   <select
                     value={strategy.template_id}
                     onChange={(event) => {
@@ -68,7 +71,7 @@ export function StrategyStep({
                   >
                     {STRATEGY_TEMPLATES.map((template) => (
                       <option key={template.id} value={template.id}>
-                        {template.label}
+                        {t(`strategy.templates.${template.id}.label`, { defaultValue: template.label })}
                       </option>
                     ))}
                   </select>
@@ -76,7 +79,7 @@ export function StrategyStep({
 
                 {/* 目录语言 */}
                 <div className="space-y-1">
-                  <div className="text-[11px] font-bold text-on-surface/60">目录语言</div>
+                  <div className="text-[11px] font-bold text-on-surface/60">{t("strategy.outputLanguage")}</div>
                   <div className="flex h-8.5 rounded-[6px] border border-on-surface/8 bg-surface p-0.5 items-center">
                     {LANGUAGE_OPTIONS.map((option) => {
                       const active = strategy.language === option.id;
@@ -92,7 +95,7 @@ export function StrategyStep({
                               : "text-on-surface/60 font-medium hover:text-on-surface"
                           )}
                         >
-                          {option.label.replace("目录", "")}
+                          {t(`strategy.languageOptions.${option.id}`, { defaultValue: option.label.replace("目录", "") })}
                         </button>
                       );
                     })}
@@ -102,7 +105,7 @@ export function StrategyStep({
 
               {/* 前缀样式 */}
               <div className="space-y-1">
-                <div className="text-[11px] font-bold text-on-surface/60">前缀样式</div>
+                <div className="text-[11px] font-bold text-on-surface/60">{t("strategy.prefixStyle")}</div>
                 <select
                   value={strategy.prefix_style}
                   onChange={(event) => onUpdateStrategy((prev) => ({ ...prev, prefix_style: event.target.value as StrategyPrefixStyle }))}
@@ -110,7 +113,7 @@ export function StrategyStep({
                 >
                   {PREFIX_STYLE_OPTIONS.map((option) => (
                     <option key={option.id} value={option.id}>
-                      {option.label}
+                      {t(`strategy.prefixOptions.${option.id}`, { defaultValue: option.label })}
                     </option>
                   ))}
                 </select>
@@ -118,13 +121,13 @@ export function StrategyStep({
             </div>
 
             <div className="mt-3.5 flex justify-between items-center border-t border-on-surface/5 pt-2">
-              <span className="text-[11px] text-on-surface/40 font-medium">需要更多细节？</span>
+              <span className="text-[11px] text-on-surface/40 font-medium">{t("strategy.advancedPrompt")}</span>
               <button
                 type="button"
                 onClick={onOpenAdvancedSettings}
                 className="text-[11px] font-bold text-primary hover:underline underline-offset-2"
               >
-                更多高级参数...
+                {t("strategy.advancedSettings")}
               </button>
             </div>
           </div>
@@ -132,7 +135,7 @@ export function StrategyStep({
           {/* 分类样式示例 */}
           <div className="rounded-[8px] bg-surface-container-lowest p-4 flex flex-col justify-between min-h-[220px] border border-on-surface/5">
             <div className="space-y-3">
-              <div className="text-[13px] font-black text-on-surface">分类样式示例</div>
+              <div className="text-[13px] font-black text-on-surface">{t("strategy.previewTitle")}</div>
 
               {/* 极简模拟树状图面板 */}
               <div className="rounded-[6px] border border-on-surface/8 bg-surface p-3 font-mono text-[11px] text-on-surface/80 max-h-[140px] overflow-y-auto scrollbar-thin space-y-2">
@@ -150,16 +153,7 @@ export function StrategyStep({
                     const isLastDir = idx === arr.length - 1;
 
                     // 智能模拟子文件类型
-                    let mockFile = "相关文档.docx";
-                    if (directory.includes("票") || directory.includes("账") || directory.includes("财")) {
-                      mockFile = "账单发票.xlsx";
-                    } else if (directory.includes("资料") || directory.includes("学习")) {
-                      mockFile = "复习课件.pptx";
-                    } else if (directory.includes("归") || directory.includes("史") || directory.includes("备份")) {
-                      mockFile = "备份归档.zip";
-                    } else if (directory.includes("图") || directory.includes("照") || directory.includes("影")) {
-                      mockFile = "素材照片.png";
-                    }
+                    const mockFile = t("strategy.previewExampleFile");
 
                     return (
                       <div key={directory} className="space-y-1">
@@ -196,11 +190,11 @@ export function StrategyStep({
             <div className="space-y-3.5">
               <h2 className="text-[13px] font-black text-on-surface flex items-center gap-1.5">
                 <Activity className="h-3.5 w-3.5 text-primary" />
-                归档策略
+                {t("strategy.archiveTitle")}
               </h2>
 
               <div className="space-y-1.5">
-                <div className="text-[11px] font-bold uppercase tracking-wider text-ui-muted">分类归档策略</div>
+                <div className="text-[11px] font-bold uppercase tracking-wider text-ui-muted">{t("strategy.archivePolicy")}</div>
                 <div className="grid grid-cols-2 gap-2">
                   {CAUTION_LEVEL_OPTIONS.map((option) => {
                     const active = strategy.caution_level === option.id;
@@ -216,7 +210,7 @@ export function StrategyStep({
                             : "border-on-surface/8 bg-surface text-on-surface hover:bg-surface-container-low"
                         )}
                       >
-                        <div>{option.label}</div>
+                        <div>{t(`strategy.cautionOptions.${option.id}`, { defaultValue: option.label })}</div>
                       </button>
                     );
                   })}
@@ -230,13 +224,13 @@ export function StrategyStep({
             <div className="space-y-2 flex-1 flex flex-col">
               <div className="text-[11px] font-black text-on-surface flex items-center gap-1.5">
                 <FileText className="h-3.5 w-3.5 text-primary" />
-                补充说明 (可选)
+                {t("strategy.additionalNotes")}
               </div>
               <textarea
                 value={strategy.note}
                 disabled={loading}
                 onChange={(event) => onUpdateStrategy((previous) => ({ ...previous, note: event.target.value.slice(0, 200) }))}
-                placeholder="例如：拿不准的先放待确认区；优先归入现有项目目录。"
+                placeholder={t("strategy.notesPlaceholder")}
                 className="w-full flex-1 min-h-[80px] resize-none rounded-[6px] border border-on-surface/8 bg-surface px-3 py-2 text-[12px] leading-relaxed text-on-surface outline-none transition-all placeholder:text-on-surface-variant/35 focus:border-primary/30"
               />
             </div>

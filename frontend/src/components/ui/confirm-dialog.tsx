@@ -3,6 +3,7 @@
 import { type ReactNode, useState, useEffect } from "react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { AlertTriangle, Info } from "lucide-react";
+import { Trans, useTranslation } from "react-i18next";
 
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -27,8 +28,8 @@ export function ConfirmDialog({
   open,
   title,
   description,
-  confirmLabel = "确认",
-  cancelLabel = "取消",
+  confirmLabel,
+  cancelLabel,
   tone = "primary",
   loading = false,
   children,
@@ -38,6 +39,7 @@ export function ConfirmDialog({
   onCancel,
   onClose,
 }: ConfirmDialogProps) {
+  const { t } = useTranslation("common");
   const isDanger = tone === "danger";
   const [verificationInput, setVerificationInput] = useState("");
 
@@ -87,12 +89,17 @@ export function ConfirmDialog({
                 {verificationText ? (
                   <div className="mt-4 space-y-1.5 rounded-lg border border-warning/15 bg-warning/[0.02] p-3 text-left">
                     <p className="text-[12px] font-black leading-relaxed text-warning-dim">
-                      为确保操作安全，请在下方输入大写 <span className="font-mono bg-warning/10 px-1 py-0.5 rounded border border-warning/15 text-warning">{verificationText}</span> 确认：
+                      <Trans
+                        t={t}
+                        i18nKey="dialog.verificationPrompt"
+                        values={{ text: verificationText }}
+                        components={{ strong: <span className="font-mono rounded border border-warning/15 bg-warning/10 px-1 py-0.5 text-warning" /> }}
+                      />
                     </p>
                     <input
                       type="text"
                       className="w-full rounded-md border border-on-surface/10 bg-surface px-3 py-1.5 text-[13px] font-mono outline-none focus:border-primary/40 focus:ring-1 focus:ring-primary/20 placeholder:text-on-surface-variant/30 text-on-surface"
-                      placeholder={verificationPlaceholder || `请输入 ${verificationText}`}
+                      placeholder={verificationPlaceholder || t("dialog.verificationPlaceholder", { text: verificationText })}
                       value={verificationInput}
                       disabled={loading}
                       onChange={(e) => setVerificationInput(e.target.value)}
@@ -110,7 +117,7 @@ export function ConfirmDialog({
               disabled={loading}
               className="flex-1"
             >
-              {cancelLabel}
+              {cancelLabel || t("dialog.cancel")}
             </Button>
             <Button
               variant={isDanger ? "danger" : "primary"}
@@ -123,7 +130,7 @@ export function ConfirmDialog({
               loading={loading}
               className="flex-1"
             >
-              {confirmLabel}
+              {confirmLabel || t("dialog.confirm")}
             </Button>
           </div>
         </DialogPrimitive.Content>

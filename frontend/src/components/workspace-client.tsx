@@ -1011,6 +1011,7 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
       JSON.stringify({
         dirName,
         stage: getFriendlyStage(stage),
+        stage_code: stage,
         sessionId: sessionIdParam || undefined,
         hasTargetPath,
       }),
