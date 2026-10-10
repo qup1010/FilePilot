@@ -460,8 +460,15 @@ describe("SettingsPage preset flow", () => {
   it("persists the selected UI language through the existing settings draft save flow", async () => {
     const user = userEvent.setup();
     currentSearchParams = new URLSearchParams("tab=system");
+    const updatedSnapshot = createSnapshot();
+    updatedSnapshot.global_config.UI_LANGUAGE = "en";
+    updateSettings.mockResolvedValueOnce(updatedSnapshot);
 
-    render(<SettingsPage />);
+    render(
+      <UiLocaleProvider>
+        <SettingsPage />
+      </UiLocaleProvider>,
+    );
 
     const languageSelect = await screen.findByRole("combobox", { name: "界面语言" });
     await user.selectOptions(languageSelect, "en");
@@ -474,6 +481,52 @@ describe("SettingsPage preset flow", () => {
         }),
       );
     });
+    expect(await screen.findByText("Settings saved and applied.")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "About and logs" })).toBeInTheDocument();
+  });
+
+  it("localizes the About and logs settings content in English", async () => {
+    currentSearchParams = new URLSearchParams("tab=system");
+
+    await renderEnglishSettings();
+
+    expect(screen.getByRole("heading", { name: "About and logs" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Interface language" })).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "Interface language" })).toBeInTheDocument();
+    expect(screen.getByText("A local workspace for AI-powered file organization.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Check for updates" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Debug mode (detailed logs)" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "System log files" })).toBeInTheDocument();
+    expect(screen.getByText("Runtime log")).toBeInTheDocument();
+    expect(screen.getByText("Debug log")).toBeInTheDocument();
+  });
+
+  it("localizes every settings category in English", async () => {
+    const user = userEvent.setup();
+    await renderEnglishSettings();
+
+    await clickSettingsCategory("Text model settings");
+    expect(await screen.findByRole("heading", { name: "Text model and image understanding" })).toBeInTheDocument();
+    expect(screen.getByText("Quick setup guide")).toBeInTheDocument();
+    expect(screen.getByText("Text model preset")).toBeInTheDocument();
+
+    await clickSettingsCategory("Task defaults");
+    expect(await screen.findByText("Default organization method")).toBeInTheDocument();
+    expect(screen.getByText("Default template")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /^Placement/ }));
+    expect(screen.getByText("Default placement")).toBeInTheDocument();
+
+    await clickSettingsCategory("Icon generation settings");
+    expect(await screen.findByText("Model roles")).toBeInTheDocument();
+    expect(screen.getByText("Text model (analysis)")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /Advanced options/ }));
+    expect(screen.getByText("Analysis concurrency")).toBeInTheDocument();
+    expect(screen.getByText("Image generation concurrency")).toBeInTheDocument();
+
+    await clickSettingsCategory("Background removal");
+    expect(await screen.findByText("Service mode")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Use built-in service/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Custom service/ })).toBeInTheDocument();
   });
 
   it("localizes settings categories and default preset names without changing custom names", async () => {

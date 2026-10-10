@@ -28,6 +28,7 @@ import {
   type SecretDraft,
 } from "@/app/settings/settings-draft";
 import { cn } from "@/lib/utils";
+import { useTranslation } from "react-i18next";
 
 export interface IconImageTabProps {
   iconImage: DraftState["icon_image"];
@@ -78,25 +79,26 @@ export function IconImageTab({
   connectionTest,
   modelLookup,
 }: IconImageTabProps) {
+  const { t } = useTranslation("common");
   const iconImagePresetEditable = isEditablePreset(activePresetId);
 
   return (
     <SettingsSection
       icon={ImageIcon}
-      title="图标生图配置"
-      description="配置图标工坊的 AI 图像生成模型；目录分析使用整理文本模型。"
+      title={t("settingsPage.iconImageTab.title")}
+      description={t("settingsPage.iconImageTab.description")}
     >
       <SettingsMinPath
         items={[
-          "目录分析：提炼文件夹主题与关键词，依赖「整理模型配置」中的文本模型",
-          "图标生图：本页配置绘制图标预览图的生图模型（接口地址 + 模型 ID + API 密钥）",
-          "高级选项：可按需调整图标尺寸、并发数上限及本地保存位置",
+          t("settingsPage.iconImageTab.guideAnalysis"),
+          t("settingsPage.iconImageTab.guideGeneration"),
+          t("settingsPage.iconImageTab.guideAdvanced"),
         ]}
       />
       <div className="rounded-xl border border-on-surface/12 bg-surface-container-lowest p-4 shadow-sm">
         <div className="flex items-center gap-2">
           <span className="h-1.5 w-1.5 rounded-full bg-primary" />
-          <p className="text-[12px] font-bold tracking-wide text-primary">模型分工与协作</p>
+          <p className="text-[12px] font-bold tracking-wide text-primary">{t("settingsPage.iconImageTab.modelRoles")}</p>
         </div>
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
           <div className={cn(
@@ -104,19 +106,19 @@ export function IconImageTab({
             textConfigured ? "border-success/25 bg-success/[0.04]" : "border-on-surface/10 bg-surface/50",
           )}>
             <div className="flex items-center justify-between gap-2">
-              <span className="text-[13px] font-bold text-on-surface">文本模型（分析）</span>
+              <span className="text-[13px] font-bold text-on-surface">{t("settingsPage.iconImageTab.textModelAnalysis")}</span>
               <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider", textConfigured ? "bg-success/15 text-success-dim" : "bg-on-surface/10 text-on-surface-variant/60")}>
-                {textConfigured ? "已配置" : "未配置"}
+                {textConfigured ? t("settingsPage.iconImageTab.configured") : t("settingsPage.iconImageTab.notConfigured")}
               </span>
             </div>
-            <p className="mt-1 text-[12px] leading-relaxed text-on-surface-variant/70">提炼文件夹主题与关键词</p>
+            <p className="mt-1 text-[12px] leading-relaxed text-on-surface-variant/70">{t("settingsPage.iconImageTab.extractThemes")}</p>
             {!textConfigured ? (
               <button
                 type="button"
                 className="mt-2 inline-flex items-center gap-1 text-[11px] font-bold text-primary hover:underline"
                 onClick={onGoToTextTab}
               >
-                去配置整理模型
+                {t("settingsPage.iconImageTab.goToTextSettings")}
               </button>
             ) : null}
           </div>
@@ -125,17 +127,17 @@ export function IconImageTab({
             iconImageConfigured ? "border-success/25 bg-success/[0.04]" : "border-on-surface/10 bg-surface/50",
           )}>
             <div className="flex items-center justify-between gap-2">
-              <span className="text-[13px] font-bold text-on-surface">生图模型（预览）</span>
+              <span className="text-[13px] font-bold text-on-surface">{t("settingsPage.iconImageTab.imageModelPreview")}</span>
               <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider", iconImageConfigured ? "bg-success/15 text-success-dim" : "bg-on-surface/10 text-on-surface-variant/60")}>
-                {iconImageConfigured ? "已配置" : "未配置"}
+                {iconImageConfigured ? t("settingsPage.iconImageTab.configured") : t("settingsPage.iconImageTab.notConfigured")}
               </span>
             </div>
-            <p className="mt-1 text-[12px] leading-relaxed text-on-surface-variant/70">根据关键词绘制图标预览图</p>
+            <p className="mt-1 text-[12px] leading-relaxed text-on-surface-variant/70">{t("settingsPage.iconImageTab.drawFromKeywords")}</p>
           </div>
         </div>
       </div>
       <PresetSelector
-        label="图标生图预设"
+        label={t("settingsPage.iconImageTab.iconPreset")}
         presets={presets}
         activeId={activePresetId}
         onSwitch={onActivatePreset}
@@ -144,12 +146,12 @@ export function IconImageTab({
       />
       {!iconImagePresetEditable ? (
         <p className="text-[11px] leading-5 text-ui-muted">
-          首次使用请直接在下方填写配置，首次保存时会自动创建可编辑预设。
+          {t("settingsPage.iconImageTab.firstUse")}
         </p>
       ) : null}
       <div className="grid gap-4 xl:grid-cols-2">
         <ModelIdField
-          label="生图模型 ID"
+          label={t("settingsPage.iconImageTab.modelId")}
           icon={Terminal}
           value={iconImage.image_model.model}
           placeholder="gpt-image-1"
@@ -158,13 +160,13 @@ export function IconImageTab({
           isLoadingModels={modelLookup.loadingFamily === "icon_image"}
           onFetchModels={() => modelLookup.onFetch("icon_image")}
         />
-        <FieldGroup label="生图接口地址" className="xl:col-span-2" hint="可填写 OpenAI 兼容 /v1 地址，或服务商给出的完整 /images/generations 端点。">
+        <FieldGroup label={t("settingsPage.iconImageTab.endpoint")} className="xl:col-span-2" hint={t("settingsPage.iconImageTab.endpointHint")}>
           <InputShell icon={Globe}>
             <input value={iconImage.image_model.base_url} onChange={(event) => onUpdate((current) => ({ ...current, image_model: { ...current.image_model, base_url: event.target.value } }))} className="w-full bg-transparent py-2 text-sm font-mono font-medium text-on-surface outline-none" placeholder="https://host.example/v1" />
           </InputShell>
         </FieldGroup>
         <ProviderCapabilitySummary
-          title="当前连接方式"
+          title={t("settingsPage.formFields.currentConnection")}
           kind="icon_image"
           provider={iconImage.image_model.provider}
           apiFormat={iconImage.image_model.api_format}
@@ -172,7 +174,7 @@ export function IconImageTab({
           capabilities={iconImage.image_model.capabilities}
         />
         <div className="xl:col-span-2">
-          <SecretField label="生图接口密钥" state={iconImage.image_model.secret_state} secret={iconSecret} setSecret={setIconSecret} family="icon_image" />
+          <SecretField label={t("settingsPage.iconImageTab.apiKey")} state={iconImage.image_model.secret_state} secret={iconSecret} setSecret={setIconSecret} family="icon_image" />
         </div>
         <div className="xl:col-span-2">
           <ConnectionTestPanel
@@ -189,14 +191,14 @@ export function IconImageTab({
             className="flex w-full items-center justify-between rounded-[8px] border border-on-surface/8 bg-surface-container-lowest px-4 py-3 text-left transition-colors hover:border-primary/20"
           >
             <div>
-              <p className="text-[13px] font-bold text-on-surface">高级选项</p>
-              <p className="mt-0.5 text-[11px] text-ui-muted">图片尺寸、分析/生图并发数、保存方式</p>
+              <p className="text-[13px] font-bold text-on-surface">{t("settingsPage.iconImageTab.advancedOptions")}</p>
+              <p className="mt-0.5 text-[11px] text-ui-muted">{t("settingsPage.iconImageTab.advancedDescription")}</p>
             </div>
             {advancedOpen ? <ChevronDown className="h-4 w-4 text-ui-muted" /> : <ChevronRight className="h-4 w-4 text-ui-muted" />}
           </button>
           {advancedOpen ? (
             <div className="mt-3 grid gap-4 xl:grid-cols-2">
-              <FieldGroup label="图片尺寸" hint="默认 1024x1024，适合文件夹图标；更小尺寸生成更快。">
+              <FieldGroup label={t("settingsPage.iconImageTab.imageSize")} hint={t("settingsPage.iconImageTab.imageSizeHint")}>
                 <div className="grid gap-3 md:grid-cols-3">
                   {IMAGE_SIZE_OPTIONS.map((size) => (
                     <StrategyOptionButton
@@ -205,10 +207,10 @@ export function IconImageTab({
                       label={size}
                       description={
                         size === "1024x1024"
-                          ? "默认，细节更清晰。"
+                          ? t("settingsPage.iconImageTab.sizeDefault")
                           : size === "512x512"
-                            ? "更快，够用多数场景。"
-                            : "预览用，细节较少。"
+                            ? t("settingsPage.iconImageTab.sizeFast")
+                            : t("settingsPage.iconImageTab.sizePreview")
                       }
                       onClick={() =>
                         onUpdate((current) => ({
@@ -220,7 +222,7 @@ export function IconImageTab({
                   ))}
                 </div>
               </FieldGroup>
-              <FieldGroup label="分析并发数" hint="同时分析多少个文件夹的内容（通常可以设得比生图更高，建议 2～4）。">
+              <FieldGroup label={t("settingsPage.iconImageTab.analysisConcurrency")} hint={t("settingsPage.iconImageTab.analysisConcurrencyHint")}>
                 <InputShell icon={Cpu}>
                   <input
                     value={analysisConcurrencyInput}
@@ -237,7 +239,7 @@ export function IconImageTab({
                   />
                 </InputShell>
               </FieldGroup>
-              <FieldGroup label="生图并发数" hint="同时生成多少张图标图像（生图接口限流较严，建议保持为 1）。">
+              <FieldGroup label={t("settingsPage.iconImageTab.imageConcurrency")} hint={t("settingsPage.iconImageTab.imageConcurrencyHint")}>
                 <InputShell icon={Cpu}>
                   <input
                     value={imageConcurrencyInput}
@@ -254,10 +256,10 @@ export function IconImageTab({
                   />
                 </InputShell>
               </FieldGroup>
-              <FieldGroup label="保存方式" className="xl:col-span-2">
+              <FieldGroup label={t("settingsPage.iconImageTab.saveMode")} className="xl:col-span-2">
                 <div className="grid gap-3 md:grid-cols-2">
-                  <StrategyOptionButton active={iconImage.save_mode === "centralized"} label="应用内统一管理（推荐）" onClick={() => onUpdate((current) => ({ ...current, save_mode: "centralized" }))} description="生成的图标集中保存在应用数据目录中，不污染原文件夹。" />
-                  <StrategyOptionButton active={iconImage.save_mode === "in_folder"} label="保存在原文件夹内" onClick={() => onUpdate((current) => ({ ...current, save_mode: "in_folder" }))} description="图标文件直接保存在对应的目标文件夹中，便于直接查看和备份。" />
+                  <StrategyOptionButton active={iconImage.save_mode === "centralized"} label={t("settingsPage.iconImageTab.centralizedSave")} onClick={() => onUpdate((current) => ({ ...current, save_mode: "centralized" }))} description={t("settingsPage.iconImageTab.centralizedSaveDescription")} />
+                  <StrategyOptionButton active={iconImage.save_mode === "in_folder"} label={t("settingsPage.iconImageTab.inFolderSave")} onClick={() => onUpdate((current) => ({ ...current, save_mode: "in_folder" }))} description={t("settingsPage.iconImageTab.inFolderSaveDescription")} />
                 </div>
               </FieldGroup>
             </div>

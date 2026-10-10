@@ -18,6 +18,7 @@ import { Check, ChevronDown, Plus, Trash2, type LucideIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useTranslation } from "react-i18next";
 
 export interface PresetItem {
   id: string;
@@ -236,6 +237,7 @@ export function PresetSelector({
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
+  const { t } = useTranslation("common");
   const activePreset = presets.find((preset) => preset.id === activeId) || presets[0] || null;
 
   const focusOption = (index: number) => {
@@ -330,7 +332,7 @@ export function PresetSelector({
           >
             <div className="min-w-0">
               <p className="truncate text-[13px] font-bold text-on-surface leading-tight">
-                {activePreset?.name || "选择预设..."}
+                {activePreset?.name || t("settingsPage.formFields.selectPreset")}
               </p>
             </div>
             <ChevronDown className={cn("h-4 w-4 shrink-0 text-on-surface-variant/55 transition-transform duration-200", open && "rotate-180")} />
@@ -342,10 +344,10 @@ export function PresetSelector({
           onClick={onAdd}
           disabled={disabled}
           className="h-[38px] shrink-0 rounded-lg px-4 text-[12px] font-bold border border-on-surface/12 shadow-sm"
-          aria-label={`新建${label}`}
+          aria-label={t("settingsPage.formFields.createPresetAria", { label })}
         >
           <Plus className="h-3.5 w-3.5 mr-1 text-primary" />
-          新建预设
+          {t("settingsPage.formFields.newPreset")}
         </Button>
       </div>
 
@@ -399,7 +401,7 @@ export function PresetSelector({
                   type="button"
                   onClick={() => onDelete(preset)}
                   className="rounded-[6px] p-1.5 text-on-surface-variant/40 transition-colors hover:bg-error/10 hover:text-error"
-                  aria-label={`删除预设 ${preset.name}`}
+                  aria-label={t("settingsPage.formFields.deletePresetAria", { name: preset.name })}
                 >
                   <Trash2 className="h-4 w-4" />
                 </button>

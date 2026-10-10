@@ -12,6 +12,7 @@ import {
 import { SettingsMinPath } from "@/app/settings/preset-form-fields";
 import type { DraftState } from "@/app/settings/settings-draft";
 import type { BgRemovalBuiltinPreset } from "@/types/settings";
+import { useTranslation } from "react-i18next";
 
 export interface BgRemovalTabProps {
   bgRemoval: DraftState["bg_removal"];
@@ -28,37 +29,38 @@ export function BgRemovalTab({
   secretField,
   connectionTestPanel,
 }: BgRemovalTabProps) {
+  const { t } = useTranslation("common");
   return (
     <SettingsSection
       icon={Scissors}
-      title="透明抠图配置"
-      description="配置图标背景去除服务的端点与模型参数。"
+      title={t("settingsPage.bgRemovalTab.title")}
+      description={t("settingsPage.bgRemovalTab.description")}
     >
       <SettingsMinPath
         items={[
-          "功能说明：抠图服务用于将生成的方形图标背景去除转为透明，再生成标准 .ico 图标",
-          "开箱即用：默认使用内置免费云端抠图服务，无需额外配置即可直接使用",
-          "按需扩展：支持配置私有 Hugging Face Space 或自定义 Gradio 抠图端点",
+          t("settingsPage.bgRemovalTab.guidePurpose"),
+          t("settingsPage.bgRemovalTab.guideBuiltIn"),
+          t("settingsPage.bgRemovalTab.guideCustom"),
         ]}
       />
-      <FieldGroup label="服务模式">
+      <FieldGroup label={t("settingsPage.bgRemovalTab.serviceMode")}>
         <div className="grid gap-3 md:grid-cols-2">
           <StrategyOptionButton
             active={bgRemoval.mode === "preset"}
-            label="使用内置预设"
-            description="直接使用内置的免费抠图服务，适合快速上手。"
+            label={t("settingsPage.bgRemovalTab.builtInService")}
+            description={t("settingsPage.bgRemovalTab.builtInServiceDescription")}
             onClick={() => onUpdate((current) => ({ ...current, mode: "preset" }))}
           />
           <StrategyOptionButton
             active={bgRemoval.mode === "custom"}
-            label="自定义服务"
-            description="连接自建的 Hugging Face Space 或私有 Gradio 抠图端点（适合高级用户）。"
+            label={t("settingsPage.bgRemovalTab.customService")}
+            description={t("settingsPage.bgRemovalTab.customServiceDescription")}
             onClick={() => onUpdate((current) => ({ ...current, mode: "custom" }))}
           />
         </div>
       </FieldGroup>
       {bgRemoval.mode === "preset" ? (
-        <FieldGroup label="内置预设">
+        <FieldGroup label={t("settingsPage.bgRemovalTab.builtInPreset")}>
           <div className="grid gap-3 xl:grid-cols-2">
             {builtinPresets.map((preset) => (
               <StrategyOptionButton
@@ -73,7 +75,7 @@ export function BgRemovalTab({
         </FieldGroup>
       ) : (
         <div className="grid gap-4 xl:grid-cols-2">
-          <FieldGroup label="自定义名称">
+          <FieldGroup label={t("settingsPage.bgRemovalTab.customName")}>
             <InputShell icon={Cpu}>
               <input
                 value={bgRemoval.custom.name}
@@ -84,7 +86,7 @@ export function BgRemovalTab({
                   }))
                 }
                 className="w-full bg-transparent py-2 text-sm font-semibold text-on-surface outline-none"
-                placeholder="自定义抠图"
+                placeholder={t("settingsPage.bgRemovalTab.customNamePlaceholder")}
               />
             </InputShell>
           </FieldGroup>
@@ -103,7 +105,7 @@ export function BgRemovalTab({
               />
             </InputShell>
           </FieldGroup>
-          <FieldGroup label="API 类型">
+          <FieldGroup label={t("settingsPage.bgRemovalTab.apiType")}>
             <InputShell icon={Globe}>
               <input
                 value={bgRemoval.custom.api_type}
@@ -118,7 +120,7 @@ export function BgRemovalTab({
               />
             </InputShell>
           </FieldGroup>
-          <FieldGroup label="请求模板 (Payload Template)" className="xl:col-span-2" hint="（高级开发者选项）填写 JSON 请求体模板，支持 {{uploaded_path}} 与 {{model_id}} 占位符。">
+          <FieldGroup label={t("settingsPage.bgRemovalTab.payloadTemplate")} className="xl:col-span-2" hint={t("settingsPage.bgRemovalTab.payloadTemplateHint")}>
             <textarea
               value={bgRemoval.custom.payload_template}
               onChange={(event) =>

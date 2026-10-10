@@ -177,7 +177,7 @@ export default function SettingsPage() {
         },
       });
       if (!res.ok) {
-        throw new Error(`GitHub API 返回状态 ${res.status}`);
+        throw new Error(`GitHub API returned status ${res.status}`);
       }
       const data = await res.json();
       const latestVersion = data.tag_name; // 例如 "v0.1.2"
@@ -200,11 +200,16 @@ export default function SettingsPage() {
       }
     } catch (err: any) {
       console.error("Check update failed:", err);
-      setUpdateError(err.message || "无法连接至 GitHub 获取最新发布版本，请检查代理或网络连接。");
+      const status = err instanceof Error ? err.message.match(/GitHub API returned status (\d+)/)?.[1] : undefined;
+      setUpdateError(
+        status
+          ? t("settingsPage.systemTab.updateRequestFailed", { status })
+          : t("settingsPage.systemTab.updateConnectionFailed"),
+      );
     } finally {
       setCheckingUpdate(false);
     }
-  }, [checkingUpdate, cooldown, appVersion]);
+  }, [checkingUpdate, cooldown, appVersion, t]);
 
   const handleOpenLink = useCallback((url: string, e: React.MouseEvent) => {
     if (isTauriDesktop()) {
@@ -357,7 +362,7 @@ export default function SettingsPage() {
         }
       } catch (err) {
         if (!cancelled) {
-          setError(err instanceof Error ? err.message : "读取设置失败");
+          setError(err instanceof Error ? err.message : "settingsPage.feedback.loadSettingsFailed");
         }
       } finally {
         if (!cancelled) {
@@ -379,12 +384,12 @@ export default function SettingsPage() {
     window.localStorage.setItem(
       SETTINGS_CONTEXT_KEY,
       JSON.stringify({
-        title: "设置",
-        detail: "模型与工具配置",
+        title: t("settingsPage.context.title"),
+        detail: t("settingsPage.context.detail"),
       }),
     );
     notifyAppContextChange();
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -526,7 +531,7 @@ export default function SettingsPage() {
           status: "error",
           family,
           code: "request_failed",
-          message: err instanceof Error ? err.message : "获取模型列表失败",
+          message: err instanceof Error ? err.message : "settingsPage.feedback.fetchModelListFailed",
           models: [],
         },
       }));
@@ -549,9 +554,9 @@ export default function SettingsPage() {
     try {
       await api.activateSettingsPreset(family, presetId);
       hydrate(await api.getSettings());
-      setSuccess("预设已切换");
+      setSuccess("settingsPage.feedback.presetSwitched");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "切换预设失败");
+      setError(err instanceof Error ? err.message : "settingsPage.feedback.switchPresetFailed");
     } finally {
       setLoading(false);
     }
@@ -602,9 +607,9 @@ export default function SettingsPage() {
         });
       }
       hydrate(await api.getSettings());
-      setSuccess("新预设已创建并激活");
+      setSuccess("settingsPage.feedback.presetCreated");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "创建预设失败");
+      setError(err instanceof Error ? err.message : "settingsPage.feedback.createPresetFailed");
     } finally {
       setLoading(false);
     }
@@ -613,7 +618,12 @@ export default function SettingsPage() {
   const handleCreatePreset = (family: PresetConfigFamily) => {
     setCreatePresetDialog({
       family,
-      value: family === "text" ? "新的文本预设" : family === "vision" ? "新的图片理解预设" : "新的图标生图预设",
+      value:
+        family === "text"
+          ? t("settingsPage.feedback.newTextPreset")
+          : family === "vision"
+            ? t("settingsPage.feedback.newVisionPreset")
+            : t("settingsPage.feedback.newIconPreset"),
     });
   };
 
@@ -628,9 +638,9 @@ export default function SettingsPage() {
     try {
       await api.deleteSettingsPreset(family, presetId);
       hydrate(await api.getSettings());
-      setSuccess("预设已删除");
+      setSuccess("settingsPage.feedback.presetDeleted");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "删除预设失败");
+      setError(err instanceof Error ? err.message : "settingsPage.feedback.deletePresetFailed");
     } finally {
       setLoading(false);
     }
@@ -717,9 +727,9 @@ export default function SettingsPage() {
       const nextSnapshot = await api.updateSettings(payload);
       hydrate(nextSnapshot);
       saveUiLanguage(normalizeSavedUiLanguage(nextSnapshot.global_config.UI_LANGUAGE));
-      setSuccess("设置已保存并生效");
+      setSuccess("settingsPage.feedback.settingsSaved");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "保存失败");
+      setError(err instanceof Error ? err.message : "settingsPage.feedback.saveFailed");
     } finally {
       setSaving(false);
     }
@@ -873,7 +883,9 @@ export default function SettingsPage() {
       <div className="flex flex-1 items-center justify-center bg-surface">
         <div className="flex flex-col items-center gap-4">
           <RefreshCw className="h-9 w-9 animate-spin text-primary/45" />
-          <p className="text-[13px] font-semibold text-on-surface-variant/70">正在读取统一设置快照</p>
+          <p className="text-[13px] font-semibold text-on-surface-variant/70">
+            {t("settingsPage.feedback.loadingSettings")}
+          </p>
         </div>
       </div>
     );
@@ -1015,13 +1027,17 @@ export default function SettingsPage() {
             )}
             {error && (
               <div className="mb-6 animate-in fade-in slide-in-from-top-2 duration-300">
-                <ErrorAlert title="操作执行失败" message={error} onClose={() => setError(null)} />
+                <ErrorAlert
+                  title={t("settingsPage.feedback.actionFailed")}
+                  message={error.startsWith("settingsPage.") ? t(error) : error}
+                  onClose={() => setError(null)}
+                />
               </div>
             )}
             {success && (
               <div className="mb-6 flex items-center gap-2.5 rounded-[6px] border border-success/15 bg-success/5 px-4 py-3 text-[13px] font-bold text-success-dim animate-in fade-in slide-in-from-top-2 duration-300">
                 <CheckCircle2 className="h-4 w-4" />
-                {success}
+                {t(success)}
               </div>
             )}
 
@@ -1093,7 +1109,7 @@ export default function SettingsPage() {
                 onUpdate={(updater) => updateDraft("bg_removal", updater)}
                 secretField={
                   <SecretField
-                    label="Hugging Face Token（可选）"
+                    label={t("settingsPage.feedback.huggingFaceTokenOptional")}
                     state={draft.bg_removal.custom.secret_state}
                     secret={bgRemovalSecret}
                     setSecret={setBgRemovalSecret}
@@ -1142,7 +1158,13 @@ export default function SettingsPage() {
                 onOpenLink={handleOpenLink}
                 onToggleDebugMode={() => updateGlobal("DEBUG_MODE", !draft.global_config.DEBUG_MODE)}
                 onChangeUiLanguage={(language) => updateGlobal("UI_LANGUAGE", language)}
-                onCopyPath={(path) => copyTextToClipboard(path, setSuccess, setError)}
+                onCopyPath={(path) =>
+                  copyTextToClipboard(path, setSuccess, setError, {
+                    unsupported: "settingsPage.feedback.clipboardUnavailable",
+                    copied: "settingsPage.feedback.pathCopied",
+                    failed: "settingsPage.feedback.pathCopyFailed",
+                  })
+                }
               />
             )}
           </motion.div>
@@ -1223,18 +1245,18 @@ export default function SettingsPage() {
         open={Boolean(createPresetDialog)}
         title={
           createPresetDialog?.family === "text"
-            ? "新建文本预设"
+            ? t("settingsPage.feedback.createTextPresetTitle")
             : createPresetDialog?.family === "vision"
-              ? "新建图片理解预设"
-              : "新建图标生图预设"
+              ? t("settingsPage.feedback.createVisionPresetTitle")
+              : t("settingsPage.feedback.createIconPresetTitle")
         }
-        description="输入一个清晰的预设名称。创建后会基于当前草稿生成新的激活预设。"
-        confirmLabel="创建并切换"
-        cancelLabel="取消"
+        description={t("settingsPage.feedback.createPresetDescription")}
+        confirmLabel={t("settingsPage.feedback.createAndSwitch")}
+        cancelLabel={t("settingsPage.feedback.cancel")}
         loading={loading}
         onConfirm={async () => {
           if (!createPresetDialog?.value.trim()) {
-            setError("请输入预设名称");
+            setError("settingsPage.feedback.presetNameRequired");
             return;
           }
           const dialog = createPresetDialog;
@@ -1244,7 +1266,9 @@ export default function SettingsPage() {
         onCancel={() => setCreatePresetDialog(null)}
       >
         <div className="space-y-2">
-          <label className="text-[12px] font-semibold text-on-surface-variant/70">预设名称</label>
+          <label className="text-[12px] font-semibold text-on-surface-variant/70">
+            {t("settingsPage.feedback.presetNameLabel")}
+          </label>
           <input
             autoFocus
             value={createPresetDialog?.value ?? ""}
@@ -1260,17 +1284,21 @@ export default function SettingsPage() {
               }
             }}
             className="w-full rounded-[8px] border border-on-surface/8 bg-surface-container-lowest px-4 py-3 text-[14px] font-semibold text-on-surface outline-none transition-all placeholder:text-on-surface-variant/35 focus:border-primary focus:ring-4 focus:ring-primary/5"
-            placeholder="请输入预设名称"
+            placeholder={t("settingsPage.feedback.presetNamePlaceholder")}
           />
         </div>
       </ConfirmDialog>
 
       <ConfirmDialog
         open={Boolean(deletePresetDialog)}
-        title="删除预设"
-        description={deletePresetDialog ? `确定删除“${deletePresetDialog.presetName}”吗？删除后不能恢复。` : ""}
-        confirmLabel="删除"
-        cancelLabel="取消"
+        title={t("settingsPage.feedback.deletePresetTitle")}
+        description={
+          deletePresetDialog
+            ? t("settingsPage.feedback.deletePresetDescription", { name: deletePresetDialog.presetName })
+            : ""
+        }
+        confirmLabel={t("settingsPage.feedback.delete")}
+        cancelLabel={t("settingsPage.feedback.cancel")}
         loading={loading}
         onConfirm={async () => {
           if (!deletePresetDialog) return;

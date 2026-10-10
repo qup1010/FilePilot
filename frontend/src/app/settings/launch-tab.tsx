@@ -28,17 +28,18 @@ import {
 import { cn } from "@/lib/utils";
 import type { SettingsSnapshot } from "@/types/settings";
 import type { OrganizeMethod } from "@/types/session";
+import { useTranslation } from "react-i18next";
 
 export type LaunchSection = "strategy" | "placement";
 
 const LAUNCH_SECTIONS: Array<{
   id: LaunchSection;
-  label: string;
-  description: string;
+  labelKey: string;
+  descriptionKey: string;
   icon: typeof SettingsIcon;
 }> = [
-  { id: "strategy", label: "启动策略", description: "模板、语言、粒度", icon: SlidersHorizontal },
-  { id: "placement", label: "放置规则", description: "新目录与待确认区", icon: FolderOpen },
+  { id: "strategy", labelKey: "strategySection", descriptionKey: "strategySectionDescription", icon: SlidersHorizontal },
+  { id: "placement", labelKey: "placementSection", descriptionKey: "placementSectionDescription", icon: FolderOpen },
 ];
 
 export interface LaunchTabProps {
@@ -56,6 +57,7 @@ export function LaunchTab({
   onUpdateGlobal,
   onPickDirectory,
 }: LaunchTabProps) {
+  const { t } = useTranslation("common");
   const launchTemplate = getTemplateMeta(globalConfig.LAUNCH_DEFAULT_TEMPLATE_ID ?? "general_downloads");
   const launchDefaultOrganizeMethod = (
     globalConfig.LAUNCH_DEFAULT_ORGANIZE_METHOD === "assign_into_existing_categories"
@@ -69,7 +71,7 @@ export function LaunchTab({
   const launchDefaultReviewRoot = String(globalConfig.LAUNCH_DEFAULT_REVIEW_ROOT ?? "");
   const launchDerivedReviewRoot = launchDefaultNewDirectoryRoot
     ? `${launchDefaultNewDirectoryRoot.replace(/[\\/]$/, "")}/Review`
-    : "新目录生成位置/Review";
+    : t("settingsPage.launchTab.newFolderReviewPath");
   const launchStrategyPreview = buildStrategySummary({
     template_id: globalConfig.LAUNCH_DEFAULT_TEMPLATE_ID ?? "general_downloads",
     organize_mode: launchDefaultOrganizeMode,
@@ -87,8 +89,8 @@ export function LaunchTab({
   return (
     <SettingsSection
       icon={SettingsIcon}
-      title="任务默认策略"
-      description="配置新建任务时的默认整理方式、模板与放置规则。如需管理目标分类目录，请前往「分类规则」页面。"
+      title={t("settingsPage.categories.launch.label")}
+      description={t("settingsPage.launchTab.description")}
     >
       <div className="rounded-[12px] border border-on-surface/8 bg-surface px-4 py-4">
         <div className="grid gap-2 md:grid-cols-2">
@@ -108,8 +110,10 @@ export function LaunchTab({
               >
                 <section.icon className="h-4 w-4 shrink-0" />
                 <div className="min-w-0">
-                  <p className="text-[13px] font-bold">{section.label}</p>
-                  <p className="mt-1 truncate text-[11px] font-medium text-ui-muted">{section.description}</p>
+                  <p className="text-[13px] font-bold">{t(`settingsPage.launchTab.${section.labelKey}`)}</p>
+                  <p className="mt-1 truncate text-[11px] font-medium text-ui-muted">
+                    {t(`settingsPage.launchTab.${section.descriptionKey}`)}
+                  </p>
                 </div>
               </button>
             );
@@ -121,26 +125,38 @@ export function LaunchTab({
         <div className="space-y-4">
           <div className="rounded-[12px] border border-on-surface/8 bg-surface px-4 py-4">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="rounded-full border border-primary/12 bg-primary/8 px-3 py-1 text-[12px] font-semibold text-primary">{launchTemplate.label}</span>
-              <span className="rounded-full border border-primary/12 bg-primary/8 px-3 py-1 text-[12px] font-semibold text-primary">{launchStrategyPreview.organize_mode_label}</span>
-              <span className="rounded-full border border-on-surface/8 bg-surface-container-low px-3 py-1 text-[12px] font-medium text-on-surface-variant">{launchStrategyPreview.language_label}</span>
-              <span className="rounded-full border border-on-surface/8 bg-surface-container-low px-3 py-1 text-[12px] font-medium text-on-surface-variant">{launchStrategyPreview.density_label}</span>
-              <span className="rounded-full border border-on-surface/8 bg-surface-container-low px-3 py-1 text-[12px] font-medium text-on-surface-variant">{launchStrategyPreview.prefix_style_label}</span>
-              <span className="rounded-full border border-on-surface/8 bg-surface-container-low px-3 py-1 text-[12px] font-medium text-on-surface-variant">{launchStrategyPreview.caution_level_label}</span>
+              <span className="rounded-full border border-primary/12 bg-primary/8 px-3 py-1 text-[12px] font-semibold text-primary">
+                {t(`strategy.templates.${launchTemplate.id}.label`)}
+              </span>
+              <span className="rounded-full border border-primary/12 bg-primary/8 px-3 py-1 text-[12px] font-semibold text-primary">
+                {t(`strategy.taskType.${launchStrategyPreview.task_type}`)}
+              </span>
+              <span className="rounded-full border border-on-surface/8 bg-surface-container-low px-3 py-1 text-[12px] font-medium text-on-surface-variant">
+                {t(`strategy.languageOptions.${globalConfig.LAUNCH_DEFAULT_LANGUAGE ?? "zh"}`)}
+              </span>
+              <span className="rounded-full border border-on-surface/8 bg-surface-container-low px-3 py-1 text-[12px] font-medium text-on-surface-variant">
+                {t(`strategy.densityOptions.${globalConfig.LAUNCH_DEFAULT_DENSITY ?? "normal"}`)}
+              </span>
+              <span className="rounded-full border border-on-surface/8 bg-surface-container-low px-3 py-1 text-[12px] font-medium text-on-surface-variant">
+                {t(`strategy.prefixOptions.${globalConfig.LAUNCH_DEFAULT_PREFIX_STYLE ?? "none"}`)}
+              </span>
+              <span className="rounded-full border border-on-surface/8 bg-surface-container-low px-3 py-1 text-[12px] font-medium text-on-surface-variant">
+                {t(`strategy.cautionOptions.${globalConfig.LAUNCH_DEFAULT_CAUTION_LEVEL ?? "balanced"}`)}
+              </span>
             </div>
           </div>
-          <FieldGroup label="默认整理方式">
+          <FieldGroup label={t("settingsPage.launchTab.organizationMethod")}>
             <div className="grid gap-3 md:grid-cols-2">
               <StrategyOptionButton
                 active={launchDefaultOrganizeMethod === "categorize_into_new_structure"}
-                label="全新分类整理"
-                description="AI 自动按内容生成一套清晰的新文件夹结构，适合整理混乱的下载或杂物文件夹。"
+                label={t("settingsPage.launchTab.newStructure")}
+                description={t("settingsPage.launchTab.newStructureDescription")}
                 onClick={() => onUpdateGlobal("LAUNCH_DEFAULT_ORGANIZE_METHOD", "categorize_into_new_structure")}
               />
               <StrategyOptionButton
                 active={launchDefaultOrganizeMethod === "assign_into_existing_categories"}
-                label="按固定规则归档"
-                description="按已设定好的分类规则自动分发到指定目标文件夹，适合日常规律归档。"
+                label={t("settingsPage.launchTab.savedRules")}
+                description={t("settingsPage.launchTab.savedRulesDescription")}
                 onClick={() => onUpdateGlobal("LAUNCH_DEFAULT_ORGANIZE_METHOD", "assign_into_existing_categories")}
               />
             </div>
@@ -152,30 +168,30 @@ export function LaunchTab({
                 <div>
                   <h3 className="flex items-center gap-1.5 text-[13px] font-semibold text-on-surface">
                     <BookOpenCheck className="h-4 w-4 text-primary" aria-hidden />
-                    分类规则
+                    {t("settingsPage.launchTab.rulesHeading")}
                   </h3>
                   <p className="mt-1 text-[12px] leading-5 text-on-surface-variant/70">
-                    目标目录、规则文案与默认配置请在「分类规则」页管理。默认配置会影响一键整理与直启。
+                    {t("settingsPage.launchTab.rulesDescription")}
                   </p>
                 </div>
                 <Link
                   href="/rules"
                   className="shrink-0 rounded-[8px] border border-primary/30 bg-surface px-3 py-1.5 text-[12px] font-bold text-primary transition-colors hover:bg-primary/5"
                 >
-                  打开分类规则
+                  {t("settingsPage.launchTab.openRules")}
                 </Link>
               </div>
             </div>
           ) : null}
 
-          <FieldGroup label="默认模板">
+          <FieldGroup label={t("settingsPage.launchTab.defaultTemplate")}>
             <div className="grid gap-2 xl:grid-cols-2">
               {STRATEGY_TEMPLATES.map((template) => (
                 <StrategyOptionButton
                   key={template.id}
                   active={globalConfig.LAUNCH_DEFAULT_TEMPLATE_ID === template.id}
-                  label={template.label}
-                  description={template.description}
+                  label={t(`strategy.templates.${template.id}.label`)}
+                  description={t(`strategy.templates.${template.id}.description`)}
                   onClick={() => {
                     const suggested = getSuggestedSelection(template.id);
                     onUpdateGlobal("LAUNCH_DEFAULT_TEMPLATE_ID", template.id);
@@ -190,12 +206,12 @@ export function LaunchTab({
           </FieldGroup>
           <div className="grid gap-3 xl:grid-cols-4">
             {[
-              { label: "目录语言", key: "LAUNCH_DEFAULT_LANGUAGE", options: LANGUAGE_OPTIONS },
-              { label: "分类精细度", key: "LAUNCH_DEFAULT_DENSITY", options: DENSITY_OPTIONS },
-              { label: "目录前缀", key: "LAUNCH_DEFAULT_PREFIX_STYLE", options: PREFIX_STYLE_OPTIONS },
-              { label: "归档严格度", key: "LAUNCH_DEFAULT_CAUTION_LEVEL", options: CAUTION_LEVEL_OPTIONS },
+              { labelKey: "folderNameLanguage", key: "LAUNCH_DEFAULT_LANGUAGE", options: LANGUAGE_OPTIONS, optionNamespace: "languageOptions" },
+              { labelKey: "categoryDetail", key: "LAUNCH_DEFAULT_DENSITY", options: DENSITY_OPTIONS, optionNamespace: "densityOptions" },
+              { labelKey: "prefixStyle", key: "LAUNCH_DEFAULT_PREFIX_STYLE", options: PREFIX_STYLE_OPTIONS, optionNamespace: "prefixOptions" },
+              { labelKey: "cautionLevel", key: "LAUNCH_DEFAULT_CAUTION_LEVEL", options: CAUTION_LEVEL_OPTIONS, optionNamespace: "cautionOptions" },
             ].map((group) => (
-              <FieldGroup key={group.key} label={group.label}>
+              <FieldGroup key={group.key} label={t(`settingsPage.launchTab.${group.labelKey}`)}>
                 <div className="grid gap-1.5">
                   {group.options.map((option) => {
                     const active = globalConfig[group.key] === option.id;
@@ -211,7 +227,9 @@ export function LaunchTab({
                             : "border-on-surface/8 bg-surface-container-lowest text-on-surface hover:border-primary/20",
                         )}
                       >
-                        <span className="text-[12px] font-bold">{option.label}</span>
+                        <span className="text-[12px] font-bold">
+                          {t(`strategy.${group.optionNamespace}.${option.id}`)}
+                        </span>
                       </button>
                     );
                   })}
@@ -219,12 +237,12 @@ export function LaunchTab({
               </FieldGroup>
             ))}
           </div>
-          <FieldGroup label="补充说明">
+          <FieldGroup label={t("settingsPage.launchTab.additionalInstructions")}>
             <textarea
               value={globalConfig.LAUNCH_DEFAULT_NOTE ?? ""}
               onChange={(event) => onUpdateGlobal("LAUNCH_DEFAULT_NOTE", event.target.value.slice(0, 200))}
               className="min-h-24 w-full resize-none rounded-[8px] border border-on-surface/8 bg-surface-container-lowest px-4 py-3 text-[13px] leading-6 text-on-surface outline-none transition-all placeholder:text-on-surface-variant/35 focus:border-primary focus:ring-4 focus:ring-primary/5"
-              placeholder="例如：拿不准的先放待确认区，课程资料尽量按学期整理。"
+              placeholder={t("settingsPage.launchTab.notesPlaceholder")}
             />
           </FieldGroup>
         </div>
@@ -234,19 +252,24 @@ export function LaunchTab({
         <div className="space-y-4">
           <div className="rounded-[12px] border border-on-surface/8 bg-surface px-4 py-4">
             <div className="mb-4">
-              <h3 className="text-[13px] font-semibold text-on-surface">默认放置规则</h3>
+              <h3 className="text-[13px] font-semibold text-on-surface">
+                {t("settingsPage.launchTab.placementHeading")}
+              </h3>
               <p className="mt-1 text-[12px] leading-5 text-on-surface-variant/65">
-                定义新任务的默认归档落点与待复核文件夹；单次整理任务中仍可灵活覆盖。
+                {t("settingsPage.launchTab.placementDescription")}
               </p>
             </div>
             <div className="grid gap-4 xl:grid-cols-2">
-              <FieldGroup label="默认新目录生成位置" hint="留空时，将默认保存在源文件夹同级或任务输出目录下；支持在此自定义固定整理落点。">
+              <FieldGroup
+                label={t("settingsPage.launchTab.newFolderLocation")}
+                hint={t("settingsPage.launchTab.newFolderLocationHint")}
+              >
                 <InputShell icon={FolderOpen} className="flex items-center">
                   <input
                     value={launchDefaultNewDirectoryRoot}
                     onChange={(event) => onUpdateGlobal("LAUNCH_DEFAULT_NEW_DIRECTORY_ROOT", event.target.value)}
                     className="flex-1 bg-transparent py-2 text-sm font-semibold text-on-surface outline-none"
-                    placeholder="例如：D:/archive/sorted"
+                    placeholder={t("settingsPage.launchTab.pathExample")}
                   />
                   <button
                     type="button"
@@ -260,16 +283,16 @@ export function LaunchTab({
                     }}
                     className="ml-2 shrink-0 rounded-[4px] border border-on-surface/10 bg-surface px-2.5 py-1 text-[11px] font-bold text-on-surface transition-colors hover:border-primary/20 hover:text-primary active:scale-95"
                   >
-                    浏览...
+                    {t("settingsPage.launchTab.browse")}
                   </button>
                 </InputShell>
               </FieldGroup>
               <FieldGroup
-                label="默认待确认区位置 (Review)"
+                label={t("settingsPage.launchTab.reviewLocation")}
                 hint={
                   launchReviewFollowsNewRoot
-                    ? `当前会自动跟随新目录位置，默认保存在 ${launchDerivedReviewRoot}（用于存放拿不准的文件）。`
-                    : "供存放拿不准的文件；只在关闭“跟随新目录位置”后单独生效。"
+                    ? t("settingsPage.launchTab.reviewFollowsHint", { path: launchDerivedReviewRoot })
+                    : t("settingsPage.launchTab.reviewSeparateHint")
                 }
               >
                 <InputShell icon={FolderOpen} className="flex items-center">
@@ -278,7 +301,7 @@ export function LaunchTab({
                     onChange={(event) => onUpdateGlobal("LAUNCH_DEFAULT_REVIEW_ROOT", event.target.value)}
                     disabled={launchReviewFollowsNewRoot}
                     className="flex-1 bg-transparent py-2 text-sm font-semibold text-on-surface outline-none disabled:opacity-60"
-                    placeholder={launchReviewFollowsNewRoot ? launchDerivedReviewRoot : "例如：D:/archive/review"}
+                    placeholder={launchReviewFollowsNewRoot ? launchDerivedReviewRoot : t("settingsPage.launchTab.reviewPathExample")}
                   />
                   <button
                     type="button"
@@ -293,7 +316,7 @@ export function LaunchTab({
                     }}
                     className="ml-2 shrink-0 rounded-[4px] border border-on-surface/10 bg-surface px-2.5 py-1 text-[11px] font-bold text-on-surface transition-colors hover:border-primary/20 hover:text-primary active:scale-95 disabled:pointer-events-none disabled:opacity-40"
                   >
-                    浏览...
+                    {t("settingsPage.launchTab.browse")}
                   </button>
                 </InputShell>
               </FieldGroup>
@@ -301,15 +324,17 @@ export function LaunchTab({
             <div className="mt-4 rounded-[12px] border border-on-surface/8 bg-surface-container-low px-4 py-3.5">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <h3 className="text-[13px] font-semibold text-on-surface">待确认区跟随新目录位置</h3>
+                  <h3 className="text-[13px] font-semibold text-on-surface">
+                    {t("settingsPage.launchTab.reviewFollowsNewRoot")}
+                  </h3>
                   <p className="mt-1 text-[12px] leading-5 text-on-surface-variant/65">
-                    开启后，分类不确定或拿不准的文件会自动暂存至 `新目录/Review` 待确认文件夹，不打乱主目录结构。
+                    {t("settingsPage.launchTab.reviewFollowsNewRootDescription")}
                   </p>
                 </div>
                 <ToggleSwitch
                   checked={launchReviewFollowsNewRoot}
                   onClick={() => onUpdateGlobal("LAUNCH_REVIEW_FOLLOWS_NEW_ROOT", !launchReviewFollowsNewRoot)}
-                  ariaLabel="待确认区跟随新目录位置"
+                  ariaLabel={t("settingsPage.launchTab.reviewFollowsNewRoot")}
                 />
               </div>
             </div>
@@ -317,13 +342,17 @@ export function LaunchTab({
           <div className="rounded-[12px] border border-on-surface/8 bg-surface px-4 py-3.5">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <h3 className="text-[13px] font-semibold text-on-surface">跳过启动确认直接整理</h3>
-                <p className="mt-1 text-[12px] leading-5 text-on-surface-variant/65">开启后，在首页选择文件夹并点击开始时，将直接使用上述默认策略运行，不再弹出确认窗口。</p>
+                <h3 className="text-[13px] font-semibold text-on-surface">
+                  {t("settingsPage.launchTab.skipLaunchConfirmation")}
+                </h3>
+                <p className="mt-1 text-[12px] leading-5 text-on-surface-variant/65">
+                  {t("settingsPage.launchTab.skipLaunchConfirmationDescription")}
+                </p>
               </div>
               <ToggleSwitch
                 checked={Boolean(globalConfig.LAUNCH_SKIP_STRATEGY_PROMPT)}
                 onClick={() => onUpdateGlobal("LAUNCH_SKIP_STRATEGY_PROMPT", !globalConfig.LAUNCH_SKIP_STRATEGY_PROMPT)}
-                ariaLabel="跳过启动确认直接整理"
+                ariaLabel={t("settingsPage.launchTab.skipLaunchConfirmation")}
               />
             </div>
           </div>

@@ -111,12 +111,14 @@ export function buildSecretPayload(secret: SecretDraft) {
 
 export function describeSecret(secretState: SecretState, secret: SecretDraft) {
   if (secret.action === "replace" && secret.value.trim()) {
-    return "新密钥已输入，保存当前修改后生效。";
+    return "settingsPage.formFields.secret.entered";
   }
   if (secret.action === "clear") {
-    return "已标记为移除，保存当前修改后生效。";
+    return "settingsPage.formFields.secret.removed";
   }
-  return secretState === "stored" ? "密钥已在本地安全存储。" : "当前还没有保存密钥。";
+  return secretState === "stored"
+    ? "settingsPage.formFields.secret.stored"
+    : "settingsPage.formFields.secret.empty";
 }
 
 export const LAUNCH_GLOBAL_KEYS = [
@@ -238,14 +240,19 @@ export function buildFingerprint(
   });
 }
 
-export function copyTextToClipboard(value: string, onSuccess: (message: string) => void, onError: (message: string) => void) {
+export function copyTextToClipboard(
+  value: string,
+  onSuccess: (message: string) => void,
+  onError: (message: string) => void,
+  messages: { unsupported: string; copied: string; failed: string },
+) {
   if (typeof navigator === "undefined" || !navigator.clipboard) {
-    onError("当前环境不支持复制日志路径。");
+    onError(messages.unsupported);
     return;
   }
   void navigator.clipboard.writeText(value).then(
-    () => onSuccess("日志路径已复制"),
-    () => onError("复制日志路径失败"),
+    () => onSuccess(messages.copied),
+    () => onError(messages.failed),
   );
 }
 
