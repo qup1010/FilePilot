@@ -47,6 +47,10 @@ class OrganizerCompatibilityTests(unittest.TestCase):
         self.assertIn("### Needs your review", prompt)
         self.assertIn("### Next step", prompt)
         self.assertIn("Write all user-facing natural-language replies in English", prompt)
+        self.assertIn("Keep the opening summary to one sentence", prompt)
+        self.assertIn("“Check move safety”", prompt)
+        self.assertIn("There are still N items in Review", prompt)
+        self.assertNotIn("Check move risks", prompt)
         self.assertNotIn("### 本轮调整", prompt)
         self.assertIn(scan_lines, prompt)
         self.assertIn("Create an organization plan from the directory scan", messages[1]["content"])
@@ -94,7 +98,9 @@ class OrganizerCompatibilityTests(unittest.TestCase):
 
         self.assertIn("The previous organization plan failed structural validation.", retry)
         self.assertIn("Missing moves", retry)
+        self.assertIn("leave an item in Review", retry)
         self.assertIn("Hard constraints for placing items into existing folders", repair[1]["content"])
+        self.assertIn("leave an item in Review", repair[1]["content"])
         self.assertIn("Write all user-facing natural language in English", repair[0]["content"])
         self.assertNotIn("最近一次失败原因", repair[1]["content"])
 

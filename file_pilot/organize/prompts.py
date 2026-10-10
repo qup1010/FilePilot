@@ -168,8 +168,8 @@ def build_prompt(scan_lines: str, strategy: dict | None = None, planning_context
             "### 本轮调整": "### Changes this round",
             "### 需要你确认": "### Needs your review",
             "### 下一步": "### Next step",
-            "仍有 N 项暂放待确认区，请在右侧预览区确认": "There are still N items in the review area. Please check them in the preview pane.",
-            "如果界面已显示可检查，请点击‘检查移动风险’。": "If the interface shows that the plan is ready, select “Check move risks.”",
+            "仍有 N 项暂放待确认区，请在右侧预览区确认": "There are still N items in Review. Please check them in the preview area.",
+            "如果界面已显示可检查，请点击‘检查移动风险’。": "If the plan is ready, select “Check move safety.”",
         }
         for source, translated in english_headings.items():
             template = template.replace(source, translated)
@@ -185,6 +185,7 @@ def build_prompt(scan_lines: str, strategy: dict | None = None, planning_context
         "Write all user-facing natural-language replies in English, including summaries, headings, explanations, "
         "uncertainty notes, and next-step suggestions. Use these headings exactly when applicable: "
         "Changes this round, Needs your review, and Next step. "
+        "Keep the opening summary to one sentence and each bullet concise. Use the UI terms “Review” and “Check move safety” for the review location and pre-move check. "
         "Preserve actual file names, directory names, user-provided labels and descriptions, and quoted source text as supplied. "
         "Follow the configured directory naming language when proposing new directory names. "
         "Keep tool names, field names, enum values, and IDs unchanged. Do not copy Chinese wording from these instructions into the reply."

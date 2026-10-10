@@ -56,9 +56,9 @@ Choose the clearest visual subject to use as the main subject of a folder icon.
 Return JSON only. Do not include Markdown or an explanation outside the JSON.
 Use exactly this structure:
 {
-  "category": "a concise and accurate English category",
+  "category": "a short and accurate English category label",
   "visual_subject": "a short English phrase describing drawable subject matter",
-  "summary": "one short English explanation"
+  "summary": "one concise English sentence, ideally 5–15 words"
 }
 
 Rules:
@@ -75,11 +75,11 @@ Rules:
 - Prefer one or two concrete drawable subjects over an abstract or lengthy phrase.
 - Keep the subject suitable for a single folder icon; avoid complex scenes.
 - Always write visual_subject in English, even when folder names are in another language.
-- Write category and summary in English.
+- Write category and summary in English. Keep category to a short label.
 
 3. Keep the result useful
 - Keep category short and specific, such as Music Assets, Project Source Code, Course Materials, Finance Documents, or Personal Photos.
-- Use summary only to explain why the subject fits. Do not repeat the whole folder tree.
+- Keep summary to one concise sentence of about 5–15 words. Explain why the subject fits without repeating the folder tree.
 - For a technical project, choose a stable visual metaphor instead of simply saying code.
 - For personal content, reference collections, or miscellaneous archives, choose a familiar representative object.
 

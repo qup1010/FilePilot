@@ -628,8 +628,8 @@ def analysis_tools_for_content_locale(content_locale: str = DEFAULT_CONTENT_LOCA
     property_descriptions = {
         "entry_id": "Entry identifier from the current analysis scope; do not create or modify it.",
         "entry_type": "Entry type: file or dir.",
-        "suggested_purpose": "Likely organization purpose or category, in English.",
-        "summary": "Brief content, structure, or evidence summary, in English.",
+        "suggested_purpose": "Short organization-purpose or category label in English; use Uncertain when evidence is insufficient.",
+        "summary": "One concise English sentence, typically 5–20 words and no more than 120 characters; do not repeat the purpose.",
     }
     for tool in localized_tools:
         function = tool.get("function") or {}

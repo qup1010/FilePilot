@@ -82,12 +82,15 @@ class IconWorkbenchClientTests(unittest.TestCase):
 
         self.assertEqual(client.calls[0]["system_prompt"], TEXT_ANALYSIS_SYSTEM_PROMPT_EN)
         self.assertIn("Write category and summary in English", client.calls[0]["system_prompt"])
+        self.assertIn("5–15 words", client.calls[0]["system_prompt"])
+        self.assertIn("Always write visual_subject in English", client.calls[0]["system_prompt"])
         self.assertIn("Parent folder name: Music", client.calls[0]["user_prompt"])
         self.assertIn("Current folder name: Lofi", client.calls[0]["user_prompt"])
         self.assertIn("Folder tree summary:", client.calls[0]["user_prompt"])
         self.assertEqual(result.category, "Uncategorized")
         self.assertEqual(result.summary, "Icon direction inferred from the folder structure.")
         self.assertEqual(result.visual_subject, "a simple geometric symbol")
+        self.assertTrue(result.suggested_prompt.startswith("a simple geometric symbol, "))
 
 
 if __name__ == "__main__":

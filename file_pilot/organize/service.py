@@ -1402,7 +1402,7 @@ def build_command_retry_message(
                 [
                     "Hard constraints for placing items into existing folders:",
                     "- Do not rename folders.",
-                    "- Use only explicitly configured target folders, or leave an item in the review area.",
+                    "- Use only explicitly configured target folders, or leave an item in Review.",
                     "- A parent folder does not authorize its children; each child must be configured separately.",
                     "- Do not create target folders or move items into unconfigured folders.",
                     "- Prefer target_slot values that point to existing D-IDs.",
@@ -1603,7 +1603,7 @@ def _build_repair_messages(
             repair_prompt.extend(
                 [
                     "- Do not rename folders.",
-                    "- Use only explicitly configured target folders, or leave an item in the review area.",
+                    "- Use only explicitly configured target folders, or leave an item in Review.",
                     "- A parent folder does not authorize its children; each child must be configured separately.",
                     "- Do not create target folders or move items into unconfigured folders.",
                     "- Prefer target_slot values that point to existing D-IDs.",

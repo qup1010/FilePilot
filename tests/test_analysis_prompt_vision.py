@@ -36,6 +36,8 @@ class AnalysisPromptVisionTests(unittest.TestCase):
         )
 
         self.assertIn("Write all generated suggested_purpose values and summaries in English.", prompt)
+        self.assertIn("5–20 words", prompt)
+        self.assertIn("no more than 120 characters", prompt)
         self.assertIn("Use read_local_files_batch once", prompt)
         self.assertNotIn("简洁中文输出", prompt)
 
@@ -55,7 +57,12 @@ class AnalysisPromptVisionTests(unittest.TestCase):
         english_properties = english_submit["parameters"]["properties"]["items"]["items"]["properties"]
         chinese_properties = chinese_submit["parameters"]["properties"]["items"]["items"]["properties"]
         self.assertEqual(english_properties.keys(), chinese_properties.keys())
-        self.assertIn("in English", english_properties["summary"]["description"])
+        self.assertEqual(english_submit["name"], analysis_service.SUBMIT_ANALYSIS_TOOL_NAME)
+        self.assertEqual(english_submit["parameters"]["required"], chinese_submit["parameters"]["required"])
+        self.assertEqual(english_properties["entry_type"]["enum"], chinese_properties["entry_type"]["enum"])
+        self.assertEqual(english_properties["entry_type"]["enum"], ["file", "dir"])
+        self.assertIn("5–20 words", english_properties["summary"]["description"])
+        self.assertIn("120 characters", english_properties["summary"]["description"])
         self.assertEqual(chinese_properties["summary"]["description"], "不超过四十字的内容摘要")
         retry_message = analysis_service._build_retry_message(
             {

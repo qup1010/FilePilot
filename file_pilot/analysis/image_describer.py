@@ -37,6 +37,7 @@ ENGLISH_SYSTEM_PROMPT = (
 )
 ENGLISH_USER_PROMPT = (
     "Analyze this image and provide these fields:\n"
+    "Keep each field concise. Main subject and Likely purpose must each be one sentence, no more than 120 characters.\n"
     "Image type: for example, screenshot, photograph, scanned document, chart, illustration, design, comic, or meme; use Uncertain if unclear.\n"
     "Main subject: describe the main visible subject in one sentence.\n"
     "Readable text: list key text that is clearly legible; use No clear text detected if none is readable.\n"

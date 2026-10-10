@@ -128,6 +128,8 @@ class ImageDescriberTests(unittest.TestCase):
         request = mock_client.chat.completions.create.call_args.kwargs
         self.assertIn("concise English", request["messages"][0]["content"])
         self.assertIn("Image type:", str(request["messages"][1]["content"]))
+        self.assertIn("Main subject and Likely purpose must each be one sentence", str(request["messages"][1]["content"]))
+        self.assertIn("no more than 120 characters", str(request["messages"][1]["content"]))
         self.assertNotIn("图片类型：", str(request["messages"][1]["content"]))
         rendered = format_image_description_result(result, "en")
         self.assertIn("--- Image recognition result starts ---", rendered)
