@@ -6,6 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
+    "check:i18n": "node scripts/check-translations.mjs",
     "typecheck": "tsc --noEmit",
     "lint": "biome check .",
     "test": "vitest run"

@@ -49,6 +49,10 @@ jobs:
         working-directory: frontend
         run: npm ci
 
+      - name: Translation resource check
+        working-directory: frontend
+        run: npm run check:i18n
+
       - name: Python lint
         run: python -m ruff check file_pilot tests
 
