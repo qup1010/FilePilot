@@ -144,6 +144,47 @@ describe("CompletionView", () => {
     expect(screen.queryByText("目标父目录不存在，跳过")).not.toBeInTheDocument();
   });
 
+  it("localizes old journal messages in English and keeps them in Chinese", async () => {
+    await i18n.changeLanguage("en");
+    const props = {
+      journal: {
+        journal_id: "j1",
+        execution_id: "e1",
+        target_dir: "D:/download",
+        status: "partial_failure",
+        created_at: "2026-04-20T00:00:00Z",
+        item_count: 1,
+        success_count: 0,
+        failure_count: 0,
+        rollback_attempt_count: 0,
+        items: [{
+          action_type: "MOVE",
+          status: "skipped",
+          message: "目标已存在，文件保留在原位置",
+          source: "D:/download/demo.txt",
+          target: "D:/download/target/demo.txt",
+          display_name: "demo.txt",
+        }],
+      },
+      summary: "done",
+      loading: false,
+      targetDir: "D:/download",
+      isBusy: false,
+      onOpenExplorer: () => {},
+      onCleanupDirs: () => {},
+      onRollback: () => {},
+      onGoHome: () => {},
+    };
+
+    const view = render(<CompletionView {...props} />);
+    expect(screen.getByText("The item was left in place.")).toBeInTheDocument();
+    expect(screen.queryByText("目标已存在，文件保留在原位置")).not.toBeInTheDocument();
+
+    await i18n.changeLanguage("zh-CN");
+    view.rerender(<CompletionView {...props} />);
+    expect(screen.getByText("目标已存在，文件保留在原位置")).toBeInTheDocument();
+  });
+
   it("uses explicit review metadata even when the target path does not contain Review", () => {
     render(
       <CompletionView

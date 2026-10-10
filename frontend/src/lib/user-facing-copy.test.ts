@@ -59,6 +59,13 @@ describe("user-facing copy helpers", () => {
     );
   });
 
+  it("uses the English fallback for legacy Chinese session errors", async () => {
+    await i18n.changeLanguage("en");
+
+    expect(localizeSessionLastError("扫描过程中连接中断，未完成。"))
+      .toBe("The task was interrupted. Scan the folder again before continuing.");
+  });
+
   it("translates structured session errors and interruption stages", async () => {
     await i18n.changeLanguage("en");
 

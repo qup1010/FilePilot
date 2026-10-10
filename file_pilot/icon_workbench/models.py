@@ -119,9 +119,9 @@ class IconTemplate:
 @dataclass
 class IconWorkbenchClientActionSummary:
     action_type: str
-    success_count: int
-    failed_count: int
-    skipped_count: int
+    success_count: int | None
+    failed_count: int | None
+    skipped_count: int | None
     message: str
     results: list[dict[str, Any]] = field(default_factory=list)
     updated_at: str = field(default_factory=utc_now_iso)
@@ -131,11 +131,21 @@ class IconWorkbenchClientActionSummary:
         if not payload:
             return None
         summary = dict(payload.get("summary", {}) or {})
+
+        def read_count(key: str) -> int | None:
+            value = summary.get(key)
+            if value is None:
+                return None
+            try:
+                return max(0, int(value))
+            except (TypeError, ValueError):
+                return None
+
         return cls(
             action_type=str(payload.get("action_type", "") or ""),
-            success_count=int(summary.get("success_count", 0) or 0),
-            failed_count=int(summary.get("failed_count", 0) or 0),
-            skipped_count=int(summary.get("skipped_count", 0) or 0),
+            success_count=read_count("success_count"),
+            failed_count=read_count("failed_count"),
+            skipped_count=read_count("skipped_count"),
             message=str(summary.get("message", "") or ""),
             results=[dict(item) for item in payload.get("results", [])],
             updated_at=str(payload.get("updated_at", "") or utc_now_iso()),

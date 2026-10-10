@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import i18n from "@/i18n/instance";
-import type { IconTemplate } from "@/types/icon-workbench";
+import type { IconTemplate, IconWorkbenchHistoryItem } from "@/types/icon-workbench";
 import {
   getGenerateFlowPresentation,
+  getIconWorkbenchHistoryActionMessage,
   getIconTemplateDisplayDescription,
   getIconTemplateDisplayName,
 } from "./icon-workbench-utils";
@@ -55,5 +56,57 @@ describe("icon workbench localization helpers", () => {
       "Apply style",
       "Generate previews",
     ]);
+  });
+
+  it("rebuilds legacy history action summaries in the selected language", () => {
+    const item: IconWorkbenchHistoryItem = {
+      session_id: "legacy-session",
+      created_at: "2026-01-01T00:00:00Z",
+      updated_at: "2026-01-02T00:00:00Z",
+      target_count: 1,
+      folder_count: 1,
+      ready_count: 1,
+      applied_count: 1,
+      error_count: 0,
+      target_paths: ["D:/Icons/Alpha"],
+      last_action_type: "apply_icons",
+      last_action_message: "应用图标已完成：成功 1，失败 0，跳过 0。",
+      last_action_success_count: 1,
+      last_action_failed_count: 0,
+      last_action_skipped_count: 0,
+    };
+
+    expect(getIconWorkbenchHistoryActionMessage(item, i18n.getFixedT("en", "common"), "en"))
+      .toBe("Batch apply finished: 1 succeeded, 0 failed, 0 skipped.");
+    expect(getIconWorkbenchHistoryActionMessage(item, i18n.getFixedT("zh-CN", "common"), "zh-CN"))
+      .toBe("应用图标已完成：成功 1，失败 0，跳过 0。");
+    expect(getIconWorkbenchHistoryActionMessage({
+      ...item,
+      last_action_success_count: null,
+      last_action_failed_count: null,
+      last_action_skipped_count: null,
+    }, i18n.getFixedT("en", "common"), "en"))
+      .toBe("Batch apply finished.");
+  });
+
+  it("does not expose an unknown legacy Chinese action message in English", () => {
+    const item: IconWorkbenchHistoryItem = {
+      session_id: "legacy-session",
+      created_at: "2026-01-01T00:00:00Z",
+      updated_at: "2026-01-02T00:00:00Z",
+      target_count: 1,
+      folder_count: 1,
+      ready_count: 1,
+      applied_count: 0,
+      error_count: 0,
+      target_paths: [],
+      last_action_type: "legacy_action",
+      last_action_message: "旧版中文操作摘要",
+    };
+
+    expect(getIconWorkbenchHistoryActionMessage(item, i18n.getFixedT("en", "common"), "en"))
+      .toBe("A previous action was completed.");
+    expect(getIconWorkbenchHistoryActionMessage(item, i18n.getFixedT("zh-CN", "common"), "zh-CN"))
+      .toBe("旧版中文操作摘要");
   });
 });

@@ -821,6 +821,9 @@ class IconWorkbenchService:
             "target_paths": list(session.target_paths[:2]),
             "last_action_type": last_action.action_type if last_action else None,
             "last_action_message": last_action.message if last_action else None,
+            "last_action_success_count": last_action.success_count if last_action else None,
+            "last_action_failed_count": last_action.failed_count if last_action else None,
+            "last_action_skipped_count": last_action.skipped_count if last_action else None,
             "last_action_at": last_action.updated_at if last_action else None,
         }
 

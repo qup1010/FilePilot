@@ -78,9 +78,9 @@ export interface FolderIconCandidate {
 export interface IconWorkbenchClientActionSummary {
   action_type: string;
   summary: {
-    success_count: number;
-    failed_count: number;
-    skipped_count: number;
+    success_count: number | null;
+    failed_count: number | null;
+    skipped_count: number | null;
     message: string;
   };
   results: Record<string, unknown>[];
@@ -110,6 +110,9 @@ export interface IconWorkbenchHistoryItem {
   target_paths: string[];
   last_action_type?: string | null;
   last_action_message?: string | null;
+  last_action_success_count?: number | null;
+  last_action_failed_count?: number | null;
+  last_action_skipped_count?: number | null;
   last_action_at?: string | null;
 }
 

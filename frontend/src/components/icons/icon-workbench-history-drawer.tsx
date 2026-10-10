@@ -6,6 +6,7 @@ import { useTranslation } from "react-i18next";
 
 import { cn } from "@/lib/utils";
 import type { IconWorkbenchHistoryItem } from "@/types/icon-workbench";
+import { getIconWorkbenchHistoryActionMessage } from "./icon-workbench-utils";
 
 interface IconWorkbenchHistoryDrawerProps {
   open: boolean;
@@ -114,6 +115,7 @@ export function IconWorkbenchHistoryDrawer({
                   const isOpening = openingSessionId === item.session_id;
                   const isDeleting = deletingSessionId === item.session_id;
                   const targetPreview = item.target_paths.length > 0 ? item.target_paths.join(" · ") : t("iconWorkbench.history.targetPathMissing");
+                  const lastActionMessage = getIconWorkbenchHistoryActionMessage(item, t, locale);
                   return (
                     <div
                       key={item.session_id}
@@ -147,9 +149,9 @@ export function IconWorkbenchHistoryDrawer({
                             })}
                             {item.error_count > 0 ? ` · ${formatCount("iconWorkbench.history.errorCount", item.error_count)}` : ""}
                           </p>
-                          {item.last_action_message ? (
-                            <p className="mt-1 truncate text-[11px] text-ui-muted/70" title={item.last_action_message}>
-                              {item.last_action_message}
+                          {lastActionMessage ? (
+                            <p className="mt-1 truncate text-[11px] text-ui-muted/70" title={lastActionMessage}>
+                              {lastActionMessage}
                             </p>
                           ) : null}
                         </div>

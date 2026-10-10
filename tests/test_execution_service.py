@@ -497,6 +497,9 @@ class ExecutionServiceTests(unittest.TestCase):
         legacy = ExecutionJournalItem.from_dict(
             {"action_type": "MOVE", "status": "success", "message": "移动成功"}
         )
+        self.assertEqual(legacy.message, "移动成功")
+        self.assertIsNone(legacy.message_code)
+        self.assertEqual(legacy.message_params, {})
         self.assertIsNone(legacy.size_bytes)
         self.assertIsNone(legacy.decision_basis)
 

@@ -1,6 +1,6 @@
 import type { TFunction } from "i18next";
 
-import type { FolderIconCandidate, IconPreviewVersion, IconTemplate } from "@/types/icon-workbench";
+import type { FolderIconCandidate, IconPreviewVersion, IconTemplate, IconWorkbenchHistoryItem } from "@/types/icon-workbench";
 
 export type GenerateFlowStage = "analyzing" | "applying_template" | "generating";
 export interface GenerateFlowStepItem {
@@ -42,6 +42,44 @@ export function getIconTemplateDisplayDescription(template: IconTemplate, t: TFu
   return t(`iconWorkbench.builtinStyles.${template.template_id}.description`, {
     defaultValue: template.description || t("iconWorkbench.stylePicker.fallbackDescription"),
   });
+}
+
+export function getIconWorkbenchHistoryActionMessage(
+  item: IconWorkbenchHistoryItem,
+  t: TFunction<"common">,
+  locale: string,
+): string {
+  const actionType = String(item.last_action_type || "").trim().toLowerCase();
+  const summaryKeys: Record<string, { summary: string; generic: string }> = {
+    apply_icons: {
+      summary: "iconWorkbench.notices.batchAppliedSummary",
+      generic: "iconWorkbench.notices.batchApplied",
+    },
+    restore_icons: {
+      summary: "iconWorkbench.notices.batchRestoredSummary",
+      generic: "iconWorkbench.notices.batchRestored",
+    },
+  };
+  const actionCopy = summaryKeys[actionType];
+  if (actionCopy) {
+    const counts = [
+      item.last_action_success_count,
+      item.last_action_failed_count,
+      item.last_action_skipped_count,
+    ];
+    if (counts.every((count) => typeof count === "number" && Number.isFinite(count))) {
+      return t(actionCopy.summary, {
+        success: counts[0],
+        failed: counts[1],
+        skipped: counts[2],
+      });
+    }
+    return t(actionCopy.generic);
+  }
+
+  if (!item.last_action_type && !item.last_action_message) return "";
+  if (/^zh(?:-|$)/i.test(locale) && item.last_action_message) return item.last_action_message;
+  return t("iconWorkbench.history.actionCompleted");
 }
 
 /**
