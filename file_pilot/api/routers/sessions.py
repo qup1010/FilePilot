@@ -64,6 +64,7 @@ def create_session(payload: CreateSessionPayload, request: Request):
             new_directory_root=str(payload.new_directory_root or ""),
             review_root=str(payload.review_root or ""),
             unattended=bool(payload.unattended),
+            content_locale=payload.content_locale,
         )
     except ValueError as exc:
         if str(exc) == "TASK_TYPE_CONFLICT":

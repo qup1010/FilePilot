@@ -117,6 +117,20 @@ class SessionApiTests(unittest.TestCase):
         payload = response.json()
         self.assertEqual(payload["mode"], "created")
         self.assertEqual(payload["session_snapshot"]["stage"], "draft")
+        self.assertEqual(payload["session_snapshot"]["content_locale"], "zh-CN")
+
+    def test_post_sessions_persists_and_returns_content_locale(self):
+        response = self.client.post(
+            "/api/sessions",
+            json={"target_dir": str(self.target_dir), "resume_if_exists": False, "content_locale": "en"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        session_id = payload["session_id"]
+        self.assertEqual(payload["session_snapshot"]["content_locale"], "en")
+        self.assertEqual(self.store.load(session_id).content_locale, "en")
+        self.assertEqual(self.service.get_snapshot(session_id)["content_locale"], "en")
 
     def test_post_sessions_accepts_strategy_payload_and_returns_strategy_snapshot(self):
         response = self.client.post(

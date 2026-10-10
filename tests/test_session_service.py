@@ -77,6 +77,28 @@ class OrganizerSessionServiceTests(unittest.TestCase):
         self.assertEqual(result.session.stage, "draft")
         self.assertIsNone(result.restorable_session)
 
+    def test_content_locale_round_trips_and_legacy_sessions_default_to_chinese(self):
+        created = self.service.create_session(
+            str(self.target_dir),
+            resume_if_exists=False,
+            content_locale="en",
+        ).session
+        self.assertEqual(created.content_locale, "en")
+        self.assertEqual(self.service._planning_context(created)["content_locale"], "en")
+        self.assertEqual(self.store.load(created.session_id).content_locale, "en")
+
+        legacy_payload = created.to_dict()
+        legacy_payload.pop("content_locale")
+        legacy = OrganizerSession.from_dict(legacy_payload)
+        self.assertEqual(legacy.content_locale, "zh-CN")
+
+    def test_default_scan_runner_receives_the_session_content_locale(self):
+        with mock.patch("file_pilot.app.session_service.analysis_service.run_analysis_cycle", return_value="scan") as run_analysis:
+            result = self.service._default_scan_runner(self.target_dir, content_locale="en")
+
+        self.assertEqual(result, "scan")
+        self.assertEqual(run_analysis.call_args.kwargs["content_locale"], "en")
+
     def test_seeded_initial_plan_request_has_structured_internal_visibility(self):
         session = self.service.create_session(str(self.target_dir), resume_if_exists=False).session
         session.scan_lines = "F001 | file | report.pdf | document | annual report"
@@ -105,6 +127,24 @@ class OrganizerSessionServiceTests(unittest.TestCase):
         self.assertEqual(resumed.mode, "resume_available")
         self.assertIsNotNone(resumed.restorable_session)
         self.assertEqual(resumed.restorable_session.session_id, created.session.session_id)
+
+    def test_resume_matching_keeps_existing_content_locale_when_ui_language_changes(self):
+        created = self.service.create_session(
+            str(self.target_dir),
+            resume_if_exists=False,
+            content_locale="zh-CN",
+        )
+        self.store.save(created.session)
+
+        resumed = self.service.create_session(
+            str(self.target_dir),
+            resume_if_exists=True,
+            content_locale="en",
+        )
+
+        self.assertEqual(resumed.mode, "resume_available")
+        self.assertEqual(resumed.restorable_session.session_id, created.session.session_id)
+        self.assertEqual(resumed.restorable_session.content_locale, "zh-CN")
 
     def test_build_id_registry_persists_legacy_scan_line_ids(self):
         session = OrganizerSession(

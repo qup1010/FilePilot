@@ -117,6 +117,7 @@ class ScanWorkflowService:
                     scan_runner or self.helpers._default_scan_runner,
                     Path(session.target_dir),
                     session_id=session.session_id,
+                    content_locale=session.content_locale,
                 )
             else:
                 full_scan_lines, _ = self.helpers._scan_source_collection(
@@ -330,6 +331,7 @@ class ScanWorkflowService:
                     event_handler=on_scan_event,
                     session_id=session.session_id,
                     cancel_event=cancel_event,
+                    content_locale=session.content_locale,
                 )
                 if use_single_directory_scan
                 else self.helpers._scan_source_collection(

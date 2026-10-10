@@ -414,6 +414,7 @@ export interface AssistantRuntimeStatus {
 }
 
 export type ComposerMode = "hidden" | "readonly" | "editable";
+export type ContentLocale = "zh-CN" | "en";
 
 export type IntegrityFlags = Record<string, unknown> & {
   notes?: string[];
@@ -421,6 +422,7 @@ export type IntegrityFlags = Record<string, unknown> & {
 
 export interface SessionSnapshot {
   session_id: string;
+  content_locale?: ContentLocale;
   target_dir: string;
   session_title?: string;
   placement?: PlacementConfig;
@@ -488,6 +490,7 @@ export interface MessageResponse {
 
 export interface CreateSessionRequest {
   sources: SessionSourceSelection[];
+  content_locale?: ContentLocale;
   resume_if_exists?: boolean;
   organize_method: OrganizeMethod;
   unattended?: boolean;

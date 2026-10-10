@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -28,6 +28,7 @@ class CreateSessionPayload(BaseModel):
     target_directory_details: list[TargetProfileDirectoryPayload] = Field(default_factory=list)
     new_directory_root: str | None = None
     review_root: str | None = None
+    content_locale: Literal["zh-CN", "en"] = "zh-CN"
 
 
 class MessagePayload(BaseModel):

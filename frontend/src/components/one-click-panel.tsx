@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 
 import { createApiClient } from "@/lib/api";
+import { contentLocaleForUiLanguage } from "@/lib/content-locale";
 import { rememberActiveWorkspaceRoute } from "@/lib/app-context-store";
 import { getPathBasename } from "@/lib/path-normalization";
 import { getApiBaseUrl, getApiToken } from "@/lib/runtime";
@@ -80,7 +81,7 @@ function isRuleComplete(profile: TargetProfile): boolean {
 }
 
 export function OneClickPanel() {
-  const { t } = useTranslation("common");
+  const { t, i18n } = useTranslation("common");
   const router = useRouter();
   const api = useMemo(() => createApiClient(getApiBaseUrl(), getApiToken()), []);
   const [profiles, setProfiles] = useState<TargetProfile[] | null>(null);
@@ -168,6 +169,7 @@ export function OneClickPanel() {
         unattended: true,
         target_profile_id: selectedProfile.profile_id,
         target_directory_details: selectedProfile.directories,
+        content_locale: contentLocaleForUiLanguage(i18n.resolvedLanguage || i18n.language),
       });
       if (!response.session_id) {
         setError({ type: "translation", key: "launcher.oneClick.errors.missingSession" });

@@ -48,6 +48,7 @@ import {
   listenToTauriDragDrop,
 } from "@/lib/tauri-drag-drop";
 import { getSessionStageView } from "@/lib/session-view-model";
+import { contentLocaleForUiLanguage } from "@/lib/content-locale";
 import { subscribeAppContext } from "@/lib/app-context-store";
 import { isHistorySessionEntry } from "@/lib/use-history-list";
 import { deriveWorkspaceRoot } from "@/lib/path-normalization";
@@ -147,6 +148,7 @@ type LaunchRequestState = {
   target_directory_details?: TargetProfileDirectory[];
   new_directory_root?: string;
   review_root?: string;
+  content_locale: "zh-CN" | "en";
   display_path: string;
 };
 
@@ -193,7 +195,7 @@ function placementDefaults(
 }
 
 export function SessionLauncherShell() {
-  const { t } = useTranslation("common");
+  const { t, i18n } = useTranslation("common");
   const router = useRouter();
   const pathname = usePathname();
   const apiBaseUrl = getApiBaseUrl();
@@ -1322,6 +1324,7 @@ export function SessionLauncherShell() {
       target_directory_details: isAssignExisting ? effectiveTargetDirectories : undefined,
       new_directory_root: effectiveNewDirectoryRoot || undefined,
       review_root: effectiveReviewRoot || undefined,
+      content_locale: contentLocaleForUiLanguage(i18n.resolvedLanguage || i18n.language),
       display_path: displayPath,
     };
   }
@@ -1396,7 +1399,10 @@ export function SessionLauncherShell() {
 
     try {
       const api = createApiClient(apiBaseUrl, getApiToken());
-      const response = await startFreshSession(api, resumePrompt.sessionId, resumePrompt.snapshot.stage, resumePrompt.launch);
+      const response = await startFreshSession(api, resumePrompt.sessionId, resumePrompt.snapshot.stage, {
+        ...resumePrompt.launch,
+        content_locale: contentLocaleForUiLanguage(i18n.resolvedLanguage || i18n.language),
+      });
       if (!response.session_id) throw new Error(launcherMessage("launcher.errors.restartSessionFailed"));
       const workspaceRoute = buildWorkspaceRoute("progress", {
         sessionId: response.session_id,

@@ -268,7 +268,8 @@ describe("SessionLauncher", () => {
     fireEvent.change(screen.getAllByRole("textbox")[0], {
       target: { value: "D:/sorted" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "读取目录并生成建议" }));
+    await i18n.changeLanguage("en");
+    fireEvent.click(await screen.findByRole("button", { name: "Scan folders and suggest a structure" }));
 
     await waitFor(() => {
       expect(createLaunchSessionMock).toHaveBeenCalledWith(
@@ -280,6 +281,7 @@ describe("SessionLauncher", () => {
           ],
           organize_method: "categorize_into_new_structure",
           output_dir: "D:/sorted",
+          content_locale: "en",
           strategy: expect.objectContaining({
             template_id: "general_downloads",
             organize_mode: "initial",

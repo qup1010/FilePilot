@@ -20,6 +20,7 @@ from file_pilot.shared.config import (
     get_scan_failed_retry_abort_ratio,
     get_scan_worker_count,
 )
+from file_pilot.shared.content_locale import DEFAULT_CONTENT_LOCALE, normalize_content_locale
 from file_pilot.shared.events import emit
 from file_pilot.shared.logging_utils import append_debug_event
 from file_pilot.shared.model_response import coerce_response_message, collect_stream_response
@@ -1337,7 +1338,9 @@ def run_analysis_cycle_for_entry_context(
     model: str | None = None,
     session_id: str | None = None,
     cancel_event: threading.Event | None = None,
+    content_locale: str = DEFAULT_CONTENT_LOCALE,
 ):
+    content_locale = normalize_content_locale(content_locale)
     target_dir = Path(target_dir).resolve()
     model = model or get_analysis_model_name()
     ordered_entry_ids = list(entry_context.keys())
@@ -1353,6 +1356,7 @@ def run_analysis_cycle_for_entry_context(
         payload={
             "model": model,
             "entry_count": len(ordered_entry_ids),
+            "content_locale": content_locale,
             "mode": "entry_context" if len(ordered_entry_ids) <= BATCH_THRESHOLD else "entry_context_batch",
         },
     )
@@ -1502,7 +1506,9 @@ def run_analysis_cycle(
     model: str | None = None,
     session_id: str | None = None,
     cancel_event: threading.Event | None = None,
+    content_locale: str = DEFAULT_CONTENT_LOCALE,
 ):
+    content_locale = normalize_content_locale(content_locale)
     global WORKDIR_PATH
     """一个完整的分析循环：扫描 -> 工具调用/结构化提交 -> 校验 -> 重试。"""
     target_dir = Path(target_dir).resolve()
@@ -1518,6 +1524,7 @@ def run_analysis_cycle(
         payload={
             "model": model,
             "entry_count": len(entries),
+            "content_locale": content_locale,
             "mode": "single" if len(entries) <= BATCH_THRESHOLD else "batch",
         },
     )
@@ -1699,7 +1706,9 @@ def run_analysis_cycle_for_entries(
     model: str | None = None,
     session_id: str | None = None,
     cancel_event: threading.Event | None = None,
+    content_locale: str = DEFAULT_CONTENT_LOCALE,
 ):
+    content_locale = normalize_content_locale(content_locale)
     target_dir = Path(target_dir).resolve()
     model = model or get_analysis_model_name()
     available_entries = set(_list_current_entries(target_dir))
@@ -1724,6 +1733,7 @@ def run_analysis_cycle_for_entries(
         payload={
             "model": model,
             "entry_count": len(selected_entries),
+            "content_locale": content_locale,
             "mode": "selection" if len(selected_entries) <= BATCH_THRESHOLD else "selection_batch",
             "selected_entries": selected_entries,
         },

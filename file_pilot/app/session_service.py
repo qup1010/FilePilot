@@ -85,6 +85,7 @@ from file_pilot.organize.strategy_templates import (
 )
 from file_pilot.rollback import service as rollback_service
 from file_pilot.shared.config import get_text_stream_max_seconds
+from file_pilot.shared.content_locale import DEFAULT_CONTENT_LOCALE, normalize_content_locale
 from file_pilot.shared.logging_utils import append_debug_event
 from file_pilot.shared.path_utils import canonical_target_dir
 
@@ -984,6 +985,7 @@ class OrganizerSessionService:
             event_handler=event_handler,
             session_id=session_id,
             cancel_event=cancel_event,
+            content_locale=normalize_content_locale(session.content_locale),
         )
         entries = self._scan_entries(scan_lines)
         context_by_relpath = {
@@ -1111,6 +1113,7 @@ class OrganizerSessionService:
         selection = self._incremental_selection_snapshot(session)
         task, _ = self._build_organize_task(session)
         return {
+            "content_locale": normalize_content_locale(session.content_locale),
             "organize_method": self._normalize_organize_method(session.organize_method),
             "organize_mode": self._normalize_organize_mode(session.organize_mode),
             "scope_sources": self._planning_scope_sources(session),
@@ -1653,6 +1656,7 @@ class OrganizerSessionService:
             source_scan_runner,
             target_dir,
             session_id=session.session_id,
+            content_locale=normalize_content_locale(session.content_locale),
         )
         filtered_scan_lines = self._filter_incremental_pending_scan_lines(full_scan_lines, normalized_selected)
         pending_entries = self._scan_entries(filtered_scan_lines)
@@ -1796,6 +1800,9 @@ class OrganizerSessionService:
                 if "unexpected keyword argument 'cancel_event'" in message and "cancel_event" in call_kwargs:
                     call_kwargs.pop("cancel_event", None)
                     continue
+                if "unexpected keyword argument 'content_locale'" in message and "content_locale" in call_kwargs:
+                    call_kwargs.pop("content_locale", None)
+                    continue
                 raise
 
         if include_session_id:
@@ -1816,6 +1823,7 @@ class OrganizerSessionService:
         new_directory_root: str = "",
         review_root: str = "",
         unattended: bool = False,
+        content_locale: str = DEFAULT_CONTENT_LOCALE,
     ) -> CreateSessionResult:
         normalized_sources = sources
         normalized_method = organize_method
@@ -1851,6 +1859,7 @@ class OrganizerSessionService:
             unattended=unattended,
             new_directory_root=new_directory_root,
             review_root=review_root,
+            content_locale=normalize_content_locale(content_locale),
         )
 
     def list_target_profiles(self) -> list[dict]:
@@ -2523,6 +2532,7 @@ class OrganizerSessionService:
         event_handler=None,
         session_id: str | None = None,
         cancel_event: threading.Event | None = None,
+        content_locale: str = DEFAULT_CONTENT_LOCALE,
     ) -> str:
         return self._call_with_optional_session_id(
             analysis_service.run_analysis_cycle,
@@ -2530,6 +2540,7 @@ class OrganizerSessionService:
             event_handler=event_handler,
             session_id=session_id,
             cancel_event=cancel_event,
+            content_locale=normalize_content_locale(content_locale),
         )
 
     def _handle_empty_scan_result(self, session: OrganizerSession, *, total_count: int, mode: str) -> str:
@@ -2922,6 +2933,7 @@ class OrganizerSessionService:
                     scan_runner,
                     Path(session.target_dir),
                     session_id=session.session_id,
+                    content_locale=normalize_content_locale(session.content_locale),
                 )
                 all_entries = self._scan_entries(result)
                 total_count = self._count_visible_entries(Path(session.target_dir))
@@ -3118,6 +3130,7 @@ class OrganizerSessionService:
             "session_id": session.session_id,
             "session_title": self._session_title_for(session),
             "target_dir": str(session.target_dir),
+            "content_locale": normalize_content_locale(session.content_locale),
             "placement": copy.deepcopy(self._placement_payload(session.placement).__dict__),
             "stage": session.stage,
             "summary": session.summary,
@@ -3660,6 +3673,7 @@ class OrganizerSessionService:
             "organize_mode": organize_mode,
             "destination_index_depth": self._normalize_destination_index_depth(session.destination_index_depth),
             "language": session.language,
+            "content_locale": normalize_content_locale(session.content_locale),
             "density": session.density,
             "prefix_style": session.prefix_style,
             "caution_level": session.caution_level,
