@@ -7,6 +7,8 @@
   </p>
 </div>
 
+[简体中文](README.md) | [English](README.en.md) · [隐私政策](PRIVACY.md)
+
 FilePilot 是一款 Windows 文件整理工具。它使用你配置的模型分析文件，并根据整理方式生成或执行归档方案。
 
 ![FilePilot 整理流程演示](./frontend/public/screenshots/filepilot-workflow.gif)
@@ -35,6 +37,10 @@ FilePilot 是一款 Windows 文件整理工具。它使用你配置的模型分�
 ## 安装与使用
 
 目前提供 Windows 10/11 桌面版。前往 [GitHub Releases](https://github.com/qup1010/FilePilot/releases) 下载安装包。
+
+### 界面语言
+
+在“设置 → 关于与运行日志 → 界面语言”中选择“跟随系统”“简体中文”或“English”，然后保存设置。界面语言与生成的目录名称语言分开设置；更改界面语言不会改变已有目录或任务内容。
 
 首次启动后：
 
