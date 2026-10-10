@@ -1415,5 +1415,51 @@
     "cancel": "Cancel",
     "loadErrorFallback": "Could not load history. Try again shortly.",
     "deleteErrorFallback": "Could not delete the history record. Try again."
+  },
+  "settingsPage": {
+    "categoriesHeading": "Settings categories",
+    "categories": {
+      "text": { "label": "Text model settings", "description": "Configure text analysis and image understanding models" },
+      "launch": { "label": "Task defaults", "description": "Set the default categories and placement rules for new tasks" },
+      "iconImage": { "label": "Icon generation settings", "description": "Configure the AI image model and options for Icon Studio" },
+      "bgRemoval": { "label": "Background removal", "description": "Configure the service and endpoint for transparent cutouts" },
+      "system": { "label": "About and logs", "description": "App version, updates, and system logs" }
+    },
+    "health": {
+      "title": "Core services",
+      "ready": "{{count}}/{{total}} ready",
+      "available": "{{count}}/{{total}} available",
+      "textAnalysis": { "label": "Text analysis", "description": "Required for organization planning" },
+      "vision": { "label": "Image understanding", "description": "Enhances image and screenshot analysis" },
+      "iconImage": { "label": "Icon generation", "description": "Used by Icon Studio" },
+      "bgRemoval": { "label": "Background processing", "description": "Enhances transparent icons" },
+      "configured": "Configured",
+      "optional": "Optional",
+      "notConfigured": "Not configured",
+      "goToSettings": "Go to {{label}} settings"
+    },
+    "compact": {
+      "currentCategory": "Current category",
+      "switchCategory": "Switch category",
+      "health": "Configuration health"
+    },
+    "categoryDialogTitle": "Switch settings category",
+    "defaultPresets": {
+      "text": "Default text model",
+      "vision": "Default image model",
+      "icon_image": "Default icon generation model"
+    },
+    "unsaved": {
+      "title": "You have unsaved changes",
+      "categories": "Affected categories: {{categories}}",
+      "fallback": "This page has changes ready to save",
+      "categoryLabel": "{{category}} has unsaved changes",
+      "discard": "Discard changes",
+      "save": "Save changes",
+      "switchTitle": "Discard changes and switch presets?",
+      "switchDescription": "This preset has unsaved changes. Switching will discard them. Do you want to continue?",
+      "confirmSwitch": "Switch preset",
+      "cancel": "Cancel"
+    }
   }
 }

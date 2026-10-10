@@ -85,7 +85,7 @@ const COMPACT_SETTINGS_BREAKPOINT = 960;
 
 export default function SettingsPage() {
   const { t } = useTranslation("common");
-  const { saveUiLanguage } = useUiLocale();
+  const { saveUiLanguage, resolvedUiLocale } = useUiLocale();
   const searchParams = useSearchParams();
   const initialTab = searchParams.get("tab");
   const normalizedInitialTab =
@@ -213,13 +213,19 @@ export default function SettingsPage() {
     }
   }, []);
 
-  const categories = [
-    { id: "text", label: "整理模型配置", icon: Layers3, description: "配置文本分析与图片理解模型" },
-    { id: "launch", label: "任务默认策略", icon: SettingsIcon, description: "配置新建任务时的默认分类与放置规则" },
-    { id: "icon_image", label: "图标生图配置", icon: ImageIcon, description: "配置图标工坊的 AI 生图模型与参数" },
-    { id: "bg_removal", label: "透明抠图配置", icon: Scissors, description: "配置图标背景去除服务与端点" },
-    { id: "system", label: "关于与运行日志", icon: ShieldCheck, description: "项目版本、检查更新与系统日志" },
-  ];
+  const categories = useMemo(
+    () => [
+      { id: "text", label: t("settingsPage.categories.text.label"), icon: Layers3, description: t("settingsPage.categories.text.description") },
+      { id: "launch", label: t("settingsPage.categories.launch.label"), icon: SettingsIcon, description: t("settingsPage.categories.launch.description") },
+      { id: "icon_image", label: t("settingsPage.categories.iconImage.label"), icon: ImageIcon, description: t("settingsPage.categories.iconImage.description") },
+      { id: "bg_removal", label: t("settingsPage.categories.bgRemoval.label"), icon: Scissors, description: t("settingsPage.categories.bgRemoval.description") },
+      { id: "system", label: t("settingsPage.categories.system.label"), icon: ShieldCheck, description: t("settingsPage.categories.system.description") },
+    ],
+    [t],
+  );
+
+  const getPresetDisplayName = (family: "text" | "vision" | "icon_image", id: string, name: string) =>
+    id === "default" ? t(`settingsPage.defaultPresets.${family}`) : name;
 
   const secretMap = useMemo(
     () => ({
@@ -266,42 +272,43 @@ export default function SettingsPage() {
     () => categories.filter((item) => dirtyTabs[item.id]).map((item) => item.label),
     [categories, dirtyTabs],
   );
+  const dirtyTabList = new Intl.ListFormat(resolvedUiLocale, { style: "long", type: "conjunction" }).format(dirtyTabLabels);
   const healthItems = useMemo(
     () => [
       {
         id: "text" as const,
-        label: "文本分析",
-        description: "整理规划必需",
+        label: t("settingsPage.health.textAnalysis.label"),
+        description: t("settingsPage.health.textAnalysis.description"),
         configured: Boolean(snapshot?.status.text_configured),
         optional: false,
         icon: Layers3,
       },
       {
         id: "text" as const,
-        label: "图片理解",
-        description: "图片/截图增强",
+        label: t("settingsPage.health.vision.label"),
+        description: t("settingsPage.health.vision.description"),
         configured: Boolean(snapshot?.status.vision_configured),
         optional: true,
         icon: Globe,
       },
       {
         id: "icon_image" as const,
-        label: "图标生成",
-        description: "图标工坊需要",
+        label: t("settingsPage.health.iconImage.label"),
+        description: t("settingsPage.health.iconImage.description"),
         configured: Boolean(snapshot?.status.icon_image_configured),
         optional: true,
         icon: ImageIcon,
       },
       {
         id: "bg_removal" as const,
-        label: "背景处理",
-        description: "透明图标增强",
+        label: t("settingsPage.health.bgRemoval.label"),
+        description: t("settingsPage.health.bgRemoval.description"),
         configured: Boolean(snapshot?.status.bg_removal_configured),
         optional: true,
         icon: Scissors,
       },
     ],
-    [snapshot?.status.bg_removal_configured, snapshot?.status.icon_image_configured, snapshot?.status.text_configured, snapshot?.status.vision_configured],
+    [snapshot?.status.bg_removal_configured, snapshot?.status.icon_image_configured, snapshot?.status.text_configured, snapshot?.status.vision_configured, t],
   );
   const configuredHealthCount = healthItems.filter((item) => item.configured).length;
 
@@ -883,7 +890,7 @@ export default function SettingsPage() {
           <aside className="w-[260px] 2xl:w-[280px] shrink-0 overflow-y-auto border-r border-on-surface/10 bg-surface-container-lowest px-3 py-4 scrollbar-none flex flex-col justify-between">
             <div className="space-y-1">
               <div className="px-3 pb-1 text-[11px] font-bold tracking-wider text-on-surface-variant/50">
-                设置选项
+                {t("settingsPage.categoriesHeading")}
               </div>
               {categories.map((cat) => {
                 const active = activeTab === cat.id;
@@ -908,7 +915,7 @@ export default function SettingsPage() {
                       <div className="flex items-center gap-2">
                         <p className={cn("text-[13px] font-bold leading-tight", active ? "text-primary font-bold" : "text-on-surface")}>{cat.label}</p>
                         {dirtyTabs[cat.id] ? (
-                          <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary" aria-label={`${cat.label} 有未保存修改`} />
+                          <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary" aria-label={t("settingsPage.unsaved.categoryLabel", { category: cat.label })} />
                         ) : null}
                       </div>
                       <p className={cn("mt-1 truncate text-[11px] leading-tight font-medium", active ? "text-primary/70" : "text-on-surface-variant/65")}>{cat.description}</p>
@@ -922,10 +929,10 @@ export default function SettingsPage() {
               <div className="flex items-center justify-between text-primary">
                 <div className="flex items-center gap-1.5">
                   <Cpu className="h-3.5 w-3.5 text-primary" />
-                  <span className="text-[11px] font-bold text-on-surface/75">核心能力状态</span>
+                  <span className="text-[11px] font-bold text-on-surface/75">{t("settingsPage.health.title")}</span>
                 </div>
                 <span className="text-[11px] font-bold font-mono text-primary bg-primary/10 rounded-full px-2 py-0.5">
-                  {configuredHealthCount}/{healthItems.length} 就绪
+                  {t("settingsPage.health.ready", { count: configuredHealthCount, total: healthItems.length })}
                 </span>
               </div>
               <div className="mt-2.5 space-y-1.5">
@@ -935,7 +942,7 @@ export default function SettingsPage() {
                     type="button"
                     onClick={() => handleSelectTab(item.id)}
                     className="flex w-full items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-on-surface/[0.05]"
-                    title={`前往${item.label}配置`}
+                    title={t("settingsPage.health.goToSettings", { label: item.label })}
                   >
                     <div className="flex items-center gap-2 min-w-0">
                       <item.icon className="h-3.5 w-3.5 shrink-0 text-on-surface-variant/50" />
@@ -944,11 +951,11 @@ export default function SettingsPage() {
                     {item.configured ? (
                       <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
                         <Check className="h-2.5 w-2.5" />
-                        已配置
+                        {t("settingsPage.health.configured")}
                       </span>
                     ) : (
                       <span className="text-[10px] font-medium text-on-surface-variant/45">
-                        {item.optional ? "可选" : "未配置"}
+                        {item.optional ? t("settingsPage.health.optional") : t("settingsPage.health.notConfigured")}
                       </span>
                     )}
                   </button>
@@ -971,19 +978,26 @@ export default function SettingsPage() {
               <div className="mb-6 rounded-[8px] border border-on-surface/8 bg-surface-container-lowest px-4 py-3">
                 <div className="flex items-center justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="text-[11px] font-bold uppercase tracking-wider text-ui-muted">当前分类</p>
+                    <p className="text-[11px] font-bold uppercase tracking-wider text-ui-muted">{t("settingsPage.compact.currentCategory")}</p>
                     <div className="flex items-center gap-2">
                       <p className="truncate text-[14px] font-bold text-on-surface">{activeCategory.label}</p>
-                      {dirtyTabs[activeCategory.id] ? <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary" /> : null}
+                      {dirtyTabs[activeCategory.id] ? (
+                        <span
+                          className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary"
+                          aria-label={t("settingsPage.unsaved.categoryLabel", { category: activeCategory.label })}
+                        />
+                      ) : null}
                     </div>
                   </div>
                   <Button variant="secondary" size="sm" onClick={() => setCategoryDialogOpen(true)}>
-                    切换分类
+                    {t("settingsPage.compact.switchCategory")}
                   </Button>
                 </div>
                 <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-on-surface/6 pt-3">
-                  <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-primary/55">配置健康</span>
-                  <span className="text-[11px] font-bold text-on-surface/50">{configuredHealthCount}/{healthItems.length} 可用</span>
+                  <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-primary/55">{t("settingsPage.compact.health")}</span>
+                  <span className="text-[11px] font-bold text-on-surface/50">
+                    {t("settingsPage.health.available", { count: configuredHealthCount, total: healthItems.length })}
+                  </span>
                   {healthItems.map((item) => (
                     <button
                       key={item.label}
@@ -1018,9 +1032,15 @@ export default function SettingsPage() {
                 visionDraft={draft.vision}
                 visionEnabled={Boolean(draft.global_config.IMAGE_ANALYSIS_ENABLED)}
                 visionMode={visionMode}
-                textPresets={snapshot.families.text.presets.map((item) => ({ id: item.id, name: item.name }))}
+                textPresets={snapshot.families.text.presets.map((item) => ({
+                  id: item.id,
+                  name: getPresetDisplayName("text", item.id, item.name),
+                }))}
                 textActivePresetId={snapshot.families.text.active_preset_id}
-                visionPresets={snapshot.families.vision.presets.map((item) => ({ id: item.id, name: item.name }))}
+                visionPresets={snapshot.families.vision.presets.map((item) => ({
+                  id: item.id,
+                  name: getPresetDisplayName("vision", item.id, item.name),
+                }))}
                 visionActivePresetId={snapshot.families.vision.active_preset_id}
                 textSecret={textSecret}
                 setTextSecret={setTextSecret}
@@ -1040,7 +1060,10 @@ export default function SettingsPage() {
             {activeTab === "icon_image" && (
               <IconImageTab
                 iconImage={draft.icon_image}
-                presets={snapshot.families.icon_image.presets.map((item) => ({ id: item.id, name: item.name }))}
+                presets={snapshot.families.icon_image.presets.map((item) => ({
+                  id: item.id,
+                  name: getPresetDisplayName("icon_image", item.id, item.name),
+                }))}
                 activePresetId={snapshot.families.icon_image.active_preset_id}
                 textConfigured={Boolean(snapshot.status.text_configured)}
                 iconImageConfigured={Boolean(snapshot.status.icon_image_configured)}
@@ -1137,17 +1160,19 @@ export default function SettingsPage() {
                 )}
               >
                 <div className="mr-4 flex flex-col">
-                  <span className="text-[11px] font-bold uppercase tracking-wider text-primary">有未保存的配置更改</span>
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-primary">{t("settingsPage.unsaved.title")}</span>
                   <span className="text-[11px] font-medium text-on-surface/40">
-                    {dirtyTabLabels.length ? `涉及分类：${dirtyTabLabels.join("、")}` : "会保存本页未提交的修改"}
+                    {dirtyTabLabels.length
+                      ? t("settingsPage.unsaved.categories", { categories: dirtyTabList })
+                      : t("settingsPage.unsaved.fallback")}
                   </span>
                 </div>
                 <div className="h-8 w-px bg-primary/10" />
                 <Button variant="secondary" onClick={discardChanges} disabled={saving} className="h-9 px-4 text-[13px] font-bold">
-                  放弃修改
+                  {t("settingsPage.unsaved.discard")}
                 </Button>
                 <Button onClick={() => void handleSave()} loading={saving} disabled={saving} className="h-9 px-5 text-[13px] font-bold border border-primary/20 bg-primary active:bg-primary-dim">
-                  保存当前修改
+                  {t("settingsPage.unsaved.save")}
                 </Button>
               </motion.div>
             )}
@@ -1158,7 +1183,7 @@ export default function SettingsPage() {
       <Dialog open={categoryDialogOpen} onOpenChange={setCategoryDialogOpen}>
         <DialogContent className="max-w-[420px]">
           <DialogHeader>
-            <DialogTitle>切换设置分类</DialogTitle>
+            <DialogTitle>{t("settingsPage.categoryDialogTitle")}</DialogTitle>
           </DialogHeader>
           <div className="grid gap-2">
             {categories.map((cat) => {
@@ -1179,7 +1204,12 @@ export default function SettingsPage() {
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
                       <p className="text-[13px] font-bold">{cat.label}</p>
-                      {dirtyTabs[cat.id] ? <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary" /> : null}
+                      {dirtyTabs[cat.id] ? (
+                        <span
+                          className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary"
+                          aria-label={t("settingsPage.unsaved.categoryLabel", { category: cat.label })}
+                        />
+                      ) : null}
                     </div>
                     <p className="mt-1 text-[11px] font-medium text-ui-muted">{cat.description}</p>
                   </div>
@@ -1254,10 +1284,10 @@ export default function SettingsPage() {
 
       <ConfirmDialog
         open={Boolean(switchPresetDialog)}
-        title="放弃修改并切换预设？"
-        description="当前预设中有未保存的配置更改，切换后这些修改将丢失，确定继续切换吗？"
-        confirmLabel="确认切换"
-        cancelLabel="取消"
+        title={t("settingsPage.unsaved.switchTitle")}
+        description={t("settingsPage.unsaved.switchDescription")}
+        confirmLabel={t("settingsPage.unsaved.confirmSwitch")}
+        cancelLabel={t("settingsPage.unsaved.cancel")}
         loading={loading}
         onConfirm={async () => {
           if (!switchPresetDialog) return;

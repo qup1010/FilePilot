@@ -1378,5 +1378,51 @@
     "cancel": "取消",
     "loadErrorFallback": "读取历史记录失败，请稍后重试。",
     "deleteErrorFallback": "删除记录时发生错误，请稍后重试。"
+  },
+  "settingsPage": {
+    "categoriesHeading": "设置选项",
+    "categories": {
+      "text": { "label": "整理模型配置", "description": "配置文本分析与图片理解模型" },
+      "launch": { "label": "任务默认策略", "description": "配置新建任务时的默认分类与放置规则" },
+      "iconImage": { "label": "图标生图配置", "description": "配置图标工坊的 AI 生图模型与参数" },
+      "bgRemoval": { "label": "透明抠图配置", "description": "配置图标背景去除服务与端点" },
+      "system": { "label": "关于与运行日志", "description": "项目版本、检查更新与系统日志" }
+    },
+    "health": {
+      "title": "核心能力状态",
+      "ready": "{{count}}/{{total}} 就绪",
+      "available": "{{count}}/{{total}} 可用",
+      "textAnalysis": { "label": "文本分析", "description": "整理规划必需" },
+      "vision": { "label": "图片理解", "description": "图片/截图增强" },
+      "iconImage": { "label": "图标生成", "description": "图标工坊需要" },
+      "bgRemoval": { "label": "背景处理", "description": "透明图标增强" },
+      "configured": "已配置",
+      "optional": "可选",
+      "notConfigured": "未配置",
+      "goToSettings": "前往{{label}}配置"
+    },
+    "compact": {
+      "currentCategory": "当前分类",
+      "switchCategory": "切换分类",
+      "health": "配置健康"
+    },
+    "categoryDialogTitle": "切换设置分类",
+    "defaultPresets": {
+      "text": "默认文本模型",
+      "vision": "默认图片模型",
+      "icon_image": "默认图标生图"
+    },
+    "unsaved": {
+      "title": "有未保存的配置更改",
+      "categories": "涉及分类：{{categories}}",
+      "fallback": "会保存本页未提交的修改",
+      "categoryLabel": "{{category}} 有未保存修改",
+      "discard": "放弃修改",
+      "save": "保存当前修改",
+      "switchTitle": "放弃修改并切换预设？",
+      "switchDescription": "当前预设中有未保存的配置更改，切换后这些修改将丢失，确定继续切换吗？",
+      "confirmSwitch": "确认切换",
+      "cancel": "取消"
+    }
   }
 }
