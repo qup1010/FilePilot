@@ -1910,12 +1910,22 @@ class OrganizerSessionService:
                 target_dirs.append(parent)
 
         profiles = [rule_advisor.collect_directory_content_profile(directory) for directory in target_dirs]
-        drafts = rule_advisor.generate_rule_drafts(profiles, client=client, model=model)
+        drafts = rule_advisor.generate_rule_drafts(
+            profiles,
+            client=client,
+            model=model,
+            content_locale=normalize_content_locale(session.content_locale),
+        )
         drafts_by_path = {draft.path: draft for draft in drafts}
+        target_name = Path(session.target_dir).name
         return {
             "session_id": session.session_id,
             "journal_id": journal.execution_id,
-            "suggested_profile_name": f"{Path(session.target_dir).name} 的目录规则",
+            "suggested_profile_name": (
+                f"Rules for {target_name}"
+                if normalize_content_locale(session.content_locale) == "en"
+                else f"{target_name} 的目录规则"
+            ),
             "items": [
                 {
                     "path": content_profile.path,
@@ -1941,6 +1951,7 @@ class OrganizerSessionService:
         paths: list[str] | None = None,
         client=None,
         model: str | None = None,
+        content_locale: str = DEFAULT_CONTENT_LOCALE,
     ) -> dict:
         """为 profile 目录生成规则描述初稿（只返回，不落库；采纳由用户校订决定）。
 
@@ -2011,6 +2022,7 @@ class OrganizerSessionService:
             client=client,
             model=model,
             context_entries=context_entries if context_entries else None,
+            content_locale=normalize_content_locale(content_locale),
         )
         drafts_by_path = {draft.path: draft for draft in drafts}
         return {

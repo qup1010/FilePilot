@@ -79,6 +79,28 @@ class SessionApiTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["status"], "ok")
 
+    def test_target_profile_rule_drafts_route_forwards_content_locale(self):
+        profile = self.service.create_target_profile("Profile", [{"path": str(self.target_dir)}])
+        response_payload = {"profile_id": profile["profile_id"], "items": []}
+
+        with mock.patch.object(
+            self.service,
+            "generate_target_profile_rule_drafts",
+            return_value=response_payload,
+        ) as generate_drafts:
+            response = self.client.post(
+                f"/api/target-profiles/{profile['profile_id']}/rule-drafts",
+                json={"content_locale": "en"},
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), response_payload)
+        generate_drafts.assert_called_once_with(
+            profile["profile_id"],
+            paths=None,
+            content_locale="en",
+        )
+
     def test_cors_preflight_allows_frontend_origin_for_session_creation(self):
         response = self.client.options(
             "/api/sessions",

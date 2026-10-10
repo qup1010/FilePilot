@@ -9,9 +9,11 @@ from urllib import error, request
 
 from file_pilot.icon_workbench.models import IconAnalysisResult, ModelConfig
 from file_pilot.icon_workbench.prompts import (
-    TEXT_ANALYSIS_SYSTEM_PROMPT,
+    DEFAULT_FALLBACK_SUBJECT,
     build_default_icon_prompt,
+    get_text_analysis_system_prompt,
 )
+from file_pilot.shared.content_locale import DEFAULT_CONTENT_LOCALE, normalize_content_locale
 
 
 def _is_modelscope_endpoint(base_url: str) -> bool:
@@ -138,22 +140,45 @@ class IconWorkbenchTextClient:
         folder_path: str,
         folder_name: str,
         tree_lines: list[str],
+        *,
+        content_locale: str = DEFAULT_CONTENT_LOCALE,
     ) -> IconAnalysisResult:
+        normalized_content_locale = normalize_content_locale(content_locale)
         parent_name = _meaningful_parent_name(folder_path, folder_name)
-        parent_line = f"父级文件夹名称: {parent_name}\n" if parent_name else "父级文件夹名称: (无明显上级语义)\n"
-        user_prompt = (
-            f"{parent_line}"
-            f"当前文件夹名称: {folder_name}\n\n"
-            "目录树摘要:\n"
-            + ("\n".join(tree_lines) if tree_lines else "(空文件夹)")
+        if normalized_content_locale == "en":
+            parent_line = f"Parent folder name: {parent_name}\n" if parent_name else "Parent folder name: (no useful parent meaning)\n"
+            user_prompt = (
+                f"{parent_line}"
+                f"Current folder name: {folder_name}\n\n"
+                "Folder tree summary:\n"
+                + ("\n".join(tree_lines) if tree_lines else "(empty folder)")
+            )
+            fallback_category = "Uncategorized"
+            fallback_summary = "Icon direction inferred from the folder structure."
+        else:
+            parent_line = f"父级文件夹名称: {parent_name}\n" if parent_name else "父级文件夹名称: (无明显上级语义)\n"
+            user_prompt = (
+                f"{parent_line}"
+                f"当前文件夹名称: {folder_name}\n\n"
+                "目录树摘要:\n"
+                + ("\n".join(tree_lines) if tree_lines else "(空文件夹)")
+            )
+            fallback_category = "未分类"
+            fallback_summary = "已根据目录结构生成图标方向。"
+        parsed = self.complete_json(
+            config,
+            get_text_analysis_system_prompt(normalized_content_locale),
+            user_prompt,
+            temperature=0.4,
         )
-        parsed = self.complete_json(config, TEXT_ANALYSIS_SYSTEM_PROMPT, user_prompt, temperature=0.4)
         visual_subject = str(parsed.get("visual_subject", "") or "").strip()
+        if not visual_subject:
+            visual_subject = folder_name if normalized_content_locale != "en" else DEFAULT_FALLBACK_SUBJECT
         return IconAnalysisResult(
-            category=str(parsed.get("category", "") or "").strip() or "未分类",
-            visual_subject=visual_subject or folder_name,
-            summary=str(parsed.get("summary", "") or "").strip() or "已根据目录结构生成图标方向。",
-            suggested_prompt=build_default_icon_prompt(visual_subject or folder_name),
+            category=str(parsed.get("category", "") or "").strip() or fallback_category,
+            visual_subject=visual_subject,
+            summary=str(parsed.get("summary", "") or "").strip() or fallback_summary,
+            suggested_prompt=build_default_icon_prompt(visual_subject),
         )
 
 

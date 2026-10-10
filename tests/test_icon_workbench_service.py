@@ -18,7 +18,7 @@ from file_pilot.icon_workbench.store import IconWorkbenchStore
 
 
 class StubTextClient:
-    def analyze_folder(self, config, folder_path, folder_name, tree_lines):
+    def analyze_folder(self, config, folder_path, folder_name, tree_lines, *, content_locale="zh-CN"):
         return IconAnalysisResult(
             category="项目目录",
             visual_subject=f"{folder_name} badge",
@@ -43,8 +43,9 @@ class RecordingConcurrentTextClient:
         self.active = 0
         self.max_active = 0
         self.calls = []
+        self.locales = []
 
-    def analyze_folder(self, config, folder_path, folder_name, tree_lines):
+    def analyze_folder(self, config, folder_path, folder_name, tree_lines, *, content_locale="zh-CN"):
         with self.lock:
             self.active += 1
             self.max_active = max(self.max_active, self.active)
@@ -52,6 +53,7 @@ class RecordingConcurrentTextClient:
             time.sleep(0.05)
             with self.lock:
                 self.calls.append(folder_name)
+                self.locales.append(content_locale)
             return IconAnalysisResult(
                 category="项目目录",
                 visual_subject=f"{folder_name} badge",
@@ -679,6 +681,39 @@ class IconWorkbenchServiceTests(unittest.TestCase):
         self.assertEqual(sorted(concurrent_text_client.calls), ["Alpha", "Beta", "Gamma"])
         self.assertGreaterEqual(concurrent_text_client.max_active, 2)
         self.assertTrue(all(folder["analysis_status"] == "ready" for folder in updated["folders"]))
+
+    def test_analyze_batch_keeps_the_captured_content_locale_for_every_worker(self):
+        concurrent_text_client = RecordingConcurrentTextClient()
+        service = IconWorkbenchService(
+            store=self.store,
+            text_client=concurrent_text_client,
+            image_client=StubImageClient(),
+        )
+        self.store.config_store.save(
+            IconWorkbenchConfig.from_dict(
+                {
+                    "text_model": {
+                        "base_url": "https://text.example/v1",
+                        "api_key": "text-key",
+                        "model": "gpt-text",
+                    },
+                    "image_model": {
+                        "base_url": "https://image.example/v1",
+                        "api_key": "image-key",
+                        "model": "gpt-image",
+                    },
+                    "image_size": "512x512",
+                    "analysis_concurrency_limit": 2,
+                    "image_concurrency_limit": 1,
+                }
+            )
+        )
+        session = service.create_session([str(self.alpha_dir), str(self.beta_dir), str(self.gamma_dir)])
+
+        service.analyze_folders(session["session_id"], content_locale="en")
+
+        self.assertEqual(len(concurrent_text_client.locales), 3)
+        self.assertEqual(set(concurrent_text_client.locales), {"en"})
 
     def test_generate_previews_uses_configured_image_concurrency_limit(self):
         concurrent_image_client = RecordingConcurrentImageClient()

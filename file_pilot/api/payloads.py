@@ -53,6 +53,7 @@ class GenerateRuleDraftsPayload(BaseModel):
     """可选：只为指定目录生成初稿；省略则整套生成。"""
 
     paths: list[str] | None = None
+    content_locale: Literal["zh-CN", "en"] = "zh-CN"
 
 
 class UpdateItemPayload(BaseModel):
@@ -145,6 +146,7 @@ class IconWorkbenchTargetUpdatePayload(BaseModel):
 
 class IconWorkbenchFolderBatchPayload(BaseModel):
     folder_ids: list[str] = Field(default_factory=list)
+    content_locale: Literal["zh-CN", "en"] = "zh-CN"
 
 
 class IconWorkbenchPromptPayload(BaseModel):

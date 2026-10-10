@@ -10,6 +10,7 @@ import i18n from "@/i18n/instance";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { ModelConfigBanner } from "@/components/ui/model-config-banner";
 import { createApiClient } from "@/lib/api";
+import { contentLocaleForUiLanguage } from "@/lib/content-locale";
 import { notifyAppContextChange } from "@/lib/app-context-store";
 import { createIconWorkbenchApiClient } from "@/lib/icon-workbench-api";
 import { createIconWorkbenchEventStream, type IconWorkbenchEventStream } from "@/lib/icon-workbench-sse";
@@ -105,7 +106,7 @@ function describeWorkbenchError(err: unknown, fallbackKey: string, t: TFunction<
 }
 
 export default function IconWorkbenchV2() {
-  const { t } = useTranslation("common");
+  const { t, i18n: activeI18n } = useTranslation("common");
   const tRef = useRef(t);
   const baseUrl = getApiBaseUrl();
   const apiToken = getApiToken();
@@ -613,7 +614,8 @@ export default function IconWorkbenchV2() {
       
       let nextSession = session;
       if (foldersToAnalyze.length > 0) {
-        nextSession = await iconApi.analyzeFolders(session.session_id, foldersToAnalyze);
+        const contentLocale = contentLocaleForUiLanguage(activeI18n.resolvedLanguage || activeI18n.language);
+        nextSession = await iconApi.analyzeFolders(session.session_id, foldersToAnalyze, contentLocale);
         applySession(nextSession);
       }
       

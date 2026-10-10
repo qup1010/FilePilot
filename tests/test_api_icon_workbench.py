@@ -16,6 +16,7 @@ class FakeIconWorkbenchService:
         self.image_path = self.temp_dir / "preview.png"
         self.last_message_payload = None
         self.last_report_payload = None
+        self.last_analysis_locale = None
         self.deleted_sessions = []
         self.raise_delete_not_found = False
         self.templates = [
@@ -97,7 +98,8 @@ class FakeIconWorkbenchService:
             "removed_folder_id": folder_id,
         }
 
-    def analyze_folders(self, session_id, folder_ids):
+    def analyze_folders(self, session_id, folder_ids, *, content_locale="zh-CN"):
+        self.last_analysis_locale = content_locale
         return {"session_id": session_id, "folder_ids": folder_ids, "stage": "analyzed"}
 
     def generate_previews(self, session_id, folder_ids):
@@ -285,6 +287,14 @@ class ApiIconWorkbenchTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["folder_ids"], ["folder-1", "folder-2"])
+        self.assertEqual(self.fake_service.last_analysis_locale, "zh-CN")
+
+        response = self.client.post(
+            "/api/icon-workbench/sessions/icon-session/analyze",
+            json={"folder_ids": ["folder-2"], "content_locale": "en"},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(self.fake_service.last_analysis_locale, "en")
 
         response = self.client.post(
             "/api/icon-workbench/sessions/icon-session/generate",

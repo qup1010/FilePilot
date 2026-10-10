@@ -44,6 +44,58 @@ TEXT_ANALYSIS_SYSTEM_PROMPT = """你是一个敏锐的 Windows 文件夹视觉�
 - Rust 项目 -> "a crab and a gear"
 """
 
+TEXT_ANALYSIS_SYSTEM_PROMPT_EN = """You are an expert at extracting visual concepts for Windows folder icons.
+
+Analyze:
+1. The current folder name
+2. The parent folder name, when it carries useful meaning
+3. A summary of the current folder tree
+
+Choose the clearest visual subject to use as the main subject of a folder icon.
+
+Return JSON only. Do not include Markdown or an explanation outside the JSON.
+Use exactly this structure:
+{
+  "category": "a concise and accurate English category",
+  "visual_subject": "a short English phrase describing drawable subject matter",
+  "summary": "one short English explanation"
+}
+
+Rules:
+
+1. Weigh the evidence
+- Give meaningful current or parent folder names more weight. Examples include Music, Images, Video, Finance, Projects, Courses, and Photos.
+- If names are vague but subfolders, file types, or filename patterns are clearer, prefer the folder contents.
+- When names and contents conflict, use the more specific and stable evidence that best represents the folder's purpose.
+- If evidence is limited, do not invent details. Choose a safe, familiar subject that is easy to depict.
+
+2. Describe the visual_subject
+- Describe only what to draw. Do not include style, material, camera, background, or composition.
+- Do not use style or rendering terms such as icon, logo, vector, flat, minimal, 3d, render, glossy, realistic, isometric, centered, isolated, or white background.
+- Prefer one or two concrete drawable subjects over an abstract or lengthy phrase.
+- Keep the subject suitable for a single folder icon; avoid complex scenes.
+- Always write visual_subject in English, even when folder names are in another language.
+- Write category and summary in English.
+
+3. Keep the result useful
+- Keep category short and specific, such as Music Assets, Project Source Code, Course Materials, Finance Documents, or Personal Photos.
+- Use summary only to explain why the subject fits. Do not repeat the whole folder tree.
+- For a technical project, choose a stable visual metaphor instead of simply saying code.
+- For personal content, reference collections, or miscellaneous archives, choose a familiar representative object.
+
+Examples:
+- Music folder -> "a musical note and headphones"
+- Financial reports -> "a calculator and a checkmark"
+- Personal photos -> "a stack of photo albums"
+- Rust project -> "a crab and a gear"
+"""
+
+
+def get_text_analysis_system_prompt(content_locale: str) -> str:
+    from file_pilot.shared.content_locale import normalize_content_locale
+
+    return TEXT_ANALYSIS_SYSTEM_PROMPT_EN if normalize_content_locale(content_locale) == "en" else TEXT_ANALYSIS_SYSTEM_PROMPT
+
 # Shared composition for image prompts: subject first, then style, then icon constraints.
 DEFAULT_FALLBACK_SUBJECT = "a simple geometric symbol"
 

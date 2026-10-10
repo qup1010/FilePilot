@@ -717,6 +717,52 @@ beforeEach(() => {
     expect(latestStreamOptions).toBe(activeStreamOptions);
   });
 
+  it("keeps the icon analysis language captured when the batch starts", async () => {
+    const user = userEvent.setup();
+    const testI18n = createInstance();
+    await testI18n.use(initReactI18next).init({
+      resources: {
+        en: { common: enCommon },
+        "zh-CN": { common: zhCNCommon },
+      },
+      lng: "en",
+      fallbackLng: "zh-CN",
+      defaultNS: "common",
+      interpolation: { escapeValue: false },
+    });
+    const idleSession = createSession();
+    idleSession.folders[0].analysis_status = "idle";
+    iconApiMock.getSession.mockResolvedValue(idleSession);
+    let resolveAnalysis: ((session: ReturnType<typeof createSession>) => void) | undefined;
+    iconApiMock.analyzeFolders.mockImplementationOnce(() => new Promise((resolve) => {
+      resolveAnalysis = resolve;
+    }));
+    iconApiMock.applyTemplate.mockResolvedValue(createSession());
+    iconApiMock.generatePreviews.mockResolvedValue(createSession());
+    templateHookState.selectedTemplateId = "template-1";
+    templateHookState.selectedTemplate = { name: "Minimal line" };
+    localStorage.setItem("icons_workspace_state", JSON.stringify({
+      sessionId: "icon-session-1",
+      selectedTemplateId: "template-1",
+      expandedFolderId: null,
+    }));
+
+    render(<I18nextProvider i18n={testI18n}><IconWorkbenchV2 /></I18nextProvider>);
+    await waitFor(() => expect(screen.getByRole("button", { name: "生成 1 个预览" })).toBeInTheDocument());
+
+    await user.click(screen.getByRole("button", { name: "生成 1 个预览" }));
+    await waitFor(() => {
+      expect(iconApiMock.analyzeFolders).toHaveBeenCalledWith("icon-session-1", ["folder-1"], "en");
+    });
+
+    await act(async () => {
+      await testI18n.changeLanguage("zh-CN");
+    });
+    await act(async () => {
+      resolveAnalysis?.(createSession());
+    });
+  });
+
   it("shows the image-model banner when only the image model is missing", async () => {
     iconApiMock.getConfig.mockResolvedValueOnce({
       config: {

@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 
 import { createApiClient } from "@/lib/api";
+import { contentLocaleForUiLanguage } from "@/lib/content-locale";
 import { getApiBaseUrl, getApiToken, inspectPathsWithTauri, isTauriDesktop, pickDirectoryWithTauri, pickDirectoriesWithTauri } from "@/lib/runtime";
 import {
   findDropZoneForPosition,
@@ -154,7 +155,7 @@ function extractDroppedPaths(event: React.DragEvent): string[] {
 }
 
 export default function RulesPage() {
-  const { t } = useTranslation("common");
+  const { t, i18n } = useTranslation("common");
   const api = useMemo(() => createApiClient(getApiBaseUrl(), getApiToken()), []);
   const desktopReady = isTauriDesktop();
 
@@ -637,7 +638,8 @@ export default function RulesPage() {
       error: null,
     }));
     try {
-      const result = await api.generateProfileRuleDrafts(selectedProfile.profile_id, paths);
+      const contentLocale = contentLocaleForUiLanguage(i18n.resolvedLanguage || i18n.language);
+      const result = await api.generateProfileRuleDrafts(selectedProfile.profile_id, paths, contentLocale);
       setDraftState((prev) => {
         const items = { ...prev.items };
         for (const item of result.items) {

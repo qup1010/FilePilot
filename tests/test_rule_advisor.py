@@ -85,6 +85,51 @@ class RuleAdvisorTests(unittest.TestCase):
         self.assertFalse(call_kwargs["stream"])
         self.assertNotIn("extra_body", call_kwargs)
 
+    def test_english_rule_prompt_and_tool_localize_generated_fields(self):
+        profile = rule_advisor.DirectoryContentProfile(
+            path="D:/资料/Reports",
+            label="财务报告",
+            sample_names=["季度报告.pdf"],
+        )
+        context = [
+            rule_advisor.ContextEntry(
+                path="D:/资料/Invoices",
+                label="发票",
+                description="发票与付款凭证",
+                relation="[父目录]",
+            )
+        ]
+
+        messages = rule_advisor.build_rule_draft_prompt(
+            [profile],
+            context_entries=context,
+            content_locale="en",
+        )
+        tool = rule_advisor._rule_draft_tool_for_content_locale("en")
+        content = messages[0]["content"]
+        properties = tool["function"]["parameters"]["properties"]["drafts"]["items"]["properties"]
+
+        self.assertIn("Write every generated text field in English", content)
+        self.assertIn("[parent folder]", content)
+        self.assertIn("D:/资料/Reports", content)
+        self.assertIn("季度报告.pdf", content)
+        self.assertIn("Submit a draft categorization rule", tool["function"]["description"])
+        self.assertIn("English", properties["draft_description"]["description"])
+        self.assertEqual(tool["function"]["name"], "submit_rule_drafts")
+        self.assertEqual(set(properties), {"path", "draft_description", "basis", "overlap_paths", "overlap_note"})
+
+    def test_generate_english_rule_drafts_uses_locale_snapshot_for_prompt_and_tool(self):
+        profiles = [rule_advisor.DirectoryContentProfile(path="D:/known", label="文档")]
+        client = _fake_client(
+            json.dumps({"drafts": [{"path": "D:/known", "draft_description": "Technical manuals", "basis": "PDF files"}]})
+        )
+
+        rule_advisor.generate_rule_drafts(profiles, client=client, model="test-model", content_locale="en")
+
+        call_kwargs = client.chat.completions.create.call_args.kwargs
+        self.assertIn("Write every generated text field in English", call_kwargs["messages"][0]["content"])
+        self.assertIn("Submit a draft categorization rule", call_kwargs["tools"][0]["function"]["description"])
+
     def test_generate_rule_drafts_disables_deepseek_thinking(self):
         profiles = [
             rule_advisor.DirectoryContentProfile(path="D:/known", label="文档", total_entries=1),
@@ -317,6 +362,55 @@ class GenerateRulesFromCompletedSessionTests(unittest.TestCase):
 
             delete_execution_journal(journal.execution_id)
 
+    def test_completed_english_session_keeps_its_content_locale_for_rule_drafts(self):
+        from file_pilot.execution.models import ExecutionJournal, ExecutionJournalItem
+        from file_pilot.execution.service import delete_execution_journal, save_execution_journal
+
+        docs = self.target_dir / "Docs"
+        docs.mkdir()
+        (docs / "manual.pdf").write_text("m", encoding="utf-8")
+        created = self.service.create_session(
+            str(self.target_dir),
+            resume_if_exists=False,
+            content_locale="en",
+        )
+        session = created.session
+        assert session is not None
+        journal = ExecutionJournal(
+            execution_id="exec-rules-en-1",
+            target_dir=str(self.target_dir.resolve()),
+            created_at="2026-07-26T00:00:00+00:00",
+            status="completed",
+            items=[
+                ExecutionJournalItem(
+                    action_type="MOVE",
+                    status="success",
+                    message="Moved",
+                    source_before=str((self.target_dir / "manual.pdf").resolve()),
+                    target_after=str((docs / "manual.pdf").resolve()),
+                )
+            ],
+        )
+        save_execution_journal(journal)
+        try:
+            session.stage = "completed"
+            session.last_journal_id = journal.execution_id
+            self.store.save(session)
+            docs_path = str(docs.resolve())
+            client = _fake_client(
+                json.dumps({"drafts": [{"path": docs_path, "draft_description": "Technical manuals", "basis": "One PDF file"}]})
+            )
+
+            result = self.service.generate_rules_from_completed_session(session.session_id, client=client, model="m")
+
+            call_kwargs = client.chat.completions.create.call_args.kwargs
+            self.assertIn("Write every generated text field in English", call_kwargs["messages"][0]["content"])
+            self.assertIn("Submit a draft categorization rule", call_kwargs["tools"][0]["function"]["description"])
+            self.assertEqual(result["items"][0]["draft_description"], "Technical manuals")
+            self.assertEqual(result["suggested_profile_name"], "Rules for inbox")
+        finally:
+            delete_execution_journal(journal.execution_id)
+
     def test_requires_completed_stage(self):
         created = self.service.create_session(str(self.target_dir), resume_if_exists=False)
         session = created.session
@@ -476,8 +570,9 @@ class SinglePathContextCoverageTests(unittest.TestCase):
         """调用服务并捕获传入 generate_rule_drafts 的 context_entries。"""
         captured = {}
 
-        def fake_generate(profiles, *, client=None, model=None, context_entries=None):
+        def fake_generate(profiles, *, client=None, model=None, context_entries=None, content_locale="zh-CN"):
             captured["context_entries"] = context_entries or []
+            captured["content_locale"] = content_locale
             path = profiles[0].path
             return [rule_advisor.RuleDraft(path=path, draft_description="x", basis="y")]
 
