@@ -1,3 +1,5 @@
+import i18n from "@/i18n/instance";
+
 export class UserFacingError extends Error {
   code?: string;
   status?: number;
@@ -163,19 +165,20 @@ export function createUserFacingRequestError(status: number, statusText: string,
   });
 }
 
-export function localizeSessionLastError(lastError: string | null | undefined, fallback = "任务处理中断，请重新扫描后再继续。"): string {
+export function localizeSessionLastError(lastError: string | null | undefined, fallback?: string): string {
+  const translatedFallback = fallback ?? i18n.t("workspace.fallback.interrupted");
   const normalized = String(lastError || "").trim().toLowerCase();
   if (!normalized) {
-    return fallback;
+    return translatedFallback;
   }
   if (normalized === "scanning_interrupted") {
-    return "扫描过程中已中断，请重新扫描后再继续。";
+    return i18n.t("workspace.fallback.scanningInterrupted");
   }
   if (normalized === "missing_execution_journal") {
-    return "没有找到这次整理的执行记录。";
+    return i18n.t("workspace.fallback.missingJournal");
   }
   if (normalized === "directory_changed") {
-    return "目录内容已变化，请重新扫描后再继续。";
+    return i18n.t("workspace.fallback.directoryChanged");
   }
   if (
     normalized.includes("504")
@@ -184,12 +187,12 @@ export function localizeSessionLastError(lastError: string | null | undefined, f
     || normalized.includes("api timeout")
     || normalized.includes("apitimeouterror")
   ) {
-    return "模型服务响应超时，扫描已经停止。建议稍后重试，或在设置中切换到更稳定的模型服务。";
+    return i18n.t("workspace.fallback.modelTimeout");
   }
   if (normalized.includes("rate limit") || normalized.includes("429")) {
-    return "模型服务请求过于频繁，扫描已经停止。请稍后重试。";
+    return i18n.t("workspace.fallback.modelRateLimit");
   }
-  return fallback;
+  return translatedFallback;
 }
 
 export function localizeUserFacingError(error: unknown, fallback: string): string {
@@ -197,7 +200,7 @@ export function localizeUserFacingError(error: unknown, fallback: string): strin
     return error.message || fallback;
   }
   if (error instanceof TypeError) {
-    return "暂时无法连接本地服务，请确认 FilePilot 后台仍在运行。";
+    return i18n.t("workspace.fallback.localServiceUnavailable");
   }
   if (error instanceof Error && error.message) {
     return error.message;

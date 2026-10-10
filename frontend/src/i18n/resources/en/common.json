@@ -36,6 +36,18 @@
     "maximize": "Maximize",
     "close": "Close"
   },
+  "sharedUi": {
+    "errorBoundary": {
+      "title": "Something went wrong",
+      "description": "This area could not be displayed. Try reloading it.",
+      "retry": "Reload"
+    },
+    "modelConfigBanner": {
+      "title": "AI text model not configured",
+      "message": "Without a text model, FilePilot cannot reliably analyze files or create organization plans. Configure one in Settings > Text Model.",
+      "action": "Configure text model"
+    }
+  },
   "task": {
     "background": "Background task",
     "viewDetails": "View task details",
@@ -59,7 +71,9 @@
     "rolling_back": "Reverting changes",
     "abandoned": "Ended",
     "stale": "Folder contents changed",
-    "interrupted": "Interrupted"
+    "interrupted": "Interrupted",
+    "partial_failure": "Partially failed",
+    "rollback_partial_failure": "Partially rolled back"
   },
   "workspace": {
     "notifications": {
@@ -72,6 +86,148 @@
       "planReady": "The plan is updated with {{count}} items. You can now check move safety.",
       "executionCompleteTitle": "FilePilot organization is complete",
       "executionCompleteBody": "Return to the workspace to review the results."
+    },
+    "pipeline": {
+      "readDirectory": "Read folder",
+      "createPlan": "Create plan",
+      "safetyCheck": "Safety check",
+      "organize": "Organize files"
+    },
+    "quantity": {
+      "items_one": "{{count}} item",
+      "items_other": "{{count}} items",
+      "folders_one": "{{count}} folder",
+      "folders_other": "{{count}} folders"
+    },
+    "hints": {
+      "readOnly": "This record is read-only. Return to the home page and reopen the task to continue organizing.",
+      "draft": "First, read the folder and confirm which items to organize.",
+      "scanning": "Files are being analyzed without changes. Large folders may take a few minutes; you can minimize the app and return when it is done.",
+      "targetSelection": "Choose the folders where items can be placed. The remaining items will stay in this task for review.",
+      "strandedPlan": "The folder scan is complete, but automatic planning did not continue. Send an organization request to keep planning, or scan again.",
+      "initialPlanning": "The folder scan is complete. The first organization plan is being created; you can minimize the app and wait for a notification if this takes a while.",
+      "updatingPlan": "The plan is being updated with your instructions. You can minimize the app and wait for a notification.",
+      "editPlan": "Continue adjusting the plan, then check move safety before applying it.",
+      "precheckReady": "The plan is ready. Run a safety check before moving files.",
+      "precheckUpdating": "The plan is still updating. You can run the check when it is ready.",
+      "readyToExecute": "Safety check passed. {{moveCount}} are ready to move.",
+      "readyToExecuteWithReview": "Safety check passed. {{moveCount}} are ready to move; {{reviewCount}} will stay in Review.",
+      "executing": "Moving files. Please wait...",
+      "emptyCompleted": "This folder is empty. There was nothing to organize.",
+      "completed": "Organization is complete. Review the results, handle any failed items, or clean up empty folders.",
+      "recovery": "Scan the folder again to confirm its current state before continuing.",
+      "working": "This task is in progress."
+    },
+    "notice": {
+      "connectionLostTitle": "Live connection lost",
+      "connectionLostCompleted": "The records and results already received will remain here. Review the results or reconnect for the latest status.",
+      "connectionLostActive": "You can still review the content already received. Reconnect to receive updates for this task.",
+      "reconnect": "Reconnect",
+      "readOnlyTitle": "Read-only task",
+      "readOnlyDescription": "The previous plan and records are available here, but you cannot edit or run this task. Return home and reopen it to continue organizing.",
+      "strandedTitle": "Folder scan complete",
+      "strandedDescription": "Automatic planning did not continue. Send an organization request below to keep planning, or scan again.",
+      "staleTitle": "Folder contents changed",
+      "staleDescription": "The current plan may be out of date. Scan the folder again before continuing.",
+      "interruptedTitle": "Task interrupted",
+      "interruptedDescription": "Scan the folder again to confirm its current state before continuing.",
+      "emptyHistoryTitle": "Previous empty task",
+      "emptyTitle": "This folder is empty",
+      "emptyHistoryDescription": "No items needed organizing. This task record will remain read-only.",
+      "emptyDescription": "No items needed organizing. Return home, or scan again and rebuild the plan after the folder changes.",
+      "completedHistoryTitle": "Previous organization results",
+      "completedTitle": "Organization complete",
+      "completedHistoryDescription": "The conversation is preserved on the left and input is closed. Review the results on the right.",
+      "completedDescription": "The conversation is kept for reference and input is closed. Review the results, failed items, and Review folder on the right."
+    },
+    "primaryNotice": {
+      "waitingForScan": "Ready to read the folder",
+      "precheckPassed": "Safety check passed",
+      "executing": "Organizing files",
+      "emptyCompleted": "Nothing to organize",
+      "completed": "Organization complete",
+      "planReady": "Plan ready for review",
+      "continuePlanning": "Continue adjusting the plan",
+      "startScan": "Read folder",
+      "runPrecheck": "Check move safety"
+    },
+    "emptyState": {
+      "waitingScanTitle": "Ready to read the folder",
+      "waitingScanDescription": "The app will scan the folder without making changes, then create an initial organization plan.",
+      "openingRecoveryTitle": "Opening recovery",
+      "openingRecoveryDescription": "This task needs recovery. The recovery screen will open shortly.",
+      "planReadyTitle": "Plan ready",
+      "openingPlan": "Opening the plan workspace...",
+      "emptyTitle": "This folder is empty",
+      "emptyDescription": "The scan found nothing to organize. Return home, or scan again and rebuild the plan after the folder changes.",
+      "rescan": "Scan again",
+      "home": "Return home",
+      "draftTitle": "Ready to read the folder",
+      "draftDescription": "Start a read-only scan of the folder. The organization plan will appear here when it is ready.",
+      "startReading": "Read folder",
+      "scanInterruptedTitle": "Scan interrupted before a plan was created",
+      "scanInterruptedDescription": "There is no organization plan to review yet. Scan the folder again to confirm its contents before continuing.",
+      "endTask": "End task"
+    },
+    "controls": {
+      "connecting": "Connecting",
+      "reconnecting": "Reconnecting",
+      "offline": "Offline",
+      "collapseConversation": "Collapse conversation ({{shortcut}})",
+      "expandConversation": "Expand conversation ({{shortcut}})",
+      "exit": "Exit",
+      "conversationHistory": "Conversation",
+      "resizePanes": "Drag to resize the panes. Double-click to restore the default size.",
+      "operationFailed": "Operation failed",
+      "transitionReview": "Opening safety check",
+      "transitionPlan": "Returning to the plan workspace",
+      "transitionResult": "Opening organization results",
+      "transitionRecovery": "Opening recovery",
+      "transitionWorkspace": "Switching workspace",
+      "syncingStage": "Syncing task status...",
+      "returnToPreview": "Back to preview",
+      "viewConversation": "View conversation"
+    },
+    "confirm": {
+      "exitCompletedTitle": "End this organization task?",
+      "exitActiveTitle": "Save and exit this task?",
+      "exitCompletedDescription": "Organization finished and its progress is safely saved. You can close the workspace and return home.",
+      "exitActiveDescription": "Your progress is saved automatically. You can return home and resume this task at any time.",
+      "exitCompleted": "End and return home",
+      "exitActive": "Save and exit",
+      "stay": "Stay in workspace",
+      "abortScanTitle": "Stop this scan?",
+      "abortScanDescription": "Stopping will end this task and return home. This scan will not continue creating an organization plan.",
+      "stopScan": "Stop scan",
+      "continueScan": "Continue scanning",
+      "executeTitle": "Ready to move files?",
+      "executeDescription": "This will move files on your device. The plan includes {{totalCount}}; {{moveCount}} will move to target folders.",
+      "executeDescriptionWithPlacement": "This will move files on your device. The plan includes {{totalCount}}; {{moveCount}} will move to target folders, and {{placementCount}} {{placementAction}}.",
+      "executeDescriptionWithItems": "This will move files on your device. The plan includes {{totalCount}}; {{moveCount}} will move to target folders. Items involved: {{items}}.",
+      "executeDescriptionWithPlacementAndItems": "This will move files on your device. The plan includes {{totalCount}}; {{moveCount}} will move to target folders, and {{placementCount}} {{placementAction}}. Items involved: {{items}}.",
+      "stayInPlace": "will stay in place",
+      "leaveForReview": "will be left in Review",
+      "moreNames_one": "{{names}}, plus {{count}} more",
+      "moreNames_other": "{{names}}, plus {{count}} more",
+      "confirmMove": "Move files",
+      "lookAgain": "Review plan",
+      "verificationPlaceholder": "Type YES to confirm",
+      "moving": "Files to move",
+      "creatingFolders": "Folders to create",
+      "remaining": "Stay in place",
+      "review": "Leave in Review"
+    },
+    "fallback": {
+      "interrupted": "The task was interrupted. Scan the folder again before continuing.",
+      "scanningInterrupted": "The scan was interrupted. Scan the folder again before continuing.",
+      "missingJournal": "The execution record for this task could not be found.",
+      "directoryChanged": "Folder contents changed. Scan the folder again before continuing.",
+      "modelTimeout": "The model service timed out and the scan stopped. Try again later or choose a more reliable model service in Settings.",
+      "modelRateLimit": "The model service received too many requests and the scan stopped. Try again later.",
+      "localServiceUnavailable": "Cannot connect to the local service. Make sure the FilePilot backend is running.",
+      "currentTask": "Current task",
+      "previewAreaFailed": "Could not load the preview area",
+      "pageFailed": "Could not load the page"
     },
     "conversation": {
       "preparingTask": "Preparing task",
@@ -942,6 +1098,7 @@
     "view": "View activity"
   },
   "history": {
+    "unnamedRecord": "Unnamed record",
     "fileSearchError": "Could not find the file's current location. Try again shortly.",
     "fileSearchPlaceholder": "Find a file: enter part of its name to see where it is now...",
     "fileSearchEmpty": "No files in the organization history match “{{query}}”.",

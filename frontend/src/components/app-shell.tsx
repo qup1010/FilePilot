@@ -50,6 +50,11 @@ function readStoredContext(key: string) {
 }
 
 type CopyTranslator = (key: string, options?: Record<string, unknown>) => string;
+interface ModuleCopy {
+  title: string;
+  detail: string;
+  statusCode?: string;
+}
 
 function getWorkspaceLoadingLabel(t: CopyTranslator) {
   return {
@@ -58,7 +63,7 @@ function getWorkspaceLoadingLabel(t: CopyTranslator) {
   };
 }
 
-function getBaseModuleLabel(pathname: string, searchParams: URLSearchParams, t: CopyTranslator) {
+function getBaseModuleLabel(pathname: string, searchParams: URLSearchParams, t: CopyTranslator): ModuleCopy {
   if (pathname === "/rules") {
     return {
       title: t("navigation.rules"),
@@ -98,7 +103,7 @@ function getBaseModuleLabel(pathname: string, searchParams: URLSearchParams, t: 
   return { title: t("navigation.startOrganizing"), detail: t("navigation.newOrganizeTask") };
 }
 
-function getStoredModuleLabel(pathname: string, searchParams: URLSearchParams, t: CopyTranslator) {
+function getStoredModuleLabel(pathname: string, searchParams: URLSearchParams, t: CopyTranslator): ModuleCopy {
   if (pathname === "/rules") {
     const stored = readStoredContext(RULES_CONTEXT_KEY);
     const detail = stored?.detail;
@@ -149,6 +154,7 @@ function getStoredModuleLabel(pathname: string, searchParams: URLSearchParams, t
       return {
         title: dirName,
         detail: storedStage || t("navigation.currentOrganizeTask"),
+        statusCode: stored?.stage_code,
       };
     }
     if (sessionId) {
@@ -156,6 +162,7 @@ function getStoredModuleLabel(pathname: string, searchParams: URLSearchParams, t
         return {
           title: stored.dirName,
           detail: storedStage || t("navigation.currentOrganizeTask"),
+          statusCode: stored.stage_code,
         };
       }
       return getWorkspaceLoadingLabel(t);
@@ -163,6 +170,7 @@ function getStoredModuleLabel(pathname: string, searchParams: URLSearchParams, t
     return {
       title: stored?.dirName || t("navigation.currentTask"),
       detail: storedStage || t("navigation.currentOrganizeTask"),
+      statusCode: stored?.stage_code,
     };
   }
   return { title: t("navigation.startOrganizing"), detail: t("navigation.newOrganizeTask") };
@@ -218,8 +226,15 @@ function ThemeToggle() {
   );
 }
 
-function ModuleStatusBadge({ detail }: { detail: string }) {
-  const isSuccess = detail.includes("通过") || detail.toLowerCase().includes("success");
+export function isSuccessfulModuleStatus(detail: string, statusCode?: string): boolean {
+  if (statusCode) {
+    return statusCode.toLowerCase() === "ready_to_execute";
+  }
+  return detail.includes("通过") || detail.toLowerCase().includes("success");
+}
+
+function ModuleStatusBadge({ detail, statusCode }: { detail: string; statusCode?: string }) {
+  const isSuccess = isSuccessfulModuleStatus(detail, statusCode);
 
   return (
     <span
@@ -322,7 +337,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             <p className="min-w-0 truncate text-[14px] font-black tracking-[-0.025em] text-on-surface/88">
               {moduleCopy.title}
             </p>
-            <ModuleStatusBadge detail={moduleCopy.detail} />
+            <ModuleStatusBadge detail={moduleCopy.detail} statusCode={moduleCopy.statusCode} />
           </div>
         </div>
 

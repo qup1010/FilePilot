@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { AlertTriangle } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 
 interface ModelConfigBannerProps {
@@ -13,12 +14,13 @@ interface ModelConfigBannerProps {
 }
 
 export function ModelConfigBanner({
-  title = "AI 文本模型尚未配置",
-  message = "未配置文本模型时，系统无法稳定完成用途分析和整理规划。建议先前往“设置 > 文本模型”完成配置。",
-  actionLabel = "去配置文本模型",
+  title,
+  message,
+  actionLabel,
   href = "/settings?tab=text",
   className,
 }: ModelConfigBannerProps) {
+  const { t } = useTranslation("common");
   return (
     <div
       className={cn(
@@ -31,15 +33,15 @@ export function ModelConfigBanner({
           <AlertTriangle className="h-4.5 w-4.5" />
         </div>
         <div className="min-w-0">
-          <p className="text-[14px] font-black tracking-tight text-on-surface">{title}</p>
-          <p className="mt-1 text-[12px] font-medium leading-6 text-ui-muted">{message}</p>
+          <p className="text-[14px] font-black tracking-tight text-on-surface">{title || t("sharedUi.modelConfigBanner.title")}</p>
+          <p className="mt-1 text-[12px] font-medium leading-6 text-ui-muted">{message || t("sharedUi.modelConfigBanner.message")}</p>
         </div>
       </div>
       <Link
         href={href}
         className="shrink-0 rounded-[6px] border border-warning/15 bg-surface px-4 py-2 text-[12px] font-black text-on-surface transition-colors hover:border-warning/30 hover:text-warning"
       >
-        {actionLabel}
+        {actionLabel || t("sharedUi.modelConfigBanner.action")}
       </Link>
     </div>
   );

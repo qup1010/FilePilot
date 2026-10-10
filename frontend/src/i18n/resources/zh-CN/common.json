@@ -35,6 +35,18 @@
     "maximize": "最大化",
     "close": "关闭"
   },
+  "sharedUi": {
+    "errorBoundary": {
+      "title": "这里出了点问题",
+      "description": "这一块暂时没有正常显示出来。你可以先试试重新加载。",
+      "retry": "重新加载"
+    },
+    "modelConfigBanner": {
+      "title": "AI 文本模型尚未配置",
+      "message": "未配置文本模型时，系统无法稳定完成用途分析和整理规划。建议先前往“设置 > 文本模型”完成配置。",
+      "action": "去配置文本模型"
+    }
+  },
   "task": {
     "background": "后台任务",
     "viewDetails": "查看任务详情",
@@ -57,7 +69,9 @@
     "rolling_back": "正在回退",
     "abandoned": "已结束",
     "stale": "目录内容已变化",
-    "interrupted": "已中断"
+    "interrupted": "已中断",
+    "partial_failure": "部分失败",
+    "rollback_partial_failure": "回退部分失败"
   },
   "workspace": {
     "notifications": {
@@ -70,6 +84,145 @@
       "planReady": "方案已更新，已规划 {{count}} 项，可以进行移动风险检查。",
       "executionCompleteTitle": "FilePilot 整理已完成",
       "executionCompleteBody": "可以回到工作台查看整理结果。"
+    },
+    "pipeline": {
+      "readDirectory": "读取目录",
+      "createPlan": "生成方案",
+      "safetyCheck": "安全检查",
+      "organize": "执行整理"
+    },
+    "quantity": {
+      "items": "{{count}} 项",
+      "folders": "{{count}} 个"
+    },
+    "hints": {
+      "readOnly": "当前只能查看记录；如需继续整理，请返回首页重新打开任务。",
+      "draft": "下一步先读取目录，确认这次要整理的项目。",
+      "scanning": "正在只读分析文件。文件较多时可能需要几分钟，可以先最小化，完成后会通知你。",
+      "targetSelection": "先选择可归入的目标目录，剩余项目会作为本次待整理对象。",
+      "strandedPlan": "目录读取已完成，但自动方案没有继续生成。可以发送一句整理要求继续规划，或重新扫描。",
+      "initialPlanning": "目录读取已完成，正在生成第一版整理方案；文件较多时可以先最小化等待通知。",
+      "updatingPlan": "正在按你的要求更新方案；文件较多时可以先最小化等待通知。",
+      "editPlan": "可以继续调整要求，确认后再做移动前检查。",
+      "precheckReady": "方案已就绪，建议先做一次移动前安全检查。",
+      "precheckUpdating": "方案还在更新，完成后即可检查。",
+      "readyToExecute": "安全检查通过，待移动 {{moveCount}}。",
+      "readyToExecuteWithReview": "安全检查通过，待移动 {{moveCount}}；{{reviewCount}} 将留在待确认区。",
+      "executing": "正在移动文件，请稍候...",
+      "emptyCompleted": "当前目录为空，本次没有需要整理的内容。",
+      "completed": "整理已完成。你可以查看结果、处理失败项或清理空目录。",
+      "recovery": "建议先重新扫描，确认目录状态后再继续整理。",
+      "working": "当前任务正在推进。"
+    },
+    "notice": {
+      "connectionLostTitle": "实时连接已断开",
+      "connectionLostCompleted": "页面会保留已经收到的记录和结果。你可以先查看右侧结果，或重新连接获取最新状态。",
+      "connectionLostActive": "页面仍可查看已经收到的内容。重新连接后，会继续接收当前任务的更新。",
+      "reconnect": "重新连接",
+      "readOnlyTitle": "当前只能查看",
+      "readOnlyDescription": "这里保留之前的方案和记录，不能修改或执行。如需继续整理，请返回首页重新打开任务。",
+      "strandedTitle": "目录读取已完成",
+      "strandedDescription": "自动方案没有继续生成。可以在下方发送一句整理要求继续规划，或重新扫描。",
+      "staleTitle": "目录内容已变化",
+      "staleDescription": "当前方案可能不再准确。建议重新扫描后再继续整理。",
+      "interruptedTitle": "任务已中断",
+      "interruptedDescription": "建议重新扫描一次，确认目录状态后再继续。",
+      "emptyHistoryTitle": "这是之前的空任务记录",
+      "emptyTitle": "当前目录为空",
+      "emptyHistoryDescription": "这次任务没有发现需要整理的内容，记录会保留为只读。",
+      "emptyDescription": "这次任务没有发现需要整理的内容。你可以返回首页，或在目录更新后重新扫描并重建方案。",
+      "completedHistoryTitle": "这是之前的整理结果",
+      "completedTitle": "整理完成",
+      "completedHistoryDescription": "左侧保留了当时的记录，输入已关闭；右侧可以继续查看这次整理结果。",
+      "completedDescription": "左侧保留本轮记录供回看，输入已关闭；请在右侧查看结果、失败项和待确认区。"
+    },
+    "primaryNotice": {
+      "waitingForScan": "等待开始读取目录",
+      "precheckPassed": "安全检查已通过",
+      "executing": "正在执行整理",
+      "emptyCompleted": "本次没有需要整理的内容",
+      "completed": "整理已完成",
+      "planReady": "方案已准备好检查",
+      "continuePlanning": "可以继续调整方案",
+      "startScan": "开始读取目录",
+      "runPrecheck": "检查移动风险"
+    },
+    "emptyState": {
+      "waitingScanTitle": "等待读取目录",
+      "waitingScanDescription": "开始后会先只读扫描目录，再生成第一版整理方案。",
+      "openingRecoveryTitle": "正在打开恢复页",
+      "openingRecoveryDescription": "这次任务需要恢复处理，稍后会自动切换到恢复入口。",
+      "planReadyTitle": "方案已准备好",
+      "openingPlan": "正在打开方案工作区...",
+      "emptyTitle": "当前目录为空",
+      "emptyDescription": "这次扫描没有发现需要整理的内容。你可以返回首页，或在目录内容更新后重新扫描并重建方案。",
+      "rescan": "重新扫描",
+      "home": "返回首页",
+      "draftTitle": "等待读取待整理目录",
+      "draftDescription": "点击下方按钮开始只读分析文件结构，稍后将在此生成智能整理方案。",
+      "startReading": "开始读取目录",
+      "scanInterruptedTitle": "扫描中断，尚未形成方案",
+      "scanInterruptedDescription": "这次任务还没有得到可确认的整理建议。建议先重新扫描，确认目录内容后再继续。",
+      "endTask": "结束本次任务"
+    },
+    "controls": {
+      "connecting": "连接中",
+      "reconnecting": "重连中",
+      "offline": "离线",
+      "collapseConversation": "收起聊天区 ({{shortcut}})",
+      "expandConversation": "展开聊天区 ({{shortcut}})",
+      "exit": "退出",
+      "conversationHistory": "会话记录",
+      "resizePanes": "拖拽调整左右分栏比例，双击恢复默认",
+      "operationFailed": "操作失败",
+      "transitionReview": "正在打开安全检查",
+      "transitionPlan": "正在返回方案工作区",
+      "transitionResult": "正在打开整理结果",
+      "transitionRecovery": "正在打开恢复入口",
+      "transitionWorkspace": "正在切换工作区",
+      "syncingStage": "正在同步任务阶段，请稍等",
+      "returnToPreview": "返回预览",
+      "viewConversation": "查看会话"
+    },
+    "confirm": {
+      "exitCompletedTitle": "结束本次整理？",
+      "exitActiveTitle": "暂存并退出当前任务？",
+      "exitCompletedDescription": "本次整理已顺利执行完毕，进度已安全归档，现在可以安全关闭工作台并返回首页。",
+      "exitActiveDescription": "当前的整理进度会自动保存。之后你可以随时从首页恢复并继续这项任务。",
+      "exitCompleted": "结束并返回",
+      "exitActive": "暂存并退出",
+      "stay": "留在工作台",
+      "abortScanTitle": "停止本次扫描？",
+      "abortScanDescription": "停止后会结束当前整理任务并返回首页。这一轮不会继续生成整理建议。",
+      "stopScan": "停止扫描",
+      "continueScan": "继续扫描",
+      "executeTitle": "确认开始移动文件？",
+      "executeDescription": "执行后会真实移动本地文件。本次涉及 {{totalCount}}，其中 {{moveCount}} 将移动至目标目录。",
+      "executeDescriptionWithPlacement": "执行后会真实移动本地文件。本次涉及 {{totalCount}}，其中 {{moveCount}} 将移动至目标目录；{{placementCount}}{{placementAction}}。",
+      "executeDescriptionWithItems": "执行后会真实移动本地文件。本次涉及 {{totalCount}}，其中 {{moveCount}} 将移动至目标目录。涉及条目：{{items}}。",
+      "executeDescriptionWithPlacementAndItems": "执行后会真实移动本地文件。本次涉及 {{totalCount}}，其中 {{moveCount}} 将移动至目标目录；{{placementCount}}{{placementAction}}。涉及条目：{{items}}。",
+      "stayInPlace": "会保留在原地",
+      "leaveForReview": "会留在待确认区",
+      "moreNames": "{{names}}等 {{count}} 项",
+      "confirmMove": "开始移动",
+      "lookAgain": "再看看",
+      "verificationPlaceholder": "请输入大写 YES 确认执行",
+      "moving": "本次将移动",
+      "creatingFolders": "本次将创建目录",
+      "remaining": "保留在原地",
+      "review": "留在待确认区"
+    },
+    "fallback": {
+      "interrupted": "任务处理中断，请重新扫描后再继续。",
+      "scanningInterrupted": "扫描过程中已中断，请重新扫描后再继续。",
+      "missingJournal": "没有找到这次整理的执行记录。",
+      "directoryChanged": "目录内容已变化，请重新扫描后再继续。",
+      "modelTimeout": "模型服务响应超时，扫描已经停止。建议稍后重试，或在设置中切换到更稳定的模型服务。",
+      "modelRateLimit": "模型服务请求过于频繁，扫描已经停止。请稍后重试。",
+      "localServiceUnavailable": "暂时无法连接本地服务，请确认 FilePilot 后台仍在运行。",
+      "currentTask": "当前任务",
+      "previewAreaFailed": "预览区加载失败",
+      "pageFailed": "页面加载出错了"
     },
     "conversation": {
       "preparingTask": "正在准备任务",
@@ -909,6 +1062,7 @@
     "view": "查看记录"
   },
   "history": {
+    "unnamedRecord": "未命名记录",
     "fileSearchError": "查找文件去向失败，请稍后重试。",
     "fileSearchPlaceholder": "找文件：输入文件名片段，查它现在在哪...",
     "fileSearchEmpty": "整理记录中没有匹配「{{query}}」的文件。",

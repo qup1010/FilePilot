@@ -3,7 +3,7 @@ import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import i18n from "@/i18n/instance";
-import { AppShell } from "./app-shell";
+import { AppShell, isSuccessfulModuleStatus } from "./app-shell";
 
 const searchParams = new URLSearchParams();
 
@@ -51,5 +51,11 @@ describe("AppShell localization", () => {
     expect(screen.getByRole("link", { name: "History" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Settings" })).toBeInTheDocument();
     await waitFor(() => expect(screen.getByTitle("Current: Light. Click to switch.")).toBeInTheDocument());
+  });
+
+  it("uses the stage code rather than translated status copy for success styling", () => {
+    expect(isSuccessfulModuleStatus("Safety check passed", "ready_to_execute")).toBe(true);
+    expect(isSuccessfulModuleStatus("Safety check passed", "planning")).toBe(false);
+    expect(isSuccessfulModuleStatus("检查已通过")).toBe(true);
   });
 });

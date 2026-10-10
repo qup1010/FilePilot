@@ -382,6 +382,40 @@ describe("WorkspaceClient", () => {
     );
   });
 
+  it("localizes the workspace safety notice and move confirmation in English", async () => {
+    await i18n.changeLanguage("en");
+    currentSession = makeSession({
+      snapshot: makeSnapshot({
+        stage: "ready_to_execute",
+        plan_snapshot: {
+          ...makeSnapshot().plan_snapshot,
+          items: [
+            { item_id: "a", display_name: "alpha.txt" },
+            { item_id: "b", display_name: "beta.txt" },
+          ],
+        },
+        precheck_summary: {
+          move_preview: [
+            { item_id: "a", source: "D:/demo/alpha.txt", target: "D:/demo/Documents/alpha.txt" },
+            { item_id: "b", source: "D:/demo/beta.txt", target: "D:/demo/Review/beta.txt" },
+          ],
+          mkdir_preview: [],
+          warnings: [],
+        },
+      }),
+    });
+
+    render(<WorkspaceClient view="review" />);
+    fireEvent.click(await screen.findByTestId("stub-request-execute"));
+
+    expect(await screen.findByText("Ready to move files?")).toBeInTheDocument();
+    expect(screen.getByText(
+      "This will move files on your device. The plan includes 2 items; 2 items will move to target folders, and 1 item will be left in Review. Items involved: alpha.txt and beta.txt.",
+    )).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Move files" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Review plan" })).toBeInTheDocument();
+  });
+
   it("renders the scanning view while the session is scanning", async () => {
     currentSession = makeSession({
       snapshot: makeSnapshot({

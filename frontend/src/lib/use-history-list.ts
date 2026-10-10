@@ -1,12 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import { createApiClient } from "@/lib/api";
 import { getApiBaseUrl, getApiToken } from "@/lib/runtime";
 import { getPathBasename } from "@/lib/path-normalization";
 import { localizeUserFacingError } from "@/lib/user-facing-copy";
 import { getFriendlyStage, getFriendlyStatus } from "@/lib/utils";
+import { formatHistoryTimestamp } from "@/i18n/formatters";
 import { getWorkspaceRouteForHistoryEntry } from "@/lib/workspace-routes";
 import i18n from "@/i18n/instance";
 import type { HistoryItem } from "@/types/session";
@@ -26,15 +28,6 @@ const FINAL_EXECUTION_STATUSES = new Set([
   ...FAILED_ROLLBACK_STATUSES,
 ]);
 const SEARCH_DEBOUNCE_MS = 200;
-const historyDateFormatter = new Intl.DateTimeFormat("zh-CN", {
-  year: "numeric",
-  month: "2-digit",
-  day: "2-digit",
-  hour: "2-digit",
-  minute: "2-digit",
-  hour12: false,
-});
-
 function normalizedHistoryStatus(entry: HistoryItem): string {
   return String(entry.status || "").trim().toLowerCase();
 }
@@ -105,15 +98,15 @@ export function getHistoryDeletePrompt(entry: HistoryItem | null): { title: stri
   };
 }
 
-export function getHistoryEntryName(entry: HistoryItem): string {
+export function getHistoryEntryName(entry: HistoryItem, locale = i18n.resolvedLanguage || "zh-CN"): string {
   const date = new Date(entry.created_at);
   if (Number.isNaN(date.getTime())) {
-    return getPathBasename(entry.target_dir, "未命名记录");
+    return getPathBasename(entry.target_dir, i18n.t("history.unnamedRecord"));
   }
-  return historyDateFormatter.format(date);
+  return formatHistoryTimestamp(date, locale);
 }
 
-function filterHistoryEntries(history: HistoryItem[], query: string, filter: HistoryFilter) {
+function filterHistoryEntries(history: HistoryItem[], query: string, filter: HistoryFilter, locale: string) {
   const keyword = query.trim().toLowerCase();
 
   return history.filter((entry) => {
@@ -139,7 +132,7 @@ function filterHistoryEntries(history: HistoryItem[], query: string, filter: His
       return true;
     }
 
-    const name = getHistoryEntryName(entry);
+    const name = getHistoryEntryName(entry, locale);
     return [entry.target_dir, name, entry.status].some((value) =>
       value.toLowerCase().includes(keyword),
     );
@@ -162,6 +155,7 @@ function useDebouncedValue<T>(value: T, delay: number): T {
 }
 
 export function useHistoryList({ autoLoad = true }: { autoLoad?: boolean } = {}) {
+  const { i18n: activeI18n } = useTranslation("common");
   const api = useMemo(() => createApiClient(getApiBaseUrl(), getApiToken()), []);
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [loading, setLoading] = useState(autoLoad);
@@ -193,10 +187,11 @@ export function useHistoryList({ autoLoad = true }: { autoLoad?: boolean } = {})
   }, [autoLoad, loadHistory]);
 
   const debouncedQuery = useDebouncedValue(query, SEARCH_DEBOUNCE_MS);
+  const locale = activeI18n.resolvedLanguage || activeI18n.language || "zh-CN";
 
   const filteredHistory = useMemo(
-    () => filterHistoryEntries(history, debouncedQuery, filter),
-    [debouncedQuery, filter, history],
+    () => filterHistoryEntries(history, debouncedQuery, filter, locale),
+    [debouncedQuery, filter, history, locale],
   );
 
   const requestDelete = useCallback((id: string) => {

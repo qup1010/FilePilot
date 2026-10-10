@@ -1,5 +1,7 @@
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
+import i18n from "@/i18n/instance";
+import { formatLocalizedDate } from "@/i18n/formatters";
 
 /**
  * 合并 Tailwind CSS 类名
@@ -33,18 +35,8 @@ export function getFriendlyStatus(status: string | undefined): string {
 /**
  * 安全转换日期字符串
  */
-export function formatDisplayDate(dateStr: string, locale = "zh-CN") {
-  try {
-    const date = new Date(dateStr);
-    return date.toLocaleDateString(locale, {
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  } catch (_e) {
-    return dateStr;
-  }
+export function formatDisplayDate(dateStr: string, locale?: string) {
+  return formatLocalizedDate(dateStr, locale || i18n.resolvedLanguage || "zh-CN");
 }
 
 export const FRIENDLY_STAGE_MAP: Record<string, string> = {

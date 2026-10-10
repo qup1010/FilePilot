@@ -1,5 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 
+import i18n from "@/i18n/instance";
 import {
   UserFacingError,
   createUserFacingRequestError,
@@ -9,6 +10,10 @@ import {
 } from "./user-facing-copy";
 
 describe("user-facing copy helpers", () => {
+  afterEach(async () => {
+    await i18n.changeLanguage("zh-CN");
+  });
+
   it("maps API not-found errors to readable Chinese copy", () => {
     const error = createUserFacingRequestError(404, "Not Found", JSON.stringify({ detail: "SESSION_NOT_FOUND" }));
 
@@ -25,6 +30,17 @@ describe("user-facing copy helpers", () => {
   it("humanizes known session last_error values", () => {
     expect(localizeSessionLastError("scanning_interrupted")).toBe("扫描过程中已中断，请重新扫描后再继续。");
     expect(localizeSessionLastError("missing_execution_journal")).toBe("没有找到这次整理的执行记录。");
+  });
+
+  it("formats known session errors and local service fallbacks in English", async () => {
+    await i18n.changeLanguage("en");
+
+    expect(localizeSessionLastError("scanning_interrupted")).toBe("The scan was interrupted. Scan the folder again before continuing.");
+    expect(localizeSessionLastError("missing_execution_journal")).toBe("The execution record for this task could not be found.");
+    expect(localizeSessionLastError("unexpected_code")).toBe("The task was interrupted. Scan the folder again before continuing.");
+    expect(localizeUserFacingError(new TypeError("Failed to fetch"), "fallback")).toBe(
+      "Cannot connect to the local service. Make sure the FilePilot backend is running.",
+    );
   });
 
   it("humanizes model gateway timeout session errors", () => {
