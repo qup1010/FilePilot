@@ -6,6 +6,7 @@ import threading
 import time
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from copy import deepcopy
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -524,12 +525,23 @@ def _is_path_within_base(path: Path, base_dir: Path) -> bool:
         return False
 
 
-def _dispatch_tool_call(target_dir: Path, name: str, args: dict, entry_context: dict[str, dict[str, str]] | None = None):
+def _dispatch_tool_call(
+    target_dir: Path,
+    name: str,
+    args: dict,
+    entry_context: dict[str, dict[str, str]] | None = None,
+    content_locale: str = DEFAULT_CONTENT_LOCALE,
+):
+    content_locale = normalize_content_locale(content_locale)
     if name == "read_local_file":
         filename = _resolve_readable_file(target_dir, args.get("filename"))
         if filename is None:
             return "错误：仅读取目标目录内的文件，不允许访问目录外路径。"
-        return read_local_file(str(filename), allowed_base_dir=str(target_dir.resolve()))
+        return read_local_file(
+            str(filename),
+            allowed_base_dir=str(target_dir.resolve()),
+            content_locale=content_locale,
+        )
     if name == BATCH_READ_TOOL_NAME:
         raw_entry_ids = [str(item).strip() for item in (args.get("entry_ids") or []) if str(item).strip()]
         if entry_context and raw_entry_ids:
@@ -552,6 +564,7 @@ def _dispatch_tool_call(target_dir: Path, name: str, args: dict, entry_context: 
                     preview = read_local_file(
                         str(absolute_path),
                         allowed_base_dir=str(allowed_base_dir),
+                        content_locale=content_locale,
                     )
                     results.append(
                         _sanitize_file_preview(
@@ -574,7 +587,15 @@ def _dispatch_tool_call(target_dir: Path, name: str, args: dict, entry_context: 
                 resolved.append(str(resolved_path))
         valid_paths = [p for p in resolved if not p.startswith("--- 文件")]
         error_messages = [p for p in resolved if p.startswith("--- 文件")]
-        result = read_local_files_batch(valid_paths, allowed_base_dir=str(target_dir.resolve())) if valid_paths else ""
+        result = (
+            read_local_files_batch(
+                valid_paths,
+                allowed_base_dir=str(target_dir.resolve()),
+                content_locale=content_locale,
+            )
+            if valid_paths
+            else ""
+        )
         if error_messages:
             result = "\n\n".join(error_messages) + ("\n\n" + result if result else "")
         return result
@@ -586,6 +607,44 @@ def _dispatch_tool_call(target_dir: Path, name: str, args: dict, entry_context: 
         max_depth = 0 if directory == target_dir.resolve() else min(requested_depth, 1)
         return list_local_files(str(directory), max_depth=max_depth)
     return "Unknown tool"
+
+
+def analysis_tools_for_content_locale(content_locale: str = DEFAULT_CONTENT_LOCALE) -> list[dict]:
+    localized_tools = deepcopy(tools)
+    if normalize_content_locale(content_locale) != "en":
+        return localized_tools
+
+    descriptions = {
+        BATCH_READ_TOOL_NAME: (
+            "Inspect multiple entries in one call. Pass entry_id values to receive content summaries "
+            "for supported documents, images, and archives, or a directory listing for folders. "
+            "Use this only when names do not provide enough evidence, and include all entries that need inspection."
+        ),
+        SUBMIT_ANALYSIS_TOOL_NAME: (
+            "Submit structured analysis for every entry in the current scope. Items must correspond one-to-one "
+            "with the listed entries and use entry_id as their identifiers."
+        ),
+    }
+    property_descriptions = {
+        "entry_id": "Entry identifier from the current analysis scope; do not create or modify it.",
+        "entry_type": "Entry type: file or dir.",
+        "suggested_purpose": "Likely organization purpose or category, in English.",
+        "summary": "Brief content, structure, or evidence summary, in English.",
+    }
+    for tool in localized_tools:
+        function = tool.get("function") or {}
+        name = str(function.get("name") or "")
+        if name in descriptions:
+            function["description"] = descriptions[name]
+        properties = function.get("parameters", {}).get("properties", {})
+        if name == BATCH_READ_TOOL_NAME and "entry_ids" in properties:
+            properties["entry_ids"]["description"] = "Entry identifiers to inspect; each must come from the current analysis scope."
+        if name == SUBMIT_ANALYSIS_TOOL_NAME:
+            item_properties = properties.get("items", {}).get("items", {}).get("properties", {})
+            for property_name, description in property_descriptions.items():
+                if property_name in item_properties:
+                    item_properties[property_name]["description"] = description
+    return localized_tools
 
 
 def _extract_submitted_analysis(tool_calls, entry_context: dict[str, dict[str, str]] | None = None) -> list[AnalysisItem] | None:
@@ -783,7 +842,23 @@ def _slice_files_info_for_batch(files_info: str, batch_entries: list[str], targe
     return "\n".join(fallback_lines)
 
 
-def _build_retry_message(check: dict, retry_scope: str) -> str:
+def _build_retry_message(
+    check: dict,
+    retry_scope: str,
+    content_locale: str = DEFAULT_CONTENT_LOCALE,
+) -> str:
+    if normalize_content_locale(content_locale) == "en":
+        message = (
+            "The previous result did not pass validation.\n"
+            f"Missing: {check['missing']}\n"
+            f"Extra: {check['extra']}\n"
+            f"Duplicates: {check['duplicates']}\n"
+            f"Please resubmit the complete analysis for {retry_scope}."
+        )
+        if check.get("image_probe_failures"):
+            message += "\nImage recognition failed. Do not invent visual details; mark these entries Uncertain or make only a low-confidence inference from the filename."
+        return message
+
     message = (
         "刚才的结果未通过校验。\n"
         f"缺失：{check['missing']}\n"
@@ -804,7 +879,7 @@ def _extract_image_probe_statuses(result: str) -> dict[str, dict[str, str]]:
     )
     for match in pattern.finditer(str(result or "")):
         body = match.group("body")
-        if "--- 图片识别结果开始 ---" not in body:
+        if "--- 图片识别结果开始 ---" not in body and "--- Image recognition result starts ---" not in body:
             continue
         status_match = re.search(r"status:\s*(?P<status>[^\n]+)", body)
         summary_match = re.search(r"summary:\s*(?P<summary>[^\n]+)", body)
@@ -839,7 +914,10 @@ def _has_legacy_generic_image_fallback(item: AnalysisItem) -> bool:
     """Recognize old Chinese fallback prose until image status is explicit in model output."""
     combined = f"{item.suggested_purpose} {item.summary}"
     legacy_tokens = ("待判断", "待确认", "未识别", "未成功识别", "仅凭文件名", "内容待确认", "图片文件")
-    return any(token in combined for token in legacy_tokens)
+    english_fallback_tokens = ("uncertain", "undetermined", "pending review", "image file")
+    return any(token in combined for token in legacy_tokens) or any(
+        token in combined.casefold() for token in english_fallback_tokens
+    )
 
 
 def _run_analysis_worker(
@@ -856,7 +934,9 @@ def _run_analysis_worker(
     wait_message: str = "正在分析目录内容",
     entry_context: dict[str, dict[str, str]] | None = None,
     cancel_event: threading.Event | None = None,
+    content_locale: str = DEFAULT_CONTENT_LOCALE,
 ) -> list[AnalysisItem] | None:
+    content_locale = normalize_content_locale(content_locale)
     client = get_client()
     vision_enabled = _vision_prompt_enabled()
     image_entries = _collect_image_entry_context(entry_context)
@@ -874,8 +954,17 @@ def _run_analysis_worker(
                 "image_entries": image_entry_names,
             },
         )
-    messages = [{"role": "system", "content": build_system_prompt(files_info, target_dir=target_dir, vision_enabled=vision_enabled)}]
+    messages = [{
+        "role": "system",
+        "content": build_system_prompt(
+            files_info,
+            target_dir=target_dir,
+            vision_enabled=vision_enabled,
+            content_locale=content_locale,
+        ),
+    }]
     messages.append({"role": "user", "content": user_message})
+    analysis_tools = analysis_tools_for_content_locale(content_locale)
 
     for attempt in range(1, max_retries + 1):
         _raise_if_scan_cancelled(cancel_event)
@@ -894,7 +983,7 @@ def _run_analysis_worker(
             request_kwargs = {
                 "model": model,
                 "messages": curr_messages,
-                "tools": tools,
+                "tools": analysis_tools,
                 "tool_choice": "auto",
             }
             emit(event_handler, "model_wait_start", {"message": wait_message})
@@ -1038,7 +1127,13 @@ def _run_analysis_worker(
                     },
                 )
                 try:
-                    result = _dispatch_tool_call(target_dir, name, args, entry_context=entry_context)
+                    result = _dispatch_tool_call(
+                        target_dir,
+                        name,
+                        args,
+                        entry_context=entry_context,
+                        content_locale=content_locale,
+                    )
                 except Exception as exc:
                     _write_analysis_debug_event(
                         target_dir,
@@ -1093,9 +1188,17 @@ def _run_analysis_worker(
                     curr_messages.append({
                         "role": "user",
                         "content": (
-                            "以下图片未成功完成内容识别：\n"
+                            (
+                                "The following images could not be recognized:\n"
+                                if content_locale == "en"
+                                else "以下图片未成功完成内容识别：\n"
+                            )
                             + "\n".join(failure_lines)
-                            + "\n这些图片不得编造具体画面内容；只能写待判断，或仅按文件名做低置信度判断。"
+                            + (
+                                "\nDo not invent visual details for these images. Mark them Uncertain or make only a low-confidence inference from the filename."
+                                if content_locale == "en"
+                                else "\n这些图片不得编造具体画面内容；只能写待判断，或仅按文件名做低置信度判断。"
+                            )
                         ),
                     })
 
@@ -1142,7 +1245,10 @@ def _run_analysis_worker(
         if attempt < max_retries:
             if rendered:
                 messages.append({"role": "assistant", "content": rendered})
-            messages.append({"role": "user", "content": _build_retry_message(check, retry_scope)})
+            messages.append({
+                "role": "user",
+                "content": _build_retry_message(check, retry_scope, content_locale),
+            })
             continue
 
         emit(event_handler, "retry_exhausted", {"attempt": attempt})
@@ -1168,6 +1274,7 @@ def _run_single_analysis(
     event_handler=None,
     session_id: str | None = None,
     cancel_event: threading.Event | None = None,
+    content_locale: str = DEFAULT_CONTENT_LOCALE,
 ) -> str | None:
     _raise_if_scan_cancelled(cancel_event)
     entries = _list_current_entries(target_dir)
@@ -1175,7 +1282,11 @@ def _run_single_analysis(
     items = _run_analysis_worker(
         target_dir=target_dir,
         files_info=files_info,
-        user_message="请分析当前目录下的所有条目及其用途。",
+        user_message=(
+            "Analyze all entries in the current directory and infer their likely purposes."
+            if normalize_content_locale(content_locale) == "en"
+            else "请分析当前目录下的所有条目及其用途。"
+        ),
         expected_entries=list(entry_context.keys()),
         model=model,
         session_id=session_id,
@@ -1185,6 +1296,7 @@ def _run_single_analysis(
         wait_message="正在分析目录内容",
         entry_context=entry_context,
         cancel_event=cancel_event,
+        content_locale=content_locale,
     )
     if items is None:
         return None
@@ -1199,13 +1311,18 @@ def _run_selected_entries_analysis(
     event_handler=None,
     session_id: str | None = None,
     cancel_event: threading.Event | None = None,
+    content_locale: str = DEFAULT_CONTENT_LOCALE,
 ) -> str | None:
     _raise_if_scan_cancelled(cancel_event)
     entry_context = _build_entry_context(target_dir, entry_names)
     items = _run_analysis_worker(
         target_dir=target_dir,
         files_info=files_info,
-        user_message="请分析以上选中的条目及其用途。",
+        user_message=(
+            "Analyze the selected entries above and infer their likely purposes."
+            if normalize_content_locale(content_locale) == "en"
+            else "请分析以上选中的条目及其用途。"
+        ),
         expected_entries=list(entry_context.keys()),
         model=model,
         session_id=session_id,
@@ -1215,6 +1332,7 @@ def _run_selected_entries_analysis(
         wait_message="正在分析所选条目",
         entry_context=entry_context,
         cancel_event=cancel_event,
+        content_locale=content_locale,
     )
     if items is None:
         return None
@@ -1232,6 +1350,7 @@ def _analyze_batch(
     event_handler=None,
     entry_context: dict[str, dict[str, str]] | None = None,
     cancel_event: threading.Event | None = None,
+    content_locale: str = DEFAULT_CONTENT_LOCALE,
 ) -> list[AnalysisItem]:
     _raise_if_scan_cancelled(cancel_event)
     batch_context = (
@@ -1243,7 +1362,11 @@ def _analyze_batch(
     items = _run_analysis_worker(
         target_dir=target_dir,
         files_info=batch_files_info,
-        user_message="请分析以上条目及其用途。",
+        user_message=(
+            "Analyze the entries above and infer their likely purposes."
+            if normalize_content_locale(content_locale) == "en"
+            else "请分析以上条目及其用途。"
+        ),
         expected_entries=list(batch_context.keys()),
         model=model,
         session_id=session_id,
@@ -1253,13 +1376,24 @@ def _analyze_batch(
         wait_message=f"正在分析批次 {batch_index + 1}/{total_batches}",
         entry_context=batch_context,
         cancel_event=cancel_event,
+        content_locale=content_locale,
     )
     if items is None:
         raise RuntimeError(f"batch_{batch_index}_analysis_failed")
     return items
 
 
-def _placeholder_analysis_item(entry_name: str) -> AnalysisItem:
+def _placeholder_analysis_item(
+    entry_name: str,
+    content_locale: str = DEFAULT_CONTENT_LOCALE,
+) -> AnalysisItem:
+    if normalize_content_locale(content_locale) == "en":
+        return AnalysisItem(
+            entry_name=entry_name,
+            suggested_purpose="Uncertain",
+            summary="Analysis was incomplete; manual review is required.",
+            analysis_status="needs_review",
+        )
     return AnalysisItem(
         entry_name=entry_name,
         suggested_purpose="待判断",
@@ -1268,7 +1402,11 @@ def _placeholder_analysis_item(entry_name: str) -> AnalysisItem:
     )
 
 
-def _merge_batch_results(batch_results: list[list[AnalysisItem]], target_dir: Path) -> list[AnalysisItem]:
+def _merge_batch_results(
+    batch_results: list[list[AnalysisItem]],
+    target_dir: Path,
+    content_locale: str = DEFAULT_CONTENT_LOCALE,
+) -> list[AnalysisItem]:
     merged_by_name: dict[str, AnalysisItem] = {}
     valid_entries = set(_list_current_entries(target_dir))
     for batch_items in batch_results:
@@ -1280,7 +1418,7 @@ def _merge_batch_results(batch_results: list[list[AnalysisItem]], target_dir: Pa
 
     ordered_items: list[AnalysisItem] = []
     for entry_name in _list_current_entries(target_dir):
-        ordered_items.append(merged_by_name.get(entry_name) or _placeholder_analysis_item(entry_name))
+        ordered_items.append(merged_by_name.get(entry_name) or _placeholder_analysis_item(entry_name, content_locale))
     return ordered_items
 
 
@@ -1288,6 +1426,7 @@ def _merge_selected_batch_results(
     batch_results: list[list[AnalysisItem]],
     target_dir: Path,
     selected_entries: list[str],
+    content_locale: str = DEFAULT_CONTENT_LOCALE,
 ) -> list[AnalysisItem]:
     merged_by_name: dict[str, AnalysisItem] = {}
     selected_set = set(selected_entries)
@@ -1298,13 +1437,17 @@ def _merge_selected_batch_results(
                 continue
             merged_by_name.setdefault(item.entry_name, item)
 
-    return [merged_by_name.get(entry_name) or _placeholder_analysis_item(entry_name) for entry_name in selected_entries]
+    return [
+        merged_by_name.get(entry_name) or _placeholder_analysis_item(entry_name, content_locale)
+        for entry_name in selected_entries
+    ]
 
 
 def _merge_context_batch_results(
     batch_results: list[list[AnalysisItem]],
     entry_context: dict[str, dict[str, str]],
     ordered_entry_ids: list[str],
+    content_locale: str = DEFAULT_CONTENT_LOCALE,
 ) -> list[AnalysisItem]:
     merged_by_id: dict[str, AnalysisItem] = {}
     for batch_items in batch_results:
@@ -1323,8 +1466,12 @@ def _merge_context_batch_results(
                 entry_name=context_item["entry_name"],
                 display_name=context_item["display_name"],
                 entry_type=context_item["entry_type"],
-                suggested_purpose="待判断",
-                summary="分析未覆盖，需手动确认",
+                suggested_purpose="Uncertain" if normalize_content_locale(content_locale) == "en" else "待判断",
+                summary=(
+                    "Analysis was incomplete; manual review is required."
+                    if normalize_content_locale(content_locale) == "en"
+                    else "分析未覆盖，需手动确认"
+                ),
                 analysis_status="needs_review",
             )
         )
@@ -1365,7 +1512,11 @@ def run_analysis_cycle_for_entry_context(
         items = _run_analysis_worker(
             target_dir=target_dir,
             files_info=files_info,
-            user_message="请分析以上条目及其用途。",
+            user_message=(
+                "Analyze the entries above and infer their likely purposes."
+                if content_locale == "en"
+                else "请分析以上条目及其用途。"
+            ),
             expected_entries=ordered_entry_ids,
             model=model,
             session_id=session_id,
@@ -1375,6 +1526,7 @@ def run_analysis_cycle_for_entry_context(
             wait_message="正在分析所选条目",
             entry_context=entry_context,
             cancel_event=cancel_event,
+            content_locale=content_locale,
         )
         result = render_analysis_items(items) if items is not None else None
         _write_analysis_debug_event(
@@ -1417,6 +1569,7 @@ def run_analysis_cycle_for_entry_context(
                 event_handler,
                 entry_context,
                 cancel_event,
+                content_locale,
             ): (batch_index, batch_entries)
             for batch_index, batch_entries in enumerate(batches)
         }
@@ -1480,6 +1633,7 @@ def run_analysis_cycle_for_entry_context(
                 event_handler,
                 entry_context,
                 cancel_event,
+                content_locale,
             )
             batch_results.append(retry_items)
             successful_batches += 1
@@ -1495,7 +1649,7 @@ def run_analysis_cycle_for_entry_context(
         except Exception:
             pass
 
-    merged_items = _merge_context_batch_results(batch_results, entry_context, ordered_entry_ids)
+    merged_items = _merge_context_batch_results(batch_results, entry_context, ordered_entry_ids, content_locale)
     emit(event_handler, "validation_pass", {"attempt": 1, "items": [item.to_dict() for item in merged_items]})
     return render_analysis_items(merged_items)
 
@@ -1537,6 +1691,7 @@ def run_analysis_cycle(
             event_handler=event_handler,
             session_id=session_id,
             cancel_event=cancel_event,
+            content_locale=content_locale,
         )
         _write_analysis_debug_event(
             target_dir,
@@ -1579,6 +1734,7 @@ def run_analysis_cycle(
                 event_handler,
                 None,
                 cancel_event,
+                content_locale,
             ): (batch_index, batch_entries)
             for batch_index, batch_entries in enumerate(batches)
         }
@@ -1644,6 +1800,7 @@ def run_analysis_cycle(
                 event_handler,
                 None,
                 cancel_event,
+                content_locale,
             )
             batch_results.append(retry_items)
             successful_batches += 1
@@ -1659,13 +1816,16 @@ def run_analysis_cycle(
         except Exception:
             pass
 
-    merged_items = _merge_batch_results(batch_results, target_dir)
+    merged_items = _merge_batch_results(batch_results, target_dir, content_locale)
     check = validate_analysis_items(merged_items, target_dir)
     if not check["is_valid"]:
         merged_map = {item.entry_name: item for item in merged_items}
         for entry_name in check.get("missing", []):
-            merged_map[entry_name] = _placeholder_analysis_item(entry_name)
-        merged_items = [merged_map.get(entry_name) or _placeholder_analysis_item(entry_name) for entry_name in entries]
+            merged_map[entry_name] = _placeholder_analysis_item(entry_name, content_locale)
+        merged_items = [
+            merged_map.get(entry_name) or _placeholder_analysis_item(entry_name, content_locale)
+            for entry_name in entries
+        ]
         check = validate_analysis_items(merged_items, target_dir)
         if not check["is_valid"]:
             emit(event_handler, "validation_fail", {"attempt": 1, "details": check})
@@ -1748,6 +1908,7 @@ def run_analysis_cycle_for_entries(
             event_handler=event_handler,
             session_id=session_id,
             cancel_event=cancel_event,
+            content_locale=content_locale,
         )
         _write_analysis_debug_event(
             target_dir,
@@ -1785,6 +1946,7 @@ def run_analysis_cycle_for_entries(
                 event_handler,
                 None,
                 cancel_event,
+                content_locale,
             ): (batch_index, batch_entries)
             for batch_index, batch_entries in enumerate(batches)
         }
@@ -1812,7 +1974,7 @@ def run_analysis_cycle_for_entries(
                 "items": [item.to_dict() for item in batch_result_items] if status == "completed" else [],
             })
 
-    merged_items = _merge_selected_batch_results(batch_results, target_dir, selected_entries)
+    merged_items = _merge_selected_batch_results(batch_results, target_dir, selected_entries, content_locale)
     return render_analysis_items(merged_items)
 
 

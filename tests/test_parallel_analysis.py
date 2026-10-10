@@ -168,6 +168,22 @@ class ParallelAnalysisTests(unittest.TestCase):
         self.assertEqual(result, "serial-result")
         self.assertEqual(single_mock.call_args.args[2], "glm-4.7")
 
+    def test_run_analysis_cycle_forwards_content_locale_to_single_analysis(self):
+        self._make_entries(1)
+        with mock.patch.object(
+            analysis_service,
+            "_run_single_analysis",
+            return_value="english-result",
+        ) as single_mock:
+            result = analysis_service.run_analysis_cycle(
+                self.base_dir,
+                model="test-model",
+                content_locale="en",
+            )
+
+        self.assertEqual(result, "english-result")
+        self.assertEqual(single_mock.call_args.kwargs["content_locale"], "en")
+
     def test_failed_batch_triggers_retry_and_merges_complete_result(self):
         entries = self._make_entries(31)
 
@@ -182,8 +198,9 @@ class ParallelAnalysisTests(unittest.TestCase):
             event_handler=None,
             entry_context=None,
             cancel_event=None,
+            content_locale=None,
         ):
-            del session_id, event_handler, entry_context, cancel_event
+            del session_id, event_handler, entry_context, cancel_event, content_locale
             if batch_index == 0:
                 raise RuntimeError("first batch failed")
             return [
@@ -232,8 +249,9 @@ class ParallelAnalysisTests(unittest.TestCase):
             event_handler=None,
             entry_context=None,
             cancel_event=None,
+            content_locale=None,
         ):
-            del session_id, event_handler, entry_context, cancel_event
+            del session_id, event_handler, entry_context, cancel_event, content_locale
             return [
                 AnalysisItem(entry_name=name, suggested_purpose="文档", summary=f"{name} summary")
                 for name in batch_entries
@@ -271,8 +289,9 @@ class ParallelAnalysisTests(unittest.TestCase):
             event_handler=None,
             entry_context=None,
             cancel_event=None,
+            content_locale=None,
         ):
-            del session_id, event_handler, entry_context, cancel_event
+            del session_id, event_handler, entry_context, cancel_event, content_locale
             if batch_index in {0, 1}:
                 raise RuntimeError("batch failed")
             return [

@@ -99,6 +99,40 @@ class ImageDescriberTests(unittest.TestCase):
         event_kinds = [call.kwargs["kind"] for call in append_debug_event.call_args_list]
         self.assertEqual(event_kinds, ["analysis.vision.request_started", "analysis.vision.request_completed"])
 
+    def test_describe_image_uses_english_prompts_for_english_content_locale(self):
+        response = SimpleNamespace(
+            choices=[
+                SimpleNamespace(
+                    message=SimpleNamespace(content="A screenshot showing a payment confirmation.")
+                )
+            ]
+        )
+        mock_client = mock.Mock()
+        mock_client.chat.completions.create.return_value = response
+
+        with mock.patch(
+            "file_pilot.analysis.image_describer.get_image_analysis_settings",
+            return_value={
+                "enabled": True,
+                "base_url": "https://vision.example/v1",
+                "api_key": "secret",
+                "model": "vision-1",
+            },
+        ), mock.patch(
+            "file_pilot.analysis.image_describer.create_image_analysis_client",
+            return_value=mock_client,
+        ), mock.patch("file_pilot.analysis.image_describer.append_debug_event"):
+            result = describe_image(self.image_path, content_locale="en")
+
+        self.assertEqual(result.summary, "A screenshot showing a payment confirmation.")
+        request = mock_client.chat.completions.create.call_args.kwargs
+        self.assertIn("concise English", request["messages"][0]["content"])
+        self.assertIn("Image type:", str(request["messages"][1]["content"]))
+        self.assertNotIn("图片类型：", str(request["messages"][1]["content"]))
+        rendered = format_image_description_result(result, "en")
+        self.assertIn("--- Image recognition result starts ---", rendered)
+        self.assertIn("summary: A screenshot", rendered)
+
     def test_describe_image_retries_local_http_image_when_data_url_rejected(self):
         response = SimpleNamespace(
             choices=[
@@ -236,6 +270,16 @@ class ImageDescriberTests(unittest.TestCase):
         self.assertIn("--- 图片识别结果开始 ---", rendered)
         self.assertIn("status: ok", rendered)
         self.assertIn("summary: 测试图片摘要", rendered)
+
+    def test_read_local_file_passes_content_locale_to_image_analysis(self):
+        with mock.patch(
+            "file_pilot.analysis.file_reader.describe_image",
+            return_value=ImageDescriptionResult(status="ok", summary="A contract page."),
+        ) as describe:
+            rendered = read_local_file(str(self.image_path), content_locale="en")
+
+        describe.assert_called_once_with(str(self.image_path), content_locale="en")
+        self.assertIn("--- Image recognition result starts ---", rendered)
 
 
 if __name__ == "__main__":

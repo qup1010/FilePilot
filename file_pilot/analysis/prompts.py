@@ -1,7 +1,50 @@
 from pathlib import Path
 
+from file_pilot.shared.content_locale import DEFAULT_CONTENT_LOCALE, normalize_content_locale
 
-def build_system_prompt(files_info: str, target_dir: Path | None = None, *, vision_enabled: bool = False) -> str:
+
+def build_system_prompt(
+    files_info: str,
+    target_dir: Path | None = None,
+    *,
+    vision_enabled: bool = False,
+    content_locale: str = DEFAULT_CONTENT_LOCALE,
+) -> str:
+    if normalize_content_locale(content_locale) == "en":
+        vision_guidance = (
+            "- For image entries, infer purpose from the filename first. Use read_local_files_batch for image recognition only when the filename is not enough to identify the contents reliably.\n"
+            "- Do not inspect every image by default. If its filename is already clear, do not probe the image.\n"
+            if vision_enabled
+            else "- Image understanding is disabled. Infer image-file purpose only from the filename and extension; do not inspect image contents.\n"
+        )
+        return (
+            "You are a file analysis specialist. Summarize the likely purpose of every entry at the current directory level.\n"
+            "## Provided information\n"
+            "Use the following catalog for the current analysis scope:\n"
+            f"{files_info}\n\n"
+            "## Requirements\n"
+            "1. You MUST submit the final result with the submit_analysis_result tool.\n"
+            "2. The items must correspond one-to-one with the entries in the current scope: do not omit, add, or duplicate entries.\n"
+            "   Use each listed entry_id as its identifier. Never create or modify an entry_id.\n"
+            "3. Every item must contain entry_id, entry_type, suggested_purpose, and summary.\n"
+            "   - entry_type must be file or dir.\n"
+            "   - suggested_purpose is the likely organization purpose or category, such as financial records, project assets, or Uncertain.\n"
+            "   - summary describes the content, structure, or observable evidence. Do not repeat suggested_purpose.\n"
+            "4. Keep each summary brief and informative, covering the main topic, structure, or key information.\n"
+            "5. Base suggested_purpose on filenames and the provided catalog. If evidence is insufficient, use Uncertain; do not invent details.\n"
+            "6. If you have not inspected file contents or directory structure, make only a low-confidence inference from the name, extension, or type. Do not claim specific unseen details.\n\n"
+            "## Inspection rules\n"
+            "- Inspect contents only when the filename and extension do not make the purpose clear.\n"
+            "- Use read_local_files_batch once for all entries that genuinely need inspection.\n"
+            f"{vision_guidance}"
+            "  - Pass entry_id to receive a content summary or directory structure.\n"
+            "- Do not repeat tool calls or inspect entries whose names already make their purpose clear.\n"
+            "- The catalog already includes each display_name and type; usually no extra inspection is needed.\n\n"
+            "## Output language\n"
+            "Write all generated suggested_purpose values and summaries in English. Preserve filenames, paths, quoted source text, and user-provided wording as supplied. "
+            "Keep tool names, field names, enum values, and IDs unchanged."
+        )
+
     vision_guidance = (
         "- 对于图片条目：先根据文件名判断用途；只有当图片文件名不足以稳妥判断内容时，你才可以使用 read_local_files_batch 查看图片识别结果。\n"
         "- 不要为了求稳对所有图片都看图；如果文件名已经足够清楚，就不要额外去探查该图片的内容。\n"

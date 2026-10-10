@@ -44,6 +44,27 @@ class AnalysisPathBoundaryTests(unittest.TestCase):
         self.assertIn("错误", result)
         read_local_file.assert_not_called()
 
+    def test_dispatch_tool_call_passes_content_locale_to_entry_inspection(self):
+        entry_path = self.target_dir / "inside.txt"
+        entry_context = {
+            "F001": {
+                "absolute_path": str(entry_path.resolve()),
+                "allowed_base_dir": str(self.target_dir.resolve()),
+                "display_name": "inside.txt",
+            }
+        }
+        with mock.patch.object(analysis_service, "read_local_file", return_value="preview") as read_local_file:
+            result = analysis_service._dispatch_tool_call(
+                self.target_dir,
+                analysis_service.BATCH_READ_TOOL_NAME,
+                {"entry_ids": ["F001"]},
+                entry_context=entry_context,
+                content_locale="en",
+            )
+
+        self.assertIn("preview", result)
+        self.assertEqual(read_local_file.call_args.kwargs["content_locale"], "en")
+
 
 if __name__ == "__main__":
     unittest.main()

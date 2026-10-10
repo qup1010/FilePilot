@@ -844,6 +844,27 @@ class StructuredOrganizerServiceTests(unittest.TestCase):
         self.assertIn("系统会自动放入待确认区", description)
         self.assertNotIn("或放入 Review", description)
 
+    def test_inspection_tool_passes_content_locale_to_file_reader(self):
+        planning_context = {
+            "content_locale": "en",
+            "inspection_context": {
+                "F001": {
+                    "display_name": "contract.pdf",
+                    "entry_type": "file",
+                    "absolute_path": "D:/docs/contract.pdf",
+                    "allowed_base_dir": "D:/docs",
+                }
+            },
+        }
+        with mock.patch.object(organizer_service, "read_local_file", return_value="contract preview") as read_local_file:
+            runtime_payload, _ = organizer_service._execute_inspection_tool(
+                ["F001"],
+                planning_context=planning_context,
+            )
+
+        self.assertTrue(runtime_payload["ok"])
+        self.assertEqual(read_local_file.call_args.kwargs["content_locale"], "en")
+
     def test_build_organizer_tools_filters_review_slots_from_incremental_description(self):
         tool = organizer_service.build_organizer_tools(
             {

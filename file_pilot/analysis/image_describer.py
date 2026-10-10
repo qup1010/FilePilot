@@ -15,6 +15,7 @@ from file_pilot.analysis.vision_runtime import (
     should_retry_with_http_image_url,
 )
 from file_pilot.shared.config import create_image_analysis_client, get_image_analysis_settings
+from file_pilot.shared.content_locale import DEFAULT_CONTENT_LOCALE, normalize_content_locale
 from file_pilot.shared.logging_utils import append_debug_event
 
 SYSTEM_PROMPT = (
@@ -30,6 +31,19 @@ USER_PROMPT = (
     "用途画像：一句话说明这张图片在文件整理中可能代表的用途或材料属性\n"
     "限制：列出无法确认但容易被误猜的信息；没有则写“无”"
 )
+ENGLISH_SYSTEM_PROMPT = (
+    "You are an image-observation specialist for file analysis. Extract key details that are visibly present and help infer the image's likely purpose. "
+    "Use the requested fields and concise English. Do not guess details that are not visible."
+)
+ENGLISH_USER_PROMPT = (
+    "Analyze this image and provide these fields:\n"
+    "Image type: for example, screenshot, photograph, scanned document, chart, illustration, design, comic, or meme; use Uncertain if unclear.\n"
+    "Main subject: describe the main visible subject in one sentence.\n"
+    "Readable text: list key text that is clearly legible; use No clear text detected if none is readable.\n"
+    "Key clues: list visible clues that help identify the image's likely use.\n"
+    "Likely purpose: describe in one sentence what role or material type this image may represent for file organization.\n"
+    "Uncertainty: list details that cannot be confirmed but are easy to guess incorrectly; use None if there are no such details."
+)
 
 
 @dataclass
@@ -40,7 +54,21 @@ class ImageDescriptionResult:
     error_message: str = ""
 
 
-def format_image_description_result(result: ImageDescriptionResult) -> str:
+def format_image_description_result(
+    result: ImageDescriptionResult,
+    content_locale: str = DEFAULT_CONTENT_LOCALE,
+) -> str:
+    is_english = normalize_content_locale(content_locale) == "en"
+    if is_english:
+        lines = ["--- Image recognition result starts ---", f"status: {result.status}"]
+        if result.status == "ok":
+            lines.append(f"summary: {result.summary}")
+        else:
+            lines.append(f"error_code: {result.error_code or 'vision_request_failed'}")
+            lines.append("error_message: Image recognition failed; do not infer visual details.")
+        lines.append("--- Image recognition result ends ---")
+        return "\n".join(lines)
+
     lines = ["--- 图片识别结果开始 ---", f"status: {result.status}"]
     if result.status == "ok":
         lines.append(f"summary: {result.summary}")
@@ -51,7 +79,16 @@ def format_image_description_result(result: ImageDescriptionResult) -> str:
     return "\n".join(lines)
 
 
-def describe_image(path: str | Path) -> ImageDescriptionResult:
+def describe_image(
+    path: str | Path,
+    content_locale: str = DEFAULT_CONTENT_LOCALE,
+) -> ImageDescriptionResult:
+    content_locale = normalize_content_locale(content_locale)
+    system_prompt, user_prompt = (
+        (ENGLISH_SYSTEM_PROMPT, ENGLISH_USER_PROMPT)
+        if content_locale == "en"
+        else (SYSTEM_PROMPT, USER_PROMPT)
+    )
     image_path = Path(path)
     settings = get_image_analysis_settings()
     if not settings.get("enabled"):
@@ -67,7 +104,7 @@ def describe_image(path: str | Path) -> ImageDescriptionResult:
         return ImageDescriptionResult(
             status="disabled",
             error_code="vision_disabled",
-            error_message="未启用图片分析配置。",
+            error_message="Image analysis is not enabled." if content_locale == "en" else "未启用图片分析配置。",
         )
 
     data_url, mime_type, image_bytes = build_data_url_from_path(image_path)
@@ -95,8 +132,8 @@ def describe_image(path: str | Path) -> ImageDescriptionResult:
             response = client.chat.completions.create(
                 **build_vision_request_kwargs(
                     model=str(settings["model"]),
-                    system_prompt=SYSTEM_PROMPT,
-                    user_prompt=USER_PROMPT,
+                    system_prompt=system_prompt,
+                    user_prompt=user_prompt,
                     image_url=data_url,
                 )
             )
@@ -128,8 +165,8 @@ def describe_image(path: str | Path) -> ImageDescriptionResult:
             response = client.chat.completions.create(
                 **build_vision_request_kwargs(
                     model=str(settings["model"]),
-                    system_prompt=SYSTEM_PROMPT,
-                    user_prompt=USER_PROMPT,
+                    system_prompt=system_prompt,
+                    user_prompt=user_prompt,
                     image_url=http_url,
                 )
             )
@@ -153,7 +190,7 @@ def describe_image(path: str | Path) -> ImageDescriptionResult:
             return ImageDescriptionResult(
                 status="failed",
                 error_code="vision_empty_response",
-                error_message="图片分析响应为空。",
+                error_message="Image analysis returned an empty response." if content_locale == "en" else "图片分析响应为空。",
             )
         append_debug_event(
             kind="analysis.vision.request_completed",
@@ -181,7 +218,7 @@ def describe_image(path: str | Path) -> ImageDescriptionResult:
                 "error": exc,
             },
         )
-        message = str(exc).strip() or "图片分析请求失败。"
+        message = str(exc).strip() or ("Image analysis request failed." if content_locale == "en" else "图片分析请求失败。")
         error_code = "vision_request_failed"
         if "IMAGE_ANALYSIS_BASE_URL" in message:
             error_code = "vision_missing_base_url"

@@ -1,5 +1,6 @@
 import unittest
 
+from file_pilot.analysis import service as analysis_service
 from file_pilot.analysis.prompts import build_system_prompt
 
 
@@ -26,6 +27,75 @@ class AnalysisPromptVisionTests(unittest.TestCase):
         self.assertIn("不要和 suggested_purpose 互相复述", prompt)
         self.assertIn("如果没有实际读取文件内容或目录结构", prompt)
         self.assertIn("不能写具体内容细节", prompt)
+
+    def test_english_prompt_and_tool_descriptions_preserve_the_structured_contract(self):
+        prompt = build_system_prompt(
+            "F001 | file | contract.pdf | finance | payment agreement",
+            vision_enabled=True,
+            content_locale="en",
+        )
+
+        self.assertIn("Write all generated suggested_purpose values and summaries in English.", prompt)
+        self.assertIn("Use read_local_files_batch once", prompt)
+        self.assertNotIn("简洁中文输出", prompt)
+
+        english_tools = analysis_service.analysis_tools_for_content_locale("en")
+        chinese_tools = analysis_service.analysis_tools_for_content_locale("zh-CN")
+        self.assertEqual(
+            [tool["function"]["name"] for tool in english_tools],
+            [tool["function"]["name"] for tool in chinese_tools],
+        )
+
+        english_submit = next(
+            tool["function"] for tool in english_tools if tool["function"]["name"] == "submit_analysis_result"
+        )
+        chinese_submit = next(
+            tool["function"] for tool in chinese_tools if tool["function"]["name"] == "submit_analysis_result"
+        )
+        english_properties = english_submit["parameters"]["properties"]["items"]["items"]["properties"]
+        chinese_properties = chinese_submit["parameters"]["properties"]["items"]["items"]["properties"]
+        self.assertEqual(english_properties.keys(), chinese_properties.keys())
+        self.assertIn("in English", english_properties["summary"]["description"])
+        self.assertEqual(chinese_properties["summary"]["description"], "不超过四十字的内容摘要")
+        retry_message = analysis_service._build_retry_message(
+            {
+                "missing": ["F001"],
+                "extra": [],
+                "duplicates": [],
+                "image_probe_failures": ["F001"],
+            },
+            "selected entries",
+            "en",
+        )
+        self.assertIn("The previous result did not pass validation", retry_message)
+        self.assertIn("Do not invent visual details", retry_message)
+
+    def test_english_image_fallback_remains_valid_after_recognition_failure(self):
+        fallback = analysis_service._placeholder_analysis_item("image.png", "en")
+        image_item = analysis_service.AnalysisItem(
+            entry_name="image.png",
+            entry_id="F001",
+            suggested_purpose="Uncertain",
+            summary="Image content could not be confirmed.",
+        )
+
+        self.assertEqual(fallback.suggested_purpose, "Uncertain")
+        self.assertIn("manual review", fallback.summary)
+        probe_statuses = analysis_service._extract_image_probe_statuses(
+            "--- 条目 [F001 | image.png] 内容开始 ---\n"
+            "--- Image recognition result starts ---\n"
+            "status: failed\nerror_code: vision_request_failed\n"
+            "--- Image recognition result ends ---\n"
+            "--- 内容结束 ---"
+        )
+        self.assertEqual(probe_statuses["F001"]["status"], "failed")
+        self.assertEqual(
+            analysis_service._validate_failed_image_probe_items(
+                [image_item],
+                probe_statuses,
+            ),
+            [],
+        )
 
 
 if __name__ == "__main__":
