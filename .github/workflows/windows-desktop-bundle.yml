@@ -126,7 +126,7 @@ jobs:
           }
 
           $nsisDirectory = 'desktop/src-tauri/target/release/bundle/nsis'
-          $nsisInstallers = @(Get-ChildItem $nsisDirectory -Recurse -Filter *.exe)
+          $nsisInstallers = @(Get-ChildItem $nsisDirectory -Recurse -Filter 'FilePilot_*_x64-setup.exe')
           if ($nsisInstallers.Count -eq 0) {
             throw 'NSIS installer was not generated.'
           }
@@ -188,6 +188,58 @@ jobs:
               $uninstall = Start-Process msiexec.exe -ArgumentList '/x', $msi.FullName, '/qn', '/norestart' -PassThru -Wait
               if ($uninstall.ExitCode -ne 0) {
                 throw "$language MSI uninstall failed with exit code $($uninstall.ExitCode)"
+              }
+            }
+          }
+
+      - name: Smoke test multilingual NSIS installer
+        shell: pwsh
+        run: |
+          $builtExe = Get-ChildItem 'desktop/src-tauri/target/release' -Filter *.exe |
+            Where-Object { $_.Name -ne 'file_pilot_api.exe' } |
+            Select-Object -First 1
+          if (-not $builtExe) {
+            throw 'Built desktop executable was not found.'
+          }
+          $desktopExeName = $builtExe.Name
+
+          $installer = Get-ChildItem 'desktop/src-tauri/target/release/bundle/nsis' -Recurse -Filter 'FilePilot_*_x64-setup.exe' |
+            Select-Object -First 1
+          if (-not $installer) {
+            throw 'Multilingual NSIS installer was not found.'
+          }
+
+          foreach ($language in @(@{ Name = 'en-US'; Id = '1033' }, @{ Name = 'zh-CN'; Id = '2052' })) {
+            $installDir = Join-Path $env:RUNNER_TEMP "filepilot-nsis-$($language.Name)"
+            if (Test-Path -LiteralPath $installDir) {
+              Remove-Item -LiteralPath $installDir -Recurse -Force
+            }
+
+            Write-Output "Installing NSIS bundle in $($language.Name): $($installer.Name)"
+            $install = Start-Process -FilePath $installer.FullName -ArgumentList @('/S', "/LANG=$($language.Id)", "/D=$installDir") -PassThru -Wait
+            if ($install.ExitCode -ne 0) {
+              throw "NSIS $($language.Name) install failed with exit code $($install.ExitCode)."
+            }
+
+            try {
+              $app = Join-Path $installDir $desktopExeName
+              if (-not (Test-Path -LiteralPath $app)) {
+                throw "Installed $desktopExeName was not found after NSIS $($language.Name) install."
+              }
+
+              & powershell -ExecutionPolicy Bypass -File scripts\smoke_desktop_bundle.ps1 -AppPath $app
+              if ($LASTEXITCODE -ne 0) {
+                throw "NSIS $($language.Name) desktop smoke test failed with exit code $LASTEXITCODE."
+              }
+            } finally {
+              $uninstaller = Join-Path $installDir 'uninstall.exe'
+              if (-not (Test-Path -LiteralPath $uninstaller)) {
+                throw "NSIS uninstaller was not found after $($language.Name) install."
+              }
+
+              $uninstall = Start-Process -FilePath $uninstaller -ArgumentList '/S' -PassThru -Wait
+              if ($uninstall.ExitCode -ne 0) {
+                throw "NSIS $($language.Name) uninstall failed with exit code $($uninstall.ExitCode)."
               }
             }
           }
