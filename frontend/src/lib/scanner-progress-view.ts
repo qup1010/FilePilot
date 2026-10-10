@@ -1,34 +1,37 @@
-"use client";
-
 import type { RecentAnalysisItem, ScannerProgress } from "@/types/session";
 
 export type ScannerStepState = "active" | "done" | "pending" | "aborted";
 export type WorkspaceProgressPhase = "discovering" | "analyzing" | "planning" | "stranded" | "ready";
 
+export interface ProgressCopy {
+  key: string;
+  values?: Record<string, string | number>;
+}
+
 export interface ScannerDisplayStep {
   id: string;
-  title: string;
-  detail: string;
+  title: ProgressCopy;
+  detail: ProgressCopy;
   state: ScannerStepState;
 }
 
 export interface ScannerProgressViewModel {
   phase: WorkspaceProgressPhase;
-  eyebrow: string;
-  title: string;
-  description: string;
+  eyebrow: ProgressCopy;
+  title: ProgressCopy;
+  description: ProgressCopy;
   backendMessage: string | null;
-  stageLabel: string;
+  stageLabel: ProgressCopy;
   totalCount: number;
   processedCount: number;
   progressPercent: number;
-  progressText: string | null;
-  batchLabel: string | null;
-  batchDetail: string | null;
-  countLabel: string;
+  progressText: ProgressCopy | null;
+  batchLabel: ProgressCopy | null;
+  batchDetail: ProgressCopy | null;
+  countLabel: ProgressCopy;
   currentItem: string | null;
-  currentItemHint: string;
-  reassureText: string;
+  currentItemHint: ProgressCopy;
+  reassureText: ProgressCopy;
   isIndeterminate: boolean;
   recentCompletedItems: RecentAnalysisItem[];
   recentObservedItems: RecentAnalysisItem[];
@@ -43,13 +46,18 @@ const GENERIC_SCAN_ITEMS = new Set([
   "正在读取目录...",
 ]);
 
-const PLACEHOLDER_TERMS = [
+// 仅用于兼容缺少结构化状态的旧扫描记录；新记录使用 analysis_status。
+const LEGACY_PLACEHOLDER_TERMS = [
   "准备分析",
   "等待分配",
   "等待分析",
   "排队等待",
   "提取语义特征",
 ];
+
+function copy(key: string, values?: ProgressCopy["values"]): ProgressCopy {
+  return values ? { key, values } : { key };
+}
 
 function normalizeText(value: string | null | undefined): string {
   return String(value || "").trim();
@@ -63,6 +71,7 @@ function isSpecificScanItem(value: string | null | undefined, currentItemKind?: 
   if (!text || GENERIC_SCAN_ITEMS.has(text)) {
     return false;
   }
+  // 兼容旧版服务发来的中文阶段前缀；结构化 current_item_kind 优先。
   return !text.startsWith("已启动 ") && !text.startsWith("第 ");
 }
 
@@ -72,7 +81,7 @@ function isCompletedItem(item: RecentAnalysisItem): boolean {
   }
   const purpose = normalizeText(item.suggested_purpose);
   const summary = normalizeText(item.summary);
-  return !PLACEHOLDER_TERMS.some((term) => purpose.includes(term) || summary.includes(term));
+  return !LEGACY_PLACEHOLDER_TERMS.some((term) => purpose.includes(term) || summary.includes(term));
 }
 
 function uniqueRecentItems(items: RecentAnalysisItem[]): RecentAnalysisItem[] {
@@ -111,126 +120,128 @@ export function deriveScannerProgressViewModel(
   const recentCompletedItems = recentObservedItems.filter(isCompletedItem).slice(0, 8);
   const scanLogItems = (recentCompletedItems.length > 0 ? recentCompletedItems : recentObservedItems).slice(0, 8);
 
-  let eyebrow = "扫描进行中";
-  let title = "正在读取目录结构";
-  let description = "先确认目录范围，再建立第一批分析任务。";
-  let stageLabel = "准备目录";
-  let currentItemHint = "目录范围确认完成后，会开始显示当前正在分析的项目。";
+  let eyebrow = copy("scanner.eyebrow.scanning");
+  let title = copy("scanner.title.readingDirectory");
+  let description = copy("scanner.description.discovering");
+  let stageLabel = copy("scanner.stage.prepareDirectory");
+  let currentItemHint = copy("scanner.hint.rangeReady");
 
   if (phase === "planning") {
-    eyebrow = "生成方案中";
-    title = "正在生成第一版整理方案";
-    description = "目录读取和内容分析已经完成，FilePilot 正在整理可执行建议。";
-    stageLabel = "生成方案";
-    currentItemHint = "这一步会把扫描结果转换成可检查、可调整的整理方案。";
+    eyebrow = copy("scanner.eyebrow.planning");
+    title = copy("scanner.title.creatingInitialPlan");
+    description = copy("scanner.description.initialPlan");
+    stageLabel = copy("scanner.stage.generatePlan");
+    currentItemHint = copy("scanner.hint.planReview");
   } else if (phase === "stranded") {
-    eyebrow = "需要处理";
-    title = "目录读取已完成";
-    description = "自动方案没有继续生成，可以补充一句整理要求继续规划，或重新扫描。";
-    stageLabel = "等待指令";
-    currentItemHint = "扫描结果仍在，继续规划前不会移动文件。";
+    eyebrow = copy("scanner.eyebrow.needsAttention");
+    title = copy("scanner.title.directoryReadComplete");
+    description = copy("scanner.description.stranded");
+    stageLabel = copy("scanner.stage.awaitingInstruction");
+    currentItemHint = copy("scanner.hint.preserveBeforePlan");
   } else if (isApiRetrying) {
-    eyebrow = "模型服务重试中";
-    title = "模型服务暂时没有响应";
-    description = "目录读取没有丢失，FilePilot 正在重试模型请求；如果连续失败，会自动结束并显示错误。";
-    stageLabel = "等待模型";
-    currentItemHint = "服务恢复后会继续扫描；也可以先停止扫描后稍后重试。";
+    eyebrow = copy("scanner.eyebrow.modelRetrying");
+    title = copy("scanner.title.modelUnavailable");
+    description = copy("scanner.description.modelRetrying");
+    stageLabel = copy("scanner.stage.waitingModel");
+    currentItemHint = copy("scanner.hint.modelRetry");
   } else if (isRetrying) {
-    eyebrow = "自动校验中";
-    title = "正在补齐少量未完成结果";
-    description = "系统发现个别结果需要重新确认，正在自动处理，不需要重新开始。";
-    stageLabel = "自动重试";
-    currentItemHint = "校验完成后会自动进入整理方案。";
+    eyebrow = copy("scanner.eyebrow.autoChecking");
+    title = copy("scanner.title.retryingAnalysis");
+    description = copy("scanner.description.autoRetry");
+    stageLabel = copy("scanner.stage.autoRetry");
+    currentItemHint = copy("scanner.hint.retryAuto");
   } else if (isCompleted) {
-    eyebrow = "扫描完成";
-    title = "目录读取已完成";
-    description = "目录分析已经完成，正在汇总结果并准备进入整理方案。";
-    stageLabel = "准备进入方案";
-    currentItemHint = "整理方案准备好后会自动切换到预览。";
+    eyebrow = copy("scanner.eyebrow.completed");
+    title = copy("scanner.title.directoryReadComplete");
+    description = copy("scanner.description.completed");
+    stageLabel = copy("scanner.stage.preparePlan");
+    currentItemHint = copy("scanner.hint.switchPreview");
   } else if (phase === "discovering" || totalCount <= 0) {
-    eyebrow = "扫描进行中";
-    title = "正在读取目录结构";
-    description = "系统先梳理目录范围，再把需要分析的项目加入队列。";
-    stageLabel = "读取目录";
+    eyebrow = copy("scanner.eyebrow.scanning");
+    title = copy("scanner.title.readingDirectory");
+    description = copy("scanner.description.discovering");
+    stageLabel = copy("scanner.stage.readDirectory");
   } else if (processedCount <= 0) {
-    eyebrow = isThinking ? "等待首批结果" : "扫描进行中";
-    title = "正在建立第一批分析结果";
-    description = isThinking
-      ? "目录结构已读取，正在等待模型返回第一批分析结果。"
-      : "目录结构已读取，系统正在分配首批分析任务。";
-    stageLabel = batchCount > 0 ? "建立分析批次" : "开始内容分析";
-    currentItemHint = "第一批结果返回后，这里会开始显示最近完成的项目。";
+    eyebrow = copy(isThinking ? "scanner.eyebrow.waitingFirstBatch" : "scanner.eyebrow.scanning");
+    title = copy("scanner.title.firstAnalysisResults");
+    description = copy(isThinking ? "scanner.description.waitingFirstBatch" : "scanner.description.queuingFirstBatch");
+    stageLabel = copy(batchCount > 0 ? "scanner.stage.createBatches" : "scanner.stage.startAnalysis");
+    currentItemHint = copy("scanner.hint.nextCompletedItems");
   } else if (batchCount > 0 && completedBatches < batchCount) {
-    eyebrow = "内容分析中";
-    title = "正在分析文件内容";
-    description = `系统正在并行处理第 ${Math.min(completedBatches + 1, batchCount)} / ${batchCount} 批结果。`;
-    stageLabel = "并行分析";
-    currentItemHint = "当前批次完成后，会继续推进下一批项目。";
+    eyebrow = copy("scanner.eyebrow.analyzing");
+    title = copy("scanner.title.analyzingFiles");
+    description = copy("scanner.description.parallelBatch", {
+      current: Math.min(completedBatches + 1, batchCount),
+      total: batchCount,
+    });
+    stageLabel = copy("scanner.stage.analyzeInParallel");
+    currentItemHint = copy("scanner.hint.nextBatch");
   } else if (totalCount > 0 && processedCount >= totalCount) {
-    eyebrow = "准备生成方案";
-    title = "正在汇总扫描结果";
-    description = "主要分析已经完成，正在整理输出并准备生成整理方案。";
-    stageLabel = "汇总结果";
-    currentItemHint = "汇总完成后会自动切换到整理方案。";
+    eyebrow = copy("scanner.eyebrow.preparingPlan");
+    title = copy("scanner.title.summarizing");
+    description = copy("scanner.description.summarizing");
+    stageLabel = copy("scanner.stage.summarize");
+    currentItemHint = copy("scanner.hint.summarizeTransition");
   } else {
-    eyebrow = "内容分析中";
-    title = "正在分析文件内容";
-    description = "FilePilot 会持续读取、归纳，并在完成后生成整理建议。";
-    stageLabel = "分析内容";
-    currentItemHint = "分析结果会持续补充到右侧整理方案。";
+    eyebrow = copy("scanner.eyebrow.analyzing");
+    title = copy("scanner.title.analyzingFiles");
+    description = copy("scanner.description.continuingAnalysis");
+    stageLabel = copy("scanner.stage.analyzeContent");
+    currentItemHint = copy("scanner.hint.updatePlan");
   }
 
   const isIndeterminate = totalCount <= 0 || processedCount <= 0;
-  const progressText =
-    totalCount <= 0
-      ? null
-      : processedCount <= 0
-        ? null
-        : isCompleted
-          ? `${Math.min(processedCount, totalCount)} / ${totalCount}`
-          : `约 ${Math.min(processedCount, totalCount)} / ${totalCount}`;
-
-  const batchLabel =
-    batchCount > 0
-      ? `批次 ${Math.min(completedBatches + (isCompleted ? 0 : 1), Math.max(batchCount, 1))} / ${batchCount}`
-      : null;
-  const batchDetail =
-    batchCount > 0
-      ? `${Math.min(completedBatches, batchCount)} 个批次已完成，最多会并行处理多个批次`
-      : null;
-  const countLabel =
-    totalCount > 0
-      ? `${Math.min(processedCount, totalCount)} / ${totalCount} 项`
-      : "正在统计项目";
+  const boundedProcessed = Math.min(processedCount, totalCount);
+  const progressText = totalCount <= 0 || processedCount <= 0
+    ? null
+    : copy(isCompleted ? "scanner.metrics.progressExact" : "scanner.metrics.progressApprox", {
+      processed: boundedProcessed,
+      total: totalCount,
+    });
+  const batchLabel = batchCount > 0
+    ? copy("scanner.metrics.batchLabel", {
+      current: Math.min(completedBatches + (isCompleted ? 0 : 1), Math.max(batchCount, 1)),
+      total: batchCount,
+    })
+    : null;
+  const batchDetail = batchCount > 0
+    ? copy("scanner.metrics.batchDetail", { completed: Math.min(completedBatches, batchCount) })
+    : null;
+  const countLabel = totalCount > 0
+    ? copy("scanner.metrics.countLabel", { count: totalCount, processed: boundedProcessed, total: totalCount })
+    : copy("scanner.metrics.countUnknown");
 
   const progressSteps: ScannerDisplayStep[] = [
     {
       id: "discover",
-      title: "读取目录结构",
-      detail: totalCount > 0 ? `已发现 ${totalCount} 个待分析项目` : "正在确认目录范围",
+      title: copy("scanner.steps.discover.title"),
+      detail: totalCount > 0
+        ? copy("scanner.steps.discover.found", { count: totalCount })
+        : copy("scanner.steps.discover.confirming"),
       state: phase === "discovering" ? "active" : totalCount > 0 || isCompleted || phase === "planning" || phase === "ready" ? "done" : isAborted ? "aborted" : "active",
     },
     {
       id: "analyze",
-      title: "分析项目内容",
-      detail:
-        progressText ||
-        (currentItem ? `当前处理：${currentItem}` : isThinking ? "正在等待分析结果返回" : "准备开始分析"),
+      title: copy("scanner.steps.analyze.title"),
+      detail: progressText
+        || (currentItem
+          ? copy("scanner.steps.analyze.currentItem", { item: currentItem })
+          : isThinking
+            ? copy("scanner.steps.analyze.waiting")
+            : copy("scanner.steps.analyze.preparing")),
       state: phase === "planning" || phase === "ready" ? "done" : isCompleted ? "done" : isAborted && totalCount > 0 ? "aborted" : totalCount > 0 ? "active" : "pending",
     },
     {
       id: "summarize",
-      title: isRetrying ? "校验少量结果" : "生成整理方案",
-      detail: phase === "planning"
-        ? "正在根据扫描结果生成整理建议"
-        : phase === "stranded"
-          ? "需要继续规划或重新扫描"
-        : isCompleted
-        ? "扫描分析完成，正在切换到方案视图"
-        : isRetrying
-          ? "正在自动重试未完成的部分"
-          : "分析完成后会自动显示整理方案",
-      state: phase === "planning" ? "active" : phase === "ready" ? "done" : phase === "stranded" ? "aborted" : isCompleted ? "done" : isRetrying ? "active" : totalCount > 0 ? "pending" : "pending",
+      title: copy(isRetrying ? "scanner.steps.summarize.retryTitle" : "scanner.steps.summarize.title"),
+      detail: copy(
+        phase === "planning" ? "scanner.steps.summarize.planning"
+          : phase === "stranded" ? "scanner.steps.summarize.stranded"
+            : isCompleted ? "scanner.steps.summarize.completed"
+              : isRetrying ? "scanner.steps.summarize.retrying"
+                : "scanner.steps.summarize.pending",
+      ),
+      state: phase === "planning" ? "active" : phase === "ready" ? "done" : phase === "stranded" ? "aborted" : isCompleted ? "done" : isRetrying ? "active" : "pending",
     },
   ];
 
@@ -250,7 +261,7 @@ export function deriveScannerProgressViewModel(
     countLabel,
     currentItem,
     currentItemHint,
-    reassureText: "扫描期间只会读取和分析，不会移动或改写原始文件。",
+    reassureText: copy("scanner.metrics.readOnlyReassurance"),
     isIndeterminate,
     recentCompletedItems,
     recentObservedItems,

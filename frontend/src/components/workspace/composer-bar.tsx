@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { AlertTriangle, Loader2, Send, Sparkles } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
+import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import { AssistantRuntimeStatus, ComposerMode } from "@/types/session";
  
@@ -39,6 +40,7 @@ export function ComposerBar({
   setMessageInput,
   onSendMessage,
 }: ComposerBarProps) {
+  const { t } = useTranslation("common");
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
@@ -62,13 +64,13 @@ export function ComposerBar({
   const shouldShowPlannerStatus = Boolean(plannerStatus?.isRunning && composerMode === "editable");
   const plannerAttemptLabel =
     plannerStatus && plannerStatus.attempt > 1 && (plannerStatus.phase === "retrying" || plannerStatus.phase === "repairing")
-      ? `第 ${plannerStatus.attempt} 次尝试`
+      ? t("workspace.composer.attemptLabel", { attempt: plannerStatus.attempt })
       : null;
   const inputPlaceholder = shouldShowPlannerStatus
-    ? "系统正在更新方案，完成后会自动恢复输入"
+    ? t("workspace.composer.placeholderUpdating")
     : isComposerLocked
-      ? "系统正在处理，请稍候"
-      : "输入调整意见，或说明你希望修改的地方";
+      ? t("workspace.composer.placeholderBusy")
+      : t("workspace.composer.placeholderEditable");
  
   if (composerMode === "hidden") {
     return null;
@@ -89,7 +91,7 @@ export function ComposerBar({
                 <AlertTriangle className="h-4 w-4" />
               </div>
               <div className="flex-1 space-y-1">
-                <p className="font-black text-[11px] uppercase tracking-widest opacity-60">系统提示</p>
+                <p className="font-black text-[11px] uppercase tracking-widest opacity-60">{t("workspace.composer.systemNotice")}</p>
                 <p className="font-medium leading-relaxed">{error}</p>
               </div>
             </div>
@@ -164,7 +166,7 @@ export function ComposerBar({
               className="flex items-center gap-2 self-start rounded-full border border-primary/15 bg-primary/[0.04] px-4 py-1.5 text-[11px] font-black text-primary"
             >
               <Sparkles className="h-3.5 w-3.5" />
-              <span className="uppercase tracking-wide">当前方案已确认完毕，可以直接做安全检查</span>
+              <span className="uppercase tracking-wide">{t("workspace.composer.precheckReadyHint")}</span>
             </motion.div>
           ) : null}
           </AnimatePresence>
@@ -204,6 +206,7 @@ export function ComposerBar({
               type="button"
               onClick={onSendMessage}
               disabled={isComposerLocked || !messageInput.trim()}
+              aria-label={t("workspace.composer.send")}
               className={cn(
                 "mb-0.5 mr-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-all active:scale-90",
                 messageInput.trim() && !isComposerLocked
@@ -223,7 +226,7 @@ export function ComposerBar({
         </div>
       ) : (
         <div className="rounded-xl border border-on-surface/8 bg-surface-container-lowest px-5 py-4 text-[13px] text-on-surface-variant">
-          当前阶段暂时不需要输入，等方案生成后就可以在这里继续调整。
+          {t("workspace.composer.hiddenModeNotice")}
         </div>
       )}
  

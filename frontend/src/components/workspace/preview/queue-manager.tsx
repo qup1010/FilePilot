@@ -5,7 +5,8 @@ import { ChevronDown, ChevronUp, ArrowRight } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { cn } from "@/lib/utils";
 import type { PlanItem } from "@/types/session";
-import { fileExtension, getFileIcon } from "./preview-utils";
+import { DIRECTORY_EXTENSION_FILTER, fileExtension, getFileIcon, NO_EXTENSION_FILTER } from "./preview-utils";
+import { useTranslation } from "react-i18next";
 
 interface QueueCardProps {
   title: string;
@@ -26,6 +27,7 @@ export function QueueCard({
   tone,
   resolveTargetLabel,
 }: QueueCardProps) {
+  const { t } = useTranslation("common");
   if (items.length === 0) return null;
   return (
     <section className={cn("overflow-hidden rounded-xl border bg-surface shadow-sm", tone)}>
@@ -39,7 +41,7 @@ export function QueueCard({
           onClick={onShowAll} 
           className="rounded-md border border-on-surface/8 bg-surface px-2.5 py-1 text-[11px] font-bold text-on-surface/75 transition-all hover:border-primary/30 hover:text-primary active:scale-95"
         >
-          查看全部
+          {t("workspace.queue.showAll")}
         </button>
       </div>
       <div className="flex flex-col gap-1.5 p-2">
@@ -71,7 +73,7 @@ export function QueueCard({
                 </div>
               </div>
               <div className="flex items-center gap-2 shrink-0">
-                 <span className="font-mono text-[10px] font-bold text-ui-muted/50 uppercase">{fileExtension(item)}</span>
+                 <span className="font-mono text-[10px] font-bold text-ui-muted/50 uppercase">{fileExtension(item) === DIRECTORY_EXTENSION_FILTER ? t("workspace.preview.directory") : fileExtension(item) === NO_EXTENSION_FILTER ? t("workspace.preview.noExtension") : fileExtension(item)}</span>
                  <ArrowRight className="h-3 w-3 opacity-0 group-hover:opacity-40 transition-opacity text-primary" />
               </div>
             </button>
@@ -79,7 +81,7 @@ export function QueueCard({
         })}
         {items.length > 4 && (
           <button type="button" onClick={onShowAll} className="w-full rounded-lg py-2 text-[11px] font-bold tracking-tight text-ui-muted/70 transition-all hover:bg-on-surface/5 hover:text-on-surface">
-            还有 {items.length - 4} 项 · 点击展开
+            {t("workspace.queue.moreItems", { count: items.length - 4 })}
           </button>
         )}
       </div>
@@ -108,6 +110,7 @@ export function QueuePanel({
   onToggle,
   actions,
 }: QueuePanelProps) {
+  const { t } = useTranslation("common");
   if (queueCount === 0) return null;
   return (
     <aside className="w-full shrink-0 min-w-0">
@@ -115,7 +118,7 @@ export function QueuePanel({
         <div className="flex items-center justify-between gap-3 border-b border-on-surface/8 bg-surface-container-lowest/80 px-4 py-3">
           <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <h3 className="text-[13px] font-black tracking-tight text-on-surface/90">待确认队列</h3>
+              <h3 className="text-[13px] font-black tracking-tight text-on-surface/90">{t("workspace.queue.title")}</h3>
               <span className="rounded-full border border-warning/25 bg-warning/10 px-2 py-0.5 text-[11px] font-black text-warning tabular-nums">
                 {queueCount}
               </span>
@@ -130,7 +133,7 @@ export function QueuePanel({
               className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-on-surface/10 bg-surface px-3 text-[11px] font-bold text-on-surface-variant transition-all hover:bg-surface-container-low hover:text-on-surface active:scale-95"
             >
               {collapsed ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronUp className="h-3.5 w-3.5" />}
-              {collapsed ? "展开列表" : "收起"}
+              {collapsed ? t("workspace.queue.expand") : t("workspace.queue.collapse")}
             </button>
           </div>
         </div>
@@ -157,13 +160,13 @@ export function QueuePanel({
             >
               <div className="flex flex-wrap gap-2 px-4 py-3">
                 {invalidatedCount > 0 ? (
-                  <span className="rounded-md border border-error/20 bg-error/5 px-2 py-1 text-[11px] font-bold uppercase tracking-wider text-error animate-[pulse_4s_infinite] shadow-sm">分类变动需确认 {invalidatedCount}</span>
+                  <span className="rounded-md border border-error/20 bg-error/5 px-2 py-1 text-[11px] font-bold uppercase tracking-wider text-error animate-[pulse_4s_infinite] shadow-sm">{t("workspace.queue.invalidated", { count: invalidatedCount })}</span>
                 ) : null}
                 {unresolvedCount > 0 ? (
-                  <span className="rounded-md border border-warning/25 bg-warning/5 px-2 py-1 text-[11px] font-bold uppercase tracking-wider text-warning-dim animate-[pulse_3.5s_infinite] shadow-sm">未分配分类 {unresolvedCount}</span>
+                  <span className="rounded-md border border-warning/25 bg-warning/5 px-2 py-1 text-[11px] font-bold uppercase tracking-wider text-warning-dim animate-[pulse_3.5s_infinite] shadow-sm">{t("workspace.queue.unresolved", { count: unresolvedCount })}</span>
                 ) : null}
                 {reviewCount > 0 ? (
-                  <span className="rounded-md border border-primary/20 bg-primary/5 px-2 py-1 text-[11px] font-bold uppercase tracking-wider text-primary animate-[pulse_4.5s_infinite] shadow-sm">暂放待确认 {reviewCount}</span>
+                  <span className="rounded-md border border-primary/20 bg-primary/5 px-2 py-1 text-[11px] font-bold uppercase tracking-wider text-primary animate-[pulse_4.5s_infinite] shadow-sm">{t("workspace.queue.review", { count: reviewCount })}</span>
                 ) : null}
               </div>
             </motion.div>

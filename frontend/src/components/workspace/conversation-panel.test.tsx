@@ -3,6 +3,7 @@ import { act, cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { ConversationPanel } from "./conversation-panel";
+import i18n from "@/i18n/instance";
 
 vi.mock("motion/react", () => ({
   AnimatePresence: ({ children }: { children: React.ReactNode }) => <>{children}</>,
@@ -27,9 +28,27 @@ const baseProps = {
 };
 
 describe("ConversationPanel", () => {
-  afterEach(() => {
+  afterEach(async () => {
     cleanup();
     vi.useRealTimers();
+    await i18n.changeLanguage("zh-CN");
+  });
+
+  it("renders scanner chrome in English without translating user-provided messages", async () => {
+    await i18n.changeLanguage("en");
+    render(
+      <ConversationPanel
+        {...baseProps}
+        stage="scanning"
+        scanner={{ status: "running", processed_count: 1, total_count: 2 }}
+        messages={[]}
+        assistantDraft=""
+      />,
+    );
+
+    expect(screen.getByText("ANALYZING CONTENT")).toBeInTheDocument();
+    expect(screen.getByText("Analyzing file contents")).toBeInTheDocument();
+    expect(screen.getByText("LIVE")).toBeInTheDocument();
   });
 
   it("does not render the assistant draft when the finalized assistant message already contains the same content", () => {

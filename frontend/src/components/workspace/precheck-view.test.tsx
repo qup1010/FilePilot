@@ -2,6 +2,7 @@ import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { PrecheckView } from "./precheck-view";
+import i18n from "@/i18n/instance";
 
 vi.mock("./directory-tree-diff", () => ({
   DirectoryTreeDiff: ({ after }: { after: { leafEntries: { path: string }[] } }) => (
@@ -15,8 +16,34 @@ vi.mock("./directory-tree-diff", () => ({
 }));
 
 describe("PrecheckView", () => {
-  afterEach(() => {
+  afterEach(async () => {
     cleanup();
+    await i18n.changeLanguage("zh-CN");
+  });
+
+  it("renders the safety summary in English", async () => {
+    await i18n.changeLanguage("en");
+    render(
+      <PrecheckView
+        summary={{
+          can_execute: true,
+          blocking_errors: [],
+          warnings: [],
+          mkdir_preview: [],
+          move_preview: [],
+          issues: [],
+        }}
+        planItems={[]}
+        targetSlots={[]}
+        isBusy={false}
+        onRequestExecute={() => {}}
+        onBack={() => {}}
+      />,
+    );
+
+    expect(screen.getByText("Safety check passed")).toBeInTheDocument();
+    expect(screen.getByText("Before and after")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Move files" })).toBeInTheDocument();
   });
 
   it("renders item metadata from plan items and target slots", () => {

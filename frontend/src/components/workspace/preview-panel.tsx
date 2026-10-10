@@ -5,6 +5,7 @@ import { AlertTriangle, ArrowRight, CheckCircle2, ChevronDown, ChevronRight, Fil
 import { AnimatePresence, motion } from "motion/react";
 import { MarkdownProse } from "./markdown-prose";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, } from "@/components/ui/dialog";
+import { useTranslation } from "react-i18next";
 
 import { getSessionStageView } from "@/lib/session-view-model";
 import { cn } from "@/lib/utils";
@@ -21,6 +22,7 @@ import {
   buildSourceTree,
   displayDirectoryLabel,
   buildAtomicChildCounts,
+  DIRECTORY_EXTENSION_FILTER,
   escapesRelativeRoot,
   fileExtension,
   getFileIcon,
@@ -34,12 +36,13 @@ import {
   mappingStatusLabel,
   matchesFilter,
   normalizePath,
+  NO_EXTENSION_FILTER,
   resolveItemDirectory,
   resolveItemDirectoryTarget,
   resolveItemTargetPath,
   REVIEW_DIRECTORY,
-  REVIEW_LABEL,
   statusMeta,
+  type PreviewLabels,
   useDebouncedValue,
   zhCollator,
 } from "./preview/preview-utils";
@@ -71,11 +74,11 @@ interface PreviewPanelProps {
 
 const EMPTY_PLACEMENT: PlacementConfig = { new_directory_root: "", review_root: "" };
 
-const ACTIVE_FILTER_LABELS: Record<Exclude<PreviewFilter, "all">, string> = {
-  changed: "已变更",
-  unresolved: "未分配",
-  review: "待确认",
-  invalidated: "变动需确认",
+const ACTIVE_FILTER_KEYS: Record<Exclude<PreviewFilter, "all">, string> = {
+  changed: "workspace.preview.filter.changed",
+  unresolved: "workspace.preview.filter.unresolved",
+  review: "workspace.preview.filter.review",
+  invalidated: "workspace.preview.filter.invalidated",
 };
 
 function treeNodeKey(node: TreeNode): string {
@@ -155,6 +158,7 @@ function TreeBranchInner({
   placement,
   atomicChildCounts,
 }: TreeBranchProps) {
+  const { t } = useTranslation("common");
   const [isHovered, setIsHovered] = useState(false);
 
   if (node.kind === "file") {
@@ -201,9 +205,9 @@ function TreeBranchInner({
                 {atomicChildCount ? (
                   <span
                     className="shrink-0 whitespace-nowrap rounded-[4px] bg-on-surface/[0.05] px-1.5 py-0.5 text-[11px] font-bold text-ui-muted"
-                    title={`该目录整体移动，内含 ${atomicChildCount} 项`}
+                    title={t("workspace.preview.folderMoveTitle", { count: atomicChildCount })}
                   >
-                    含 {atomicChildCount} 项
+                    {t("workspace.preview.folderMoveCount", { count: atomicChildCount })}
                   </span>
                 ) : null}
               </div>
@@ -211,9 +215,9 @@ function TreeBranchInner({
 
             <div className="flex items-center gap-2 shrink-0">
               {/* "已就绪"是默认状态，满屏重复反而淹没真正需要注意的待确认项，只标例外。 */}
-              {node.item.status !== "assigned" && node.item.status !== "skipped" && status.label !== "已就绪" && (
+              {node.item.status !== "assigned" && node.item.status !== "skipped" && !status.isReady && (
                 <span className={cn("rounded-[4px] border px-1.5 py-0.5 text-[11px] font-black uppercase tracking-widest shrink-0", status.tone)}>
-                  {status.label}
+                  {t(status.key)}
                 </span>
               )}
 
@@ -244,14 +248,14 @@ function TreeBranchInner({
               >
                 <div className="space-y-1 pb-1.5 pt-0.5 pr-4 border-b border-on-surface/[0.02]">
                   <div className="flex items-center gap-2">
-                    <span className="shrink-0 rounded-sm bg-primary/10 px-1 text-[11px] font-black tracking-wider text-primary/70">用途判断</span>
+                    <span className="shrink-0 rounded-sm bg-primary/10 px-1 text-[11px] font-black tracking-wider text-primary/70">{t("workspace.preview.purpose")}</span>
                     <p className="truncate text-[11px] font-medium text-ui-muted/70 leading-tight italic">
-                      {node.item.suggested_purpose || "根据文件名和内容线索预测"}
+                      {node.item.suggested_purpose || t("workspace.preview.purposeFallback")}
                     </p>
                   </div>
                   {node.item.content_summary ? (
                     <div className="flex items-center gap-2">
-                      <span className="shrink-0 rounded-sm bg-on-surface/[0.04] px-1 text-[11px] font-black tracking-wider text-ui-muted/50">内容摘要</span>
+                      <span className="shrink-0 rounded-sm bg-on-surface/[0.04] px-1 text-[11px] font-black tracking-wider text-ui-muted/50">{t("workspace.preview.contentSummary")}</span>
                       <p className="truncate text-[11px] font-medium text-ui-muted/55 leading-tight" title={node.item.content_summary}>
                         {node.item.content_summary}
                       </p>
@@ -283,7 +287,7 @@ function TreeBranchInner({
         })()}
         <div className="min-w-0 flex-1">
           <p className="truncate font-mono text-[13px] tracking-tight text-on-surface/50">{node.sourceEntry?.display_name || node.name}</p>
-          <p className="truncate text-[11px] font-bold text-ui-muted opacity-30">原始项目</p>
+          <p className="truncate text-[11px] font-bold text-ui-muted opacity-30">{t("workspace.preview.originalItem")}</p>
         </div>
       </div>
     );
@@ -365,6 +369,7 @@ function IncrementalMappingPanelInner({
   resolveTargetLabel: (item: PlanItem) => string;
   readOnly?: boolean;
 }) {
+  const { t } = useTranslation("common");
   if (items.length === 0) return null;
 
   const assignmentCounts = new Map<string, number>();
@@ -377,11 +382,11 @@ function IncrementalMappingPanelInner({
     <section className="rounded-xl border border-on-surface/10 bg-surface-container-low/20 p-4">
       <div className="flex items-start justify-between gap-3">
         <div className="space-y-0.5">
-          <h3 className="text-[13px] font-black uppercase tracking-wider text-on-surface/80">归属映射清单</h3>
-          <p className="text-[12px] font-medium text-ui-muted opacity-60">实时显示文件与目标目录的映射关系。</p>
+          <h3 className="text-[13px] font-black uppercase tracking-wider text-on-surface/80">{t("workspace.preview.mappingTitle")}</h3>
+          <p className="text-[12px] font-medium text-ui-muted opacity-60">{t("workspace.preview.mappingDescription")}</p>
         </div>
         <span className="rounded-full border border-on-surface/12 bg-on-surface/5 px-2.5 py-0.5 text-[11px] font-black text-ui-muted">
-          {items.length} 条目
+          {t("workspace.preview.entryCount", { count: items.length })}
         </span>
       </div>
 
@@ -434,7 +439,7 @@ function IncrementalMappingPanelInner({
               <div className="flex items-center gap-2 shrink-0">
                 {item.status !== "assigned" && item.status !== "skipped" && (
                   <span className={cn("rounded-[4px] border px-1.5 py-0.5 text-[11px] font-black uppercase tracking-widest", status.tone)}>
-                    {status.label}
+                    {t(status.key)}
                   </span>
                 )}
 
@@ -516,6 +521,7 @@ function syncExpandedStates(
 }
 
 export function PreviewPanel(props: PreviewPanelProps) {
+  const { t } = useTranslation("common");
   const {
     plan,
     stage,
@@ -566,6 +572,16 @@ export function PreviewPanel(props: PreviewPanelProps) {
     () => new Map((plan.target_slots || []).map((slot) => [slot.slot_id, slot])),
     [plan.target_slots],
   );
+  const previewLabels: PreviewLabels = {
+    currentFolder: t("workspace.preview.currentFolder"),
+    keepInPlace: t("workspace.preview.keepInPlace"),
+    review: t("workspace.preview.reviewTarget"),
+  };
+  const displayFileExtension = (extension: string) => {
+    if (extension === DIRECTORY_EXTENSION_FILTER) return t("workspace.preview.directory");
+    if (extension === NO_EXTENSION_FILTER) return t("workspace.preview.noExtension");
+    return extension;
+  };
 
   const unresolvedItems = useMemo(() => allItems.filter((item) => item.status === "unresolved"), [allItems]);
   const reviewItems = useMemo(() => allItems.filter((item) => item.status === "review" || item.mapping_status === "review"), [allItems]);
@@ -602,12 +618,12 @@ export function PreviewPanel(props: PreviewPanelProps) {
   const isAssignExisting = organizeMode === "incremental";
   const atomicChildCounts = useMemo(() => buildAtomicChildCounts(sourceTreeEntries), [sourceTreeEntries]);
   const resolveTargetLabel = useCallback(
-    (item: PlanItem) => displayDirectoryLabel(resolveItemDirectory(item, targetSlotById, placement), isAssignExisting),
-    [isAssignExisting, placement, targetSlotById],
+    (item: PlanItem) => displayDirectoryLabel(resolveItemDirectory(item, targetSlotById, placement), isAssignExisting, previewLabels),
+    [isAssignExisting, placement, previewLabels.currentFolder, previewLabels.keepInPlace, previewLabels.review, targetSlotById],
   );
   const resolveTargetMeta = (item: PlanItem) => {
     const directoryLabel = resolveTargetLabel(item);
-    const fullTargetPath = resolveItemTargetPath(item, targetSlotById, placement, isAssignExisting);
+    const fullTargetPath = resolveItemTargetPath(item, targetSlotById, placement, isAssignExisting, previewLabels);
     const mappingLabel = mappingStatusLabel(item.mapping_status || item.status, item, acceptedReviewItemIds);
     return { directoryLabel, fullTargetPath, mappingLabel };
   };
@@ -621,10 +637,10 @@ export function PreviewPanel(props: PreviewPanelProps) {
       if (!matchesFilter(item, filter, targetSlotById, placement)) return false;
       if (extensionFilter !== "all" && fileExtension(item) !== extensionFilter) return false;
       if (!keyword) return true;
-      return [item.display_name, item.source_relpath, resolveItemTargetPath(item, targetSlotById, placement), resolveTargetLabel(item), item.suggested_purpose || "", item.content_summary || ""]
+      return [item.display_name, item.source_relpath, resolveItemTargetPath(item, targetSlotById, placement, isAssignExisting, previewLabels), resolveTargetLabel(item), item.suggested_purpose || "", item.content_summary || ""]
         .some((value) => value.toLowerCase().includes(keyword));
     });
-  }, [allItems, extensionFilter, filter, placement, debouncedSearch, resolveTargetLabel, targetSlotById]);
+  }, [allItems, extensionFilter, filter, isAssignExisting, placement, debouncedSearch, previewLabels.currentFolder, previewLabels.keepInPlace, previewLabels.review, resolveTargetLabel, targetSlotById]);
   const filteredSourceEntries = useMemo(() => {
     const keyword = debouncedSearch.trim().toLowerCase();
     return sourceTreeEntries.filter((entry) => {
@@ -645,8 +661,8 @@ export function PreviewPanel(props: PreviewPanelProps) {
   const mkdirPreview = precheckSummary?.mkdir_preview || [];
   const beforeTree = useMemo(() => buildSourceTree(filteredSourceEntries, itemBySource), [filteredSourceEntries, itemBySource]);
   const afterTree = useMemo(
-    () => buildPlanTree(filteredItems, mkdirPreview, (item) => resolveItemTargetPath(item, targetSlotById, placement), sourceTreeEntries),
-    [filteredItems, mkdirPreview, placement, sourceTreeEntries, targetSlotById],
+    () => buildPlanTree(filteredItems, mkdirPreview, (item) => resolveItemTargetPath(item, targetSlotById, placement, isAssignExisting, previewLabels), sourceTreeEntries),
+    [filteredItems, isAssignExisting, mkdirPreview, placement, previewLabels.currentFolder, previewLabels.keepInPlace, previewLabels.review, sourceTreeEntries, targetSlotById],
   );
   const currentTree = viewMode === "before" ? beforeTree : afterTree;
 
@@ -715,7 +731,7 @@ export function PreviewPanel(props: PreviewPanelProps) {
   const groupedByTargetSlot = useMemo(() => groupItemsByTargetSlot(allItems, targetSlotById, placement), [allItems, placement, targetSlotById]);
   const availableTargetOptions = useMemo<AvailableTargetOption[]>(() => {
     const options = new Map<string, AvailableTargetOption>();
-    options.set(REVIEW_DIRECTORY, { key: "review", label: REVIEW_LABEL, directory: REVIEW_DIRECTORY });
+    options.set(REVIEW_DIRECTORY, { key: "review", label: REVIEW_DIRECTORY, directory: REVIEW_DIRECTORY });
     (plan.target_slots || []).forEach((slot: PlanTargetSlot) => {
       if (isReviewTargetSlot(slot)) return;
       const directory = normalizePath(slot.relpath);
@@ -869,18 +885,18 @@ export function PreviewPanel(props: PreviewPanelProps) {
     [precheckSummary?.target_conflict_suggestions],
   );
   const precheckNotice = canRunPrecheck
-    ? "待确认项已清空，可以进行移动前检查。"
+    ? t("workspace.preview.notice.ready")
     : targetConflictSuggestionCount > 0
-      ? `检测到 ${targetConflictSuggestionCount} 个同名目标，可应用建议后重新检查。`
+      ? t("workspace.preview.notice.conflicts", { count: targetConflictSuggestionCount })
     : invalidatedItems.length > 0
-      ? `仍有 ${invalidatedItems.length} 项分类变动需确认。`
+      ? t("workspace.preview.notice.invalidated", { count: invalidatedItems.length })
       : unresolvedItems.length > 0
-        ? `仍有 ${unresolvedItems.length} 项未分配分类。`
+        ? t("workspace.preview.notice.unresolved", { count: unresolvedItems.length })
         : reviewQueueCount > 0
-          ? `仍有 ${reviewQueueCount} 项暂放待确认。`
+          ? t("workspace.preview.notice.review", { count: reviewQueueCount })
           : isPlanSyncing
-            ? "方案正在更新，稍后即可进行检查。"
-            : "方案还没准备好进行检查。";
+            ? t("workspace.preview.notice.updating")
+            : t("workspace.preview.notice.notReady");
   const visibleCount = viewMode === "before" ? filteredSourceEntries.length : filteredItems.length;
   const totalCount = viewMode === "before" ? sourceTreeEntries.length : allItems.length;
   const hasAfterPlanData = allItems.length > 0 || mkdirPreview.length > 0;
@@ -918,8 +934,8 @@ export function PreviewPanel(props: PreviewPanelProps) {
                     <Sparkles className="h-3.5 w-3.5" />
                   </div>
                   <div className="min-w-0">
-                    <p className="text-[13px] font-bold text-on-surface">正在基于你的最新要求重算方案</p>
-                    <p className="mt-1 text-[12px] leading-5 text-on-surface-variant">当前显示的是上一版方案，新方案完成后会自动替换</p>
+                    <p className="text-[13px] font-bold text-on-surface">{t("workspace.preview.recalculating")}</p>
+                    <p className="mt-1 text-[12px] leading-5 text-on-surface-variant">{t("workspace.preview.previousPlan")}</p>
                   </div>
                 </div>
               </div>
@@ -931,47 +947,47 @@ export function PreviewPanel(props: PreviewPanelProps) {
                 <div className="flex flex-wrap items-center gap-2">
                   <div className="inline-flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.15em] text-primary/70">
                     <Layers className="h-3.5 w-3.5" />
-                    方案预览
+                    {t("workspace.preview.title")}
                   </div>
                   <span className={cn("rounded-[4px] border px-2 py-0.5 text-[11px] font-black uppercase tracking-widest", pendingQueueCount > 0 || !canRunPrecheck ? "border-warning/30 bg-warning/5 text-warning" : "border-success/30 bg-success/5 text-success-dim")}>
-                    {pendingQueueCount > 0 ? `待确认 ${pendingQueueCount}` : canRunPrecheck ? "可进行检查" : isPlanSyncing ? "更新中" : "等待检查"}
+                    {pendingQueueCount > 0 ? t("workspace.preview.queueCount", { count: pendingQueueCount }) : canRunPrecheck ? t("workspace.preview.readyToCheck") : isPlanSyncing ? t("workspace.preview.updating") : t("workspace.preview.waiting")}
                   </span>
                   <div className="flex shrink-0 items-center gap-1.5 rounded-[4px] border border-on-surface/8 bg-on-surface/[0.02] px-2 py-0.5 text-[11px] font-bold text-on-surface uppercase tracking-widest">
                     <Sparkles className="h-2.5 w-2.5 text-primary/60" />
-                    <span>移动 {plan.stats.move_count}</span>
+                    <span>{t("workspace.preview.moving", { count: plan.stats.move_count })}</span>
                   </div>
                   {isAssignExisting ? (
                     <div className="flex shrink-0 items-center gap-1.5 rounded-[4px] border border-on-surface/8 bg-on-surface/[0.02] px-2 py-0.5 text-[11px] font-bold text-on-surface uppercase tracking-widest">
                       <Folder className="h-2.5 w-2.5 text-emerald-500/80" />
-                      <span>留原位 {plan.stats.unresolved_count}</span>
+                      <span>{t("workspace.preview.staying", { count: plan.stats.unresolved_count })}</span>
                     </div>
                   ) : (
                     <div className="flex shrink-0 items-center gap-1.5 rounded-[4px] border border-on-surface/8 bg-on-surface/[0.02] px-2 py-0.5 text-[11px] font-bold text-on-surface uppercase tracking-widest">
                       <Folder className="h-2.5 w-2.5 text-primary/60" />
-                      <span>新目录 {plan.stats.directory_count}</span>
+                      <span>{t("workspace.preview.newFolders", { count: plan.stats.directory_count })}</span>
                     </div>
                   )}
                 </div>
 
                 {/* 标题只讲"现在该做什么"；后端 summary 里的移动/待确认数与上方徽标重复，不再重复展示。 */}
                 <h2 className="truncate text-[14px] font-bold tracking-tight text-on-surface">
-                  {pendingQueueCount > 0 ? "先处理待确认项，再核对目标结构" : "核对目标结构，确认后即可检查"}
+                  {pendingQueueCount > 0 ? t("workspace.preview.nextStepPending") : t("workspace.preview.nextStepReady")}
                 </h2>
               </div>
 
               {incrementalSummary ? (
                 <div className="mt-2 flex flex-wrap items-center gap-2 rounded-[8px] border border-primary/10 bg-primary/[0.045] px-3 py-2">
                   <span className="rounded-full bg-surface px-2 py-0.5 text-[11px] font-bold text-primary">
-                    归入已有目录
+                    {t("workspace.preview.incrementalMode")}
                   </span>
                   <span className="text-[11px] font-semibold text-on-surface">
-                    已选目标目录 {incrementalSummary.targetCount} 个
+                    {t("workspace.preview.selectedTargets", { count: incrementalSummary.targetCount })}
                   </span>
                   <span className="text-[11px] text-ui-muted">
-                    待整理项 {incrementalSummary.pendingCount} 个
+                    {t("workspace.preview.pendingItems", { count: incrementalSummary.pendingCount })}
                   </span>
                   <span className="truncate text-[11px] text-ui-muted">
-                    目标池：{incrementalSummary.targetDirectories.join("、") || "未设置"}
+                    {t("workspace.preview.targetPool", { targets: incrementalSummary.targetDirectories.join(", ") || t("workspace.preview.unset") })}
                   </span>
                 </div>
               ) : null}
@@ -996,7 +1012,7 @@ export function PreviewPanel(props: PreviewPanelProps) {
                         transition={{ type: "spring", stiffness: 380, damping: 30 }}
                       />
                     )}
-                    <span>原始</span>
+                    <span>{t("workspace.preview.before")}</span>
                   </button>
                   <button
                     type="button"
@@ -1013,7 +1029,7 @@ export function PreviewPanel(props: PreviewPanelProps) {
                         transition={{ type: "spring", stiffness: 380, damping: 30 }}
                       />
                     )}
-                    <span>建议</span>
+                    <span>{t("workspace.preview.suggested")}</span>
                   </button>
                 </div>
 
@@ -1026,7 +1042,7 @@ export function PreviewPanel(props: PreviewPanelProps) {
                       ref={searchInputRef}
                       value={search}
                       onChange={(event) => setSearch(event.target.value)}
-                      placeholder="搜索节点..."
+                      placeholder={t("workspace.preview.searchPlaceholder")}
                       className="h-8 w-full rounded-md border border-on-surface/8 bg-surface-container-lowest pl-8 pr-12 text-[11px] font-black text-on-surface outline-none transition-all placeholder:text-ui-muted/50 focus:border-primary/40 focus:ring-1 focus:ring-primary/10"
                     />
                     {!search && (
@@ -1042,10 +1058,10 @@ export function PreviewPanel(props: PreviewPanelProps) {
                     <button
                       type="button"
                       onClick={() => setFilter("all")}
-                      title="清除筛选，显示全部条目"
+                      title={t("workspace.preview.clearFilter")}
                       className="flex h-8 shrink-0 items-center gap-1.5 rounded-md border border-primary/25 bg-primary/8 px-2.5 text-[11px] font-bold text-primary transition-colors hover:bg-primary/12"
                     >
-                      <span>仅看{ACTIVE_FILTER_LABELS[filter]}</span>
+                      <span>{t("workspace.preview.onlyFilter", { label: t(ACTIVE_FILTER_KEYS[filter]) })}</span>
                       <X className="h-3 w-3" />
                     </button>
                   ) : null}
@@ -1057,7 +1073,7 @@ export function PreviewPanel(props: PreviewPanelProps) {
                       className="h-8 appearance-none rounded-md border border-on-surface/8 bg-surface-container-lowest pl-2.5 pr-8 text-[11px] font-black text-on-surface outline-none transition-all hover:bg-on-surface/[0.02] focus:border-primary/40"
                     >
                       {extensionOptions.map((option) => (
-                        <option key={option} value={option}>{option === "all" ? "类型" : option}</option>
+                        <option key={option} value={option}>{option === "all" ? t("workspace.preview.type") : displayFileExtension(option)}</option>
                       ))}
                     </select>
                     <ChevronDown className="absolute right-2.5 h-3 w-3 text-ui-muted pointer-events-none opacity-40" />
@@ -1086,17 +1102,17 @@ export function PreviewPanel(props: PreviewPanelProps) {
               <section className="min-w-0 min-h-[280px] @4xl:min-h-[340px] px-2 py-3">
                 <div className="mb-3 shrink-0 flex items-center justify-between">
                   <div>
-                    <h3 className="text-[13px] font-bold text-on-surface">{organizeMode === "incremental" && viewMode === "after" ? "结构参考" : "结构预览"}</h3>
+                    <h3 className="text-[13px] font-bold text-on-surface">{organizeMode === "incremental" && viewMode === "after" ? t("workspace.preview.referenceStructure") : t("workspace.preview.structurePreview")}</h3>
                     <p className="text-[12px] text-ui-muted">
                       {organizeMode === "incremental" && viewMode === "after"
-                        ? "映射列表负责说明归属，下面的树用于核对整体结构。"
-                        : "点击编辑图标或队列条目即可确认方案。"}
+                        ? t("workspace.preview.mappingHelp")
+                        : t("workspace.preview.planHelp")}
                     </p>
                   </div>
                   <div className="flex items-center gap-1">
                     <button
                       type="button"
-                      title="全部收起 (Ctrl+Alt+C)"
+                      title={t("workspace.preview.collapseAll")}
                       onClick={handleCollapseAll}
                       className="flex h-7 w-7 items-center justify-center rounded-[6px] border border-on-surface/8 bg-surface text-ui-muted hover:bg-on-surface/5 active:scale-95 transition-all"
                     >
@@ -1104,7 +1120,7 @@ export function PreviewPanel(props: PreviewPanelProps) {
                     </button>
                     <button
                       type="button"
-                      title="全部展开 (Ctrl+Alt+E)"
+                      title={t("workspace.preview.expandAll")}
                       onClick={handleExpandAll}
                       className="flex h-7 w-7 items-center justify-center rounded-[6px] border border-on-surface/8 bg-surface text-ui-muted hover:bg-on-surface/5 active:scale-95 transition-all"
                     >
@@ -1136,20 +1152,20 @@ export function PreviewPanel(props: PreviewPanelProps) {
                         <p className="text-[14px] font-semibold text-on-surface">
                           {viewMode === "before"
                             ? sourceTreeEntries.length > 0
-                              ? "当前筛选下没有整理前条目"
-                              : "当前筛选下没有条目"
+                              ? t("workspace.preview.emptyBeforeFiltered")
+                              : t("workspace.preview.emptyBefore")
                             : !hasAfterPlanData && isPlanningRun
-                              ? "整理后结构尚在生成"
-                              : "当前筛选下没有整理后条目"}
+                              ? t("workspace.preview.generatingAfter")
+                              : t("workspace.preview.emptyAfter")}
                         </p>
                         <p className="text-[12px] text-ui-muted">
                           {viewMode === "before"
                             ? sourceTreeEntries.length > 0
-                              ? "可以切换筛选条件，或先查看完整的整理前目录树。"
-                              : "扫描完成后，这里会展示真实的整理前目录结构。"
+                              ? t("workspace.preview.emptyBeforeFilteredHelp")
+                              : t("workspace.preview.emptyBeforeHelp")
                             : !hasAfterPlanData && isPlanningRun
-                              ? "先切回“前”查看原始目录，方案稳定后这里会自动出现整理后结构。"
-                              : "可以切换筛选条件，或先处理下方待确认队列。"}
+                              ? t("workspace.preview.generatingAfterHelp")
+                              : t("workspace.preview.emptyAfterHelp")}
                         </p>
                       </div>
                     </div>
@@ -1169,7 +1185,7 @@ export function PreviewPanel(props: PreviewPanelProps) {
                     !readOnly && activeReviewItems.length > 0 ? (
                       <div className="flex shrink-0 items-center gap-2">
                         {canRunPrecheck && invalidatedItems.length === 0 && unresolvedItems.length === 0 ? (
-                          <span className="hidden text-[11px] font-medium text-ui-muted/60 xl:inline">保留后可进行检查</span>
+                          <span className="hidden text-[11px] font-medium text-ui-muted/60 xl:inline">{t("workspace.preview.reviewCheckHint")}</span>
                         ) : null}
                         <button
                           type="button"
@@ -1178,16 +1194,16 @@ export function PreviewPanel(props: PreviewPanelProps) {
                           }}
                           className="inline-flex h-8 items-center rounded-[8px] border border-primary/15 bg-primary/[0.05] px-3 text-[11px] font-black text-primary transition-all hover:bg-primary/[0.08] active:scale-95"
                         >
-                          {isAssignExisting ? "确认保留在原地" : "全部保留在待确认区"}
+                          {isAssignExisting ? t("workspace.preview.acceptReviewIncremental") : t("workspace.preview.acceptReviewAll")}
                         </button>
                       </div>
                     ) : undefined
                   }
                 >
                   <div className="space-y-3">
-                    <QueueCard title="分类变动需确认" items={invalidatedItems} selectedItemId={editingItemId || selectedItemId} onSelectItem={(id) => { setSelectedItemId(id); setEditingItemId(id); }} onShowAll={() => setFilter("invalidated")} tone="border-error/12 bg-error-container/20" resolveTargetLabel={resolveTargetLabel} />
-                    <QueueCard title="未分配分类" items={unresolvedItems} selectedItemId={editingItemId || selectedItemId} onSelectItem={(id) => { setSelectedItemId(id); setEditingItemId(id); }} onShowAll={() => setFilter("unresolved")} tone="border-warning/12 bg-warning-container/25" resolveTargetLabel={resolveTargetLabel} />
-                    <QueueCard title="暂放待确认" items={activeReviewItems} selectedItemId={editingItemId || selectedItemId} onSelectItem={(id) => { setSelectedItemId(id); setEditingItemId(id); }} onShowAll={() => setFilter("review")} tone="border-primary/12 bg-primary/5" resolveTargetLabel={resolveTargetLabel} />
+                    <QueueCard title={t("workspace.preview.filter.invalidated")} items={invalidatedItems} selectedItemId={editingItemId || selectedItemId} onSelectItem={(id) => { setSelectedItemId(id); setEditingItemId(id); }} onShowAll={() => setFilter("invalidated")} tone="border-error/12 bg-error-container/20" resolveTargetLabel={resolveTargetLabel} />
+                    <QueueCard title={t("workspace.preview.filter.unresolved")} items={unresolvedItems} selectedItemId={editingItemId || selectedItemId} onSelectItem={(id) => { setSelectedItemId(id); setEditingItemId(id); }} onShowAll={() => setFilter("unresolved")} tone="border-warning/12 bg-warning-container/25" resolveTargetLabel={resolveTargetLabel} />
+                    <QueueCard title={t("workspace.preview.filter.review")} items={activeReviewItems} selectedItemId={editingItemId || selectedItemId} onSelectItem={(id) => { setSelectedItemId(id); setEditingItemId(id); }} onShowAll={() => setFilter("review")} tone="border-primary/12 bg-primary/5" resolveTargetLabel={resolveTargetLabel} />
                   </div>
                 </QueuePanel>
               </div>
@@ -1203,15 +1219,15 @@ export function PreviewPanel(props: PreviewPanelProps) {
               <div>
                 <p className="text-[12px] font-bold uppercase tracking-[0.14em] text-ui-muted flex items-center gap-2">
                   <Edit2 className="w-3.5 h-3.5" />
-                  调整文件去向
+                  {t("workspace.preview.editDestination")}
                 </p>
                 <DialogTitle className="mt-1 text-[18px] font-bold tracking-tight text-on-surface">
-                  {editingItem?.display_name || "未知条目"}
+                  {editingItem?.display_name || t("workspace.preview.unknownItem")}
                 </DialogTitle>
               </div>
               {editingItem ? (
                 <span className={cn("rounded-full border px-3 py-1.2 text-[12px] font-bold mt-1 shrink-0", itemStatusMeta(editingItem, acceptedReviewItemIds).tone)}>
-                  {itemStatusMeta(editingItem, acceptedReviewItemIds).label}
+                  {t(itemStatusMeta(editingItem, acceptedReviewItemIds).key)}
                 </span>
               ) : null}
             </div>
@@ -1226,7 +1242,7 @@ export function PreviewPanel(props: PreviewPanelProps) {
                   <div className="space-y-4">
                     <div className="space-y-2.5">
                       <div className="text-[13px] font-bold text-on-surface flex items-center gap-2">
-                        <Layers className="w-4 h-4 text-primary" /> 快速调整归属
+                        <Layers className="w-4 h-4 text-primary" /> {t("workspace.preview.quickAdjust")}
                       </div>
                       <div className="flex flex-wrap gap-2">
                         {availableTargetOptions.slice(0, 12).map((option) => (
@@ -1248,13 +1264,13 @@ export function PreviewPanel(props: PreviewPanelProps) {
                               "rounded-[6px] border px-3 py-1.5 text-[12px] font-semibold transition-all active:scale-95",
                               (
                                 (option.targetSlotId && editingItem.target_slot_id === option.targetSlotId) ||
-                                (!option.targetSlotId && resolveTargetLabel(editingItem) === displayDirectoryLabel(option.directory))
+                                (!option.targetSlotId && resolveTargetLabel(editingItem) === displayDirectoryLabel(option.directory, isAssignExisting, previewLabels))
                               )
                                 ? "border-primary/30 bg-primary/10 text-primary"
                                 : "border-on-surface/10 bg-surface text-on-surface hover:border-primary/20 hover:bg-surface-container",
                             )}
                           >
-                            {option.label}
+                            {option.directory === REVIEW_DIRECTORY ? t("workspace.reviewFolderLabel") : option.label}
                           </button>
                         ))}
                         {editingItem.can_restore_ai_suggestion ? (
@@ -1267,7 +1283,7 @@ export function PreviewPanel(props: PreviewPanelProps) {
                             className="inline-flex items-center gap-1.5 rounded-[6px] border border-on-surface/12 bg-surface px-3 py-1.5 text-[12px] font-semibold text-on-surface transition-all active:scale-95 hover:border-primary/20 hover:bg-surface-container"
                           >
                             <RotateCcw className="h-3.5 w-3.5" />
-                            恢复 AI 建议
+                            {t("workspace.preview.restoreSuggestion")}
                           </button>
                         ) : null}
                       </div>
@@ -1275,7 +1291,7 @@ export function PreviewPanel(props: PreviewPanelProps) {
 
                     <div className="space-y-2 pt-2 border-t border-on-surface/6">
                       <button type="button" onClick={() => setShowManualInput((current) => !current)} className="text-[12px] font-bold text-primary flex items-center gap-1 opacity-80 hover:opacity-100 transition-opacity">
-                        {showManualInput ? "- 收起手动路径输入" : "+ 手动指定其他路径"}
+                        {showManualInput ? `− ${t("workspace.preview.collapseManualInput")}` : `+ ${t("workspace.preview.manualPathInput")}`}
                       </button>
                       {showManualInput ? (
                         <div className="relative">
@@ -1284,13 +1300,13 @@ export function PreviewPanel(props: PreviewPanelProps) {
                               <input
                                 value={manualTarget}
                                 onChange={(event) => setManualTarget(event.target.value)}
-                                placeholder="如: 新专题/归档"
+                                placeholder={t("workspace.preview.manualPathPlaceholder")}
                                 className="h-9 w-full rounded-[6px] border border-on-surface/15 bg-surface px-3 text-[12px] font-medium text-on-surface outline-none focus:border-primary/50"
                               />
                               {/* 目标路径建议 */}
                               {manualTargetTrimmed && !manualTargetInvalid && availableDirectories.filter(d => d.toLowerCase().includes(manualTargetTrimmed.toLowerCase()) && d !== manualTargetTrimmed && !isReviewDirectory(d)).length > 0 && (
                                 <div className="absolute top-full left-0 right-0 z-50 mt-1 max-h-48 overflow-y-auto rounded-[8px] border border-on-surface/10 bg-surface py-1 scrollbar-thin animate-in fade-in slide-in-from-top-2">
-                                  <div className="px-3 py-1.5 text-[11px] font-bold text-ui-muted uppercase tracking-wider bg-on-surface/[0.02]">建议目标目录</div>
+                                  <div className="px-3 py-1.5 text-[11px] font-bold text-ui-muted uppercase tracking-wider bg-on-surface/[0.02]">{t("workspace.preview.suggestedTargetDirectory")}</div>
                                   {availableDirectories
                                     .filter(d => d.toLowerCase().includes(manualTargetTrimmed.toLowerCase()) && d !== manualTargetTrimmed && !isReviewDirectory(d))
                                     .slice(0, 8)
@@ -1320,13 +1336,13 @@ export function PreviewPanel(props: PreviewPanelProps) {
                               disabled={manualTargetInvalid || !manualTargetTrimmed}
                               className="shrink-0 h-9 rounded-[6px] bg-primary px-4 text-[12px] font-bold text-white transition-[transform,background-color] active:scale-95 hover:bg-primary-dim disabled:cursor-not-allowed disabled:opacity-40"
                             >
-                              应用此路径
+                              {t("workspace.preview.applyPath")}
                             </button>
                           </div>
                           <p className="mt-1.5 text-[11px] text-ui-muted px-0.5">
                             {organizeMode === "incremental"
-                              ? "归入已有目录时，只能填写已显式配置的目标目录；拿不准的项目请点“待确认区”。"
-                              : "填写的是相对“新目录生成位置”的路径（不支持绝对路径或待确认区路径）。待确认区只作为暂存落点，不会自动归入目标目录。"}
+                              ? t("workspace.preview.incrementalPathHelp")
+                              : t("workspace.preview.newFolderPathHelp")}
                           </p>
                         </div>
                       ) : null}
@@ -1343,12 +1359,12 @@ export function PreviewPanel(props: PreviewPanelProps) {
                   <div className="space-y-4">
                     <div>
                       <div className="text-[11px] font-bold uppercase tracking-[0.08em] text-ui-muted opacity-80 mb-1.5 flex items-center gap-1.5">
-                        <FolderOpen className="w-3.5 h-3.5" /> 原始条目
+                        <FolderOpen className="w-3.5 h-3.5" /> {t("workspace.preview.sourceItem")}
                       </div>
                       <div className="break-all text-[13px] font-bold text-on-surface leading-snug">{editingItem.display_name}</div>
                     </div>
                     <div>
-                      <div className="text-[11px] font-bold tracking-[0.08em] uppercase text-ui-muted opacity-60 mb-1">来源路径</div>
+                      <div className="text-[11px] font-bold tracking-[0.08em] uppercase text-ui-muted opacity-60 mb-1">{t("workspace.preview.sourcePath")}</div>
                       <div className="break-all font-mono text-[11px] text-on-surface-variant leading-relaxed">{editingItem.source_relpath}</div>
                     </div>
                   </div>
@@ -1357,17 +1373,17 @@ export function PreviewPanel(props: PreviewPanelProps) {
                   <div className="space-y-4">
                     <div>
                       <div className="text-[11px] font-bold uppercase tracking-[0.08em] text-primary/80 mb-1.5 flex items-center gap-1.5">
-                        <CheckCircle2 className="w-3.5 h-3.5" /> 预期归属
+                        <CheckCircle2 className="w-3.5 h-3.5" /> {t("workspace.preview.expectedDestination")}
                       </div>
                       <div className="flex flex-wrap items-center gap-2">
                         <div className="break-all text-[14px] font-bold text-primary">{editingTargetMeta?.directoryLabel}</div>
                         <span className="shrink-0 rounded-full border border-on-surface/10 bg-surface px-2 py-0.5 text-[11px] font-bold text-ui-muted">
-                          {editingTargetMeta?.mappingLabel}
+                          {editingTargetMeta?.mappingLabel ? t(editingTargetMeta.mappingLabel) : null}
                         </span>
                       </div>
                     </div>
                     <div>
-                      <div className="text-[11px] font-bold tracking-[0.08em] uppercase text-ui-muted opacity-60 mb-1">完整目标路径</div>
+                      <div className="text-[11px] font-bold tracking-[0.08em] uppercase text-ui-muted opacity-60 mb-1">{t("workspace.preview.fullTargetPath")}</div>
                       <div className="break-all font-mono text-[11px] text-on-surface-variant leading-relaxed">{editingTargetMeta?.fullTargetPath}</div>
                     </div>
                   </div>
@@ -1377,13 +1393,13 @@ export function PreviewPanel(props: PreviewPanelProps) {
                   {/* Left Column: Reason */}
                   <div>
                     <div className="text-[11px] font-bold uppercase tracking-[0.08em] text-ui-muted opacity-80 mb-3 flex items-center gap-1.5">
-                      <Info className="w-3.5 h-3.5" /> 归类原因
+                      <Info className="w-3.5 h-3.5" /> {t("workspace.preview.reason")}
                     </div>
                     <div className="text-[13px] leading-[1.6] text-on-surface/90 text-justify [&>div>p]:mb-2 [&>div>p:last-child]:mb-0">
                       {editingItem.reason || editingItem.suggested_purpose ? (
                         <MarkdownProse content={editingItem.reason || editingItem.suggested_purpose!} />
                       ) : (
-                        <span className="opacity-50 italic">未提供说明</span>
+                        <span className="opacity-50 italic">{t("workspace.preview.noExplanation")}</span>
                       )}
                     </div>
                   </div>
@@ -1392,17 +1408,17 @@ export function PreviewPanel(props: PreviewPanelProps) {
                   <div>
                     <div className="text-[11px] font-bold uppercase tracking-[0.08em] text-ui-muted opacity-80 mb-3 flex items-center justify-between">
                       <div className="flex items-center gap-1.5">
-                        <FileText className="w-3.5 h-3.5" /> 内容摘要
+                        <FileText className="w-3.5 h-3.5" /> {t("workspace.preview.contentSummary")}
                       </div>
                       <div className="text-[11px] font-mono tracking-normal opacity-80">
-                        置信度: {typeof editingItem.confidence === "number" ? `${Math.round(editingItem.confidence * 100)}%` : "N/A"}
+                        {t("workspace.preview.confidence", { value: typeof editingItem.confidence === "number" ? `${Math.round(editingItem.confidence * 100)}%` : "N/A" })}
                       </div>
                     </div>
                     <div className="text-[13px] leading-[1.6] text-on-surface/90 text-justify [&>div>p]:mb-2 [&>div>p:last-child]:mb-0">
                       {editingItem.content_summary ? (
                         <MarkdownProse content={editingItem.content_summary} />
                       ) : (
-                        <span className="opacity-50 italic">暂无内容摘要</span>
+                        <span className="opacity-50 italic">{t("workspace.preview.noSummary")}</span>
                       )}
                     </div>
                   </div>
@@ -1432,7 +1448,7 @@ export function PreviewPanel(props: PreviewPanelProps) {
                 <AlertTriangle className="h-4 w-4 shrink-0 text-warning" />
                 <span className="truncate">{precheckNotice}</span>
               </div>
-              <span className="shrink-0 text-[12px] font-bold text-primary">点击查看</span>
+              <span className="shrink-0 text-[12px] font-bold text-primary">{t("workspace.preview.clickToView")}</span>
             </motion.button>
           ) : (
             <motion.div
@@ -1456,7 +1472,7 @@ export function PreviewPanel(props: PreviewPanelProps) {
               className="mb-2 flex w-full items-center justify-center gap-2 rounded-md border border-primary/20 bg-primary/8 px-3 py-2 text-[13px] font-bold text-primary transition-colors hover:bg-primary/12 disabled:cursor-not-allowed disabled:opacity-60"
             >
               <Sparkles className="h-4 w-4" />
-              应用冲突建议
+              {t("workspace.preview.applyConflictSuggestions")}
             </button>
           ) : null}
           {/* 有待确认项时，主按钮不再是一句点不动的指令，而是直接带用户去处理队列；
@@ -1465,14 +1481,14 @@ export function PreviewPanel(props: PreviewPanelProps) {
             const shouldFocusQueue = !canRunPrecheck && pendingQueueCount > 0 && !isBusy;
             const isActionable = (canRunPrecheck || shouldFocusQueue) && !isBusy;
             const label = isBusy
-              ? "正在更新方案"
+              ? t("workspace.preview.updatingPlan")
               : canRunPrecheck
-                ? "检查移动风险"
+                ? t("workspace.preview.checkMoveRisks")
                 : pendingQueueCount > 0
-                  ? `去处理待确认项（${pendingQueueCount}）`
+                  ? t("workspace.preview.handleQueue", { count: pendingQueueCount })
                   : isPlanSyncing
-                    ? "等待方案更新完成"
-                    : "等待方案准备好";
+                    ? t("workspace.preview.waitForUpdate")
+                    : t("workspace.preview.waitForPlan");
             return (
               <button
                 type="button"

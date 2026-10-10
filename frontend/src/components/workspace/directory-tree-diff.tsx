@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, Folder, FolderOpen, Layers } from "lucide-react";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
+import { useTranslation } from "react-i18next";
 import { getFileIcon, zhCollator } from "./preview/preview-utils";
 import { AnimatePresence, motion } from "motion/react";
 
@@ -65,10 +66,6 @@ function relativePathFromBase(path: string, basePath?: string): string {
     return normalized.slice(withSlash.length);
   }
   return normalized;
-}
-
-function displayPathSegment(name: string): string {
-  return name.toLowerCase() === "review" ? "待确认区" : name;
 }
 
 function buildTree(column: DirectoryTreeColumnData, filter: DirectoryTreeFilter = "all"): DirectoryTreeNode[] {
@@ -200,19 +197,19 @@ function buildTree(column: DirectoryTreeColumnData, filter: DirectoryTreeFilter 
 function statusBadge(status: DirectoryTreeLeafStatus | undefined) {
   if (status === "review") {
     return {
-      label: "待核对",
+      key: "workspace.directoryTree.status.review",
       className: "border-warning/30 bg-warning/10 text-warning font-bold",
     };
   }
   if (status === "failed") {
     return {
-      label: "阻断",
+      key: "workspace.directoryTree.status.failed",
       className: "border-error/20 bg-error-container/20 text-error font-bold",
     };
   }
   if (status === "success") {
     return {
-      label: "已完成",
+      key: "workspace.directoryTree.status.success",
       className: "border-success/20 bg-success/10 text-success-dim font-bold",
     };
   }
@@ -222,6 +219,7 @@ function statusBadge(status: DirectoryTreeLeafStatus | undefined) {
 
 function DirectoryTreePanel({ 
   column, 
+  side,
   filter = "all",
   tree,
   expanded,
@@ -229,12 +227,14 @@ function DirectoryTreePanel({
   onOpenExplorer,
 }: { 
   onOpenExplorer?: (path: string) => void;
+  side: "before" | "after";
   column: DirectoryTreeColumnData; 
   filter?: DirectoryTreeFilter;
   tree: DirectoryTreeNode[];
   expanded: Record<string, boolean>;
   setExpanded: React.Dispatch<React.SetStateAction<Record<string, boolean>>>;
 }) {
+  const { t } = useTranslation("common");
   useEffect(() => {
     setExpanded((prev) => {
       let changed = false;
@@ -316,7 +316,7 @@ function DirectoryTreePanel({
                 e.stopPropagation();
                 onOpenExplorer(getPhysicalPath(node.path));
               }}
-              title="在物理资源管理器中显示"
+              title={t("workspace.directoryTree.revealInExplorer")}
               className="opacity-0 group-hover:opacity-100 flex h-5 w-5 shrink-0 items-center justify-center rounded-[4px] hover:bg-on-surface/5 text-ui-muted hover:text-primary transition-all active:scale-90"
             >
               <FolderOpen className="h-3 w-3" />
@@ -324,7 +324,7 @@ function DirectoryTreePanel({
           )}
           {badge && (
             <span className={cn("shrink-0 rounded-[4px] border px-1.5 py-0.5 text-[11px] font-black uppercase tracking-widest whitespace-nowrap opacity-80", badge.className)}>
-              {badge.label}
+              {t(badge.key)}
             </span>
           )}
         </div>
@@ -361,7 +361,7 @@ function DirectoryTreePanel({
           ) : (
             <Folder className="h-3.5 w-3.5 shrink-0 text-primary/70" />
           )}
-          <span title={displayPathSegment(node.name)} className="min-w-0 flex-1 truncate font-mono text-[13px] font-black tracking-tight text-on-surface/80">{displayPathSegment(node.name)}</span>
+          <span title={node.name.toLowerCase() === "review" ? t("workspace.reviewFolderLabel") : node.name} className="min-w-0 flex-1 truncate font-mono text-[13px] font-black tracking-tight text-on-surface/80">{node.name.toLowerCase() === "review" ? t("workspace.reviewFolderLabel") : node.name}</span>
           <span className="shrink-0 font-mono text-[11px] font-bold text-ui-muted opacity-40">
             {node.descendantFileCount}
           </span>
@@ -371,7 +371,7 @@ function DirectoryTreePanel({
                 e.stopPropagation();
                 onOpenExplorer(getPhysicalPath(node.path));
               }}
-              title="在物理资源管理器中打开该文件夹"
+              title={t("workspace.directoryTree.openFolderInExplorer")}
               className="opacity-0 group-hover:opacity-100 flex h-5 w-5 shrink-0 items-center justify-center rounded-[4px] hover:bg-on-surface/5 text-ui-muted hover:text-primary transition-all active:scale-90 cursor-pointer"
             >
               <FolderOpen className="h-3 w-3" />
@@ -379,7 +379,7 @@ function DirectoryTreePanel({
           )}
           {isReviewDirectory ? (
             <span className="shrink-0 rounded-full border border-warning/20 bg-warning/10 px-2 py-0.5 text-[11px] font-black uppercase tracking-widest text-warning-dim/80">
-              待确认
+              {t("workspace.reviewFolderLabel")}
             </span>
           ) : null}
         </button>
@@ -433,27 +433,27 @@ function DirectoryTreePanel({
     <div className="flex-1 flex flex-col min-w-0">
       <div className="flex items-center justify-between border-b border-on-surface/8 bg-on-surface/[0.015] px-4 py-2">
         <h3 className="text-[11px] font-black uppercase tracking-[0.2em] text-on-surface/50 truncate">
-          {column.title === "整理前目录树" ? "整理前" : "整理后"} · {column.title}
+          {t(side === "before" ? "workspace.directoryTree.beforeShort" : "workspace.directoryTree.afterShort")} · {column.title}
         </h3>
         {tree.length > 0 && (
           <div className="flex items-center gap-1 shrink-0">
             <button
               type="button"
-              title="收起此列全部目录"
+              title={t("workspace.directoryTree.collapseColumnTitle")}
               onClick={handleCollapseColumn}
               className="flex h-5 px-1.5 items-center gap-1 rounded border border-on-surface/8 bg-surface-container-lowest text-[10px] font-bold text-ui-muted/70 hover:text-on-surface hover:bg-on-surface/5 active:scale-95 transition-all select-none"
             >
               <ChevronsDownUp className="h-3 w-3" />
-              <span>收起</span>
+              <span>{t("workspace.directoryTree.collapse")}</span>
             </button>
             <button
               type="button"
-              title="展开此列全部目录"
+              title={t("workspace.directoryTree.expandColumnTitle")}
               onClick={handleExpandColumn}
               className="flex h-5 px-1.5 items-center gap-1 rounded border border-on-surface/8 bg-surface-container-lowest text-[10px] font-bold text-ui-muted/70 hover:text-on-surface hover:bg-on-surface/5 active:scale-95 transition-all select-none"
             >
               <ChevronsUpDown className="h-3 w-3" />
-              <span>展开</span>
+              <span>{t("workspace.directoryTree.expand")}</span>
             </button>
           </div>
         )}
@@ -468,7 +468,7 @@ function DirectoryTreePanel({
                <Layers className="h-6 w-6" />
             </div>
             <p className="max-w-[200px] text-[13px] font-medium leading-relaxed text-on-surface-variant/60">
-              {column.emptyLabel || "当前没有可展示的目录结构。"}
+              {column.emptyLabel || t("workspace.directoryTree.empty")}
             </p>
           </div>
         )}
@@ -559,6 +559,7 @@ export function DirectoryTreeDiff({ before, after, filter = "all", onOpenExplore
     <div className="grid gap-6 lg:grid-cols-2">
       <DirectoryTreePanel 
         column={before} 
+        side="before"
         filter={filter} 
         tree={beforeTree}
         expanded={expandedBefore}
@@ -567,6 +568,7 @@ export function DirectoryTreeDiff({ before, after, filter = "all", onOpenExplore
       />
       <DirectoryTreePanel 
         column={after} 
+        side="after"
         filter={filter} 
         tree={afterTree}
         expanded={expandedAfter}

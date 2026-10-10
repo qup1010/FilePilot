@@ -5,6 +5,7 @@ import { PlanItem, PlanTargetSlot, PrecheckSummary } from "@/types/session";
 import { cn } from "@/lib/utils";
 import { DirectoryTreeDiff, type DirectoryTreeLeafEntry, type DirectoryTreeFilter } from "./directory-tree-diff";
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { motion } from "motion/react";
 import { Button } from "@/components/ui/button";
 import { PathDiffViewer } from "./path-diff-viewer";
@@ -42,16 +43,16 @@ function isReviewTarget(move: { target?: string; target_slot_id?: string; target
         || (move.target || "").split(/[\\/]/).some((part) => part.toLowerCase() === "review");
 }
 
-function displayMoveTarget(move: EnrichedMovePreview): string {
+function displayMoveTarget(move: EnrichedMovePreview, reviewLabel: string): string {
     if (isReviewTarget(move)) {
-        return `Review/${move.display_name}`;
+        return `${reviewLabel}/${move.display_name}`;
     }
     return move.target;
 }
 
-function displayNameFromMoveSource(source: string): string {
+function displayNameFromMoveSource(source: string, unknownLabel: string): string {
     const normalized = String(source || "").replace(/[\\/]+$/, "");
-    return normalized.split(/[\\/]/).pop() || "未知条目";
+    return normalized.split(/[\\/]/).pop() || unknownLabel;
 }
 
 export function PrecheckView({
@@ -64,21 +65,27 @@ export function PrecheckView({
     onBack,
     onLocateIssue,
 }: PrecheckViewProps) {
+    const { t } = useTranslation("common");
     const [filter, setFilter] = useState<DirectoryTreeFilter>("all");
+    const suggestionTypeLabel = (type: string) => {
+        if (type === "target_exists") return t("workspace.precheck.suggestion.targetExists");
+        if (type === "target_name_conflict") return t("workspace.precheck.suggestion.targetNameConflict");
+        return t("workspace.precheck.suggestion.conflict");
+    };
 
     if (!summary) {
         return (
             <div className="flex h-full w-full items-center justify-center p-10 text-center">
                 <div className="space-y-4">
                     <div className="h-10 w-10 animate-spin rounded-full border-2 border-primary border-t-transparent mx-auto" />
-                    <p className="text-[14px] text-ui-muted">正在检查移动风险...</p>
+                    <p className="text-[14px] text-ui-muted">{t("workspace.precheck.loading")}</p>
                     {!readOnly ? (
                         <button
                             type="button"
                             onClick={onBack}
                             className="mx-auto rounded-[8px] border border-on-surface/10 bg-surface px-4 py-2 text-[12px] font-semibold text-on-surface-variant transition-colors hover:bg-on-surface/5"
                         >
-                            返回方案调整
+                            {t("workspace.precheck.backToPlan")}
                         </button>
                     ) : null}
                 </div>
@@ -100,7 +107,7 @@ export function PrecheckView({
         const planItem = planItemById.get(move.item_id);
         return {
             item_id: move.item_id,
-            display_name: planItem?.display_name || displayNameFromMoveSource(move.source),
+            display_name: planItem?.display_name || displayNameFromMoveSource(move.source, t("workspace.precheck.unknownItem")),
             target_slot_id: move.target_slot_id || planItem?.target_slot_id || "",
             target_kind: move.target_kind,
             is_review: move.is_review,
@@ -111,43 +118,36 @@ export function PrecheckView({
     const riskMessagesByItemId = new Map<string, string[]>();
     for (const issue of summary.issues || []) {
         if (issue.severity !== "warning") continue;
-        const message = String(issue.message || "");
-        // New issues use stable codes; keep the text check for persisted precheck snapshots.
-        if (issue.code !== "risky_move" && !message.includes("高影响移动")) continue;
+        if (issue.code !== "risky_move") continue;
         for (const itemId of issue.related_item_ids || []) {
             const existing = riskMessagesByItemId.get(itemId) || [];
-            existing.push(message);
+            existing.push(String(issue.message || t("workspace.precheck.importantChange")));
             riskMessagesByItemId.set(itemId, existing);
         }
     }
 
     const statusTitle = hasErrors
-        ? "当前不能执行"
+        ? t("workspace.precheck.status.blocked")
         : hasWarnings
-            ? "可以执行，建议先看提醒"
-            : "安全检查通过";
-    const _statusDescription = hasErrors
-        ? "发现必须先处理的问题，修复后再执行会更安全。"
-        : hasWarnings
-            ? "结构已经通过，但还有一些风险提醒值得先确认。"
-            : "结构检查已经通过，一切就绪，可以进入执行阶段。";
+            ? t("workspace.precheck.status.warnings")
+            : t("workspace.precheck.status.ready");
 
     const beforeTree = {
-        title: "整理前目录树",
-        subtitle: "这里是这次会参与整理的原始位置。",
+        title: t("workspace.precheck.beforeTreeTitle"),
+        subtitle: t("workspace.precheck.beforeTreeDescription"),
         leafEntries: enrichedMoves.map((move) => ({ path: move.source })),
-        emptyLabel: "当前没有可检查的原始路径。",
+        emptyLabel: t("workspace.precheck.noSourcePaths"),
     };
 
     const afterTree = {
-        title: "整理后目录树",
-        subtitle: "这里是执行后即将形成的目标结构。",
+        title: t("workspace.precheck.afterTreeTitle"),
+        subtitle: t("workspace.precheck.afterTreeDescription"),
         leafEntries: enrichedMoves.map<DirectoryTreeLeafEntry>((move) => ({
-            path: displayMoveTarget(move),
+            path: displayMoveTarget(move, t("workspace.reviewFolderLabel")),
             status: isReviewTarget(move) ? "review" : "pending",
         })),
         directoryEntries: summary.mkdir_preview || [],
-        emptyLabel: filter === "review" ? "没有需要留在待确认区的文件。" : "当前没有可展示的目标目录结构。",
+        emptyLabel: filter === "review" ? t("workspace.precheck.noReviewFiles") : t("workspace.precheck.noTargetTree"),
     };
 
     return (
@@ -186,11 +186,11 @@ export function PrecheckView({
                         {/* Metrics Bar - High Density Grid */}
                         <div className="grid grid-cols-3 gap-2.5">
                             {[
-                                { label: "将移动", value: summary.move_preview.length, icon: ArrowRight, color: "text-primary", bg: "bg-primary/8", iconRotate: "-45deg" },
-                                { label: "将新建目录", value: summary.mkdir_preview.length, icon: FolderPlus, color: "text-sky-500", bg: "bg-sky-500/8" },
+                                { label: t("workspace.precheck.metrics.moving"), value: summary.move_preview.length, icon: ArrowRight, color: "text-primary", bg: "bg-primary/8", iconRotate: "-45deg" },
+                                { label: t("workspace.precheck.metrics.creatingFolders"), value: summary.mkdir_preview.length, icon: FolderPlus, color: "text-sky-500", bg: "bg-sky-500/8" },
                                 stayInPlaceCount > 0
-                                    ? { label: "保留在原地", value: stayInPlaceCount, icon: ShieldCheck, color: "text-emerald-500", bg: "bg-emerald-500/8" }
-                                    : { label: "待确认", value: reviewCount, icon: AlertCircle, color: reviewCount > 0 ? "text-warning" : "text-success-dim", bg: reviewCount > 0 ? "bg-warning/8" : "bg-success/8" }
+                                    ? { label: t("workspace.precheck.metrics.staying"), value: stayInPlaceCount, icon: ShieldCheck, color: "text-emerald-500", bg: "bg-emerald-500/8" }
+                                    : { label: t("workspace.precheck.metrics.review"), value: reviewCount, icon: AlertCircle, color: reviewCount > 0 ? "text-warning" : "text-success-dim", bg: reviewCount > 0 ? "bg-warning/8" : "bg-success/8" }
                             ].map((stat, i) => (
                                 <motion.div 
                                     key={i}
@@ -219,14 +219,14 @@ export function PrecheckView({
                         <section className="flex flex-col rounded-xl border border-on-surface/8 bg-surface-container-lowest overflow-hidden">
                         <div className="shrink-0 flex items-center justify-between bg-on-surface/[0.01] border-b border-on-surface/8 px-6 py-3.5">
                             <div className="space-y-0.5">
-                                <h3 className="text-[13px] font-black text-on-surface tracking-tight">移动前后对照</h3>
-                                <p className="text-[11px] font-black text-ui-muted opacity-40 tracking-widest">执行前不会移动文件</p>
+                                <h3 className="text-[13px] font-black text-on-surface tracking-tight">{t("workspace.precheck.comparisonTitle")}</h3>
+                                <p className="text-[11px] font-black text-ui-muted opacity-40 tracking-widest">{t("workspace.precheck.noMovesBeforeExecute")}</p>
                             </div>
                             {reviewCount > 0 && (
                                 <div className="flex items-center gap-1 rounded-md border border-on-surface/8 bg-on-surface/[0.02] p-0.5">
                                     {[
-                                        { id: "all", label: "全部显示" },
-                                        { id: "review", label: `仅看待确认 (${reviewCount})` },
+                                        { id: "all", label: t("workspace.precheck.showAll") },
+                                        { id: "review", label: t("workspace.precheck.showReviewOnly", { count: reviewCount }) },
                                     ].map((btn) => (
                                         <button
                                             key={btn.id}
@@ -252,17 +252,16 @@ export function PrecheckView({
                     {enrichedMoves.length ? (
                         <section className="shrink-0 space-y-4 pb-4">
                             <div className="flex items-baseline justify-between border-b border-on-surface/8 pb-3 mb-4">
-                                <h3 className="text-[15px] font-black font-headline text-on-surface tracking-tight">将要移动的项目</h3>
-                                <div className="text-[11px] font-bold text-ui-muted opacity-40 uppercase tracking-widest">{enrichedMoves.length} 个条目</div>
+                                <h3 className="text-[15px] font-black font-headline text-on-surface tracking-tight">{t("workspace.precheck.itemsToMove")}</h3>
+                                <div className="text-[11px] font-bold text-ui-muted opacity-40 uppercase tracking-widest">{t("workspace.precheck.itemCount", { count: enrichedMoves.length })}</div>
                             </div>
                             <div className="grid gap-3 @4xl:grid-cols-2">
                                 {enrichedMoves.map((move, idx) => {
                                     const slot = move.target_slot_id ? targetSlotById.get(move.target_slot_id) : null;
                                     const isReview = isReviewTarget(move);
                                     const slotLabel = isReview
-                                        ? "待确认区"
+                                        ? t("workspace.reviewFolderLabel")
                                         : slot?.display_name || "";
-                                    const _targetLabel = displayMoveTarget(move);
                                     const riskMessages = riskMessagesByItemId.get(move.item_id) || [];
                                     
                                     return (
@@ -285,7 +284,7 @@ export function PrecheckView({
                                                                 title={riskMessages.join("\n")}
                                                             >
                                                                 <ShieldAlert className="h-2 w-2" />
-                                                                重要变动
+                                                                {t("workspace.precheck.importantChange")}
                                                             </div>
                                                         )}
                                                     </div>
@@ -315,10 +314,10 @@ export function PrecheckView({
                         <section className="shrink-0 space-y-4 pb-4">
                             <div className="flex items-baseline justify-between border-b border-on-surface/8 pb-3 mb-4">
                                 <div>
-                                    <h3 className="text-[15px] font-black font-headline text-on-surface tracking-tight">保留在原位的项目</h3>
-                                    <p className="text-[11px] font-medium text-ui-muted mt-0.5">未命中任何目标分类规则，整理时将安全保留在源文件夹中不变</p>
+                                    <h3 className="text-[15px] font-black font-headline text-on-surface tracking-tight">{t("workspace.precheck.stayingItems")}</h3>
+                                    <p className="text-[11px] font-medium text-ui-muted mt-0.5">{t("workspace.precheck.stayingDescription")}</p>
                                 </div>
-                                <div className="text-[11px] font-bold text-emerald-500 uppercase tracking-widest">{stayInPlaceItems.length} 个条目</div>
+                                <div className="text-[11px] font-bold text-emerald-500 uppercase tracking-widest">{t("workspace.precheck.itemCount", { count: stayInPlaceItems.length })}</div>
                             </div>
                             <div className="grid gap-3 @4xl:grid-cols-2">
                                 {stayInPlaceItems.map((item) => {
@@ -331,10 +330,10 @@ export function PrecheckView({
                                                 </div>
                                                 <div className="min-w-0 flex-1">
                                                     <p className="truncate font-mono text-[13px] font-bold text-on-surface">{item.display_name}</p>
-                                                    <p className="mt-0.5 truncate text-[11px] text-ui-muted opacity-60">源路径：{item.source_relpath}</p>
+                                            <p className="mt-0.5 truncate text-[11px] text-ui-muted opacity-60">{t("workspace.precheck.sourcePath", { path: item.source_relpath })}</p>
                                                 </div>
                                             </div>
-                                            <span className="shrink-0 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-1 text-[11px] font-bold text-emerald-600">保留在原地</span>
+                                            <span className="shrink-0 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-1 text-[11px] font-bold text-emerald-600">{t("workspace.precheck.staying")}</span>
                                         </div>
                                     );
                                 })}
@@ -345,7 +344,7 @@ export function PrecheckView({
                     {targetConflictSuggestions.length ? (
                         <section className="shrink-0 space-y-4 pb-4">
                             <div className="border-b border-on-surface/8 pb-3 mb-4">
-                                <h3 className="text-[15px] font-black font-headline tracking-tight text-on-surface">同名冲突建议</h3>
+                                <h3 className="text-[15px] font-black font-headline tracking-tight text-on-surface">{t("workspace.precheck.conflictSuggestions")}</h3>
                             </div>
                             <div className="space-y-3">
                                 {targetConflictSuggestions.map((suggestion, index) => (
@@ -361,7 +360,7 @@ export function PrecheckView({
                                                 </p>
                                             </div>
                                             <div className="shrink-0 rounded-[4px] border border-error/15 bg-error/5 px-2 py-1 text-[11px] font-black text-error">
-                                                {suggestion.items.length} 项
+                                                {t("workspace.precheck.itemCount", { count: suggestion.items.length })}
                                             </div>
                                         </div>
                                         <div className="space-y-2">
@@ -379,7 +378,7 @@ export function PrecheckView({
                                                         </p>
                                                     </div>
                                                     <div className="min-w-0">
-                                                        <p className="text-[11px] font-black uppercase tracking-widest text-ui-muted opacity-60">建议目标</p>
+                                                <p className="text-[11px] font-black uppercase tracking-widest text-ui-muted opacity-60">{t("workspace.precheck.suggestedTarget")}</p>
                                                         <p className="mt-1 truncate text-[11px] font-mono font-bold text-on-surface" title={item.suggested_target}>
                                                             {item.suggested_target}
                                                         </p>
@@ -396,7 +395,7 @@ export function PrecheckView({
                     {(hasErrors || hasWarnings || reviewCount > 0) ? (
                         <section className="shrink-0 space-y-4 pb-12">
                             <div className="border-b border-on-surface/8 pb-3 mb-4">
-                                <h3 className="text-[15px] font-black font-headline tracking-tight text-on-surface">执行前提醒</h3>
+                                <h3 className="text-[15px] font-black font-headline tracking-tight text-on-surface">{t("workspace.precheck.issuesTitle")}</h3>
                             </div>
 
                             <div className="space-y-3">
@@ -409,7 +408,7 @@ export function PrecheckView({
                                             ? "bg-warning/[0.02] border-warning/10 hover:bg-warning/[0.04]" 
                                             : "bg-surface-container-low/40 border-on-surface/8";
                                     const Icon = isBlocking ? AlertCircle : isWarning ? ShieldAlert : ListChecks;
-                                    const title = isBlocking ? "必须先处理" : isWarning ? "执行前建议" : "核对提醒";
+                                    const title = isBlocking ? t("workspace.precheck.issueTitle.blocking") : isWarning ? t("workspace.precheck.issueTitle.warning") : t("workspace.precheck.issueTitle.review");
                                     const locateFilter = issue.severity === "review" ? "review" : undefined;
                                     
                                     return (
@@ -436,7 +435,7 @@ export function PrecheckView({
                                                     onClick={() => onLocateIssue(issue.related_item_ids, locateFilter)}
                                                     className="shrink-0 h-7 px-3 text-[11px] font-black rounded-[4px]"
                                                 >
-                                                    定位问题
+                                                    {t("workspace.precheck.locateIssue")}
                                                 </Button>
                                             ) : null}
                                         </div>
@@ -457,11 +456,11 @@ export function PrecheckView({
                                 <ListChecks className="h-4.5 w-4.5" />
                             </div>
                             <div className="flex items-baseline gap-4">
-                                <h4 className="text-[13px] font-black text-on-surface tracking-tight leading-none">{readOnly ? "安全检查记录" : "确认开始移动？"}</h4>
+                                <h4 className="text-[13px] font-black text-on-surface tracking-tight leading-none">{readOnly ? t("workspace.precheck.readOnlyRecord") : t("workspace.precheck.confirmMoveTitle")}</h4>
                                 <p className="text-[11px] font-medium text-ui-muted opacity-70">
                                     {readOnly
-                                        ? "当前只能查看记录，不能修改执行状态。"
-                                        : (hasErrors ? "发现必须先解决的问题，暂不能执行。" : "整理执行后支持随时一键安全还原。")}
+                                        ? t("workspace.precheck.readOnlyDescription")
+                                        : (hasErrors ? t("workspace.precheck.blockedDescription") : t("workspace.precheck.rollbackDescription"))}
                                 </p>
                             </div>
                         </div>
@@ -474,7 +473,7 @@ export function PrecheckView({
                                     disabled={isBusy}
                                     className="h-9 px-5 text-[11px] font-black uppercase tracking-widest rounded-md"
                                 >
-                                    返回修改
+                                    {t("workspace.precheck.backToEdit")}
                                 </Button>
                                 <Button
                                     onClick={onRequestExecute}
@@ -482,7 +481,7 @@ export function PrecheckView({
                                     className="h-9 px-7 text-[11px] font-black uppercase tracking-widest rounded-md border border-primary/10 bg-primary active:bg-primary-dim"
                                 >
                                     <ArrowRight className="h-4 w-4" />
-                                    开始移动文件
+                                    {t("workspace.precheck.startMoving")}
                                 </Button>
                             </div>
                         ) : null}
@@ -492,8 +491,3 @@ export function PrecheckView({
         </div>
     );
 }
-    const suggestionTypeLabel = (type: string) => {
-        if (type === "target_exists") return "目标已存在";
-        if (type === "target_name_conflict") return "目标重名";
-        return "冲突建议";
-    };

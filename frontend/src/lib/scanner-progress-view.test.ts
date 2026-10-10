@@ -11,7 +11,7 @@ describe("scanner-progress-view", () => {
     );
 
     expect(view.phase).toBe("discovering");
-    expect(view.title).toBe("正在读取目录结构");
+    expect(view.title.key).toBe("scanner.title.readingDirectory");
     expect(view.steps.map((step) => step.state)).toEqual(["active", "pending", "pending"]);
   });
 
@@ -23,7 +23,7 @@ describe("scanner-progress-view", () => {
     );
 
     expect(view.phase).toBe("analyzing");
-    expect(view.title).toBe("正在分析文件内容");
+    expect(view.title.key).toBe("scanner.title.analyzingFiles");
     expect(view.steps.map((step) => step.state)).toEqual(["done", "active", "pending"]);
   });
 
@@ -35,8 +35,8 @@ describe("scanner-progress-view", () => {
     );
 
     expect(view.phase).toBe("planning");
-    expect(view.title).toBe("正在生成第一版整理方案");
-    expect(view.description).toContain("可执行建议");
+    expect(view.title.key).toBe("scanner.title.creatingInitialPlan");
+    expect(view.description.key).toBe("scanner.description.initialPlan");
     expect(view.steps.map((step) => step.state)).toEqual(["done", "done", "active"]);
   });
 
@@ -48,8 +48,8 @@ describe("scanner-progress-view", () => {
     );
 
     expect(view.phase).toBe("stranded");
-    expect(view.title).toBe("目录读取已完成");
-    expect(view.description).toContain("自动方案没有继续生成");
+    expect(view.title.key).toBe("scanner.title.directoryReadComplete");
+    expect(view.description.key).toBe("scanner.description.stranded");
     expect(view.steps.map((step) => step.state)).toEqual(["done", "done", "aborted"]);
   });
 

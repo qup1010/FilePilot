@@ -1,9 +1,10 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { optionDirectoryForTarget, optionIdentityForTarget, PreviewPanel } from "./preview-panel";
 import { groupItemsByTargetSlot, resolveItemDirectoryTarget, resolveItemTargetPath } from "./preview/preview-utils";
 import type { PlanItem } from "@/types/session";
+import i18n from "@/i18n/instance";
 
 vi.mock("motion/react", () => ({
   AnimatePresence: ({ children }: { children: React.ReactNode }) => <>{children}</>,
@@ -28,8 +29,13 @@ vi.mock("@/components/ui/dialog", () => ({
 }));
 
 describe("PreviewPanel", () => {
-  afterEach(() => {
+  beforeEach(async () => {
+    await i18n.changeLanguage("zh-CN");
+  });
+
+  afterEach(async () => {
     cleanup();
+    await i18n.changeLanguage("zh-CN");
   });
 
   const createPlan = () => ({
@@ -91,6 +97,38 @@ describe("PreviewPanel", () => {
 
     expect(screen.getByText("正在基于你的最新要求重算方案")).toBeInTheDocument();
     expect(screen.getByText("当前显示的是上一版方案，新方案完成后会自动替换")).toBeInTheDocument();
+  });
+
+  it("renders plan preview and review queue labels in English", async () => {
+    await i18n.changeLanguage("en");
+    render(
+      <PreviewPanel
+        plan={{
+          ...createPlan(),
+          items: [
+            {
+              item_id: "review-1",
+              display_name: "report.pdf",
+              source_relpath: "inbox/report.pdf",
+              target_slot_id: "Review",
+              status: "review",
+              mapping_status: "review",
+            },
+          ],
+          stats: { directory_count: 0, move_count: 1, unresolved_count: 0 },
+        }}
+        stage="ready_for_precheck"
+        isBusy={false}
+        onRunPrecheck={() => {}}
+        onUpdateItem={() => {}}
+      />,
+    );
+
+    expect(screen.getByText("Plan preview")).toBeInTheDocument();
+    expect(screen.getByText("Items to review")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Collapse" }));
+    expect(screen.getByText("In Review: 1")).toBeInTheDocument();
+    expect(screen.getAllByText("Review").length).toBeGreaterThan(0);
   });
 
   it("allows collapsing the pending queue to free space for the tree", () => {

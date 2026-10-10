@@ -1,7 +1,8 @@
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { cleanup, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { ComposerBar } from "./composer-bar";
+import i18n from "@/i18n/instance";
 
 vi.mock("motion/react", () => ({
   AnimatePresence: ({ children }: { children: React.ReactNode }) => <>{children}</>,
@@ -11,6 +12,32 @@ vi.mock("motion/react", () => ({
 }));
 
 describe("ComposerBar", () => {
+  afterEach(async () => {
+    cleanup();
+    await i18n.changeLanguage("zh-CN");
+  });
+
+  it("localizes its input and safety-check hint", async () => {
+    await i18n.changeLanguage("en");
+    const { unmount } = render(
+      <ComposerBar
+        composerMode="editable"
+        error={null}
+        unresolvedCount={0}
+        canRunPrecheck
+        isBusy={false}
+        isComposerLocked={false}
+        messageInput=""
+        setMessageInput={() => {}}
+        onSendMessage={() => {}}
+      />,
+    );
+
+    expect(screen.getByPlaceholderText("Describe what you want to change in the plan")).toBeInTheDocument();
+    expect(screen.getByText("The plan is confirmed. You can run the safety check now.")).toBeInTheDocument();
+    unmount();
+  });
+
   it("renders planner waiting status with elapsed time, retry attempt and reassure copy", () => {
     render(
       <ComposerBar

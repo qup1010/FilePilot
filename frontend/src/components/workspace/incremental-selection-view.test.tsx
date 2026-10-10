@@ -1,11 +1,17 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { IncrementalSelectionView } from "./incremental-selection-view";
+import i18n from "@/i18n/instance";
 
 describe("IncrementalSelectionView", () => {
-  afterEach(() => {
+  beforeEach(async () => {
+    await i18n.changeLanguage("zh-CN");
+  });
+
+  afterEach(async () => {
     cleanup();
+    await i18n.changeLanguage("zh-CN");
   });
 
   it("normalizes root options before selecting all", () => {
@@ -31,5 +37,21 @@ describe("IncrementalSelectionView", () => {
 
     expect(onConfirm).toHaveBeenCalledWith(["Docs", "Archive"]);
     expect(screen.getAllByText(/已包含 1 项/)).toHaveLength(2);
+  });
+
+  it("renders the existing-folder selection flow in English", async () => {
+    await i18n.changeLanguage("en");
+    render(
+      <IncrementalSelectionView
+        rootDirectoryOptions={["Documents"]}
+        sourceTreeEntries={[{ source_relpath: "Documents", display_name: "Documents", entry_type: "directory" }]}
+        loading={false}
+        onConfirm={() => {}}
+      />,
+    );
+
+    expect(screen.getByText("Choose folders to use as targets")).toBeInTheDocument();
+    expect(screen.getByText("Available folders")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Confirm and continue/ })).toBeDisabled();
   });
 });
