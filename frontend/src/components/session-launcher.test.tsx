@@ -472,6 +472,10 @@ describe("SessionLauncher", () => {
     render(<SessionLauncher />);
 
     await screen.findByText("填写必要信息");
+    await waitFor(() => expect(getTargetProfilesMock).toHaveBeenCalled());
+    await act(async () => {
+      await getTargetProfilesMock.mock.results[0].value;
+    });
     fireEvent.click(screen.getByRole("button", { name: "读取目录并开始规划" }));
 
     expect(await screen.findByText("当前选择的目录配置已不存在，请重新选择目录配置或手动添加目标目录。")).toBeInTheDocument();
