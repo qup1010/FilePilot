@@ -41,12 +41,6 @@ On first launch:
 2. Choose standard or one-click organization from the comparison above.
 3. Review the result in Organization History after a task. You can attempt to undo the most recent operation when needed.
 
-### Choose your interface language
-
-New installs follow the system language by default. The interface currently supports Simplified Chinese and English; other system languages fall back to Simplified Chinese. You can also choose a language in **Settings → About and logs → Interface language**. Folder names match the app language by default, with separate Chinese and English overrides. Changing the app language does not rename existing folders, and tasks keep the folder-name language resolved when they started.
-
-![FilePilot interface language setting with English selected](./frontend/public/screenshots/settings-language-en.jpg)
-
 ### Standard organization
 
 Choose source files or folders, then select **Organize into existing folders** or **Create a new folder structure**. After scanning and plan generation, review each destination and adjust the plan in the workspace if needed. Check the pre-check results before execution.
