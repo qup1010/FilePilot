@@ -244,6 +244,116 @@ jobs:
             }
           }
 
+      - name: Download previous Windows installers for upgrade smoke
+        shell: pwsh
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          $tauriConfig = Get-Content 'desktop/src-tauri/tauri.conf.json' -Raw -Encoding utf8 | ConvertFrom-Json
+          if ([version]$tauriConfig.version -le [version]'1.0.5') {
+            Write-Output "Skipping upgrade smoke: no release older than $($tauriConfig.version) is configured."
+            exit 0
+          }
+
+          $release = Invoke-RestMethod `
+            -Uri "https://api.github.com/repos/$env:GITHUB_REPOSITORY/releases/tags/v1.0.5" `
+            -Headers @{
+              Accept = 'application/vnd.github+json'
+              Authorization = "Bearer $env:GITHUB_TOKEN"
+              'X-GitHub-Api-Version' = '2022-11-28'
+            }
+          $previousMsi = @($release.assets | Where-Object { $_.name -match '^FilePilot_1\.0\.5_x64(?:_.*)?\.msi$' } | Sort-Object { if ($_.name -match '_en-US\.msi$') { 0 } else { 1 } } | Select-Object -First 1)
+          $previousNsis = @($release.assets | Where-Object { $_.name -eq 'FilePilot_1.0.5_x64-setup.exe' } | Select-Object -First 1)
+          if (-not $previousMsi) {
+            throw 'Previous WiX MSI release asset for v1.0.5 was not found.'
+          }
+          if (-not $previousNsis) {
+            throw 'Previous NSIS release asset for v1.0.5 was not found.'
+          }
+
+          foreach ($asset in @($previousMsi[0], $previousNsis[0])) {
+            $assetName = $asset.name
+            $installerPath = Join-Path $env:RUNNER_TEMP $assetName
+            Invoke-WebRequest -Uri $asset.browser_download_url -OutFile $installerPath
+            $download = Get-Item -LiteralPath $installerPath
+            if ($download.Length -lt 10MB) {
+              throw "Previous Windows installer download is unexpectedly small: $($download.Length) bytes"
+            }
+            $hash = (Get-FileHash -LiteralPath $installerPath -Algorithm SHA256).Hash
+            Write-Output "Downloaded $assetName ($($download.Length) bytes, SHA-256 $hash)."
+          }
+
+      - name: Smoke test WiX MSI upgrade and data preservation
+        shell: pwsh
+        env:
+          CI: "true"
+        run: |
+          $tauriConfig = Get-Content 'desktop/src-tauri/tauri.conf.json' -Raw -Encoding utf8 | ConvertFrom-Json
+          if ([version]$tauriConfig.version -le [version]'1.0.5') {
+            Write-Output "Skipping MSI upgrade smoke: no release older than $($tauriConfig.version) is configured."
+            exit 0
+          }
+
+          $builtExe = Get-ChildItem 'desktop/src-tauri/target/release' -Filter *.exe |
+            Where-Object { $_.Name -ne 'file_pilot_api.exe' } |
+            Select-Object -First 1
+          $currentMsi = Get-ChildItem 'desktop/src-tauri/target/release/bundle/msi' -Recurse -Filter 'FilePilot_*_x64_en-US.msi' |
+            Select-Object -First 1
+          $previousMsi = Get-ChildItem $env:RUNNER_TEMP -Filter 'FilePilot_1.0.5_x64*.msi' -File |
+            Select-Object -First 1
+          if (-not $builtExe -or -not $currentMsi -or -not $previousMsi) {
+            throw 'A previous MSI, current desktop executable, or current en-US MSI was not found for the upgrade smoke test.'
+          }
+
+          & scripts/smoke_msi_upgrade.ps1 `
+            -PreviousInstallerPath $previousMsi.FullName `
+            -CurrentInstallerPath $currentMsi.FullName `
+            -PreviousVersion '1.0.5' `
+            -CurrentVersion ([string]$tauriConfig.version) `
+            -DesktopExecutableName $builtExe.Name
+          if (-not $?) {
+            throw 'WiX MSI upgrade smoke test failed.'
+          }
+
+      - name: Smoke test NSIS upgrade and data preservation
+        shell: pwsh
+        env:
+          CI: "true"
+        run: |
+          $tauriConfig = Get-Content 'desktop/src-tauri/tauri.conf.json' -Raw -Encoding utf8 | ConvertFrom-Json
+          if ([version]$tauriConfig.version -le [version]'1.0.5') {
+            Write-Output "Skipping NSIS upgrade smoke: no release older than $($tauriConfig.version) is configured."
+            exit 0
+          }
+
+          $builtExe = Get-ChildItem 'desktop/src-tauri/target/release' -Filter *.exe |
+            Where-Object { $_.Name -ne 'file_pilot_api.exe' } |
+            Select-Object -First 1
+          if (-not $builtExe) {
+            throw 'Built desktop executable was not found.'
+          }
+
+          $previousNsis = Join-Path $env:RUNNER_TEMP 'FilePilot_1.0.5_x64-setup.exe'
+          if (-not (Test-Path -LiteralPath $previousNsis)) {
+            throw "Previous NSIS installer was not downloaded: $previousNsis"
+          }
+
+          $currentInstaller = Get-ChildItem 'desktop/src-tauri/target/release/bundle/nsis' -Recurse -Filter 'FilePilot_*_x64-setup.exe' |
+            Select-Object -First 1
+          if (-not $currentInstaller) {
+            throw 'Current multilingual NSIS installer was not found.'
+          }
+
+          & scripts/smoke_nsis_upgrade.ps1 `
+            -PreviousInstallerPath $previousNsis `
+            -CurrentInstallerPath $currentInstaller.FullName `
+            -PreviousVersion '1.0.5' `
+            -CurrentVersion ([string]$tauriConfig.version) `
+            -DesktopExecutableName $builtExe.Name
+          if (-not $?) {
+            throw 'NSIS upgrade smoke test failed.'
+          }
+
       - name: Dump desktop smoke diagnostics on failure
         if: failure()
         shell: pwsh
