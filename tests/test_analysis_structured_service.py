@@ -22,6 +22,23 @@ class StructuredAnalysisServiceTests(unittest.TestCase):
         if self.base_dir.exists():
             shutil.rmtree(self.base_dir)
 
+    def test_analysis_item_preserves_explicit_status_and_migrates_legacy_placeholder(self):
+        completed = AnalysisItem.from_dict({
+            "entry_name": "unknown.txt",
+            "suggested_purpose": "待判断",
+            "summary": "摘要本身已完成",
+            "analysis_status": "completed",
+        })
+        needs_review = AnalysisItem.from_dict({
+            "entry_name": "uncovered.txt",
+            "suggested_purpose": "待判断",
+            "summary": "分析未覆盖，需手动确认",
+        })
+
+        self.assertEqual(completed.analysis_status, "completed")
+        self.assertEqual(needs_review.analysis_status, "needs_review")
+        self.assertEqual(needs_review.to_dict()["analysis_status"], "needs_review")
+
     def test_render_analysis_items_includes_entry_type_in_scan_format(self):
         items = [
             AnalysisItem(
@@ -285,6 +302,16 @@ class StructuredAnalysisServiceTests(unittest.TestCase):
         )
 
         self.assertEqual(failures, ["F001"])
+
+    def test_legacy_generic_image_fallback_is_kept_in_a_compatibility_helper(self):
+        item = AnalysisItem(
+            entry_id="F001",
+            entry_name="IMG_001.png",
+            suggested_purpose="待判断",
+            summary="仅凭文件名无法确认图片内容",
+        )
+
+        self.assertTrue(analysis_service._has_legacy_generic_image_fallback(item))
 
     def test_batch_read_tool_resolves_entry_ids_without_exposing_absolute_paths(self):
         entry_context = {

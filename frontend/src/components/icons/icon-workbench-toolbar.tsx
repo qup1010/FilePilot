@@ -1,5 +1,6 @@
 "use client";
 import { FolderPlus, History, Settings2, Sparkles, Trash2 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 import { cn } from "@/lib/utils";
 
@@ -12,23 +13,22 @@ interface IconWorkbenchToolbarProps {
   onOpenStylePanel: () => void;
   onOpenTemplateDrawer: () => void;
   selectedTemplateName?: string;
+  hasSelectedStyle: boolean;
 }
 
 export function IconWorkbenchToolbar({
   targetCount,
-  latestTargetPath,
   onAddTargets,
   onClearTargets,
   onOpenHistory,
   onOpenStylePanel,
   onOpenTemplateDrawer,
-  selectedTemplateName = "请选择风格模板",
+  selectedTemplateName = "",
+  hasSelectedStyle,
 }: IconWorkbenchToolbarProps) {
-  const isNoStyleSelected = !selectedTemplateName || selectedTemplateName === "请选择风格模板" || selectedTemplateName === "请选择风格" || selectedTemplateName === "请先选择风格模板";
-  const targetSummary = targetCount > 0 ? `${targetCount} 个文件夹` : "未选择文件夹";
-  const _targetDetail = targetCount > 0
-    ? latestTargetPath || "继续添加文件夹..."
-    : "支持一次性选择并分类多个目标。";
+  const { t } = useTranslation("common");
+  const isNoStyleSelected = !hasSelectedStyle;
+  const targetSummary = t("iconWorkbench.counts.folder", { count: targetCount });
 
   return (
     <div className="flex min-h-[44px] shrink-0 items-center justify-between border-b border-on-surface/[0.06] bg-surface px-4 transition-all">
@@ -39,13 +39,13 @@ export function IconWorkbenchToolbar({
             className="flex h-7.5 items-center gap-2 rounded-lg border border-primary/10 bg-primary/8 px-3.5 text-[11px] font-black text-primary transition-all hover:bg-primary/15 active:scale-95"
           >
             <FolderPlus className="h-3.5 w-3.5" />
-            <span>载入文件夹</span>
+            <span>{t("iconWorkbench.common.loadFolders")}</span>
           </button>
 
           <button
             onClick={onOpenHistory}
             className="flex h-7.5 w-7.5 items-center justify-center rounded-lg border border-on-surface/8 bg-on-surface/[0.03] text-ui-muted/50 transition-all hover:bg-on-surface/5 hover:text-primary active:scale-90"
-            title="历史工作区"
+            title={t("iconWorkbench.common.history")}
           >
             <History className="h-3.5 w-3.5" />
           </button>
@@ -54,7 +54,7 @@ export function IconWorkbenchToolbar({
             <button
               onClick={onClearTargets}
               className="flex h-7.5 w-7.5 items-center justify-center rounded-lg border border-on-surface/8 bg-on-surface/[0.03] text-ui-muted/40 transition-all hover:bg-error/10 hover:text-error active:scale-90"
-              title="清空文件夹列表"
+              title={t("iconWorkbench.common.clearTargets")}
             >
               <Trash2 className="h-3.5 w-3.5" />
             </button>
@@ -90,9 +90,9 @@ export function IconWorkbenchToolbar({
             <Sparkles className="h-3 w-3" />
           </div>
           <div className="flex flex-col items-start text-left">
-            <span className="text-[11px] font-black text-ui-muted/40 leading-tight">风格模板</span>
+            <span className="text-[11px] font-black text-ui-muted/40 leading-tight">{t("iconWorkbench.common.styleTemplates")}</span>
             <span className="max-w-[120px] truncate text-[12px] font-black tracking-tight text-on-surface/80 leading-none">
-              {selectedTemplateName}
+              {selectedTemplateName || t("iconWorkbench.common.selectStyle")}
             </span>
           </div>
         </button>
@@ -102,7 +102,7 @@ export function IconWorkbenchToolbar({
         <button
           onClick={onOpenTemplateDrawer}
           className="flex h-7.5 w-7.5 items-center justify-center rounded-lg border border-on-surface/8 bg-on-surface/[0.02] text-ui-muted/30 transition-all hover:bg-on-surface/5 hover:text-ui-muted active:scale-90"
-          title="管理风格模板"
+          title={t("iconWorkbench.common.manageTemplates")}
         >
           <Settings2 className="h-4 w-4" />
         </button>

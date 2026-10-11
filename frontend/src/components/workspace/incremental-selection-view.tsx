@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from "motion/react";
 
 import type { SourceTreeEntry } from "@/types/session";
 import { cn } from "@/lib/utils";
+import { useTranslation } from "react-i18next";
 
 function normalizePath(value: string): string {
   return value.replace(/\\/g, "/").replace(/^\/+|\/+$/g, "").trim();
@@ -28,6 +29,7 @@ export function IncrementalSelectionView({
   onConfirm: (selectedTargetDirs: string[]) => void;
   onExit?: () => void;
 }) {
+  const { t } = useTranslation("common");
   const [selected, setSelected] = useState<string[]>([]);
   const normalizedRootDirectoryOptions = useMemo(
     () => Array.from(new Set(rootDirectoryOptions.map(normalizePath).filter(Boolean))),
@@ -63,15 +65,15 @@ export function IncrementalSelectionView({
           <div className="space-y-1">
             <div className="inline-flex items-center gap-1.5 rounded-full border border-primary/20 bg-primary/8 px-2.5 py-0.5 text-[11px] font-black uppercase tracking-widest text-primary">
               <Layers3 className="h-3.5 w-3.5" />
-              归入已有目录模式
+              {t("workspace.incrementalSelection.mode")}
             </div>
-            <h2 className="text-[17px] font-black tracking-tight text-on-surface">选择用于归类的目标文件夹</h2>
+            <h2 className="text-[17px] font-black tracking-tight text-on-surface">{t("workspace.incrementalSelection.title")}</h2>
             <p className="max-w-[620px] text-[13px] font-medium leading-relaxed text-ui-muted/80">
-              请勾选那些已整理好的文件夹作为“目标”。未勾选的文件和文件夹将被识别并自动归入其中。
+              {t("workspace.incrementalSelection.description")}
             </p>
           </div>
           <div className="rounded-xl border border-on-surface/8 bg-surface-container-lowest px-4 py-2.5 text-right shadow-sm">
-            <div className="text-[11px] font-black uppercase tracking-widest text-ui-muted/50">已选目标</div>
+            <div className="text-[11px] font-black uppercase tracking-widest text-ui-muted/50">{t("workspace.incrementalSelection.selectedTargets")}</div>
             <div className="mt-0.5 text-[22px] font-black text-on-surface tabular-nums leading-none">{selected.length}</div>
           </div>
         </div>
@@ -81,9 +83,9 @@ export function IncrementalSelectionView({
         <div className="min-h-0 overflow-auto px-6 py-5 bg-surface-container-lowest/30">
           <div className="mb-4 flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <span className="text-[11px] font-black uppercase tracking-widest text-on-surface/50">可选文件夹</span>
+              <span className="text-[11px] font-black uppercase tracking-widest text-on-surface/50">{t("workspace.incrementalSelection.availableFolders")}</span>
               <span className="h-1 w-1 rounded-full bg-on-surface/15" />
-              <span className="text-[11px] font-bold text-ui-muted/70">{normalizedRootDirectoryOptions.length} 个候选</span>
+              <span className="text-[11px] font-bold text-ui-muted/70">{t("workspace.incrementalSelection.candidateCount", { count: normalizedRootDirectoryOptions.length })}</span>
             </div>
             <div className="flex items-center gap-1.5">
               <button
@@ -91,14 +93,14 @@ export function IncrementalSelectionView({
                 onClick={() => setSelected(normalizedRootDirectoryOptions)}
                 className="rounded-lg border border-on-surface/10 bg-surface px-3 py-1.5 text-[11px] font-bold text-on-surface hover:bg-on-surface/5 transition-all active:scale-95"
               >
-                全选
+                {t("workspace.incrementalSelection.selectAll")}
               </button>
               <button
                 type="button"
                 onClick={() => setSelected([])}
                 className="rounded-lg border border-on-surface/10 bg-surface px-3 py-1.5 text-[11px] font-bold text-on-surface hover:bg-on-surface/5 transition-all active:scale-95"
               >
-                清空
+                {t("workspace.incrementalSelection.clear")}
               </button>
             </div>
           </div>
@@ -136,10 +138,10 @@ export function IncrementalSelectionView({
                     </div>
                     <div className="mt-2.5 flex items-center justify-between">
                       <span className="rounded-[4px] bg-primary/8 px-1.5 py-0.5 text-[10px] font-bold text-primary">
-                        目标目录
+                        {t("workspace.incrementalSelection.targetFolder")}
                       </span>
                       <span className="text-[11px] font-medium text-ui-muted/60 font-mono">
-                        已包含 {itemCount} 项
+                        {t("workspace.incrementalSelection.includedCount", { count: itemCount })}
                       </span>
                     </div>
                   </div>
@@ -147,15 +149,15 @@ export function IncrementalSelectionView({
               );
             }) : (
               <div className="col-span-full flex h-48 flex-col items-center justify-center rounded-xl border-2 border-dashed border-warning/20 bg-warning/[0.02] p-8 text-center">
-                <p className="text-[13px] font-bold text-warning/80">当前根目录下没有可用的现有目录。</p>
-                <p className="mt-1 text-[11px] text-warning/60">这个模式需要至少一个已有目录作为归类目标。请结束本次任务，回到首页改用“全量整理”模式重新开始。</p>
+                <p className="text-[13px] font-bold text-warning/80">{t("workspace.incrementalSelection.emptyTitle")}</p>
+                <p className="mt-1 text-[11px] text-warning/60">{t("workspace.incrementalSelection.emptyDescription")}</p>
                 {onExit ? (
                   <button
                     type="button"
                     onClick={onExit}
                     className="mt-4 rounded-[8px] border border-on-surface/10 bg-surface px-4 py-2 text-[12px] font-semibold text-on-surface-variant transition-colors hover:bg-on-surface/5"
                   >
-                    结束本次任务并返回首页
+                    {t("workspace.incrementalSelection.exit")}
                   </button>
                 ) : null}
               </div>
@@ -167,16 +169,16 @@ export function IncrementalSelectionView({
           <div className="rounded-xl border border-on-surface/10 bg-surface-container-lowest p-4 shadow-sm">
             <div className="flex items-center gap-2 text-[12px] font-black uppercase tracking-wider text-on-surface/80">
               <ArrowRightLeft className="h-3.5 w-3.5 text-primary" />
-              归类规则说明
+              {t("workspace.incrementalSelection.rulesTitle")}
             </div>
             <div className="mt-3 space-y-2 text-[12px] font-medium leading-relaxed text-ui-muted/80">
               <p className="flex items-center gap-1.5 text-primary font-semibold">
                 <span className="h-1.5 w-1.5 rounded-full bg-primary" />
-                已勾选：作为目标目录（文件归入其中）
+                {t("workspace.incrementalSelection.checkedRule")}
               </p>
               <p className="flex items-center gap-1.5 text-ui-muted">
                 <span className="h-1.5 w-1.5 rounded-full bg-on-surface/20" />
-                未勾选：作为待整理对象（将被归类）
+                {t("workspace.incrementalSelection.uncheckedRule")}
               </p>
             </div>
             <button
@@ -185,7 +187,7 @@ export function IncrementalSelectionView({
               disabled={loading || selected.length === 0}
               className="mt-5 flex w-full items-center justify-center rounded-xl bg-primary py-2.5 text-[13px] font-bold text-white shadow-sm transition-all hover:bg-primary-dim active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed"
             >
-              {loading ? "正在读取待整理项..." : `确认选择并继续 (${selected.length})`}
+              {loading ? t("workspace.incrementalSelection.loading") : t("workspace.incrementalSelection.confirm", { count: selected.length })}
             </button>
           </div>
 
@@ -193,9 +195,9 @@ export function IncrementalSelectionView({
             <div className="bg-on-surface/[0.02] border-b border-on-surface/8 px-4 py-2.5 flex items-center justify-between">
               <div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-wider text-on-surface/70">
                 <ScanSearch className="h-3.5 w-3.5 text-primary" />
-                待整理范围
+                {t("workspace.incrementalSelection.pendingScope")}
               </div>
-              <span className="font-mono text-[11px] font-bold text-ui-muted/60">{pendingEntries.length} 项</span>
+              <span className="font-mono text-[11px] font-bold text-ui-muted/60">{t("workspace.incrementalSelection.itemCount", { count: pendingEntries.length })}</span>
             </div>
             <div className="max-h-[480px] overflow-y-auto scrollbar-thin">
               <div className="flex flex-col divide-y divide-on-surface/[0.03]">
@@ -229,7 +231,7 @@ export function IncrementalSelectionView({
                       animate={{ opacity: 1 }}
                       className="px-6 py-12 text-center"
                     >
-                      <p className="text-[12px] font-bold text-success-dim/70">没有待整理项</p>
+                      <p className="text-[12px] font-bold text-success-dim/70">{t("workspace.incrementalSelection.emptyPending")}</p>
                     </motion.div>
                   )}
                 </AnimatePresence>

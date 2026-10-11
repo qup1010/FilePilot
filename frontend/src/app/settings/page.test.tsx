@@ -5,6 +5,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { ApiClient } from "@/lib/api";
 import type { SettingsSnapshot, SettingsTestResult } from "@/types/settings";
+import { UiLocaleProvider } from "@/i18n/locale-provider";
+import i18n from "@/i18n/instance";
 
 import SettingsPage from "./page";
 
@@ -38,6 +40,9 @@ vi.mock("@/lib/runtime", () => ({
   getApiToken: () => "",
   isTauriDesktop: () => false,
   invokeTauriCommand: vi.fn(),
+  invokeTauriCommandOrThrow: vi.fn(),
+  openUrlWithTauri: vi.fn(),
+  waitForRuntimeConfig: vi.fn().mockResolvedValue({ base_url: "http://127.0.0.1:8765" }),
 }));
 
 vi.mock("@/lib/api", () => ({
@@ -67,6 +72,7 @@ function createSnapshot(): SettingsSnapshot {
       LAUNCH_DEFAULT_DENSITY: "normal",
       LAUNCH_DEFAULT_PREFIX_STYLE: "none",
       DEBUG_MODE: false,
+      UI_LANGUAGE: "zh-CN",
     },
     families: {
       text: {
@@ -220,6 +226,18 @@ async function waitForSettingsHydrated() {
   });
 }
 
+async function renderEnglishSettings(snapshot = createSnapshot()) {
+  snapshot.global_config.UI_LANGUAGE = "en";
+  getSettings.mockResolvedValue(snapshot);
+  render(
+    <UiLocaleProvider>
+      <SettingsPage />
+    </UiLocaleProvider>,
+  );
+  await screen.findByText("Settings categories");
+  await waitForSettingsHydrated();
+}
+
 async function clickSettingsCategory(label: string) {
   const labelNode = (await screen.findAllByText(label)).find((node) => node.closest("button")) ?? null;
   const tabButton = labelNode?.closest("button") ?? null;
@@ -228,7 +246,10 @@ async function clickSettingsCategory(label: string) {
 }
 
 describe("SettingsPage preset flow", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
+    await i18n.changeLanguage("zh-CN");
+    document.documentElement.lang = "zh-CN";
+    localStorage.removeItem("filepilot-ui-language");
     currentSearchParams = new URLSearchParams();
     getSettings.mockReset();
     createSettingsPreset.mockReset();
@@ -436,7 +457,198 @@ describe("SettingsPage preset flow", () => {
     expect(screen.getByPlaceholderText("新目录生成位置/Review")).toBeDisabled();
   });
 
-  it("keeps general organize as the selected default template and applies template suggestions", async () => {
+  it("persists the selected UI language through the existing settings draft save flow", async () => {
+    const user = userEvent.setup();
+    currentSearchParams = new URLSearchParams("tab=system");
+    const updatedSnapshot = createSnapshot();
+    updatedSnapshot.global_config.UI_LANGUAGE = "en";
+    updateSettings.mockResolvedValueOnce(updatedSnapshot);
+
+    render(
+      <UiLocaleProvider>
+        <SettingsPage />
+      </UiLocaleProvider>,
+    );
+
+    const languageSelect = await screen.findByRole("combobox", { name: "界面语言" });
+    await user.selectOptions(languageSelect, "en");
+    await user.click(await screen.findByRole("button", { name: "保存当前修改" }));
+
+    await waitFor(() => {
+      expect(updateSettings).toHaveBeenCalledWith(
+        expect.objectContaining({
+          global_config: expect.objectContaining({ UI_LANGUAGE: "en" }),
+        }),
+      );
+    });
+    expect(await screen.findByText("Settings saved and applied.")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "About and logs" })).toBeInTheDocument();
+  });
+
+  it("localizes the About and logs settings content in English", async () => {
+    currentSearchParams = new URLSearchParams("tab=system");
+
+    await renderEnglishSettings();
+
+    expect(screen.getByRole("heading", { name: "About and logs" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Interface language" })).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "Interface language" })).toBeInTheDocument();
+    expect(screen.getByText("A local workspace for AI-powered file organization.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Check for updates" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Debug mode (detailed logs)" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "System log files" })).toBeInTheDocument();
+    expect(screen.getByText("Runtime log")).toBeInTheDocument();
+    expect(screen.getByText("Debug log")).toBeInTheDocument();
+  });
+
+  it("localizes every settings category in English", async () => {
+    const user = userEvent.setup();
+    await renderEnglishSettings();
+
+    await clickSettingsCategory("Text model settings");
+    expect(await screen.findByRole("heading", { name: "Text model and image understanding" })).toBeInTheDocument();
+    expect(screen.getByText("Quick setup guide")).toBeInTheDocument();
+    expect(screen.getByText("Text model preset")).toBeInTheDocument();
+
+    await clickSettingsCategory("Task defaults");
+    expect(await screen.findByText("Default organization method")).toBeInTheDocument();
+    expect(screen.getByText("Default template")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /^Placement/ }));
+    expect(screen.getByText("Default placement")).toBeInTheDocument();
+
+    await clickSettingsCategory("Icon generation settings");
+    expect(await screen.findByText("Model roles")).toBeInTheDocument();
+    expect(screen.getByText("Text model (analysis)")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /Advanced options/ }));
+    expect(screen.getByText("Analysis concurrency")).toBeInTheDocument();
+    expect(screen.getByText("Image generation concurrency")).toBeInTheDocument();
+
+    await clickSettingsCategory("Background removal");
+    expect(await screen.findByText("Service mode")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Use built-in service/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Custom service/ })).toBeInTheDocument();
+  });
+
+  it("shows the automatic folder language and its current resolution", async () => {
+    const snapshot = createSnapshot();
+    snapshot.global_config.LAUNCH_DEFAULT_LANGUAGE = "auto";
+    await renderEnglishSettings(snapshot);
+    await clickSettingsCategory("Task defaults");
+
+    expect(screen.getByText("Matches app language (English)")).toBeInTheDocument();
+    expect(screen.getByText("By default, folder names match the app language. You can choose Chinese or English separately.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Match app language" })).toBeInTheDocument();
+  });
+
+  it("localizes settings categories and default preset names without changing custom names", async () => {
+    const user = userEvent.setup();
+    const snapshot = createSnapshot();
+    const defaultText = { ...snapshot.families.text.active_preset };
+    const customText = { ...defaultText, id: "custom-text", name: "我的自定义文本预设" };
+    const defaultVision = { ...snapshot.families.vision.active_preset, name: "默认图片模型" };
+    const customVision = { ...defaultVision, id: "custom-vision", name: "我的自定义图片预设" };
+    const defaultIcon = { ...snapshot.families.icon_image.active_preset };
+    const customIcon = { ...defaultIcon, id: "custom-icon", name: "我的自定义图标预设" };
+
+    snapshot.families.text = {
+      ...snapshot.families.text,
+      active_preset_id: "default",
+      active_preset: defaultText,
+      presets: [defaultText, customText],
+    };
+    snapshot.families.vision = {
+      ...snapshot.families.vision,
+      mode: "separate",
+      active_preset_id: "default",
+      active_preset: defaultVision,
+      presets: [defaultVision, customVision],
+    };
+    snapshot.global_config.IMAGE_ANALYSIS_SOURCE_MODE = "separate";
+    snapshot.families.icon_image = {
+      ...snapshot.families.icon_image,
+      active_preset_id: "default",
+      active_preset: defaultIcon,
+      presets: [defaultIcon, customIcon],
+    };
+
+    await renderEnglishSettings(snapshot);
+
+    expect(screen.getByText("Text model settings")).toBeInTheDocument();
+    expect(screen.getByText("Task defaults")).toBeInTheDocument();
+    expect(screen.getByText("Background removal")).toBeInTheDocument();
+    expect(screen.getByText("About and logs")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Default text model/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Default image model/ })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /Default text model/ }));
+    expect(screen.getByRole("option", { name: "我的自定义文本预设" })).toBeInTheDocument();
+    expect(snapshot.families.text.presets[0].name).toBe("默认文本模型");
+
+    await clickSettingsCategory("Icon generation settings");
+    expect(screen.getByRole("button", { name: /Default icon generation model/ })).toBeInTheDocument();
+  });
+
+  it("localizes unsaved changes, affected categories, and discard behavior", async () => {
+    const user = userEvent.setup();
+    await renderEnglishSettings();
+
+    const modelInput = screen.getByDisplayValue("gpt-5.4");
+    await user.clear(modelInput);
+    await user.type(modelInput, "gpt-5.4-mini");
+
+    expect(await screen.findByText("You have unsaved changes")).toBeInTheDocument();
+    expect(screen.getByText("Affected categories: Text model settings")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Discard changes" }));
+
+    await waitFor(() => {
+      expect(screen.queryByText("You have unsaved changes")).not.toBeInTheDocument();
+    });
+    expect(screen.getByDisplayValue("gpt-5.4")).toBeInTheDocument();
+  });
+
+  it("localizes the confirmation shown before switching presets with unsaved changes", async () => {
+    const user = userEvent.setup();
+    const snapshot = createSnapshot();
+    const currentPreset = { ...snapshot.families.text.active_preset, id: "text-current", name: "Primary model" };
+    const nextPreset = { ...currentPreset, id: "text-next", name: "Secondary model" };
+    snapshot.families.text = {
+      ...snapshot.families.text,
+      configured: true,
+      active_preset_id: currentPreset.id,
+      active_preset: currentPreset,
+      presets: [currentPreset, nextPreset],
+    };
+    await renderEnglishSettings(snapshot);
+
+    const modelInput = screen.getByDisplayValue("gpt-5.4");
+    await user.clear(modelInput);
+    await user.type(modelInput, "gpt-5.4-mini");
+    await user.click(screen.getByRole("button", { name: "Primary model" }));
+    await user.click(screen.getByRole("option", { name: "Secondary model" }));
+
+    expect(await screen.findByText("Discard changes and switch presets?")).toBeInTheDocument();
+    expect(screen.getByText("This preset has unsaved changes. Switching will discard them. Do you want to continue?")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Switch preset" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Cancel" })).toBeInTheDocument();
+  });
+
+  it("keeps the active UI language when saving a new preference fails", async () => {
+    const user = userEvent.setup();
+    currentSearchParams = new URLSearchParams("tab=system");
+    updateSettings.mockRejectedValue(new Error("save failed"));
+
+    render(<UiLocaleProvider><SettingsPage /></UiLocaleProvider>);
+
+    const languageSelect = await screen.findByRole("combobox", { name: "界面语言" });
+    await user.selectOptions(languageSelect, "en");
+    await user.click(await screen.findByRole("button", { name: "保存当前修改" }));
+
+    expect(await screen.findByText("save failed")).toBeInTheDocument();
+    expect(document.documentElement.lang).toBe("zh-CN");
+    expect(localStorage.getItem("filepilot-ui-language")).toBe("zh-CN");
+  });
+
+  it("keeps the folder language preference when changing the default template", async () => {
     const user = userEvent.setup();
 
     render(<SettingsPage />);
@@ -452,7 +664,7 @@ describe("SettingsPage preset flow", () => {
         expect.objectContaining({
           global_config: expect.objectContaining({
             LAUNCH_DEFAULT_TEMPLATE_ID: "project_workspace",
-            LAUNCH_DEFAULT_LANGUAGE: "en",
+            LAUNCH_DEFAULT_LANGUAGE: "zh",
             LAUNCH_DEFAULT_DENSITY: "normal",
             LAUNCH_DEFAULT_PREFIX_STYLE: "none",
             LAUNCH_DEFAULT_CAUTION_LEVEL: "balanced",
@@ -484,8 +696,8 @@ describe("SettingsPage preset flow", () => {
     await user.click(await screen.findByRole("button", { name: /测试图片理解能力/i }));
 
     expect(await screen.findByText("图片能力已验证")).toBeInTheDocument();
-    expect(screen.getByText('期望结果：VISION TEST 42')).toBeInTheDocument();
-    expect(screen.getByText('实际返回：VISION TEST 42')).toBeInTheDocument();
+    expect(screen.getByText('期望结果: VISION TEST 42')).toBeInTheDocument();
+    expect(screen.getByText('实际返回: VISION TEST 42')).toBeInTheDocument();
   });
 
   it("shows vision-specific loading copy while verifying image capability", async () => {
@@ -530,7 +742,12 @@ describe("SettingsPage preset flow", () => {
   it("keeps connection test failures inside the related test panel", async () => {
     const user = userEvent.setup();
     getSettings.mockResolvedValue(createSnapshotWithEditableVisionPreset());
-    testSettings.mockRejectedValueOnce(new Error("HTTP 504 Gateway Timeout"));
+    testSettings.mockResolvedValueOnce({
+      status: "error",
+      family: "vision",
+      code: "timeout",
+      message: "后端返回的中文错误详情",
+    });
 
     render(<SettingsPage />);
 
@@ -539,8 +756,9 @@ describe("SettingsPage preset flow", () => {
     await user.click(await screen.findByRole("button", { name: /测试图片理解能力/i }));
 
     expect(await screen.findByText("图片能力验证失败")).toBeInTheDocument();
-    expect(screen.getByText("HTTP 504 Gateway Timeout")).toBeInTheDocument();
+    expect(screen.getByText("连接超时，请检查网络或服务响应速度。")).toBeInTheDocument();
     expect(screen.getByText(/远端服务响应超时/)).toBeInTheDocument();
+    expect(screen.queryByText("后端返回的中文错误详情")).not.toBeInTheDocument();
     expect(screen.queryByText("操作执行失败")).not.toBeInTheDocument();
   });
 

@@ -117,6 +117,7 @@ class ScanWorkflowService:
                     scan_runner or self.helpers._default_scan_runner,
                     Path(session.target_dir),
                     session_id=session.session_id,
+                    content_locale=session.content_locale,
                 )
             else:
                 full_scan_lines, _ = self.helpers._scan_source_collection(
@@ -299,6 +300,8 @@ class ScanWorkflowService:
                     session.scanner_progress["batch_count"] = batch_count
                     session.scanner_progress["completed_batches"] = 0
                     session.scanner_progress["message"] = f"文件较多，已拆分为 {batch_count} 个批次并行分析"
+                    session.scanner_progress["message_code"] = "batch_split"
+                    session.scanner_progress["message_params"] = {"batch_count": batch_count}
                     session.scanner_progress["current_item"] = f"已启动 {worker_count} 个并行分析线程"
                     changed = True
                 elif event_type == "batch_progress":
@@ -328,6 +331,7 @@ class ScanWorkflowService:
                     event_handler=on_scan_event,
                     session_id=session.session_id,
                     cancel_event=cancel_event,
+                    content_locale=session.content_locale,
                 )
                 if use_single_directory_scan
                 else self.helpers._scan_source_collection(

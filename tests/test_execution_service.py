@@ -497,6 +497,9 @@ class ExecutionServiceTests(unittest.TestCase):
         legacy = ExecutionJournalItem.from_dict(
             {"action_type": "MOVE", "status": "success", "message": "移动成功"}
         )
+        self.assertEqual(legacy.message, "移动成功")
+        self.assertIsNone(legacy.message_code)
+        self.assertEqual(legacy.message_params, {})
         self.assertIsNone(legacy.size_bytes)
         self.assertIsNone(legacy.decision_basis)
 
@@ -635,6 +638,7 @@ if __name__ == "__main__":
         # 目标已出现且来源已消失 → 判定移动已完成，可参与回退
         assert reconciled is not None
         self.assertEqual(reconciled.items[0].status, "success")
+        self.assertEqual(reconciled.items[0].message_code, "reconciled_moved")
         self.assertEqual(reconciled.status, "partial_failure")
 
     def test_execute_plan_skips_move_when_parent_dir_missing_at_runtime(self):
@@ -644,9 +648,18 @@ if __name__ == "__main__":
         )
         plan = execution_service.build_execution_plan(parsed, self.base_dir)
 
-        report = execution_service.execute_plan(plan)
+        executions_dir = self.history_root / "executions"
+        latest_path = self.history_root / "latest_by_directory.json"
+        with mock.patch.object(execution_service.config, "EXECUTION_LOG_DIR", executions_dir), \
+             mock.patch.object(execution_service.config, "LATEST_BY_DIRECTORY_PATH", latest_path):
+            report = execution_service.execute_plan(plan)
 
         # 预检对用户说「将跳过」的项，执行时不能变成「失败」
         self.assertEqual(report.failure_count, 0)
         self.assertEqual(report.skipped_count, 1)
         self.assertTrue((self.base_dir / "demo.txt").exists())
+        latest_index = json.loads(latest_path.read_text(encoding="utf-8"))
+        latest_execution_id = latest_index[str(self.base_dir.resolve())]
+        journal = execution_service.load_execution_journal(latest_execution_id)
+        assert journal is not None
+        self.assertEqual(journal.items[0].message_code, "skip_parent_missing")

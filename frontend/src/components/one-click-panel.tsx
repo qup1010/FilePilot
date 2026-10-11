@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useTranslation } from "react-i18next";
 import {
   ArrowRight,
   BookOpenCheck,
@@ -21,6 +22,7 @@ import {
 } from "lucide-react";
 
 import { createApiClient } from "@/lib/api";
+import { contentLocaleForUiLanguage } from "@/lib/content-locale";
 import { rememberActiveWorkspaceRoute } from "@/lib/app-context-store";
 import { getPathBasename } from "@/lib/path-normalization";
 import { getApiBaseUrl, getApiToken } from "@/lib/runtime";
@@ -30,6 +32,10 @@ import type { TargetProfile } from "@/types/session";
 
 const SOURCE_STORAGE_KEY = "filepilot.one_click_source_path";
 const SELECTED_PROFILE_KEY = "filepilot.one_click_selected_profile_id";
+
+type OneClickError =
+  | { type: "translation"; key: "launcher.oneClick.errors.pickFolder" | "launcher.oneClick.errors.missingSession" | "launcher.oneClick.errors.rulesIncomplete" | "launcher.oneClick.errors.sessionLocked" }
+  | { type: "message"; message: string };
 
 function loadStoredSource(): string {
   if (typeof window === "undefined") return "";
@@ -75,6 +81,7 @@ function isRuleComplete(profile: TargetProfile): boolean {
 }
 
 export function OneClickPanel() {
+  const { t, i18n } = useTranslation("common");
   const router = useRouter();
   const api = useMemo(() => createApiClient(getApiBaseUrl(), getApiToken()), []);
   const [profiles, setProfiles] = useState<TargetProfile[] | null>(null);
@@ -82,7 +89,7 @@ export function OneClickPanel() {
   const [selectedProfileId, setSelectedProfileId] = useState<string>("");
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [launching, setLaunching] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<OneClickError | null>(null);
   const [showHelpCard, setShowHelpCard] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -140,7 +147,7 @@ export function OneClickPanel() {
         storeSource(result.path as string);
       }
     } catch {
-      setError("打开目录选择器失败，请重试。");
+      setError({ type: "translation", key: "launcher.oneClick.errors.pickFolder" });
     }
   }, [api]);
 
@@ -162,9 +169,11 @@ export function OneClickPanel() {
         unattended: true,
         target_profile_id: selectedProfile.profile_id,
         target_directory_details: selectedProfile.directories,
+        content_locale: contentLocaleForUiLanguage(i18n.resolvedLanguage || i18n.language),
       });
       if (!response.session_id) {
-        throw new Error("没有成功创建一键整理会话，请再试一次。");
+        setError({ type: "translation", key: "launcher.oneClick.errors.missingSession" });
+        return;
       }
       const route = buildWorkspaceRoute("progress", {
         sessionId: response.session_id,
@@ -176,16 +185,16 @@ export function OneClickPanel() {
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       if (message.includes("TARGET_RULES_INCOMPLETE")) {
-        setError("这组目录还有规则没写完，请先到「分类规则」补全。");
+        setError({ type: "translation", key: "launcher.oneClick.errors.rulesIncomplete" });
       } else if (message.includes("SESSION_LOCKED")) {
-        setError("该目录已有正在进行的整理任务，请先处理或放弃它。");
+        setError({ type: "translation", key: "launcher.oneClick.errors.sessionLocked" });
       } else {
-        setError(localizeUserFacingError(err, "启动一键整理失败，请再试一次。"));
+        setError({ type: "message", message: localizeUserFacingError(err, t("launcher.oneClick.errors.startFailed")) });
       }
     } finally {
       setLaunching(false);
     }
-  }, [api, router, selectedProfile, sourcePath]);
+  }, [api, router, selectedProfile, sourcePath, t]);
 
   if (profiles === null) {
     return null;
@@ -200,17 +209,17 @@ export function OneClickPanel() {
           </div>
           <div className="flex flex-col">
             <p className="text-[13px] font-black text-on-surface">
-              {profiles.length === 0 ? "先建立你的目录规则，就能一键整理" : "补全目录规则后即可一键整理"}
+              {profiles.length === 0 ? t("launcher.oneClick.needRulesTitle") : t("launcher.oneClick.incompleteRulesTitle")}
             </p>
             <p className="text-[12px] font-medium text-on-surface-variant/60">
-              为每个目标目录设定匹配条件，AI 自动判定分类，非目标文件留在原地。
+              {t("launcher.oneClick.rulesDescription")}
             </p>
           </div>
           <Link
             href="/rules"
             className="ml-auto shrink-0 rounded-lg bg-primary px-3.5 py-1.5 text-[12px] font-bold text-on-primary shadow-sm transition-all hover:bg-primary/90 active:scale-95"
           >
-            去写规则
+            {t("launcher.oneClick.writeRules")}
           </Link>
         </div>
       </div>
@@ -225,23 +234,23 @@ export function OneClickPanel() {
           <div className="flex h-5 w-5 items-center justify-center rounded-md bg-primary/10 text-primary">
             <Zap className="h-3.5 w-3.5 fill-primary/20" aria-hidden />
           </div>
-          <h2 className="text-[13px] font-black tracking-tight text-on-surface">一键整理</h2>
+          <h2 className="text-[13px] font-black tracking-tight text-on-surface">{t("launcher.oneClick.title")}</h2>
           <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary">
-            免确认全自动
+            {t("launcher.oneClick.automaticBadge")}
           </span>
           <span className="text-[11px] font-medium text-on-surface-variant/60 hidden sm:inline">
-            按规则自动分类归档，未匹配与不确定项安全留原地
+            {t("launcher.oneClick.subtitle")}
           </span>
         </div>
 
         <button
           type="button"
           onClick={() => setShowHelpCard((prev) => !prev)}
-          title="一键整理功能说明"
+          title={t("launcher.oneClick.helpTitle")}
           className="group flex items-center gap-1 text-[11px] font-semibold text-on-surface-variant/60 hover:text-primary transition-colors focus:outline-none"
         >
           <HelpCircle className="h-3.5 w-3.5 transition-transform group-hover:scale-110" aria-hidden />
-          <span>规则说明</span>
+          <span>{t("launcher.oneClick.rulesHelp")}</span>
         </button>
       </div>
 
@@ -253,7 +262,7 @@ export function OneClickPanel() {
               <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-primary/10 text-primary">
                 <Sparkles className="h-3.5 w-3.5 fill-primary/20" />
               </div>
-              <h3 className="text-[13px] font-black text-on-surface">什么是「一键整理」？</h3>
+              <h3 className="text-[13px] font-black text-on-surface">{t("launcher.oneClick.whatIsTitle")}</h3>
             </div>
             <button
               type="button"
@@ -268,30 +277,30 @@ export function OneClickPanel() {
             <div className="rounded-lg bg-surface-container-lowest/80 p-2.5 border border-on-surface/6 space-y-1">
               <div className="flex items-center gap-1.5 font-bold text-on-surface">
                 <Zap className="h-3.5 w-3.5 text-primary shrink-0" />
-                <span>按规则自动归类</span>
+                <span>{t("launcher.oneClick.automaticSortTitle")}</span>
               </div>
               <p className="text-[11px] font-medium text-on-surface-variant/70 leading-relaxed">
-                根据您选择的【目标规则】，AI 会自动将符合条件的文件分门别类移动到对应文件夹中。
+                {t("launcher.oneClick.automaticSortDescription")}
               </p>
             </div>
 
             <div className="rounded-lg bg-surface-container-lowest/80 p-2.5 border border-on-surface/6 space-y-1">
               <div className="flex items-center gap-1.5 font-bold text-on-surface">
                 <ShieldCheck className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
-                <span>未匹配文件安全留原地</span>
+                <span>{t("launcher.oneClick.keepUnmatchedTitle")}</span>
               </div>
               <p className="text-[11px] font-medium text-on-surface-variant/70 leading-relaxed">
-                不符合规则或不确定的文件（如临时草稿、未定分类文件）会安全保留在原文件夹，绝不误动。
+                {t("launcher.oneClick.keepUnmatchedDescription")}
               </p>
             </div>
 
             <div className="rounded-lg bg-surface-container-lowest/80 p-2.5 border border-on-surface/6 space-y-1">
               <div className="flex items-center gap-1.5 font-bold text-on-surface">
                 <Undo2 className="h-3.5 w-3.5 text-indigo-500 shrink-0" />
-                <span>支持随时一键还原</span>
+                <span>{t("launcher.oneClick.rollbackTitle")}</span>
               </div>
               <p className="text-[11px] font-medium text-on-surface-variant/70 leading-relaxed">
-                整理记录自动保存。如果对整理结果不满意，可在【整理历史】中随时一键完整还原文件。
+                {t("launcher.oneClick.rollbackDescription")}
               </p>
             </div>
           </div>
@@ -302,10 +311,10 @@ export function OneClickPanel() {
       {error ? (
         <div className="mb-3 flex items-center gap-2 rounded-lg border border-error/30 bg-error/5 px-3 py-2 text-[12px] font-semibold text-error">
           <TriangleAlert className="h-3.5 w-3.5 shrink-0" aria-hidden />
-          <span className="flex-1">{error}</span>
-          {error.includes("分类规则") ? (
+          <span className="flex-1">{error.type === "translation" ? t(error.key) : error.message}</span>
+          {error.type === "translation" && error.key === "launcher.oneClick.errors.rulesIncomplete" ? (
             <Link href="/rules" className="ml-auto shrink-0 font-bold text-primary hover:underline">
-              打开分类规则
+              {t("launcher.oneClick.openRules")}
             </Link>
           ) : null}
         </div>
@@ -316,26 +325,26 @@ export function OneClickPanel() {
         {/* 来源目录选择 */}
         <div className="flex items-center gap-2">
           <span className="text-[10px] font-black uppercase tracking-wider text-on-surface-variant/40 shrink-0">
-            来源
+            {t("launcher.oneClick.source")}
           </span>
           <button
             type="button"
             onClick={() => void handlePickSource()}
-            title={sourcePath || "点击选择要整理的源文件夹"}
+            title={sourcePath || t("launcher.oneClick.sourcePickerTitle")}
             className="group flex max-w-[210px] sm:max-w-[240px] items-center gap-2 rounded-lg border border-on-surface/10 bg-surface-container-lowest px-3 py-1.5 text-left text-[12px] font-bold text-on-surface shadow-2xs transition-all hover:border-primary/40 hover:bg-surface-container-lowest/80 active:scale-[0.98]"
           >
             <FolderInput className="h-4 w-4 shrink-0 text-primary/70 transition-colors group-hover:text-primary" aria-hidden />
             <span className="truncate">
-              {sourcePath ? getPathBasename(sourcePath, sourcePath) : "选择目录"}
+              {sourcePath ? getPathBasename(sourcePath, sourcePath) : t("launcher.oneClick.chooseFolder")}
             </span>
-            <span className="shrink-0 text-[10px] font-semibold text-on-surface-variant/40 group-hover:text-primary/70">更改</span>
+            <span className="shrink-0 text-[10px] font-semibold text-on-surface-variant/40 group-hover:text-primary/70">{t("launcher.oneClick.change")}</span>
           </button>
         </div>
 
         {/* 流程连接指示 */}
         <div className="flex items-center gap-1 text-on-surface-variant/35 px-0.5">
           <ArrowRight className="h-3.5 w-3.5" aria-hidden />
-          <span className="text-[10px] font-bold text-on-surface-variant/40 hidden md:inline">归类至</span>
+          <span className="text-[10px] font-bold text-on-surface-variant/40 hidden md:inline">{t("launcher.oneClick.targetLabel")}</span>
         </div>
 
         {/* 分类目标规则选择 */}
@@ -346,12 +355,12 @@ export function OneClickPanel() {
               onClick={() => setIsDropdownOpen((prev) => !prev)}
               className="flex items-center gap-2 rounded-lg border border-on-surface/10 bg-surface-container-lowest px-3 py-1.5 text-left text-[12px] font-bold text-on-surface shadow-2xs transition-all hover:border-primary/40 hover:bg-surface-container-lowest/80 active:scale-[0.98]"
             >
-              <span className="text-[11px] font-medium text-on-surface-variant/50">规则:</span>
+              <span className="text-[11px] font-medium text-on-surface-variant/50">{t("launcher.oneClick.rulesLabel")}</span>
               <span className="max-w-[120px] truncate font-bold text-on-surface">
-                {selectedProfile?.name || "未选择"}
+                {selectedProfile?.name || t("launcher.oneClick.notSelected")}
               </span>
               <span className="rounded-full bg-primary/10 px-1.5 py-0.2 text-[10px] font-black text-primary">
-                {selectedProfile?.directories.length || 0}目录
+                {t("launcher.oneClick.targetCount", { count: selectedProfile?.directories.length || 0 })}
               </span>
               <ChevronDown
                 className={`h-3.5 w-3.5 text-on-surface-variant/50 transition-transform ${
@@ -365,7 +374,7 @@ export function OneClickPanel() {
             {isDropdownOpen ? (
               <div className="absolute left-0 top-full z-50 mt-1.5 w-[280px] rounded-xl border border-on-surface/12 bg-surface-container-lowest p-1.5 shadow-xl backdrop-blur-md animate-in fade-in-50 zoom-in-95">
                 <div className="px-2 py-1.5 text-[10px] font-black uppercase tracking-wider text-on-surface-variant/50 border-b border-on-surface/6 mb-1">
-                  选择分类目标规则
+                  {t("launcher.oneClick.chooseRules")}
                 </div>
                 <div className="max-h-[220px] space-y-0.5 overflow-y-auto scrollbar-thin">
                   {completeProfiles.map((p) => {
@@ -389,7 +398,7 @@ export function OneClickPanel() {
                           <div className="flex items-center gap-1.5">
                             <span className="truncate text-[12px] font-bold">{p.name}</span>
                             <span className="shrink-0 rounded-full bg-on-surface/8 px-1.5 py-0.2 text-[10px] font-semibold text-on-surface-variant/60">
-                              {p.directories.length}分类
+                              {t("launcher.oneClick.categoryCount", { count: p.directories.length })}
                             </span>
                           </div>
                           {previewNames ? (
@@ -410,7 +419,7 @@ export function OneClickPanel() {
                     className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11px] font-bold text-primary hover:bg-primary/5 transition-colors"
                   >
                     <Plus className="h-3.5 w-3.5" />
-                    <span>管理 / 新建规则组</span>
+                    <span>{t("launcher.oneClick.manageRules")}</span>
                   </Link>
                 </div>
               </div>
@@ -455,7 +464,7 @@ export function OneClickPanel() {
           ) : (
             <Zap className="h-3.5 w-3.5 text-white/90 transition-transform duration-200 group-hover:scale-110 group-hover:text-white" aria-hidden />
           )}
-          <span className="tracking-wide">{launching ? "正在开启..." : "一键整理"}</span>
+          <span className="tracking-wide">{launching ? t("launcher.oneClick.starting") : t("launcher.oneClick.start")}</span>
         </button>
       </div>
     </div>

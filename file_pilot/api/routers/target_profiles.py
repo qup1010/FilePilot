@@ -56,7 +56,11 @@ def generate_rule_drafts(
 
     paths = payload.paths if payload is not None else None
     try:
-        return request.app.state.service.generate_target_profile_rule_drafts(profile_id, paths=paths)
+        return request.app.state.service.generate_target_profile_rule_drafts(
+            profile_id,
+            paths=paths,
+            content_locale=payload.content_locale if payload is not None else "zh-CN",
+        )
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="TARGET_PROFILE_NOT_FOUND")
     except ValueError as exc:

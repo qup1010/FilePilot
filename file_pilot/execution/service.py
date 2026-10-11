@@ -98,9 +98,10 @@ def _reconcile_interrupted_journal(journal: ExecutionJournal) -> None:
                 item,
                 status="success" if moved else "skipped",
                 message="进程中断后对账确认：移动已完成" if moved else "进程中断，移动未执行，文件留在原地",
+                message_code="reconciled_moved" if moved else "reconciled_skipped",
             )
         else:
-            journal.items[index] = replace(item, status="skipped", message="进程中断，未确认执行结果")
+            journal.items[index] = replace(item, status="skipped", message="进程中断，未确认执行结果", message_code="reconciled_unknown")
     journal.status = "partial_failure"
     save_execution_journal(journal)
     _maybe_restore_latest_pointer(journal)
@@ -602,6 +603,8 @@ def _finish_journal_item(
     *,
     status: str,
     message: str,
+    message_code: str | None = None,
+    message_params: dict | None = None,
     created_path: Path | None = None,
 ) -> None:
     item = journal.items[index]
@@ -609,12 +612,14 @@ def _finish_journal_item(
         item,
         status=status,
         message=message,
+        message_code=message_code,
+        message_params=dict(message_params or {}),
         created_path=str(created_path.resolve()) if created_path else item.created_path,
     )
     save_execution_journal(journal)
 
 
-def _runtime_move_skip_reason(action: ExecutionAction) -> str | None:
+def _runtime_move_skip_reason(action: ExecutionAction) -> tuple[str, str] | None:
     """执行时刻的最后防线：预检与执行之间世界可能已变化。
 
     Windows 下跨盘 ``shutil.move`` 走 copy2 会静默覆盖同名目标，
@@ -622,29 +627,35 @@ def _runtime_move_skip_reason(action: ExecutionAction) -> str | None:
     """
     assert action.source is not None
     if not action.source.exists():
-        return "来源已不存在，跳过"
+        return "source_missing", "来源已不存在，跳过"
     source_abs = action.source.resolve()
     target_abs = action.target.resolve(strict=False)
     if action.target.exists() and source_abs != target_abs:
-        return "目标已有同名文件，跳过并留在原地"
+        return "target_exists", "目标已有同名文件，跳过并留在原地"
     # 与预检口径一致：预检对用户说「将跳过」的项，执行时不能变成「失败」
     if source_abs in target_abs.parents:
-        return "不能移动到自身子路径，跳过"
+        return "self_subpath", "不能移动到自身子路径，跳过"
     if source_abs != target_abs and not action.target.parent.exists():
-        return "目标父目录不存在，跳过"
+        return "parent_missing", "目标父目录不存在，跳过"
     movability_reason = movability_skip_reason(action.source)
     if movability_reason is not None:
-        return movability_reason
+        return "not_movable", movability_reason
     return None
 
 
-def _append_skipped_item(journal: ExecutionJournal, action: ExecutionAction, message: str) -> None:
+def _append_skipped_item(journal: ExecutionJournal, action: ExecutionAction, reason: str, message: str) -> None:
     size_bytes, mtime = _file_identity(action.source)
     journal.items.append(
         ExecutionJournalItem(
             action_type="MOVE",
             status="skipped",
             message=message,
+            message_code=f"skip_{reason}",
+            message_params={
+                "display_name": str(action.display_name or "").strip(),
+                "source": str(action.source or ""),
+                "target": str(action.target),
+            },
             raw=action.raw,
             source_before=str(action.source.resolve()) if action.source and action.source.exists() else None,
             target_after=str(action.target.resolve(strict=False)),
@@ -689,6 +700,7 @@ def _execute_plan_with_journal(plan: ExecutionPlan, journal: ExecutionJournal) -
                 index,
                 status="success",
                 message=message,
+                message_code="directory_created" if created_now else "directory_exists",
                 created_path=action.target if created_now else None,
             )
         except Exception as exc:  # pragma: no cover - defensive branch
@@ -701,22 +713,23 @@ def _execute_plan_with_journal(plan: ExecutionPlan, journal: ExecutionJournal) -
             )
             results.append(ExecutionItemResult(action=action, status="failed", message=message))
             failure_count += 1
-            _finish_journal_item(journal, index, status="failed", message=message)
+            _finish_journal_item(journal, index, status="failed", message=message, message_code="operation_failed")
 
     for action in plan.move_actions:
         assert action.source is not None
-        skip_message = _runtime_move_skip_reason(action)
-        if skip_message is not None:
+        skip_result = _runtime_move_skip_reason(action)
+        if skip_result is not None:
+            skip_reason, skip_message = skip_result
             results.append(ExecutionItemResult(action=action, status="skipped", message=skip_message))
             skipped_count += 1
-            _append_skipped_item(journal, action, skip_message)
+            _append_skipped_item(journal, action, skip_reason, skip_message)
             continue
         index = _begin_journal_item(journal, action, action_type="MOVE")
         try:
             shutil.move(str(action.source), str(action.target))
             results.append(ExecutionItemResult(action=action, status="success", message="移动成功"))
             success_count += 1
-            _finish_journal_item(journal, index, status="success", message="移动成功")
+            _finish_journal_item(journal, index, status="success", message="移动成功", message_code="file_moved")
         except Exception as exc:
             message = str(exc)
             logger.warning(
@@ -728,7 +741,7 @@ def _execute_plan_with_journal(plan: ExecutionPlan, journal: ExecutionJournal) -
             )
             results.append(ExecutionItemResult(action=action, status="failed", message=message))
             failure_count += 1
-            _finish_journal_item(journal, index, status="failed", message=message)
+            _finish_journal_item(journal, index, status="failed", message=message, message_code="operation_failed")
 
     journal.status = "completed" if failure_count == 0 else "partial_failure"
     if failure_count:

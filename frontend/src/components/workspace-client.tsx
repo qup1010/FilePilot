@@ -2,9 +2,11 @@
 
 import React, { useMemo, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
+import { useTranslation } from "react-i18next";
 import { AlertCircle, AlertTriangle, ArrowRight, CheckCircle2, Layers, ListChecks, Loader2, LogOut, PanelLeftClose, PanelLeftOpen, RefreshCw, ShieldAlert } from "lucide-react";
 import { getSessionStageView } from "@/lib/session-view-model";
 import { getPathBasename } from "@/lib/path-normalization";
+import { formatListSummary } from "@/i18n/formatters";
 import {
   WORKSPACE_CONTEXT_KEY,
   clearActiveWorkspaceRoute,
@@ -55,20 +57,23 @@ interface WorkspacePrimaryNotice extends ConversationNotice {
   steps: WorkspacePipelineStep[];
 }
 
-function summarizeItemNames(names: string[], limit = 3): string {
-  const visible = names.filter(Boolean).slice(0, limit);
-  if (!visible.length) {
-    return "";
+function getWorkspaceStageLabel(stage: string | undefined, t: ReturnType<typeof useTranslation>["t"]): string {
+  if (!stage) {
+    return t("workspaceStage.idle");
   }
-  return visible.join("、") + (names.length > limit ? ` 等 ${names.length} 项` : "");
+  return t(`workspaceStage.${stage.toLowerCase()}`, { defaultValue: getFriendlyStage(stage) });
 }
 
-function deriveWorkspacePipeline(stageView: ReturnType<typeof getSessionStageView>, progressPhase: WorkspaceProgressPhase): WorkspacePipelineStep[] {
+function deriveWorkspacePipeline(
+  stageView: ReturnType<typeof getSessionStageView>,
+  progressPhase: WorkspaceProgressPhase,
+  t: ReturnType<typeof useTranslation>["t"],
+): WorkspacePipelineStep[] {
   const isRecovery = stageView.isRecovery;
   return [
     {
       id: "scan",
-      label: "读取目录",
+      label: t("workspace.pipeline.readDirectory"),
       state: stageView.isDraftLike
         ? "pending"
         : stageView.isScanning || progressPhase === "discovering" || progressPhase === "analyzing"
@@ -79,7 +84,7 @@ function deriveWorkspacePipeline(stageView: ReturnType<typeof getSessionStageVie
     },
     {
       id: "plan",
-      label: "生成方案",
+      label: t("workspace.pipeline.createPlan"),
       state: progressPhase === "planning" || stageView.isPlanning
         ? "active"
         : stageView.isAwaitingPrecheck || stageView.isReadyToExecute || stageView.isExecuting || stageView.isCompleted
@@ -90,7 +95,7 @@ function deriveWorkspacePipeline(stageView: ReturnType<typeof getSessionStageVie
     },
     {
       id: "precheck",
-      label: "安全检查",
+      label: t("workspace.pipeline.safetyCheck"),
       state: stageView.isReadyToExecute || stageView.isExecuting || stageView.isCompleted
         ? "done"
         : stageView.isAwaitingPrecheck
@@ -101,7 +106,7 @@ function deriveWorkspacePipeline(stageView: ReturnType<typeof getSessionStageVie
     },
     {
       id: "execute",
-      label: "执行整理",
+      label: t("workspace.pipeline.organize"),
       state: stageView.isCompleted
         ? "done"
         : stageView.isExecuting
@@ -114,6 +119,7 @@ function deriveWorkspacePipeline(stageView: ReturnType<typeof getSessionStageVie
 }
 
 export default function WorkspaceClient({ view = "progress" }: { view?: WorkspaceView }) {
+  const { t, i18n } = useTranslation("common");
   const searchParams = useSearchParams();
   const router = useRouter();
   const sessionIdParam = searchParams.get("session_id");
@@ -206,6 +212,7 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
     initialized: false,
     wasScanning: false,
     wasPlanning: false,
+    wasExecuting: false,
     lastPlanStartedAt: null as string | null,
   });
 
@@ -265,10 +272,13 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
       processed_count: snapshot?.scanner_progress?.processed_count || 0,
       total_count: snapshot?.scanner_progress?.total_count || 0,
       current_item: snapshot?.scanner_progress?.current_item || null,
+      current_item_kind: snapshot?.scanner_progress?.current_item_kind,
       recent_analysis_items: snapshot?.scanner_progress?.recent_analysis_items || [],
       batch_count: snapshot?.scanner_progress?.batch_count,
       completed_batches: snapshot?.scanner_progress?.completed_batches,
       message: snapshot?.scanner_progress?.message || undefined,
+      message_code: snapshot?.scanner_progress?.message_code,
+      message_params: snapshot?.scanner_progress?.message_params,
       is_retrying: snapshot?.scanner_progress?.is_retrying,
       ai_thinking: snapshot?.scanner_progress?.ai_thinking,
     }),
@@ -394,51 +404,64 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
   const isInterruptedDuringScan = stageView.isInterrupted && interruptedDuring === "scanning";
   const precheckItemNames = useMemo(() => {
     const itemNameById = new Map((snapshot?.plan_snapshot?.items || []).map((item) => [item.item_id, item.display_name] as const));
-    return (precheck?.move_preview || []).map((move) => itemNameById.get(move.item_id) || getPathBasename(move.source, "未知条目"));
-  }, [precheck?.move_preview, snapshot?.plan_snapshot?.items]);
-  const precheckItemsSummary = useMemo(() => summarizeItemNames(precheckItemNames), [precheckItemNames]);
+    return (precheck?.move_preview || []).map((move) => itemNameById.get(move.item_id) || getPathBasename(move.source, t("workspace.precheck.unknownItem")));
+  }, [precheck?.move_preview, snapshot?.plan_snapshot?.items, t]);
+  const precheckItemsSummary = useMemo(
+    () => formatListSummary(
+      precheckItemNames,
+      i18n.resolvedLanguage || "zh-CN",
+      (names, count) => t("workspace.confirm.moreNames", { names, count }),
+    ),
+    [i18n.resolvedLanguage, precheckItemNames, t],
+  );
   const nextStepHint = useMemo(() => {
     if (isReadOnly && !stageView.isCompleted) {
-      return "当前只能查看记录；如需继续整理，请返回首页重新打开任务。";
+      return t("workspace.hints.readOnly");
     }
     if (stageView.isDraftLike) {
-      return "下一步先读取目录，确认这次要整理的项目。";
+      return t("workspace.hints.draft");
     }
     if (stageView.isScanning) {
-      return "正在只读分析文件。文件较多时可能需要几分钟，可以先最小化，完成后会通知你。";
+      return t("workspace.hints.scanning");
     }
     if (stageView.isTargetSelection) {
-      return "先选择可归入的目标目录，剩余项目会作为本次待整理对象。";
+      return t("workspace.hints.targetSelection");
     }
     if (stageView.isPlanning) {
       if (hasStrandedInitialAutoPlan) {
-        return "目录读取已完成，但自动方案没有继续生成。可以发送一句整理要求继续规划，或重新扫描。";
+        return t("workspace.hints.strandedPlan");
       }
       if (progressPhase === "planning") {
-        return "目录读取已完成，正在生成第一版整理方案；文件较多时可以先最小化等待通知。";
+        return t("workspace.hints.initialPlanning");
       }
-      return isPlanSyncing ? "正在按你的要求更新方案；文件较多时可以先最小化等待通知。" : "可以继续调整要求，确认后再做移动前检查。";
+      return isPlanSyncing ? t("workspace.hints.updatingPlan") : t("workspace.hints.editPlan");
     }
     if (stageView.isAwaitingPrecheck) {
-      return canRunPrecheck ? "方案已就绪，建议先做一次移动前安全检查。" : "方案还在更新，完成后即可检查。";
+      return canRunPrecheck ? t("workspace.hints.precheckReady") : t("workspace.hints.precheckUpdating");
     }
     if (stageView.isReadyToExecute) {
-      return `安全检查通过，待移动 ${precheck?.move_preview.length ?? 0} 项${reviewMoveCount > 0 ? `，其中 ${reviewMoveCount} 项会留在待确认区` : ""}。`;
+      const moveCount = t("workspace.quantity.items", { count: precheck?.move_preview.length ?? 0 });
+      return reviewMoveCount > 0
+        ? t("workspace.hints.readyToExecuteWithReview", {
+            moveCount,
+            reviewCount: t("workspace.quantity.items", { count: reviewMoveCount }),
+          })
+        : t("workspace.hints.readyToExecute", { moveCount });
     }
     if (stageView.isExecuting) {
-      return "正在移动文件，请稍后...";
+      return t("workspace.hints.executing");
     }
     if (stageView.isCompleted) {
       if (isEmptyCompleted) {
-        return "当前目录为空，本次没有需要整理的内容。";
+        return t("workspace.hints.emptyCompleted");
       }
-      return "整理已完成。你可以查看结果、处理失败项或清理空目录。";
+      return t("workspace.hints.completed");
     }
     if (stageView.isRecovery) {
-      return "建议先重新扫描，确认目录状态后再继续整理。";
+      return t("workspace.hints.recovery");
     }
-    return "当前任务正在推进。";
-  }, [canRunPrecheck, hasStrandedInitialAutoPlan, isEmptyCompleted, isReadOnly, precheck?.move_preview.length, progressPhase, reviewMoveCount, stageView]);
+    return t("workspace.hints.working");
+  }, [canRunPrecheck, hasStrandedInitialAutoPlan, isEmptyCompleted, isReadOnly, precheck?.move_preview.length, progressPhase, reviewMoveCount, stageView, t]);
   const beginScanPreviewHold = React.useCallback(() => {
     if (typeof window === "undefined") {
       return;
@@ -662,6 +685,7 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
       initialized: false,
       wasScanning: false,
       wasPlanning: false,
+      wasExecuting: false,
       lastPlanStartedAt: null,
     };
   }, [sessionIdParam]);
@@ -681,6 +705,7 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
         initialized: true,
         wasScanning: isScanningNow,
         wasPlanning: isPlanningNow,
+        wasExecuting: stageView.isExecuting,
         lastPlanStartedAt: planStartedAt,
       };
       return;
@@ -689,10 +714,12 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
     if (current.wasScanning && !isScanningNow && !isPlanningNow) {
       const totalCount = Number(snapshot.scanner_progress?.total_count || 0);
       const processedCount = Number(snapshot.scanner_progress?.processed_count || 0);
-      const countLabel = totalCount > 0 ? `已读取 ${processedCount || totalCount}/${totalCount} 项。` : "已完成目录读取。";
+      const countLabel = totalCount > 0
+        ? t("workspace.notifications.scanProgress", { processed: processedCount || totalCount, total: totalCount })
+        : t("workspace.notifications.scanComplete");
       notifyWorkspaceWhenAway(
-        "FilePilot 方案已准备好",
-        `${countLabel}可以回到工作台查看整理建议。`,
+        t("workspace.notifications.scanReadyTitle"),
+        t("workspace.notifications.scanReadyBody", { detail: countLabel }),
         `filepilot-scan-${sessionIdParam}`,
       );
     }
@@ -701,12 +728,20 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
       const moveCount = Number(snapshot.plan_snapshot?.stats?.move_count || 0);
       const unresolvedCount = Number(snapshot.plan_snapshot?.stats?.unresolved_count || 0);
       const detail = unresolvedCount > 0
-        ? `方案已更新，仍有 ${unresolvedCount} 项需要确认。`
-        : `方案已更新，已规划 ${moveCount} 项，可以进行移动风险检查。`;
+        ? t("workspace.notifications.planNeedsReview", { count: unresolvedCount })
+        : t("workspace.notifications.planReady", { count: moveCount });
       notifyWorkspaceWhenAway(
-        "FilePilot 方案已更新",
+        t("workspace.notifications.planUpdatedTitle"),
         detail,
         `filepilot-plan-${sessionIdParam}-${current.lastPlanStartedAt}`,
+      );
+    }
+
+    if (current.wasExecuting && stageView.isCompleted) {
+      notifyWorkspaceWhenAway(
+        t("workspace.notifications.executionCompleteTitle"),
+        t("workspace.notifications.executionCompleteBody"),
+        `filepilot-execution-${sessionIdParam}`,
       );
     }
 
@@ -714,6 +749,7 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
       initialized: true,
       wasScanning: isScanningNow,
       wasPlanning: isPlanningNow,
+      wasExecuting: stageView.isExecuting,
       lastPlanStartedAt: planStartedAt,
     };
   }, [
@@ -721,18 +757,21 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
     sessionIdParam,
     snapshot,
     stageView.isScanning,
+    stageView.isExecuting,
+    stageView.isCompleted,
+    t,
   ]);
 
   const statusNotice = useMemo<ConversationNotice | null>(() => {
     if (streamStatus === "offline") {
       return {
         tone: "warning",
-        title: "实时连接已断开",
+        title: t("workspace.notice.connectionLostTitle"),
         description: stageView.isCompleted
-          ? "页面会保留已经收到的记录和结果。你可以先查看右侧结果，或重新连接获取最新状态。"
-          : "页面仍可查看已经收到的内容。重新连接后，会继续接收当前任务的更新。",
+          ? t("workspace.notice.connectionLostCompleted")
+          : t("workspace.notice.connectionLostActive"),
         primaryAction: {
-          label: "重新连接",
+          label: t("workspace.notice.reconnect"),
           onClick: () => {
             void retryStream();
           },
@@ -743,8 +782,8 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
     if (isReadOnly && !stageView.isCompleted) {
       return {
         tone: "warning",
-        title: "当前只能查看",
-        description: "这里保留之前的方案和记录，不能修改或执行。如需继续整理，请返回首页重新打开任务。",
+        title: t("workspace.notice.readOnlyTitle"),
+        description: t("workspace.notice.readOnlyDescription"),
       };
     }
 
@@ -759,10 +798,10 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
     if (hasStrandedInitialAutoPlan) {
       return {
         tone: "warning",
-        title: "目录读取已完成",
-        description: "自动方案没有继续生成。可以在下方发送一句整理要求继续规划，或重新扫描。",
+        title: t("workspace.notice.strandedTitle"),
+        description: t("workspace.notice.strandedDescription"),
         primaryAction: {
-          label: "重新扫描",
+          label: t("workspace.emptyState.rescan"),
           onClick: handleStartScan,
         },
       };
@@ -771,14 +810,14 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
     if (stageView.isStale) {
       return {
         tone: "warning",
-        title: "目录内容已变化",
-        description: "当前方案可能不再准确。建议重新扫描后再继续整理。",
+        title: t("workspace.notice.staleTitle"),
+        description: t("workspace.notice.staleDescription"),
         primaryAction: {
-          label: "重新扫描",
+          label: t("workspace.emptyState.rescan"),
           onClick: handleStartScan,
         },
         secondaryAction: {
-          label: "结束本次任务",
+          label: t("workspace.emptyState.endTask"),
           onClick: handleExitWorkbench,
         },
       };
@@ -787,14 +826,16 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
     if (stageView.isInterrupted) {
       return {
         tone: "danger",
-        title: "任务已中断",
-        description: snapshot?.last_error ? localizeSessionLastError(snapshot.last_error) : "建议重新扫描一次，确认目录状态后再继续。",
+        title: t("workspace.notice.interruptedTitle"),
+        description: snapshot?.last_error
+          ? localizeSessionLastError(snapshot.last_error, undefined, snapshot.last_error_code, snapshot.last_error_params)
+          : t("workspace.notice.interruptedDescription"),
         primaryAction: {
-          label: "重新扫描",
+          label: t("workspace.emptyState.rescan"),
           onClick: handleStartScan,
         },
         secondaryAction: {
-          label: "结束本次任务",
+          label: t("workspace.emptyState.endTask"),
           onClick: handleExitWorkbench,
         },
       };
@@ -804,52 +845,52 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
       if (isEmptyCompleted) {
         return {
           tone: "info",
-          title: isReadOnly ? "这是之前的空任务记录" : "当前目录为空",
+          title: isReadOnly ? t("workspace.notice.emptyHistoryTitle") : t("workspace.notice.emptyTitle"),
           description: isReadOnly
-            ? "这次任务没有发现需要整理的内容，记录会保留为只读。"
-            : "这次任务没有发现需要整理的内容。你可以返回首页，或在目录更新后重新扫描并重建方案。",
+            ? t("workspace.notice.emptyHistoryDescription")
+            : t("workspace.notice.emptyDescription"),
         };
       }
       return {
         tone: "info",
-        title: isReadOnly ? "这是之前的整理结果" : "整理完成",
+        title: isReadOnly ? t("workspace.notice.completedHistoryTitle") : t("workspace.notice.completedTitle"),
         description: isReadOnly
-          ? "左侧保留了当时的记录，输入已关闭；右侧可以继续查看这次整理结果。"
-          : "左侧保留本轮记录供回看，输入已关闭；请在右侧查看结果、失败项和待确认区。",
+          ? t("workspace.notice.completedHistoryDescription")
+          : t("workspace.notice.completedDescription"),
       };
     }
 
     return null;
-  }, [canRunPrecheck, handleStartScan, hasStrandedInitialAutoPlan, isEmptyCompleted, isReadOnly, precheck?.move_preview.length, precheckItemsSummary, retryStream, snapshot?.last_error, stageView, streamStatus]);
+  }, [canRunPrecheck, handleExitWorkbench, handleStartScan, hasStrandedInitialAutoPlan, isEmptyCompleted, isReadOnly, retryStream, snapshot?.last_error, stageView, streamStatus, t]);
 
   const workspacePrimaryNotice = useMemo<WorkspacePrimaryNotice>(() => {
     const baseNotice: ConversationNotice = statusNotice ?? {
       tone: stageView.isCompleted ? "info" : stageView.isReadyToExecute ? "warning" : "info",
       // 标题讲"现在该做什么"；阶段名已由左侧 stageLabel 徽标承担，不再重复。
       title: stageView.isDraftLike
-        ? "等待开始读取目录"
+        ? t("workspace.primaryNotice.waitingForScan")
         : stageView.isReadyToExecute
-          ? "安全检查已通过"
+          ? t("workspace.primaryNotice.precheckPassed")
           : stageView.isExecuting
-            ? "正在执行整理"
+            ? t("workspace.primaryNotice.executing")
             : stageView.isCompleted
               ? isEmptyCompleted
-                ? "本次没有需要整理的内容"
-                : "整理已完成"
+                ? t("workspace.primaryNotice.emptyCompleted")
+                : t("workspace.primaryNotice.completed")
               : canRunPrecheck
-                ? "方案已准备好检查"
+                ? t("workspace.primaryNotice.planReady")
                 : stageView.isPlanningConversation
-                  ? "可以继续调整方案"
-                  : getFriendlyStage(stage),
+                  ? t("workspace.primaryNotice.continuePlanning")
+                  : getWorkspaceStageLabel(stage, t),
       description: nextStepHint,
       primaryAction: stageView.isDraftLike && !isReadOnly
         ? {
-            label: "开始读取目录",
+            label: t("workspace.primaryNotice.startScan"),
             onClick: handleStartScan,
           }
         : canRunPrecheck && !isReadOnly
           ? {
-              label: "检查移动风险",
+              label: t("workspace.primaryNotice.runPrecheck"),
               onClick: () => {
                 void runPrecheck();
               },
@@ -859,10 +900,10 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
 
     return {
       ...baseNotice,
-      stageLabel: getFriendlyStage(stage),
-      steps: deriveWorkspacePipeline(stageView, progressPhase),
+      stageLabel: getWorkspaceStageLabel(stage, t),
+      steps: deriveWorkspacePipeline(stageView, progressPhase, t),
     };
-  }, [canRunPrecheck, handleStartScan, isEmptyCompleted, isReadOnly, nextStepHint, progressPhase, runPrecheck, stage, stageView, statusNotice]);
+  }, [canRunPrecheck, handleStartScan, isEmptyCompleted, isReadOnly, nextStepHint, progressPhase, runPrecheck, stage, stageView, statusNotice, t]);
 
   const conversationNotice = isCompactLayout && compactConversationOpen ? statusNotice : null;
 
@@ -1004,18 +1045,19 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
     }
     const targetPath = snapshot?.target_dir || dirParam || "";
     const hasTargetPath = Boolean(targetPath);
-    const dirName = snapshot?.session_title || getPathBasename(targetPath, "当前任务");
+    const dirName = snapshot?.session_title || getPathBasename(targetPath, t("workspace.fallback.currentTask"));
     window.localStorage.setItem(
       WORKSPACE_CONTEXT_KEY,
       JSON.stringify({
         dirName,
-        stage: getFriendlyStage(stage),
+        stage: getWorkspaceStageLabel(stage, t),
+        stage_code: stage,
         sessionId: sessionIdParam || undefined,
         hasTargetPath,
       }),
     );
     notifyAppContextChange();
-  }, [dirParam, sessionIdParam, snapshot?.target_dir, snapshot?.session_title, stage]);
+  }, [dirParam, sessionIdParam, snapshot?.target_dir, snapshot?.session_title, stage, t]);
 
   React.useEffect(() => {
     if (view !== "plan") {
@@ -1249,7 +1291,7 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
   );
 
   const renderPreviewContent = () => (
-    <ErrorBoundary fallbackTitle="预览区加载失败">
+    <ErrorBoundary fallbackTitle={t("workspace.fallback.previewAreaFailed")}>
         <div className="h-full w-full">
           {(() => {
             if (view === "progress") {
@@ -1262,8 +1304,8 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
                 return (
                   <EmptyState
                     illustration={FileRadarIllustration}
-                    title="等待读取目录"
-                    description="开始后会先只读扫描目录，再生成第一版整理方案。"
+                    title={t("workspace.emptyState.waitingScanTitle")}
+                    description={t("workspace.emptyState.waitingScanDescription")}
                     className="mx-auto h-[70vh] max-w-[1360px]"
                   />
                 );
@@ -1272,8 +1314,8 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
                 return (
                   <EmptyState
                     icon={AlertTriangle}
-                    title="正在打开恢复页"
-                    description="这次任务需要恢复处理，稍后会自动切换到恢复入口。"
+                    title={t("workspace.emptyState.openingRecoveryTitle")}
+                    description={t("workspace.emptyState.openingRecoveryDescription")}
                     className="mx-auto h-full max-w-[1360px]"
                   />
                 );
@@ -1290,11 +1332,11 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
 
                       <div className="flex flex-col items-center gap-2 text-center">
                         <h3 className="text-[16px] font-black tracking-tight text-on-surface">
-                          方案已准备好
+                          {t("workspace.emptyState.planReadyTitle")}
                         </h3>
                         <p className="flex items-center gap-2 text-[13px] font-medium text-on-surface-variant/70">
                           <Loader2 className="h-3.5 w-3.5 animate-spin text-primary/70" />
-                          <span>正在打开方案工作区...</span>
+                          <span>{t("workspace.emptyState.openingPlan")}</span>
                         </p>
                       </div>
                     </div>
@@ -1354,8 +1396,8 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
                 return (
                   <EmptyState
                     illustration={FileRadarIllustration}
-                    title="当前目录为空"
-                    description="这次扫描没有发现需要整理的内容。你可以返回首页，或在目录内容更新后重新扫描并重建方案。"
+                    title={t("workspace.emptyState.emptyTitle")}
+                    description={t("workspace.emptyState.emptyDescription")}
                     className="mx-auto h-full max-w-[1360px]"
                   >
                     <div className="flex items-center justify-center gap-3">
@@ -1366,7 +1408,7 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
                           className="inline-flex items-center gap-1.5 rounded-[8px] bg-primary px-4 py-2 text-[13px] font-bold text-white transition-opacity hover:opacity-90"
                         >
                           <RefreshCw className="h-3.5 w-3.5" />
-                          重新扫描
+                          {t("workspace.emptyState.rescan")}
                         </button>
                       )}
                       <button
@@ -1374,7 +1416,7 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
                         onClick={handleExitWorkbench}
                         className="rounded-[8px] border border-on-surface/10 bg-surface px-4 py-2 text-[13px] font-semibold text-on-surface-variant transition-colors hover:bg-on-surface/5"
                       >
-                        返回首页
+                        {t("workspace.emptyState.home")}
                       </button>
                     </div>
                   </EmptyState>
@@ -1433,8 +1475,8 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
               return (
                 <EmptyState
                   illustration={FileRadarIllustration}
-                  title="等待读取待整理目录"
-                  description="点击下方按钮开始只读分析文件结构，稍后将在此生成智能整理方案。"
+                  title={t("workspace.emptyState.draftTitle")}
+                  description={t("workspace.emptyState.draftDescription")}
                   className="mx-auto h-[70vh] max-w-[1360px]"
                 >
                   {!isReadOnly && (
@@ -1444,7 +1486,7 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
                       className="inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-[13px] font-bold text-white shadow-sm transition-all hover:bg-primary-dim active:scale-95"
                     >
                       <RefreshCw className="h-4 w-4" />
-                      开始读取目录
+                      {t("workspace.emptyState.startReading")}
                     </button>
                   )}
                 </EmptyState>
@@ -1461,8 +1503,8 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
                   {isInterruptedDuringScan ? (
                     <EmptyState
                       illustration={FileRadarIllustration}
-                      title="扫描中断，尚未形成方案"
-                      description="这次任务还没有得到可确认的整理建议。建议先重新扫描，确认目录内容后再继续。"
+                      title={t("workspace.emptyState.scanInterruptedTitle")}
+                      description={t("workspace.emptyState.scanInterruptedDescription")}
                       className="mx-auto h-full max-w-[1360px]"
                     >
                       <div className="flex items-center justify-center gap-3">
@@ -1472,14 +1514,14 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
                           className="inline-flex items-center gap-1.5 rounded-[8px] bg-warning px-4 py-2 text-[13px] font-bold text-white transition-opacity hover:opacity-90"
                         >
                           <RefreshCw className="h-3.5 w-3.5" />
-                          重新扫描
+                          {t("workspace.emptyState.rescan")}
                         </button>
                         <button
                           type="button"
                           onClick={handleExitWorkbench}
                           className="rounded-[8px] border border-on-surface/10 bg-surface px-4 py-2 text-[13px] font-semibold text-on-surface-variant transition-colors hover:bg-on-surface/5"
                         >
-                          结束本次任务
+                          {t("workspace.emptyState.endTask")}
                         </button>
                       </div>
                     </EmptyState>
@@ -1572,13 +1614,15 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
       <div className="flex min-w-0 items-center gap-1.5">
         <span className="flex items-center gap-1 rounded-full bg-primary/8 px-1.5 py-0.5 text-[11px] font-black text-primary">
           <span className={cn("h-1 w-1 rounded-full", stageView.isCompleted ? "bg-success" : "bg-primary/60")} />
-          {getFriendlyStage(stage)}
+          {getWorkspaceStageLabel(stage, t)}
         </span>
 
         {assistantRuntime && (
           <span className="flex items-center gap-1 rounded-full bg-on-surface/[0.04] px-1.5 py-0.5 text-[11px] font-bold text-ui-muted">
             <Loader2 className="h-2.5 w-2.5 animate-spin-slow" />
-            {assistantRuntime.label}
+            {assistantRuntime.labelCode
+              ? t(`diagnostics.assistantRuntime.${assistantRuntime.labelCode}`, assistantRuntime.labelParams)
+              : assistantRuntime.label}
           </span>
         )}
 
@@ -1587,7 +1631,7 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
             "flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[11px] font-black uppercase tracking-widest",
             streamStatus === "connecting" || streamStatus === "reconnecting" ? "bg-warning/10 text-warning" : "bg-on-surface/5 text-ui-muted"
           )}>
-            {streamStatus === "connecting" ? "连接中" : streamStatus === "reconnecting" ? "重连中" : "离线"}
+            {streamStatus === "connecting" ? t("workspace.controls.connecting") : streamStatus === "reconnecting" ? t("workspace.controls.reconnecting") : t("workspace.controls.offline")}
           </span>
         )}
       </div>
@@ -1598,7 +1642,8 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
            type="button"
            onClick={handleCloseConversation}
            className="flex h-6 w-6 items-center justify-center rounded-[4px] text-on-surface/30 transition-all hover:bg-on-surface/10 hover:text-on-surface"
-           title="收起聊天区 (Alt+B)"
+           aria-label={t("workspace.controls.collapseConversation", { shortcut: "Alt+B" })}
+           title={t("workspace.controls.collapseConversation", { shortcut: "Alt+B" })}
          >
            <PanelLeftClose className="h-3.5 w-3.5" />
          </button>
@@ -1610,7 +1655,7 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
             className="flex h-6 items-center gap-1.5 rounded-[4px] px-2 text-[11px] font-black text-on-surface/40 transition-colors hover:bg-on-surface/5 hover:text-on-surface"
           >
             <LogOut className="h-3 w-3" />
-            退出
+            {t("workspace.controls.exit")}
           </button>
         )}
       </div>
@@ -1625,7 +1670,7 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
           <AlertCircle className="h-4 w-4" />
         </div>
         <div className="min-w-0">
-          <p className="text-[13px] font-black text-on-surface">操作失败</p>
+          <p className="text-[13px] font-black text-on-surface">{t("workspace.controls.operationFailed")}</p>
           <p className="mt-0.5 text-[12px] font-medium leading-5 text-error/80">{chatError}</p>
         </div>
       </div>
@@ -1666,7 +1711,8 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
             type="button"
             onClick={handleOpenConversation}
             className="flex h-7 w-7 items-center justify-center rounded-md bg-primary text-white transition-all hover:scale-105 active:scale-95"
-            title="展开聊天区 (Alt+B)"
+            aria-label={t("workspace.controls.expandConversation", { shortcut: "Alt+B" })}
+            title={t("workspace.controls.expandConversation", { shortcut: "Alt+B" })}
           >
             <PanelLeftOpen className="h-4 w-4" />
           </button>
@@ -1676,7 +1722,7 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
               className="whitespace-nowrap text-[11px] font-black uppercase tracking-[0.3em] text-on-surface/20"
               style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}
             >
-              会话记录
+              {t("workspace.controls.conversationHistory")}
             </div>
           </div>
         </div>
@@ -1692,7 +1738,7 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
             isResizingState ? "bg-primary/[0.04]" : "hover:bg-primary/[0.02]",
           )}
           style={{ left: `${leftWidth}%` }}
-          title="拖拽调整左右分栏比例，双击恢复默认"
+          title={t("workspace.controls.resizePanes")}
         >
           {/* 中线高亮指示 */}
           <div
@@ -1732,14 +1778,31 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
 
   const routeTransitionTitle =
     expectedView === "review"
-      ? "正在打开安全检查"
+      ? t("workspace.controls.transitionReview")
       : expectedView === "plan"
-        ? "正在返回方案工作区"
+        ? t("workspace.controls.transitionPlan")
         : expectedView === "result"
-          ? "正在打开整理结果"
+          ? t("workspace.controls.transitionResult")
           : expectedView === "recovery"
-            ? "正在打开恢复入口"
-            : "正在切换工作区";
+            ? t("workspace.controls.transitionRecovery")
+            : t("workspace.controls.transitionWorkspace");
+
+  const executeTotalCount = totalPlanItems.length || precheck?.move_preview.length || 0;
+  const executeMoveCount = precheck?.move_preview.length ?? 0;
+  const executeDescriptionKey = effectiveReviewOrStayCount > 0
+    ? precheckItemsSummary
+      ? "executeDescriptionWithPlacementAndItems"
+      : "executeDescriptionWithPlacement"
+    : precheckItemsSummary
+      ? "executeDescriptionWithItems"
+      : "executeDescription";
+  const executeDescription = t(`workspace.confirm.${executeDescriptionKey}`, {
+    totalCount: t("workspace.quantity.items", { count: executeTotalCount }),
+    moveCount: t("workspace.quantity.items", { count: executeMoveCount }),
+    placementCount: t("workspace.quantity.items", { count: effectiveReviewOrStayCount }),
+    placementAction: t(isAssignExisting ? "workspace.confirm.stayInPlace" : "workspace.confirm.leaveForReview"),
+    items: precheckItemsSummary,
+  });
 
   const routeTransitionContent = (
     <section className="flex h-full min-w-0 flex-1 flex-col items-center justify-center overflow-hidden bg-surface">
@@ -1760,7 +1823,7 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
           <div className="flex items-center gap-2">
             <span className="h-1 w-1 rounded-full bg-primary/40 animate-pulse" style={{ animationDelay: '0ms' }} />
             <p className="text-[13px] font-medium tracking-wide text-ui-muted opacity-60">
-              正在同步任务阶段，请稍等
+              {t("workspace.controls.syncingStage")}
             </p>
             <span className="h-1 w-1 rounded-full bg-primary/40 animate-pulse" style={{ animationDelay: '300ms' }} />
           </div>
@@ -1779,7 +1842,7 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
             className="inline-flex items-center gap-1.5 rounded-[8px] border border-on-surface/20 bg-surface/95 px-3 py-1.5 text-[11px] font-bold text-on-surface-variant backdrop-blur transition-colors hover:bg-surface-container-low hover:text-on-surface"
           >
             <Layers className="h-3.5 w-3.5" />
-            {compactConversationOpen ? "返回预览" : "查看会话"}
+            {compactConversationOpen ? t("workspace.controls.returnToPreview") : t("workspace.controls.viewConversation")}
           </button>
           <button
             type="button"
@@ -1787,11 +1850,11 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
             className="inline-flex items-center gap-1.5 rounded-[8px] border border-on-surface/20 bg-surface/95 px-3 py-1.5 text-[11px] font-bold text-on-surface-variant backdrop-blur transition-colors hover:bg-surface-container-low hover:text-on-surface"
           >
             <LogOut className="h-3.5 w-3.5" />
-            退出
+            {t("workspace.controls.exit")}
           </button>
         </div>
       ) : null}
-      <ErrorBoundary fallbackTitle="页面加载出错了" className="flex-1">
+      <ErrorBoundary fallbackTitle={t("workspace.fallback.pageFailed")} className="flex-1">
         {layoutReady ? (
           <div className="flex flex-1 min-h-0 bg-transparent overflow-hidden">
             {isRouteSettling ? routeTransitionContent : view === "plan" ? planWorkbenchContent : singlePaneContent}
@@ -1800,14 +1863,14 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
       </ErrorBoundary>
       <ConfirmDialog
         open={exitConfirmOpen}
-        title={stageView.isCompleted ? "结束本次整理？" : "暂存并退出当前任务？"}
+        title={stageView.isCompleted ? t("workspace.confirm.exitCompletedTitle") : t("workspace.confirm.exitActiveTitle")}
         description={
           stageView.isCompleted
-            ? "本次整理已顺利执行完毕，进度已安全归档，现在可以安全关闭工作台并返回首页。"
-            : "当前的整理进度会自动保存。之后你可以随时从首页恢复并继续这项任务。"
+            ? t("workspace.confirm.exitCompletedDescription")
+            : t("workspace.confirm.exitActiveDescription")
         }
-        confirmLabel={stageView.isCompleted ? "结束并返回" : "暂存并退出"}
-        cancelLabel="留在工作台"
+        confirmLabel={stageView.isCompleted ? t("workspace.confirm.exitCompleted") : t("workspace.confirm.exitActive")}
+        cancelLabel={t("workspace.confirm.stay")}
         tone="primary"
         loading={loading}
         onConfirm={handleConfirmExitWorkbench}
@@ -1815,10 +1878,10 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
       />
       <ConfirmDialog
         open={scanAbortConfirmOpen}
-        title="停止本次扫描？"
-        description="停止后会结束当前整理任务并返回首页。这一轮不会继续生成整理建议。"
-        confirmLabel="停止扫描"
-        cancelLabel="继续扫描"
+        title={t("workspace.confirm.abortScanTitle")}
+        description={t("workspace.confirm.abortScanDescription")}
+        confirmLabel={t("workspace.confirm.stopScan")}
+        cancelLabel={t("workspace.confirm.continueScan")}
         tone="danger"
         loading={scanAborting}
         onConfirm={handleConfirmAbortScan}
@@ -1830,14 +1893,14 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
       />
       <ConfirmDialog
         open={executeConfirmOpen}
-        title="确认开始移动文件？"
-        description={`执行后会真实移动本地文件。本次涉及 ${totalPlanItems.length || precheck?.move_preview.length || 0} 项，其中 ${precheck?.move_preview.length ?? 0} 项将移动至目标目录${effectiveReviewOrStayCount > 0 ? `，${effectiveReviewOrStayCount} 项将${isAssignExisting ? "保留在原地" : "留在待确认区"}` : ""}${precheckItemsSummary ? `。涉及条目：${precheckItemsSummary}` : ""}。`}
-        confirmLabel="开始移动"
-        cancelLabel="再看看"
+        title={t("workspace.confirm.executeTitle")}
+        description={executeDescription}
+        confirmLabel={t("workspace.confirm.confirmMove")}
+        cancelLabel={t("workspace.confirm.lookAgain")}
         tone="primary"
         loading={loading}
         verificationText={(precheck && ((precheck.warnings || []).length > 0 || (!isAssignExisting && reviewMoveCount > 0))) ? "YES" : undefined}
-        verificationPlaceholder="请输入大写 YES 确认执行"
+        verificationPlaceholder={t("workspace.confirm.verificationPlaceholder")}
         onConfirm={async () => {
           // 先执行再关框：loading 状态在对话框上可见；失败时错误横幅会在页面顶部显示。
           await execute();
@@ -1851,16 +1914,16 @@ export default function WorkspaceClient({ view = "progress" }: { view?: Workspac
       >
         <div className="grid gap-2 text-[13px]">
           <div className="flex items-center justify-between rounded-[8px] bg-surface-container-low px-3 py-2">
-            <span className="text-ui-muted">本次将移动</span>
-            <span className="font-semibold text-on-surface">{precheck?.move_preview.length ?? 0} 项</span>
+            <span className="text-ui-muted">{t("workspace.confirm.moving")}</span>
+            <span className="font-semibold text-on-surface">{t("workspace.quantity.items", { count: executeMoveCount })}</span>
           </div>
           <div className="flex items-center justify-between rounded-[8px] bg-surface-container-low px-3 py-2">
-            <span className="text-ui-muted">本次将创建目录</span>
-            <span className="font-semibold text-on-surface">{precheck?.mkdir_preview.length ?? 0} 个</span>
+            <span className="text-ui-muted">{t("workspace.confirm.creatingFolders")}</span>
+            <span className="font-semibold text-on-surface">{t("workspace.quantity.folders", { count: precheck?.mkdir_preview.length ?? 0 })}</span>
           </div>
           <div className="flex items-center justify-between rounded-[8px] bg-surface-container-low px-3 py-2">
-            <span className="text-ui-muted">{isAssignExisting ? "保留在原地" : "留在待确认区"}</span>
-            <span className="font-semibold text-on-surface">{effectiveReviewOrStayCount} 项</span>
+            <span className="text-ui-muted">{t(isAssignExisting ? "workspace.confirm.remaining" : "workspace.confirm.review")}</span>
+            <span className="font-semibold text-on-surface">{t("workspace.quantity.items", { count: effectiveReviewOrStayCount })}</span>
           </div>
         </div>
       </ConfirmDialog>

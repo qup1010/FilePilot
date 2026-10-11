@@ -5,6 +5,7 @@ import { Suspense } from "react";
 import "./globals.css";
 import { AppShell } from "../components/app-shell";
 import { ThemeProvider } from "@/lib/theme";
+import { UiLocaleProvider } from "@/i18n/locale-provider";
 
 export const metadata: Metadata = {
   title: "FilePilot",
@@ -48,7 +49,9 @@ export default function RootLayout({
       <body className="min-h-screen bg-surface font-sans antialiased text-on-surface overflow-hidden">
         <Suspense fallback={<main className="flex min-h-screen bg-surface" />}>
           <ThemeProvider>
-            <AppShell>{children}</AppShell>
+            <UiLocaleProvider>
+              <AppShell>{children}</AppShell>
+            </UiLocaleProvider>
           </ThemeProvider>
         </Suspense>
       </body>

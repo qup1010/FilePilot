@@ -16,6 +16,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { SettingsSection, ToggleSwitch } from "@/components/settings/settings-primitives";
 import { cn } from "@/lib/utils";
+import type { UiLanguagePreference } from "@/i18n/locales";
+import { useTranslation } from "react-i18next";
 
 export type UpdateCheckResult = {
   hasUpdate: boolean;
@@ -31,11 +33,13 @@ export interface SystemTabProps {
   updateResult: UpdateCheckResult | null;
   updateError: string | null;
   debugMode: boolean;
+  uiLanguage: UiLanguagePreference;
   runtimeLogPath: string;
   debugLogPath: string;
   onCheckUpdate: () => void;
   onOpenLink: (url: string, event: ReactMouseEvent) => void;
   onToggleDebugMode: () => void;
+  onChangeUiLanguage: (language: UiLanguagePreference) => void;
   onCopyPath: (path: string) => void;
 }
 
@@ -46,19 +50,44 @@ export function SystemTab({
   updateResult,
   updateError,
   debugMode,
+  uiLanguage,
   runtimeLogPath,
   debugLogPath,
   onCheckUpdate,
   onOpenLink,
   onToggleDebugMode,
+  onChangeUiLanguage,
   onCopyPath,
 }: SystemTabProps) {
+  const { t } = useTranslation("common");
+
   return (
     <SettingsSection
       icon={ShieldCheck}
-      title="关于与运行日志"
-      description="项目版本、检查更新、调试开关及系统运行日志。"
+      title={t("settingsPage.categories.system.label")}
+      description={t("settingsPage.categories.system.description")}
     >
+      <div className="rounded-[12px] border border-on-surface/8 bg-surface p-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h3 className="text-[13px] font-semibold text-on-surface">{t("settingsPage.systemTab.languageTitle")}</h3>
+            <p className="mt-1 text-[12px] leading-5 text-on-surface-variant/65">
+              {t("settingsPage.systemTab.languageDescription")}
+            </p>
+          </div>
+          <select
+            aria-label={t("settingsPage.systemTab.languageTitle")}
+            value={uiLanguage}
+            onChange={(event) => onChangeUiLanguage(event.target.value as UiLanguagePreference)}
+            className="h-9 min-w-44 rounded-[8px] border border-on-surface/10 bg-surface-container-lowest px-3 text-[12px] font-semibold text-on-surface outline-none focus:border-primary/40"
+          >
+            <option value="system">{t("language.system")}</option>
+            <option value="zh-CN">{t("language.zhCN")}</option>
+            <option value="en">{t("language.english")}</option>
+          </select>
+        </div>
+      </div>
+
       {/* 1. 关于与检查更新卡片 */}
       <div className="rounded-[12px] border border-on-surface/8 bg-surface p-4">
         <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
@@ -89,7 +118,7 @@ export function SystemTab({
                 </span>
               </div>
               <p className="mt-1 text-[12px] leading-5 text-on-surface-variant/65">
-                本地智能文件整理与归档工作台
+                {t("settingsPage.systemTab.appTagline")}
               </p>
               <div className="mt-2 flex items-center gap-2">
                 <a
@@ -100,7 +129,7 @@ export function SystemTab({
                   className="inline-flex items-center gap-1.5 text-[12px] font-bold text-primary transition-colors hover:text-primary-dim hover:underline"
                 >
                   <Github className="h-3.5 w-3.5" />
-                  GitHub 仓库
+                  {t("settingsPage.systemTab.githubRepository")}
                 </a>
               </div>
             </div>
@@ -122,14 +151,14 @@ export function SystemTab({
               {checkingUpdate ? (
                 <span className="flex items-center gap-1.5">
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  正在检查...
+                  {t("settingsPage.systemTab.checkingUpdates")}
                 </span>
               ) : cooldown > 0 ? (
-                "重新检查"
+                t("settingsPage.systemTab.checkUpdatesAgain")
               ) : (
                 <span className="flex items-center gap-1.5">
                   <RefreshCw className="h-3.5 w-3.5" />
-                  检查更新
+                  {t("settingsPage.systemTab.checkForUpdates")}
                 </span>
               )}
             </Button>
@@ -143,11 +172,13 @@ export function SystemTab({
               <div className="rounded-[8px] border border-primary/25 bg-primary/[0.02] p-3">
                 <div className="flex items-center gap-2 text-[13px] font-bold text-primary">
                   <CheckCircle2 className="h-4 w-4 text-primary shrink-0" />
-                  发现新版本 {updateResult.version}！
+                  {t("settingsPage.systemTab.updateAvailable", { version: updateResult.version })}
                 </div>
                 {updateResult.body && (
                   <div className="mt-2 max-h-36 overflow-y-auto rounded-[8px] bg-surface-container-lowest/50 p-2.5 font-mono text-[11px] leading-5 text-on-surface-variant/75 border border-on-surface/4">
-                    <div className="font-semibold text-on-surface text-[11px] mb-1">更新日志：</div>
+                    <div className="font-semibold text-on-surface text-[11px] mb-1">
+                      {t("settingsPage.systemTab.releaseNotes")}
+                    </div>
                     <pre className="whitespace-pre-wrap font-sans text-[11px] text-on-surface-variant">{updateResult.body}</pre>
                   </div>
                 )}
@@ -160,14 +191,14 @@ export function SystemTab({
                     className="inline-flex items-center gap-1 rounded-[6px] border border-primary/20 bg-primary/8 px-3 py-1.5 text-[12px] font-bold text-primary transition-colors hover:bg-primary/14"
                   >
                     <Globe className="h-3.5 w-3.5" />
-                    前往 GitHub 下载更新
+                    {t("settingsPage.systemTab.downloadUpdate")}
                   </a>
                 </div>
               </div>
             ) : (
               <div className="flex items-center gap-2 rounded-[8px] border border-on-surface/8 bg-surface-container-lowest px-3 py-2.5 text-[12px] font-semibold text-on-surface-variant/80">
                 <CheckCircle2 className="h-4 w-4 text-green-500 shrink-0" />
-                当前已是最新版本 ({updateResult.version})，无需更新。
+                {t("settingsPage.systemTab.upToDate", { version: updateResult.version })}
               </div>
             )}
           </div>
@@ -179,7 +210,7 @@ export function SystemTab({
             <div className="rounded-[8px] border border-yellow-500/20 bg-yellow-500/[0.02] p-3 text-[12px] leading-relaxed text-on-surface-variant">
               <div className="flex items-center gap-2 font-bold text-yellow-600 dark:text-yellow-500 mb-1">
                 <AlertCircle className="h-4 w-4 shrink-0" />
-                检查更新失败
+                {t("settingsPage.systemTab.updateFailed")}
               </div>
               <p className="text-[12px] text-on-surface-variant/80">
                 {updateError}
@@ -192,7 +223,7 @@ export function SystemTab({
                   onClick={(e) => onOpenLink("https://github.com/qup1010/FilePilot/releases", e)}
                   className="inline-flex items-center gap-1 text-[11px] font-bold text-yellow-600 dark:text-yellow-500 underline transition-colors hover:text-yellow-700 dark:hover:text-yellow-400"
                 >
-                  前往 GitHub Releases 页面手动检查
+                  {t("settingsPage.systemTab.checkReleasesManually")}
                   <ChevronRight className="h-3 w-3" />
                 </a>
               </div>
@@ -206,34 +237,38 @@ export function SystemTab({
         {/* 开关调试行 */}
         <div className="flex items-start justify-between gap-4 pb-4 border-b border-on-surface/6">
           <div>
-            <h3 className="text-[13px] font-semibold text-on-surface">调试模式（详细日志）</h3>
+            <h3 className="text-[13px] font-semibold text-on-surface">
+              {t("settingsPage.systemTab.debugModeTitle")}
+            </h3>
             <p className="mt-1 text-[12px] leading-5 text-on-surface-variant/65">
-              关闭时仅保留基础运行状态；开启后会额外输出详细的 API 调用与调试日志，帮助追踪问题。
+              {t("settingsPage.systemTab.debugModeDescription")}
             </p>
           </div>
           <ToggleSwitch
             checked={debugMode}
             onClick={onToggleDebugMode}
-            ariaLabel="调试模式（详细日志）"
+            ariaLabel={t("settingsPage.systemTab.debugModeTitle")}
           />
         </div>
 
         {/* 日志路径行 */}
         <div className="pt-4">
           <div className="mb-3">
-            <h3 className="text-[13px] font-semibold text-on-surface">系统日志路径</h3>
+            <h3 className="text-[13px] font-semibold text-on-surface">
+              {t("settingsPage.systemTab.systemLogPathsTitle")}
+            </h3>
             <p className="mt-1 text-[12px] leading-5 text-on-surface-variant/65">
-              运行日志保存在以下本地路径中，需要排错时可快速复制查看：
+              {t("settingsPage.systemTab.systemLogPathsDescription")}
             </p>
           </div>
           <div className="grid gap-3 md:grid-cols-2">
             {[
               {
-                label: "运行日志",
+                label: t("settingsPage.systemTab.runtimeLog"),
                 path: runtimeLogPath,
               },
               {
-                label: "调试日志",
+                label: t("settingsPage.systemTab.debugLog"),
                 path: debugLogPath,
               },
             ].map((item) => (
@@ -246,11 +281,11 @@ export function SystemTab({
                     className="inline-flex items-center gap-1 rounded-[6px] border border-on-surface/8 bg-surface px-2.5 py-1 text-[11px] font-bold text-on-surface transition-colors hover:border-primary/20 hover:text-primary"
                   >
                     <ClipboardCopy className="h-3 w-3" />
-                    复制路径
+                    {t("settingsPage.systemTab.copyPath")}
                   </button>
                 </div>
                 <div className="mt-2 break-all font-mono text-[11px] leading-5 text-on-surface-variant/80">
-                  {item.path || "尚未生成"}
+                  {item.path || t("settingsPage.systemTab.notGenerated")}
                 </div>
               </div>
             ))}

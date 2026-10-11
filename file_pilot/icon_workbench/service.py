@@ -24,6 +24,7 @@ from file_pilot.icon_workbench.models import (
 from file_pilot.icon_workbench.store import IconWorkbenchStore
 from file_pilot.icon_workbench.templates import render_prompt_template
 from file_pilot.shared.config_manager import config_manager
+from file_pilot.shared.content_locale import DEFAULT_CONTENT_LOCALE, normalize_content_locale
 
 logger = logging.getLogger(__name__)
 
@@ -125,7 +126,14 @@ class IconWorkbenchService:
         self._record_event("icon.targets.updated", session, mode="remove", removed_ids=[folder_id])
         return self._serialize_session(session)
 
-    def analyze_folders(self, session_id: str, folder_ids: list[str] | None = None) -> dict:
+    def analyze_folders(
+        self,
+        session_id: str,
+        folder_ids: list[str] | None = None,
+        *,
+        content_locale: str = DEFAULT_CONTENT_LOCALE,
+    ) -> dict:
+        content_locale_snapshot = normalize_content_locale(content_locale)
         session = self.store.load_session(session_id)
         config = self.store.config_store.load()
         if not config.text_model.is_configured():
@@ -152,6 +160,7 @@ class IconWorkbenchService:
             max_workers=config.analysis_concurrency_limit,
             worker=self._analyze_folder_job,
             config=config,
+            content_locale=content_locale_snapshot,
         ):
             if outcome["status"] == "ok":
                 analysis = outcome["analysis"]
@@ -727,7 +736,13 @@ class IconWorkbenchService:
                 folder = futures[future]
                 yield folder, future.result()
 
-    def _analyze_folder_job(self, folder: FolderIconCandidate, *, config) -> dict:
+    def _analyze_folder_job(
+        self,
+        folder: FolderIconCandidate,
+        *,
+        config,
+        content_locale: str = DEFAULT_CONTENT_LOCALE,
+    ) -> dict:
         try:
             tree_lines = scan_folder_tree(folder.folder_path, max_depth=2)
             analysis = self.text_client.analyze_folder(
@@ -735,6 +750,7 @@ class IconWorkbenchService:
                 folder.folder_path,
                 folder.folder_name,
                 tree_lines,
+                content_locale=content_locale,
             )
             return {"status": "ok", "analysis": analysis}
         except Exception as exc:
@@ -821,6 +837,9 @@ class IconWorkbenchService:
             "target_paths": list(session.target_paths[:2]),
             "last_action_type": last_action.action_type if last_action else None,
             "last_action_message": last_action.message if last_action else None,
+            "last_action_success_count": last_action.success_count if last_action else None,
+            "last_action_failed_count": last_action.failed_count if last_action else None,
+            "last_action_skipped_count": last_action.skipped_count if last_action else None,
             "last_action_at": last_action.updated_at if last_action else None,
         }
 

@@ -2,6 +2,7 @@
 
 import { motion } from "motion/react";
 import { AlertTriangle } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 interface ErrorAlertProps {
   title?: string;
@@ -9,7 +10,8 @@ interface ErrorAlertProps {
   onClose?: () => void;
 }
 
-export function ErrorAlert({ title = "系统指令异常中断", message, onClose }: ErrorAlertProps) {
+export function ErrorAlert({ title, message, onClose }: ErrorAlertProps) {
+  const { t } = useTranslation("common");
   return (
     <motion.div 
       initial={{ opacity: 0, y: -4 }} 
@@ -22,14 +24,14 @@ export function ErrorAlert({ title = "系统指令异常中断", message, onClos
       <div className="min-w-0 flex-1 space-y-0.5">
         <div className="flex items-center justify-between">
           <p className="text-[11px] font-black uppercase tracking-[0.25em] text-error/60 leading-none">
-            {title}
+            {title || t("error.systemInterrupted")}
           </p>
           {onClose && (
             <button 
               onClick={onClose}
               className="rounded-full p-1 text-ui-muted opacity-20 hover:bg-error/10 hover:text-error hover:opacity-100 transition-all"
             >
-              <span className="sr-only">关闭</span>
+              <span className="sr-only">{t("error.dismiss")}</span>
               <div className="h-3.5 w-3.5 flex items-center justify-center">
                 <div className="h-0.5 w-3 bg-current rotate-45 absolute" />
                 <div className="h-0.5 w-3 bg-current -rotate-45 absolute" />

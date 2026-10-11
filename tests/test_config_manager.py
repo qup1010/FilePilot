@@ -249,11 +249,12 @@ class ConfigManagerPresetTests(unittest.TestCase):
         self.assertEqual(active["IMAGE_ANALYSIS_API_KEY"], "secret-a")
 
     def test_default_config_includes_launch_defaults(self):
-        manager = config_module.ConfigManager()
-        active = manager.get_active_config(mask_secrets=False)
+        with mock.patch.dict(os.environ, {"LAUNCH_DEFAULT_LANGUAGE": ""}):
+            manager = config_module.ConfigManager()
+            active = manager.get_active_config(mask_secrets=False)
 
         self.assertEqual(active["LAUNCH_DEFAULT_TEMPLATE_ID"], "general_downloads")
-        self.assertEqual(active["LAUNCH_DEFAULT_LANGUAGE"], "zh")
+        self.assertEqual(active["LAUNCH_DEFAULT_LANGUAGE"], "auto")
         self.assertEqual(active["LAUNCH_DEFAULT_DENSITY"], "normal")
         self.assertEqual(active["LAUNCH_DEFAULT_PREFIX_STYLE"], "none")
         self.assertEqual(active["LAUNCH_DEFAULT_CAUTION_LEVEL"], "balanced")

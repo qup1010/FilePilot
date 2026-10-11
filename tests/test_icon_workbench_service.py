@@ -18,7 +18,7 @@ from file_pilot.icon_workbench.store import IconWorkbenchStore
 
 
 class StubTextClient:
-    def analyze_folder(self, config, folder_path, folder_name, tree_lines):
+    def analyze_folder(self, config, folder_path, folder_name, tree_lines, *, content_locale="zh-CN"):
         return IconAnalysisResult(
             category="项目目录",
             visual_subject=f"{folder_name} badge",
@@ -43,8 +43,9 @@ class RecordingConcurrentTextClient:
         self.active = 0
         self.max_active = 0
         self.calls = []
+        self.locales = []
 
-    def analyze_folder(self, config, folder_path, folder_name, tree_lines):
+    def analyze_folder(self, config, folder_path, folder_name, tree_lines, *, content_locale="zh-CN"):
         with self.lock:
             self.active += 1
             self.max_active = max(self.max_active, self.active)
@@ -52,6 +53,7 @@ class RecordingConcurrentTextClient:
             time.sleep(0.05)
             with self.lock:
                 self.calls.append(folder_name)
+                self.locales.append(content_locale)
             return IconAnalysisResult(
                 category="项目目录",
                 visual_subject=f"{folder_name} badge",
@@ -212,6 +214,69 @@ class IconWorkbenchServiceTests(unittest.TestCase):
         self.assertEqual(history[0]["error_count"], 1)
         self.assertEqual(history[0]["target_paths"], [str(self.alpha_dir), str(self.beta_dir)])
         self.assertIn("应用图标已完成", history[0]["last_action_message"])
+
+        self.assertEqual(history[0]["last_action_success_count"], 1)
+        self.assertEqual(history[0]["last_action_failed_count"], 0)
+        self.assertEqual(history[0]["last_action_skipped_count"], 0)
+
+    def test_get_session_reads_legacy_icon_versions_and_action_summaries(self):
+        legacy_payload = {
+            "session_id": "legacy-icon-session",
+            "target_paths": [str(self.alpha_dir)],
+            "created_at": "2026-01-01T00:00:00+00:00",
+            "updated_at": "2026-01-02T00:00:00+00:00",
+            "folders": [
+                {
+                    "folder_id": "legacy-folder",
+                    "folder_path": str(self.alpha_dir),
+                    "folder_name": "Alpha",
+                    "analysis_status": "ready",
+                    "analysis": {
+                        "category": "项目目录",
+                        "visual_subject": "旧版视觉主体",
+                        "summary": "旧版分析摘要",
+                        "suggested_prompt": "旧版建议提示词",
+                    },
+                    "current_prompt": "用户自定义提示词",
+                    "prompt_customized": True,
+                    "versions": [
+                        {
+                            "version_id": "legacy-version",
+                            "version_number": 1,
+                            "prompt": "旧版绘图提示词",
+                            "image_path": str(Path(self.temp_dir) / "legacy.png"),
+                            "status": "error",
+                        }
+                    ],
+                    "current_version_id": "legacy-version",
+                    "last_error": "旧版中文错误信息",
+                }
+            ],
+            "last_client_action": {
+                "action_type": "apply_icons",
+                "summary": {
+                    "message": "应用图标已完成：成功 1，失败 0，跳过 0。",
+                },
+                "results": [{"status": "applied", "message": "旧版结果消息"}],
+            },
+        }
+        self.store.session_path("legacy-icon-session").write_text(
+            json.dumps(legacy_payload, ensure_ascii=False),
+            encoding="utf-8",
+        )
+
+        loaded = self.service.get_session("legacy-icon-session")
+
+        folder = loaded["folders"][0]
+        self.assertEqual(folder["current_prompt"], "用户自定义提示词")
+        self.assertEqual(folder["analysis"]["summary"], "旧版分析摘要")
+        self.assertEqual(folder["versions"][0]["prompt"], "旧版绘图提示词")
+        self.assertEqual(folder["versions"][0]["status"], "error")
+        self.assertIsNone(folder["versions"][0]["error_message"])
+        self.assertEqual(folder["last_error"], "旧版中文错误信息")
+        self.assertEqual(loaded["last_client_action"]["summary"]["message"], "应用图标已完成：成功 1，失败 0，跳过 0。")
+        self.assertIsNone(loaded["last_client_action"]["summary"]["success_count"])
+        self.assertEqual(loaded["last_client_action"]["results"][0]["message"], "旧版结果消息")
 
     def test_list_sessions_skips_broken_session_files(self):
         session = self.service.create_session([str(self.alpha_dir)])
@@ -419,7 +484,10 @@ class IconWorkbenchServiceTests(unittest.TestCase):
         self.store.templates_path.write_text(json.dumps(legacy_payload, ensure_ascii=False, indent=2), encoding="utf-8")
 
         loaded = self.service.list_templates()
-        self.assertTrue(any(item["template_id"] == "legacy_template" for item in loaded))
+        legacy = next(item for item in loaded if item["template_id"] == "legacy_template")
+        self.assertEqual(legacy["name"], "旧模板")
+        self.assertEqual(legacy["description"], "旧格式")
+        self.assertEqual(legacy["prompt_template"], "Legacy {{subject}}")
 
         updated = self.service.update_template("legacy_template", {"description": "已迁移"})
         self.assertEqual(updated["description"], "已迁移")
@@ -480,6 +548,9 @@ class IconWorkbenchServiceTests(unittest.TestCase):
                         "folder_path": "D:/Icons/Beta",
                         "status": "failed",
                         "message": "权限不足",
+                        "error_code": "TAURI_PERMISSION_DENIED",
+                        "error_params": {"path": "D:/Icons/Beta"},
+                        "detail": "Access is denied.",
                     },
                 ],
                 "skipped_items": [
@@ -498,6 +569,8 @@ class IconWorkbenchServiceTests(unittest.TestCase):
         self.assertEqual(updated["last_client_action"]["summary"]["failed_count"], 1)
         self.assertEqual(updated["last_client_action"]["summary"]["skipped_count"], 1)
         self.assertEqual(updated["last_client_action"]["results"][0]["status"], "applied")
+        self.assertEqual(updated["last_client_action"]["results"][1]["error_code"], "TAURI_PERMISSION_DENIED")
+        self.assertEqual(updated["last_client_action"]["results"][1]["error_params"]["path"], "D:/Icons/Beta")
         self.assertEqual(updated["last_client_action"]["results"][2]["status"], "skipped")
 
     def test_report_client_action_persists_applied_version_and_restore_clears_it(self):
@@ -608,6 +681,39 @@ class IconWorkbenchServiceTests(unittest.TestCase):
         self.assertEqual(sorted(concurrent_text_client.calls), ["Alpha", "Beta", "Gamma"])
         self.assertGreaterEqual(concurrent_text_client.max_active, 2)
         self.assertTrue(all(folder["analysis_status"] == "ready" for folder in updated["folders"]))
+
+    def test_analyze_batch_keeps_the_captured_content_locale_for_every_worker(self):
+        concurrent_text_client = RecordingConcurrentTextClient()
+        service = IconWorkbenchService(
+            store=self.store,
+            text_client=concurrent_text_client,
+            image_client=StubImageClient(),
+        )
+        self.store.config_store.save(
+            IconWorkbenchConfig.from_dict(
+                {
+                    "text_model": {
+                        "base_url": "https://text.example/v1",
+                        "api_key": "text-key",
+                        "model": "gpt-text",
+                    },
+                    "image_model": {
+                        "base_url": "https://image.example/v1",
+                        "api_key": "image-key",
+                        "model": "gpt-image",
+                    },
+                    "image_size": "512x512",
+                    "analysis_concurrency_limit": 2,
+                    "image_concurrency_limit": 1,
+                }
+            )
+        )
+        session = service.create_session([str(self.alpha_dir), str(self.beta_dir), str(self.gamma_dir)])
+
+        service.analyze_folders(session["session_id"], content_locale="en")
+
+        self.assertEqual(len(concurrent_text_client.locales), 3)
+        self.assertEqual(set(concurrent_text_client.locales), {"en"})
 
     def test_generate_previews_uses_configured_image_concurrency_limit(self):
         concurrent_image_client = RecordingConcurrentImageClient()

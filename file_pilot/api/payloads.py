@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -28,6 +28,7 @@ class CreateSessionPayload(BaseModel):
     target_directory_details: list[TargetProfileDirectoryPayload] = Field(default_factory=list)
     new_directory_root: str | None = None
     review_root: str | None = None
+    content_locale: Literal["zh-CN", "en"] = "zh-CN"
 
 
 class MessagePayload(BaseModel):
@@ -52,6 +53,7 @@ class GenerateRuleDraftsPayload(BaseModel):
     """可选：只为指定目录生成初稿；省略则整套生成。"""
 
     paths: list[str] | None = None
+    content_locale: Literal["zh-CN", "en"] = "zh-CN"
 
 
 class UpdateItemPayload(BaseModel):
@@ -144,6 +146,7 @@ class IconWorkbenchTargetUpdatePayload(BaseModel):
 
 class IconWorkbenchFolderBatchPayload(BaseModel):
     folder_ids: list[str] = Field(default_factory=list)
+    content_locale: Literal["zh-CN", "en"] = "zh-CN"
 
 
 class IconWorkbenchPromptPayload(BaseModel):
@@ -187,6 +190,9 @@ class IconWorkbenchClientActionResultPayload(BaseModel):
     version_id: str | None = None
     status: str
     message: str = ""
+    error_code: str | None = None
+    error_params: dict[str, Any] | None = None
+    detail: str | None = None
 
 
 class IconWorkbenchClientActionReportPayload(BaseModel):

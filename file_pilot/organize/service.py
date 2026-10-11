@@ -27,6 +27,7 @@ from file_pilot.shared.config import (
     get_organizer_model_name,
     get_text_stream_max_seconds,
 )
+from file_pilot.shared.content_locale import DEFAULT_CONTENT_LOCALE, normalize_content_locale
 from file_pilot.shared.events import emit
 from file_pilot.shared.logging_utils import append_debug_event
 from file_pilot.shared.model_response import (
@@ -142,7 +143,19 @@ def get_scan_content() -> str:
     return RESULT_FILE_PATH.read_text(encoding="utf-8").strip()
 
 
-def _build_initial_request_text(user_constraints: list[str] | None = None) -> str:
+def _build_initial_request_text(
+    user_constraints: list[str] | None = None,
+    content_locale: str = DEFAULT_CONTENT_LOCALE,
+) -> str:
+    if normalize_content_locale(content_locale) == "en":
+        lines = [
+            "Create an organization plan from the directory scan and rules above. Briefly explain your decisions using the required Markdown structure. Do not expose internal IDs or field names in natural-language text."
+        ]
+        if user_constraints:
+            lines.append("User-confirmed preferences for this task:")
+            lines.extend(f"- {item}" for item in user_constraints)
+        return "\n".join(lines)
+
     lines = [
         "请基于上述的目录扫描结果和整理规则，为我生成整理计划。按系统要求的 Markdown 结构简要说明判断，不要在自然语言里暴露内部编号或字段名。"
     ]
@@ -176,10 +189,11 @@ def build_initial_messages(
     planner_items: list[dict] | None = None,
     planning_context: dict | None = None,
 ) -> list:
+    content_locale = normalize_content_locale((planning_context or {}).get("content_locale"))
     prompt_scan_lines = render_planner_scan_lines(planner_items) if planner_items else scan_lines
     return [
         {"role": "system", "content": build_prompt(prompt_scan_lines, strategy, planning_context)},
-        {"role": "user", "content": _build_initial_request_text(user_constraints)},
+        {"role": "user", "content": _build_initial_request_text(user_constraints, content_locale)},
     ]
 
 
@@ -363,6 +377,23 @@ def _parse_tool_call_arguments(tool_call) -> dict:
     return parsed if isinstance(parsed, dict) else {}
 
 
+def _legacy_inspection_error_code(content: str) -> str | None:
+    """Map legacy file-reader prose to stable codes while reader results migrate."""
+    text = str(content or "").strip()
+    legacy_prefixes = (
+        ("错误：基于安全考虑", "PATH_NOT_ALLOWED"),
+        ("错误：文件 ", "FILE_NOT_FOUND"),
+        ("错误：目录 ", "DIRECTORY_NOT_FOUND"),
+        ("读取 PDF 失败", "PDF_READ_FAILED"),
+        ("读取 Word 失败", "WORD_READ_FAILED"),
+        ("读取 Excel 失败", "SPREADSHEET_READ_FAILED"),
+        ("无法读取文件", "FILE_READ_FAILED"),
+        ("无法列出目录", "DIRECTORY_LIST_FAILED"),
+        ("错误：", "FILE_READ_ERROR"),
+    )
+    return next((code for prefix, code in legacy_prefixes if text.startswith(prefix)), None)
+
+
 def _compress_inspection_item(item: dict) -> dict:
     item_id = str(item.get("item_id") or "").strip()
     display_name = str(item.get("display_name") or item_id).strip()
@@ -380,6 +411,7 @@ def _compress_inspection_item(item: dict) -> dict:
         "summary": summary,
         "truncated": truncated,
         "error": error,
+        "error_code": str(item.get("error_code") or "").strip() or None,
     }
 
 
@@ -414,6 +446,7 @@ def _execute_inspection_tool(
                     "content": "",
                     "truncated": False,
                     "error": "ITEM_NOT_FOUND",
+                    "error_code": "ITEM_NOT_FOUND",
                 }
             )
             continue
@@ -422,7 +455,9 @@ def _execute_inspection_tool(
             str(context_item.get("absolute_path") or ""),
             max_len=INSPECT_MAX_LEN,
             allowed_base_dir=str(context_item.get("allowed_base_dir") or ""),
+            content_locale=normalize_content_locale((planning_context or {}).get("content_locale")),
         )
+        error_code = _legacy_inspection_error_code(content)
         items.append(
             {
                 "item_id": item_id,
@@ -430,7 +465,8 @@ def _execute_inspection_tool(
                 "entry_type": str(context_item.get("entry_type") or "file"),
                 "content": content,
                 "truncated": "...[内容过长已截断]" in content or "...[目录结果过长已截断]" in content,
-                "error": "" if not str(content).startswith(("错误：", "无法读取文件", "读取 PDF 失败", "读取 Word 失败", "读取 Excel 失败")) else str(content),
+                "error": str(content) if error_code else "",
+                "error_code": error_code,
             }
         )
 
@@ -1330,6 +1366,107 @@ def build_command_retry_message(
     planner_items: list[dict] | None = None,
     planning_context: dict | None = None,
 ) -> str:
+    if normalize_content_locale((planning_context or {}).get("content_locale")) == "en":
+        details = [
+            "The previous organization plan failed structural validation.",
+            "Correct the structured result directly; do not repeat the explanation.",
+            "Hard rules: assign exactly one destination to every item; include only directories that will be used; use valid relative target paths and preserve original filenames.",
+        ]
+        if scan_lines:
+            details.append("Authoritative items in the current planning scope:")
+            if planner_items:
+                details.extend(
+                    f"- {line}"
+                    for line in render_planner_scan_lines(planner_items).splitlines()
+                    if line.strip()
+                )
+            else:
+                details.extend(f"- {item}" for item in _scope_sources(scan_lines, planner_items, planning_context))
+        if user_constraints:
+            details.append("Confirmed user preferences:")
+            details.extend(f"- {item}" for item in user_constraints)
+        if (planning_context or {}).get("organize_mode") == "incremental":
+            target_directories = [
+                str(item).strip()
+                for item in (planning_context or {}).get("target_directories", [])
+                if str(item).strip()
+            ]
+            target_slots = directory_target_slots(
+                [
+                    dict(item)
+                    for item in (planning_context or {}).get("target_slots", [])
+                    if isinstance(item, dict) and str(item.get("slot_id") or "").strip()
+                ]
+            )
+            details.extend(
+                [
+                    "Hard constraints for placing items into existing folders:",
+                    "- Do not rename folders.",
+                    "- Use only explicitly configured target folders, or leave an item in Review.",
+                    "- A parent folder does not authorize its children; each child must be configured separately.",
+                    "- Do not create target folders or move items into unconfigured folders.",
+                    "- Prefer target_slot values that point to existing D-IDs.",
+                ]
+            )
+            if target_directories:
+                details.append("Selected target folders:")
+                details.extend(
+                    f"- {_format_target_directory_for_prompt(item, planning_context)}"
+                    for item in target_directories
+                )
+            if target_slots:
+                details.append("Available target slots:")
+                details.extend(
+                    f"- {str(item.get('slot_id') or '').strip()} -> {slot_label(item)}"
+                    for item in target_slots
+                )
+
+        if planner_items:
+            translated = {
+                "missing": [_planner_id_from_source(item, planner_items) for item in validation.get("missing", [])],
+                "extra": [_planner_id_from_source(item, planner_items) for item in validation.get("extra", [])],
+                "duplicates": [_planner_id_from_source(item, planner_items) for item in validation.get("duplicates", [])],
+            }
+            if translated["missing"]:
+                details.append(f"Missing moves: {translated['missing']}")
+            if translated["extra"]:
+                details.append(f"Extra moves: {translated['extra']}")
+            if translated["duplicates"]:
+                details.append(f"Duplicate items: {translated['duplicates']}")
+            if validation.get("order_errors"):
+                details.append(f"Ordering errors: {len(validation['order_errors'])}")
+            validation_labels = {
+                "invalid_lines": "Invalid plan entries",
+                "path_errors": "Path errors",
+                "rename_errors": "Folder renames are not allowed",
+                "duplicate_mkdirs": "Duplicate folders",
+                "missing_mkdirs": "Missing required folders",
+                "unused_mkdirs": "Unused folders",
+                "conflicting_targets": "Conflicting destinations",
+            }
+            for key, label in validation_labels.items():
+                if validation.get(key):
+                    details.append(f"{label}: {len(validation[key])} item(s)")
+        else:
+            validation_labels = {
+                "missing": "Missing moves",
+                "extra": "Extra moves",
+                "duplicates": "Duplicate items",
+                "order_errors": "Ordering errors",
+                "invalid_lines": "Invalid plan entries",
+                "path_errors": "Path errors",
+                "rename_errors": "Folder renames are not allowed",
+                "duplicate_mkdirs": "Duplicate folders",
+                "missing_mkdirs": "Missing required folders",
+                "unused_mkdirs": "Unused folders",
+                "conflicting_targets": "Conflicting destinations",
+            }
+            for key, label in validation_labels.items():
+                if validation.get(key):
+                    details.append(f"{label}: {validation[key]}")
+        details.append("Resubmit the complete structured plan and cover every item in the current scope.")
+        return "\n".join(details)
+
     details = [
         "刚才提交的整理计划未通过结构化校验，请重新提交完整计划。",
         "请直接修正结构化结果，不要重复解释。",
@@ -1427,17 +1564,26 @@ def _build_repair_messages(
     planner_items: list[dict] | None = None,
     planning_context: dict | None = None,
 ) -> list[dict]:
-    repair_prompt = [
-        "进入修复模式。",
-        "请忽略之前失败的输出，只根据以下权威信息重新提交最终计划。",
-        "当前规划范围条目：",
-        render_planner_scan_lines(planner_items) if planner_items else scan_lines,
-    ]
+    is_english = normalize_content_locale((planning_context or {}).get("content_locale")) == "en"
+    if is_english:
+        repair_prompt = [
+            "Repair mode.",
+            "Ignore previous failed output and submit a final plan using only the authoritative information below.",
+            "Items in the current planning scope:",
+            render_planner_scan_lines(planner_items) if planner_items else scan_lines,
+        ]
+    else:
+        repair_prompt = [
+            "进入修复模式。",
+            "请忽略之前失败的输出，只根据以下权威信息重新提交最终计划。",
+            "当前规划范围条目：",
+            render_planner_scan_lines(planner_items) if planner_items else scan_lines,
+        ]
     if strategy_instructions:
-        repair_prompt.append("当前固定整理策略：")
+        repair_prompt.append("Current fixed organization strategy:" if is_english else "当前固定整理策略：")
         repair_prompt.append(strategy_instructions)
     if user_constraints:
-        repair_prompt.append("已确认用户偏好：")
+        repair_prompt.append("Confirmed user preferences:" if is_english else "已确认用户偏好：")
         repair_prompt.extend(f"- {item}" for item in user_constraints)
     if (planning_context or {}).get("organize_mode") == "incremental":
         target_directories = [str(item).strip() for item in (planning_context or {}).get("target_directories", []) if str(item).strip()]
@@ -1448,25 +1594,44 @@ def _build_repair_messages(
                 if isinstance(item, dict) and str(item.get("slot_id") or "").strip()
             ]
         )
-        repair_prompt.append("“归入已有目录”任务的硬性限制：")
-        repair_prompt.append("- 禁止目录改名")
-        repair_prompt.append("- 只能放入显式配置的目标目录，或交给系统放入待确认区")
-        repair_prompt.append("- 父目录不会自动授权子目录；子目录必须单独配置后才能作为目标")
-        repair_prompt.append("- 禁止新建目标目录，禁止移动到未显式配置的目录")
-        repair_prompt.append("- 优先使用 target_slot 指向已有 D-ID")
+        repair_prompt.append(
+            "Hard constraints for placing items into existing folders:"
+            if is_english
+            else "“归入已有目录”任务的硬性限制："
+        )
+        if is_english:
+            repair_prompt.extend(
+                [
+                    "- Do not rename folders.",
+                    "- Use only explicitly configured target folders, or leave an item in Review.",
+                    "- A parent folder does not authorize its children; each child must be configured separately.",
+                    "- Do not create target folders or move items into unconfigured folders.",
+                    "- Prefer target_slot values that point to existing D-IDs.",
+                ]
+            )
+        else:
+            repair_prompt.extend(
+                [
+                    "- 禁止目录改名",
+                    "- 只能放入显式配置的目标目录，或交给系统放入待确认区",
+                    "- 父目录不会自动授权子目录；子目录必须单独配置后才能作为目标",
+                    "- 禁止新建目标目录，禁止移动到未显式配置的目录",
+                    "- 优先使用 target_slot 指向已有 D-ID",
+                ]
+            )
         if target_directories:
-            repair_prompt.append("已选目标目录：")
+            repair_prompt.append("Selected target folders:" if is_english else "已选目标目录：")
             repair_prompt.extend(
                 f"- {_format_target_directory_for_prompt(item, planning_context)}"
                 for item in target_directories
             )
         if target_slots:
-            repair_prompt.append("可用目标槽位：")
+            repair_prompt.append("Available target slots:" if is_english else "可用目标槽位：")
             repair_prompt.extend(
                 f"- {str(item.get('slot_id') or '').strip()} -> {slot_label(item)}"
                 for item in target_slots
             )
-    repair_prompt.append("最近一次失败原因：")
+    repair_prompt.append("Most recent validation failure:" if is_english else "最近一次失败原因：")
     repair_prompt.append(
         build_command_retry_message(
             validation,
@@ -1477,7 +1642,13 @@ def _build_repair_messages(
     return [
         {
             "role": "system",
-            "content": "你处于整理计划修复模式，只能提交一个完整且可执行的最终计划。不要补充候选项，不要输出摘要统计。",
+            "content": (
+                "You are repairing an organization plan. Submit only one complete, executable final plan. "
+                "Do not add candidates or summary statistics. Write all user-facing natural language in English, "
+                "preserve real file and folder names, and follow the configured directory naming language."
+                if is_english
+                else "你处于整理计划修复模式，只能提交一个完整且可执行的最终计划。不要补充候选项，不要输出摘要统计。"
+            ),
         },
         {"role": "user", "content": "\n".join(repair_prompt)},
     ]
@@ -1959,7 +2130,11 @@ def run_organizer_cycle(
             ),
             event_handler=event_handler,
             model=model,
-            tools=[repair_final_plan_tool],
+            tools=[
+                repair_final_plan_tool_for_content_locale(
+                    (planning_context or {}).get("content_locale", DEFAULT_CONTENT_LOCALE)
+                )
+            ],
             return_message=True,
             session_id=session_id,
             target_dir=target_dir,
@@ -2096,6 +2271,16 @@ repair_final_plan_tool = {
 }
 
 
+def repair_final_plan_tool_for_content_locale(content_locale: str = DEFAULT_CONTENT_LOCALE) -> dict:
+    tool = deepcopy(repair_final_plan_tool)
+    if normalize_content_locale(content_locale) == "en":
+        tool["function"]["description"] = (
+            "Submit one complete final plan in repair mode. Rebuild an executable plan from the validation feedback "
+            "and cover every item in the current planning scope."
+        )
+    return tool
+
+
 _BASE_ORGANIZER_TOOLS = [
     {
         "type": "function",
@@ -2162,7 +2347,7 @@ def build_organizer_tools(planning_context: dict | None = None) -> list[dict]:
     organize_mode = str(context.get("organize_mode") or "initial").strip().lower()
     tools = deepcopy(_BASE_ORGANIZER_TOOLS)
     if organize_mode != "incremental":
-        return tools
+        return _localize_organizer_tools(tools, context.get("content_locale"))
 
     target_directories = [str(path).strip() for path in (context.get("target_directories") or []) if str(path).strip()]
     target_slots = directory_target_slots(
@@ -2182,6 +2367,27 @@ def build_organizer_tools(planning_context: dict | None = None) -> list[dict]:
         target_slots=target_slots,
         blocked_root_dirs=blocked_root_dirs,
     )
+    return _localize_organizer_tools(tools, context.get("content_locale"))
+
+
+def _localize_organizer_tools(tools: list[dict], content_locale: str | None) -> list[dict]:
+    if normalize_content_locale(content_locale) != "en":
+        return tools
+    descriptions = {
+        PLAN_DIFF_TOOL_NAME: (
+            "Submit incremental changes to the organization plan. Call this tool whenever the plan changes. "
+            "Keep every item in scope assigned exactly one destination and follow all constraints in the system instructions."
+        ),
+        INSPECT_ENTRY_TOOL_NAME: (
+            "Inspect detailed content for selected item_ids only when the available summary is insufficient to decide. "
+            "Do not inspect all entries by default. Inspect before submitting plan changes."
+        ),
+    }
+    for tool in tools:
+        function = tool.get("function") or {}
+        name = str(function.get("name") or "")
+        if name in descriptions:
+            function["description"] = descriptions[name]
     return tools
 
 

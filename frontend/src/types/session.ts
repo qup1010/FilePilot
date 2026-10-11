@@ -26,6 +26,7 @@ export type StrategyTemplateId =
   | "media_assets";
 
 export type StrategyLanguage = "zh" | "en";
+export type FolderNameLanguagePreference = "auto" | StrategyLanguage;
 export type StrategyDensity = "normal" | "minimal";
 export type StrategyPrefixStyle = "none" | "numeric" | "category";
 export type StrategyCautionLevel = "conservative" | "balanced";
@@ -120,6 +121,10 @@ export interface SessionStrategySelection {
   note: string;
 }
 
+export interface LauncherStrategySelection extends SessionStrategySelection {
+  language_preference: FolderNameLanguagePreference;
+}
+
 export interface SessionStrategySummary extends SessionStrategySelection {
   template_label: string;
   template_description?: string;
@@ -140,7 +145,7 @@ export interface LaunchStrategyConfig {
   LAUNCH_DEFAULT_ORGANIZE_METHOD?: OrganizeMethod;
   LAUNCH_DEFAULT_TARGET_PROFILE_ID?: string;
   LAUNCH_DEFAULT_TEMPLATE_ID?: StrategyTemplateId;
-  LAUNCH_DEFAULT_LANGUAGE?: StrategyLanguage;
+  LAUNCH_DEFAULT_LANGUAGE?: FolderNameLanguagePreference;
   LAUNCH_DEFAULT_DENSITY?: StrategyDensity;
   LAUNCH_DEFAULT_PREFIX_STYLE?: StrategyPrefixStyle;
   LAUNCH_DEFAULT_CAUTION_LEVEL?: StrategyCautionLevel;
@@ -158,6 +163,7 @@ export interface RecentAnalysisItem {
   entry_type?: string;
   suggested_purpose: string;
   summary: string;
+  analysis_status?: "queued" | "in_progress" | "completed" | "needs_review" | string;
 }
 
 export interface ScannerProgress {
@@ -165,10 +171,13 @@ export interface ScannerProgress {
   processed_count?: number;
   total_count?: number;
   current_item?: string | null;
+  current_item_kind?: "preparing" | "directory" | "entry" | string;
   recent_analysis_items?: RecentAnalysisItem[];
   batch_count?: number;
   completed_batches?: number;
   message?: string;
+  message_code?: string;
+  message_params?: Record<string, string | number | boolean | null>;
   is_retrying?: boolean;
   retry_kind?: string | null;
   retry_attempt?: number;
@@ -192,6 +201,10 @@ export interface PlannerProgress {
   phase?: PlannerProgressPhase;
   message?: string;
   detail?: string | null;
+  message_code?: string;
+  message_params?: Record<string, string | number | boolean | null>;
+  detail_code?: string;
+  detail_params?: Record<string, string | number | boolean | null>;
   attempt?: number;
   started_at?: string | null;
   updated_at?: string | null;
@@ -332,6 +345,8 @@ export interface PrecheckIssue {
   id: string;
   severity: "blocking" | "warning" | "review";
   issue_type: string;
+  code?: string;
+  params?: Record<string, string | number | boolean | null>;
   message: string;
   related_item_ids: string[];
 }
@@ -381,6 +396,7 @@ export interface AssistantMessage {
   content: string;
   blocks?: Array<Record<string, unknown>>;
   visibility?: "public" | "internal" | string;
+  message_type?: string;
 }
 
 export interface ActivityFeedEntry {
@@ -396,9 +412,14 @@ export interface AssistantRuntimeStatus {
   mode: AssistantRuntimeMode;
   label: string;
   detail?: string;
+  labelCode?: string;
+  labelParams?: Record<string, string | number>;
+  detailCode?: string;
+  detailParams?: Record<string, string | number>;
 }
 
 export type ComposerMode = "hidden" | "readonly" | "editable";
+export type ContentLocale = "zh-CN" | "en";
 
 export type IntegrityFlags = Record<string, unknown> & {
   notes?: string[];
@@ -406,6 +427,7 @@ export type IntegrityFlags = Record<string, unknown> & {
 
 export interface SessionSnapshot {
   session_id: string;
+  content_locale?: ContentLocale;
   target_dir: string;
   session_title?: string;
   placement?: PlacementConfig;
@@ -428,6 +450,8 @@ export interface SessionSnapshot {
   updated_at: string;
   stale_reason?: string | null;
   last_error?: string | null;
+  last_error_code?: string | null;
+  last_error_params?: Record<string, string | number | boolean | null>;
 }
 
 export interface SessionEvent {
@@ -437,6 +461,8 @@ export interface SessionEvent {
   session_snapshot?: SessionSnapshot;
   content?: string;
   action?: Record<string, any>;
+  error_code?: string | null;
+  error_params?: Record<string, string | number | boolean | null>;
 }
 
 export interface CreateSessionResponse {
@@ -469,6 +495,7 @@ export interface MessageResponse {
 
 export interface CreateSessionRequest {
   sources: SessionSourceSelection[];
+  content_locale?: ContentLocale;
   resume_if_exists?: boolean;
   organize_method: OrganizeMethod;
   unattended?: boolean;
@@ -586,6 +613,8 @@ export interface JournalSummary {
     action_type: string;
     status: string;
     message?: string | null;
+    message_code?: string | null;
+    message_params?: Record<string, string | number | boolean | null>;
     source: string | null;
     target: string | null;
     display_name: string;

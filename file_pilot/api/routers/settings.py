@@ -26,6 +26,25 @@ from file_pilot.shared.config import SPOOF_HEADERS
 router = APIRouter(prefix="/api/settings")
 
 
+def _settings_value_error_response(exc: ValueError, *, status_code: int = 400) -> JSONResponse | None:
+    message = str(exc)
+    error_codes = {
+        "UI_LANGUAGE_INVALID": "UI_LANGUAGE_INVALID",
+        "不支持的设置族": "SETTINGS_FAMILY_INVALID",
+        "不支持的密钥操作": "SETTINGS_SECRET_ACTION_INVALID",
+        "不支持的预设类型": "SETTINGS_PRESET_TYPE_INVALID",
+        "文本预设不存在": "SETTINGS_PRESET_NOT_FOUND",
+        "图片预设不存在": "SETTINGS_PRESET_NOT_FOUND",
+        "图标生图预设不存在": "SETTINGS_PRESET_NOT_FOUND",
+    }
+    error_code = error_codes.get(message)
+    if not error_code:
+        return None
+    if error_code == "UI_LANGUAGE_INVALID":
+        status_code = 422
+    return JSONResponse(status_code=status_code, content={"error_code": error_code})
+
+
 @router.get("")
 def get_settings():
     from file_pilot.shared.config_manager import config_manager
@@ -35,39 +54,69 @@ def get_settings():
 @router.get("/runtime/{family}")
 def get_settings_runtime_family(family: str):
     from file_pilot.shared.config_manager import config_manager
-    return config_manager.service.get_runtime_family_config(family)
+    try:
+        return config_manager.service.get_runtime_family_config(family)
+    except ValueError as exc:
+        response = _settings_value_error_response(exc)
+        if response is not None:
+            return response
+        raise
 
 
 @router.patch("")
 def update_settings(payload: SettingsUpdatePayload):
     from file_pilot.shared.config_manager import config_manager
-    return config_manager.service.update_settings(payload.model_dump(exclude_none=True))
+    try:
+        return config_manager.service.update_settings(payload.model_dump(exclude_none=True))
+    except ValueError as exc:
+        response = _settings_value_error_response(exc)
+        if response is not None:
+            return response
+        raise
 
 
 @router.post("/presets/{family}")
 def add_settings_preset(family: str, payload: SettingsPresetCreatePayload):
     from file_pilot.shared.config_manager import config_manager
-    new_id = config_manager.service.add_preset(
-        family,
-        payload.name,
-        copy_from_active=payload.copy_from_active,
-        preset_patch=payload.preset,
-        secret_payload=coerce_secret_payload(payload.secret),
-    )
+    try:
+        new_id = config_manager.service.add_preset(
+            family,
+            payload.name,
+            copy_from_active=payload.copy_from_active,
+            preset_patch=payload.preset,
+            secret_payload=coerce_secret_payload(payload.secret),
+        )
+    except ValueError as exc:
+        response = _settings_value_error_response(exc)
+        if response is not None:
+            return response
+        raise
     return {"status": "ok", "id": new_id}
 
 
 @router.post("/presets/{family}/{preset_id}/activate")
 def activate_settings_preset(family: str, preset_id: str):
     from file_pilot.shared.config_manager import config_manager
-    config_manager.service.activate_preset(family, preset_id)
+    try:
+        config_manager.service.activate_preset(family, preset_id)
+    except ValueError as exc:
+        response = _settings_value_error_response(exc)
+        if response is not None:
+            return response
+        raise
     return {"status": "ok"}
 
 
 @router.delete("/presets/{family}/{preset_id}")
 def delete_settings_preset(family: str, preset_id: str):
     from file_pilot.shared.config_manager import config_manager
-    config_manager.service.delete_preset(family, preset_id)
+    try:
+        config_manager.service.delete_preset(family, preset_id)
+    except ValueError as exc:
+        response = _settings_value_error_response(exc)
+        if response is not None:
+            return response
+        raise
     return {"status": "ok"}
 
 

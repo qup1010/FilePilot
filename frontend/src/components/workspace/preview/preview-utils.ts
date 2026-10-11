@@ -79,6 +79,25 @@ export type TargetSlotLookup = Map<string, PlanTargetSlot>;
 
 export const REVIEW_DIRECTORY = "Review";
 export const REVIEW_LABEL = "待确认区";
+export const DIRECTORY_EXTENSION_FILTER = "__directory__";
+export const NO_EXTENSION_FILTER = "__no_extension__";
+
+export interface PreviewLabels {
+  currentFolder: string;
+  keepInPlace: string;
+  review: string;
+}
+
+const DEFAULT_PREVIEW_LABELS: PreviewLabels = {
+  currentFolder: "当前目录",
+  keepInPlace: "保留在原地",
+  review: REVIEW_LABEL,
+};
+
+export type ItemDirectoryTarget =
+  | { kind: "root" }
+  | { kind: "review" }
+  | { kind: "directory"; relpath: string };
 
 export function normalizePath(path: string | null | undefined): string {
   return String(path || "").replace(/\\/g, "/").replace(/\/+/g, "/").replace(/^\/+|\/+$/g, "").trim();
@@ -131,21 +150,21 @@ export function normalizeEntryKind(entryType: string | null | undefined): "direc
 }
 
 export function fileExtension(item: Pick<PlanItem | SourceTreeEntry, "display_name" | "source_relpath" | "entry_type">): string {
-  if (normalizeEntryKind(item.entry_type) === "directory") return "目录";
+  if (normalizeEntryKind(item.entry_type) === "directory") return DIRECTORY_EXTENSION_FILTER;
   const source = item.display_name || item.source_relpath;
   const ext = source.split(".").pop()?.toLowerCase();
-  return ext && ext !== source.toLowerCase() ? ext : "无后缀";
+  return ext && ext !== source.toLowerCase() ? ext : NO_EXTENSION_FILTER;
 }
 
 export function statusMeta(status: PlanItem["status"]) {
-  if (status === "unresolved") return { label: "待决策", tone: "bg-warning/10 text-warning border-warning/20" };
-  if (status === "review") return { label: "待核对", tone: "bg-primary/10 text-primary border-primary/20" };
-  if (status === "invalidated") return { label: "需重确认", tone: "bg-error/10 text-error border-error/20" };
-  return { label: "已就绪", tone: "text-success-dim/40 border-transparent" };
+  if (status === "unresolved") return { key: "workspace.preview.status.unresolved", isReady: false, tone: "bg-warning/10 text-warning border-warning/20" };
+  if (status === "review") return { key: "workspace.preview.status.review", isReady: false, tone: "bg-primary/10 text-primary border-primary/20" };
+  if (status === "invalidated") return { key: "workspace.preview.status.invalidated", isReady: false, tone: "bg-error/10 text-error border-error/20" };
+  return { key: "workspace.preview.status.ready", isReady: true, tone: "text-success-dim/40 border-transparent" };
 }
 
 export function acceptedReviewStatusMeta() {
-  return { label: "已保留", tone: "border-success/20 bg-success/10 text-success-dim" };
+  return { key: "workspace.preview.status.accepted", isReady: false, tone: "border-success/20 bg-success/10 text-success-dim" };
 }
 
 export function itemStatusMeta(item: PlanItem, acceptedReviewItemIds: string[]) {
@@ -155,39 +174,49 @@ export function itemStatusMeta(item: PlanItem, acceptedReviewItemIds: string[]) 
   return statusMeta(item.status);
 }
 
-export function resolveItemDirectory(item: PlanItem, targetSlotById: TargetSlotLookup, placement: PlacementConfig): string {
-  if (isReviewPlanItem(item, targetSlotById)) return REVIEW_DIRECTORY;
+export function resolveItemDirectoryTarget(item: PlanItem, targetSlotById: TargetSlotLookup): ItemDirectoryTarget {
+  if (isReviewPlanItem(item, targetSlotById)) return { kind: "review" };
   if (item.target_slot_id) {
     const slot = targetSlotById.get(item.target_slot_id);
-    if (slot?.relpath) return slot.relpath;
+    if (slot?.relpath) return { kind: "directory", relpath: slot.relpath };
   }
-  return "当前目录";
+  return { kind: "root" };
 }
 
-export function displayDirectoryLabel(directory: string, isAssignExisting: boolean = false): string {
+export function resolveItemDirectory(item: PlanItem, targetSlotById: TargetSlotLookup, _placement: PlacementConfig): string {
+  const target = resolveItemDirectoryTarget(item, targetSlotById);
+  if (target.kind === "review") return REVIEW_DIRECTORY;
+  if (target.kind === "directory") return target.relpath;
+  return DEFAULT_PREVIEW_LABELS.currentFolder;
+}
+
+export function displayDirectoryLabel(directory: string, isAssignExisting: boolean = false, labels: PreviewLabels = DEFAULT_PREVIEW_LABELS): string {
+  if (directory === DEFAULT_PREVIEW_LABELS.currentFolder) return labels.currentFolder;
   if (directory === REVIEW_DIRECTORY) {
-    return isAssignExisting ? "保留在原地" : REVIEW_LABEL;
+    return isAssignExisting ? labels.keepInPlace : labels.review;
   }
   return directory;
 }
 
-export function resolveItemTargetPath(item: PlanItem, targetSlotById: TargetSlotLookup, placement: PlacementConfig, isAssignExisting: boolean = false): string {
-  const directoryLabel = resolveItemDirectory(item, targetSlotById, placement);
+export function resolveItemTargetPath(item: PlanItem, targetSlotById: TargetSlotLookup, _placement: PlacementConfig, isAssignExisting: boolean = false, labels: PreviewLabels = DEFAULT_PREVIEW_LABELS): string {
+  const directoryTarget = resolveItemDirectoryTarget(item, targetSlotById);
   const filename = item.display_name || item.source_relpath.split("/").pop() || item.source_relpath;
-  if (!directoryLabel || directoryLabel === "当前目录") return filename;
-  if (directoryLabel === REVIEW_DIRECTORY && isAssignExisting) return `保留在原地/${filename}`;
-  return `${displayDirectoryLabel(directoryLabel, isAssignExisting)}/${filename}`;
+  if (directoryTarget.kind === "root") return `${labels.currentFolder}/${filename}`;
+  if (directoryTarget.kind === "review" && isAssignExisting) return `${labels.keepInPlace}/${filename}`;
+  const directory = directoryTarget.kind === "review" ? REVIEW_DIRECTORY : directoryTarget.relpath;
+  return `${displayDirectoryLabel(directory, isAssignExisting, labels)}/${filename}`;
 }
 
 export function isItemChanged(item: PlanItem, targetSlotById: TargetSlotLookup, placement: PlacementConfig) {
   return normalizePath(item.source_relpath) !== normalizePath(resolveItemTargetPath(item, targetSlotById, placement));
 }
 
-export function groupItemsByTargetSlot(items: PlanItem[], targetSlotById: TargetSlotLookup, placement: PlacementConfig) {
+export function groupItemsByTargetSlot(items: PlanItem[], targetSlotById: TargetSlotLookup, _placement: PlacementConfig) {
   const groups = new Map<string, PlanItem[]>();
   items.forEach((item) => {
-    const directory = resolveItemDirectory(item, targetSlotById, placement);
-    if (!directory || directory === "当前目录") return;
+    const target = resolveItemDirectoryTarget(item, targetSlotById);
+    if (target.kind === "root") return;
+    const directory = target.kind === "review" ? REVIEW_DIRECTORY : target.relpath;
     const existing = groups.get(directory) || [];
     existing.push(item);
     groups.set(directory, existing);
@@ -352,12 +381,12 @@ export function buildSourceTree(entries: SourceTreeEntry[], itemBySource: Map<st
 }
 
 export function mappingStatusLabel(status: string | undefined, item?: PlanItem, acceptedReviewItemIds: string[] = []): string {
-  if (item && item.status === "review" && acceptedReviewItemIds.includes(item.item_id)) return "已保留";
-  if (status === "review") return "待核对";
-  if (status === "unresolved") return "待决策";
-  if (status === "assigned") return "已分配";
-  if (status === "skipped") return "保留原位";
-  return "已规划";
+  if (item && item.status === "review" && acceptedReviewItemIds.includes(item.item_id)) return "workspace.preview.status.accepted";
+  if (status === "review") return "workspace.preview.status.review";
+  if (status === "unresolved") return "workspace.preview.status.unresolved";
+  if (status === "assigned") return "workspace.preview.status.assigned";
+  if (status === "skipped") return "workspace.preview.status.skipped";
+  return "workspace.preview.status.planned";
 }
 
 export function useDebouncedValue<T>(value: T, delay = 200): T {

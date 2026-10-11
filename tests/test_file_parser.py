@@ -144,7 +144,7 @@ class FileReaderEncodingTests(unittest.TestCase):
         self.assertIn("聊天截图", result)
         self.assertIn("图片系统信息", result)
         self.assertIn("尺寸：12x8", result)
-        describe_image_mock.assert_called_once_with(self.image_path)
+        describe_image_mock.assert_called_once_with(self.image_path, content_locale="zh-CN")
         self.assertNotIn("非 UTF-8 编码", result)
 
     def test_read_local_file_returns_basic_info_for_known_binary_without_text_decoding(self):
@@ -220,7 +220,10 @@ class FileReaderEncodingTests(unittest.TestCase):
         self.assertIn("读取 PPT 失败", result)
 
     def test_read_local_files_batch_keeps_input_order_when_parallelized(self):
-        def fake_read(filename, max_len=300, allowed_base_dir=None):
+        received_locales = []
+
+        def fake_read(filename, max_len=300, allowed_base_dir=None, content_locale="zh-CN"):
+            received_locales.append(content_locale)
             if filename.endswith("2.txt"):
                 time.sleep(0.03)
             if filename.endswith("1.txt"):
@@ -228,10 +231,11 @@ class FileReaderEncodingTests(unittest.TestCase):
             return f"result:{os.path.basename(filename)}"
 
         with mock.patch("file_pilot.analysis.file_reader.read_local_file", side_effect=fake_read):
-            result = read_local_files_batch(["a2.txt", "a1.txt", "a3.txt"])
+            result = read_local_files_batch(["a2.txt", "a1.txt", "a3.txt"], content_locale="en")
 
         parts = result.split("\n\n")
         self.assertEqual(parts, ["result:a2.txt", "result:a1.txt", "result:a3.txt"])
+        self.assertEqual(received_locales, ["en", "en", "en"])
 
 
 if __name__ == "__main__":

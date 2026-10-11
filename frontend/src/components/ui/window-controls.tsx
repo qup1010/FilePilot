@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Minus, Square, Copy, X } from "lucide-react";
 
 export function WindowControls() {
+  const { t } = useTranslation("common");
   const [isTauri, setIsTauri] = useState(false);
   const [isMaximized, setIsMaximized] = useState(false);
 
@@ -45,21 +47,21 @@ export function WindowControls() {
       <button
         onClick={handleMinimize}
         className="flex h-8 w-10 items-center justify-center text-ui-muted hover:bg-on-surface/5 transition-colors"
-        title="最小化"
+        title={t("window.minimize")}
       >
         <Minus className="h-3.5 w-3.5" />
       </button>
       <button
         onClick={handleMaximize}
         className="flex h-8 w-10 items-center justify-center text-ui-muted hover:bg-on-surface/5 transition-colors"
-        title={isMaximized ? "向下还原" : "最大化"}
+        title={isMaximized ? t("window.restore") : t("window.maximize")}
       >
         {isMaximized ? <Copy className="h-3 w-3" /> : <Square className="h-3 w-3" />}
       </button>
       <button
         onClick={handleClose}
         className="flex h-8 w-10 items-center justify-center text-ui-muted hover:bg-error/10 hover:text-error transition-colors"
-        title="关闭"
+        title={t("window.close")}
       >
         <X className="h-4 w-4" />
       </button>

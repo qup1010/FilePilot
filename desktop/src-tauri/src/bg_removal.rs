@@ -7,7 +7,7 @@ use std::fs;
 use std::path::Path;
 use std::time::Duration;
 
-
+use crate::native_command_error::{encode_native_command_error, io_failure_code};
 
 pub static HTTP_CLIENT: Lazy<Client> = Lazy::new(|| {
     Client::builder()
@@ -34,7 +34,7 @@ pub struct BackgroundRemovalConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BgRemovalTestResult {
     pub status: String,
-    pub message: String,
+    pub message_code: String,
 }
 
 pub struct BgRemovalClient;
@@ -50,12 +50,14 @@ impl BgRemovalClient {
         }
     }
 
-    pub async fn test_connection(config: &BackgroundRemovalConfig) -> Result<BgRemovalTestResult, String> {
+    pub async fn test_connection(
+        config: &BackgroundRemovalConfig,
+    ) -> Result<BgRemovalTestResult, String> {
         let test_image_bytes = Self::generate_test_png_10x10();
         Self::remove_background(config, &test_image_bytes).await?;
         Ok(BgRemovalTestResult {
             status: "ok".to_string(),
-            message: "抠图服务连接测试已通过 (10x10 测试图)。".to_string(),
+            message_code: "BG_REMOVAL_CONNECTION_OK".to_string(),
         })
     }
 
@@ -371,12 +373,26 @@ pub async fn remove_background_for_image(
 ) -> Result<String, String> {
     let path = Path::new(&image_path);
     if !path.exists() {
-        return Err(format!("原始图像不存在: {}", image_path));
+        return Err(encode_native_command_error(
+            "TAURI_PATH_NOT_FOUND",
+            json!({ "path": image_path }),
+            "The source image does not exist.",
+        ));
     }
 
-    let bytes = fs::read(path).map_err(|e| format!("读取原始图像失败: {}", e))?;
-    let result_bytes = BgRemovalClient::remove_background(&config, &bytes).await?;
-    
+    let bytes = fs::read(path).map_err(|error| {
+        encode_native_command_error(
+            io_failure_code(&error),
+            json!({ "path": image_path }),
+            error.to_string(),
+        )
+    })?;
+    let result_bytes = BgRemovalClient::remove_background(&config, &bytes)
+        .await
+        .map_err(|detail| {
+            encode_native_command_error("TAURI_BACKGROUND_REMOVAL_FAILED", json!({}), detail)
+        })?;
+
     // 转换为 Base64 字符串返回，大幅减少 IPC 传输 JSON 数组的开销
     let b64 = STANDARD.encode(&result_bytes);
     Ok(format!("data:image/png;base64,{}", b64))
@@ -386,7 +402,11 @@ pub async fn remove_background_for_image(
 pub async fn test_bg_removal_connection(
     config: BackgroundRemovalConfig,
 ) -> Result<BgRemovalTestResult, String> {
-    BgRemovalClient::test_connection(&config).await
+    BgRemovalClient::test_connection(&config)
+        .await
+        .map_err(|detail| {
+            encode_native_command_error("TAURI_BACKGROUND_REMOVAL_FAILED", json!({}), detail)
+        })
 }
 
 #[cfg(test)]

@@ -16,10 +16,11 @@ import {
 
 import { Button } from "@/components/ui/button";
 import { FieldGroup, InputShell } from "@/components/settings/settings-primitives";
+import { getSettingsTestIssueHint, getSettingsTestMessage } from "@/i18n/diagnostics";
+import { useTranslation } from "react-i18next";
 import { getApiBaseUrl, getApiToken } from "@/lib/runtime";
 import { cn } from "@/lib/utils";
 import {
-  describeConnectionIssue,
   describeSecret,
   type ModelLookupState,
   type PresetConfigFamily,
@@ -49,20 +50,6 @@ export interface ModelLookupControls {
   onFetch: (family: PresetConfigFamily) => void;
 }
 
-const formatProviderLabel = (value?: string) => {
-  if (value === "openai_compatible") {
-    return "OpenAI 兼容服务";
-  }
-  return value?.trim() || "OpenAI 兼容服务";
-};
-
-const formatApiFormatLabel = (value?: string) => {
-  if (value === "openai_chat_completions") {
-    return "聊天补全接口";
-  }
-  return value?.trim() || "聊天补全接口";
-};
-
 export interface ProviderCapabilitySummaryProps {
   title: string;
   kind: ProviderSummaryKind;
@@ -78,12 +65,19 @@ export function ProviderCapabilitySummary({
   provider,
   apiFormat,
 }: ProviderCapabilitySummaryProps) {
-  const serviceLabel = formatProviderLabel(provider);
-  const formatLabel = kind === "icon_image" ? "图像生成接口" : formatApiFormatLabel(apiFormat);
+  const { t } = useTranslation("common");
+  const serviceLabel = provider === "openai_compatible" || !provider?.trim()
+    ? t("settingsPage.formFields.provider.openAiCompatible")
+    : provider.trim();
+  const formatLabel = kind === "icon_image"
+    ? t("settingsPage.formFields.provider.imageGeneration")
+    : apiFormat === "openai_chat_completions" || !apiFormat?.trim()
+      ? t("settingsPage.formFields.provider.chatCompletions")
+      : apiFormat.trim();
   const hint =
     kind === "icon_image"
-      ? "OpenAI 兼容 /images 生图；保存后可测试连接"
-      : "OpenAI 兼容聊天接口；保存后可测试连接";
+      ? t("settingsPage.formFields.provider.imageHint")
+      : t("settingsPage.formFields.provider.chatHint");
 
   return (
     <div
@@ -98,7 +92,7 @@ export function ProviderCapabilitySummary({
         </span>
       </div>
       <span className="rounded-[6px] border border-on-surface/8 bg-surface px-1.5 py-0.5 text-[11px] font-semibold text-on-surface-variant/55">
-        保存后可测试
+        {t("settingsPage.formFields.provider.saved")}
       </span>
     </div>
   );
@@ -111,6 +105,7 @@ export interface ConnectionTestResultProps {
 }
 
 export function ConnectionTestResult({ family, result, isTesting }: ConnectionTestResultProps) {
+  const { t } = useTranslation("common");
   const isVision = family === "vision";
 
   if (isTesting) {
@@ -124,10 +119,10 @@ export function ConnectionTestResult({ family, result, isTesting }: ConnectionTe
         </div>
         <div className="min-w-0">
           <p className="text-[13px] font-bold tracking-tight text-on-surface">
-            {isVision ? "正在验证图片理解能力..." : "正在进行连接测试..."}
+            {isVision ? t("diagnostics.settingsTests.presentation.testingVision") : t("diagnostics.settingsTests.presentation.testingConnection")}
           </p>
           <p className="mt-0.5 text-[11px] font-bold tracking-widest text-primary/60">
-            {isVision ? "图片能力验证" : "连接探测"}
+            {isVision ? t("diagnostics.settingsTests.presentation.visionValidation") : t("diagnostics.settingsTests.presentation.connectionProbe")}
           </p>
         </div>
       </div>
@@ -139,7 +134,7 @@ export function ConnectionTestResult({ family, result, isTesting }: ConnectionTe
   }
 
   const isOk = result.status === "ok";
-  const issueHint = isOk ? null : describeConnectionIssue(result);
+  const issueHint = isOk ? null : getSettingsTestIssueHint(result, t);
 
   return (
     <motion.div
@@ -161,16 +156,22 @@ export function ConnectionTestResult({ family, result, isTesting }: ConnectionTe
       <div className="min-w-0 flex-1 space-y-1">
         <div className="flex items-center justify-between gap-4">
           <h4 className={cn("text-[13px] font-bold tracking-tight", isOk ? "text-success-dim" : "text-error-dim")}>
-            {isVision ? (isOk ? "图片能力已验证" : "图片能力验证失败") : isOk ? "连接成功，模型可用" : "连接测试失败"}
+            {isVision
+              ? isOk
+                ? t("diagnostics.settingsTests.presentation.visionVerified")
+                : t("diagnostics.settingsTests.presentation.visionFailed")
+              : isOk
+                ? t("diagnostics.settingsTests.presentation.connectionSuccess")
+                : t("diagnostics.settingsTests.presentation.connectionFailed")}
           </h4>
           {isOk && (
             <div className="flex items-center gap-1.5 rounded-[4px] bg-success/10 px-2 py-0.5 text-[11px] font-black uppercase tracking-widest text-success-dim">
               <div className="h-1 w-1 rounded-full bg-success animate-pulse" />
-              可用
+              {t("diagnostics.settingsTests.presentation.available")}
             </div>
           )}
         </div>
-        <p className="text-[12px] leading-relaxed text-on-surface/70">{result.message}</p>
+        <p className="text-[12px] leading-relaxed text-on-surface/70">{getSettingsTestMessage(result, t)}</p>
         {!isOk && issueHint ? (
           <p className="rounded-[6px] border border-error/10 bg-error/[0.04] px-3 py-2 text-[12px] font-medium leading-relaxed text-error-dim">
             {issueHint}
@@ -178,8 +179,8 @@ export function ConnectionTestResult({ family, result, isTesting }: ConnectionTe
         ) : null}
         {isVision && result.details ? (
           <div className="rounded-[6px] border border-on-surface/8 bg-surface-container-low px-3 py-2 text-[11px] leading-relaxed text-on-surface/70">
-            <p>期望结果：{result.details.expected}</p>
-            <p>实际返回：{result.details.actual?.trim() ? result.details.actual : "空响应"}</p>
+            <p>{t("diagnostics.settingsTests.presentation.expected")}: {result.details.expected}</p>
+            <p>{t("diagnostics.settingsTests.presentation.actual")}: {result.details.actual?.trim() ? result.details.actual : t("diagnostics.settingsTests.presentation.emptyResponse")}</p>
           </div>
         ) : null}
         {!isOk && <p className="text-[11px] font-mono opacity-50">Code: {result.code}</p>}
@@ -209,12 +210,18 @@ export function ConnectionTestPanel({
   result,
   onTest,
 }: ConnectionTestPanelProps) {
+  const { t } = useTranslation("common");
+
   return (
     <div className="rounded-xl border border-on-surface/12 bg-surface/40 p-4 shadow-sm">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h3 className="text-[13px] font-bold text-on-surface">{title || "连接测试"}</h3>
-          <p className="mt-0.5 text-[12px] font-medium text-on-surface-variant/65">{description || "验证当前配置的连通性与可用性。"}</p>
+          <h3 className="text-[13px] font-bold text-on-surface">
+            {title || t("settingsPage.formFields.connectionTest")}
+          </h3>
+          <p className="mt-0.5 text-[12px] font-medium text-on-surface-variant/65">
+            {description || t("settingsPage.formFields.connectionTestDescription")}
+          </p>
         </div>
         <Button
           variant="secondary"
@@ -224,7 +231,9 @@ export function ConnectionTestPanel({
           disabled={disabled}
           className="h-[34px] rounded-lg px-3.5 text-[12px] font-bold border border-on-surface/12 shadow-sm"
         >
-          {disabled ? "仅桌面端可测试" : buttonLabel || "测试连接"}
+          {disabled
+            ? t("settingsPage.formFields.desktopOnly")
+            : buttonLabel || t("settingsPage.formFields.testConnection")}
         </Button>
       </div>
       <div className="mt-3">
@@ -257,6 +266,7 @@ export function ModelIdField({
   isLoadingModels,
   onFetchModels,
 }: ModelIdFieldProps) {
+  const { t } = useTranslation("common");
   const models = lookupResult?.models || [];
   return (
     <FieldGroup label={label} className={className}>
@@ -274,7 +284,7 @@ export function ModelIdField({
           className="inline-flex h-[28px] shrink-0 items-center gap-1.5 rounded-md border border-primary/20 bg-primary/5 px-2.5 text-[11px] font-bold text-primary transition-colors hover:bg-primary/10 hover:border-primary/35 disabled:opacity-55"
         >
           {isLoadingModels ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
-          获取模型
+          {t("settingsPage.formFields.getModels")}
         </button>
       </InputShell>
       {lookupResult ? (
@@ -312,11 +322,13 @@ export function ModelIdField({
                 ) : null}
               </div>
             ) : (
-              <p className="text-[12px] font-medium text-ui-muted">端点已响应，但没有返回可选模型。</p>
+              <p className="text-[12px] font-medium text-ui-muted">
+                {t("settingsPage.formFields.noModels")}
+              </p>
             )
           ) : (
             <p className="text-[12px] font-medium leading-relaxed text-error-dim">
-              {lookupResult.message || "获取模型列表失败，请检查端点和密钥。"}
+              {lookupResult.message || t("settingsPage.formFields.modelLookupFailed")}
             </p>
           )}
         </div>
@@ -334,8 +346,9 @@ export interface SecretFieldProps {
 }
 
 export function SecretField({ label, state, secret, setSecret, family }: SecretFieldProps) {
+  const { t } = useTranslation("common");
   return (
-    <FieldGroup label={label} hint={describeSecret(state, secret)}>
+    <FieldGroup label={label} hint={t(describeSecret(state, secret))}>
       <InputShell icon={Key} className="group flex items-center gap-2">
         <input
           type={secret.visible ? "text" : "password"}
@@ -349,7 +362,11 @@ export function SecretField({ label, state, secret, setSecret, family }: SecretF
             }));
           }}
           className="flex-1 bg-transparent py-2 text-sm font-mono font-medium text-on-surface outline-none placeholder:text-on-surface-variant/35"
-          placeholder={state === "stored" ? "输入新密钥以替换当前值" : "输入要保存的新密钥"}
+          placeholder={
+            state === "stored"
+              ? t("settingsPage.formFields.secret.replacePlaceholder")
+              : t("settingsPage.formFields.secret.newPlaceholder")
+          }
         />
         <div className="flex shrink-0 items-center gap-1 pr-1">
           <button
@@ -387,7 +404,7 @@ export function SecretField({ label, state, secret, setSecret, family }: SecretF
               setSecret((current) => ({ ...current, visible: willBeVisible }));
             }}
             className="rounded-[6px] p-2 text-on-surface-variant/45 transition-colors hover:bg-surface-container-low hover:text-on-surface"
-            title={secret.visible ? "隐藏" : "显示"}
+            title={secret.visible ? t("settingsPage.formFields.secret.hide") : t("settingsPage.formFields.secret.show")}
           >
             {secret.visible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
           </button>
@@ -398,7 +415,7 @@ export function SecretField({ label, state, secret, setSecret, family }: SecretF
               onClick={() => setSecret((current) => ({ ...current, action: "keep", value: "", visible: false }))}
               className="rounded-[6px] px-2 py-1 text-[11px] font-bold text-primary hover:bg-primary/5 transition-colors"
             >
-              撤销
+              {t("settingsPage.formFields.secret.undo")}
             </button>
           ) : state === "stored" ? (
             <button
@@ -406,7 +423,7 @@ export function SecretField({ label, state, secret, setSecret, family }: SecretF
               onClick={() => setSecret((current) => ({ ...current, action: "clear", value: "", visible: false }))}
               className="rounded-[6px] px-2 py-1 text-[11px] font-bold text-on-surface-variant/60 hover:bg-on-surface/5 transition-colors"
             >
-              清空
+              {t("settingsPage.formFields.secret.clear")}
             </button>
           ) : null}
         </div>
@@ -415,12 +432,15 @@ export function SecretField({ label, state, secret, setSecret, family }: SecretF
   );
 }
 
-export function SettingsMinPath({ items, title = "快速配置指南" }: { items: string[]; title?: string }) {
+export function SettingsMinPath({ items, title }: { items: string[]; title?: string }) {
+  const { t } = useTranslation("common");
   return (
     <div className="rounded-xl border border-primary/15 bg-primary/[0.03] px-4 py-3.5 shadow-sm">
       <div className="flex items-center gap-2">
         <span className="h-1.5 w-1.5 rounded-full bg-primary" />
-        <p className="text-[12px] font-bold tracking-wide text-primary">{title}</p>
+        <p className="text-[12px] font-bold tracking-wide text-primary">
+          {title || t("settingsPage.formFields.quickSetupGuide")}
+        </p>
       </div>
       <ul className="mt-2.5 space-y-1.5">
         {items.map((item) => (

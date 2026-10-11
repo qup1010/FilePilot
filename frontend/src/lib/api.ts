@@ -4,6 +4,7 @@ import type {
   CleanupResponse,
   ConfirmTargetsRequest,
   ConfirmTargetsResponse,
+  ContentLocale,
   CreateSessionRequest,
   CreateSessionResponse,
   ExecuteResponse,
@@ -58,7 +59,7 @@ export interface ApiClient {
   createTargetProfile(payload: { name: string; directories: Array<{ path: string; label?: string; description?: string }> }): Promise<TargetProfile>;
   updateTargetProfile(profile_id: string, payload: { name?: string; directories?: Array<{ path: string; label?: string; description?: string }> }): Promise<TargetProfile>;
   deleteTargetProfile(profile_id: string): Promise<{ status: string; profile_id: string }>;
-  generateProfileRuleDrafts(profile_id: string, paths?: string[]): Promise<ProfileRuleDraftsResult>;
+  generateProfileRuleDrafts(profile_id: string, paths: string[] | undefined, content_locale: ContentLocale): Promise<ProfileRuleDraftsResult>;
   generateSessionRuleDrafts(session_id: string): Promise<SessionRuleDraftsResult>;
   getSettings(): Promise<SettingsSnapshot>;
   getSettingsRuntime<T = Record<string, unknown>>(family: string): Promise<T>;
@@ -304,8 +305,8 @@ export function createApiClient(baseUrl: string, apiToken?: string): ApiClient {
         apiToken,
       );
     },
-    async generateProfileRuleDrafts(profile_id, paths) {
-      const body = paths?.length ? { paths } : {};
+    async generateProfileRuleDrafts(profile_id, paths, content_locale) {
+      const body = { ...(paths?.length ? { paths } : {}), content_locale };
       return requestJson<ProfileRuleDraftsResult>(
         baseUrl,
         `/api/target-profiles/${enc(profile_id)}/rule-drafts`,

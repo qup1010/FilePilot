@@ -1,9 +1,13 @@
 import React from "react";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { createInstance } from "i18next";
+import { I18nextProvider, initReactI18next } from "react-i18next";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { invokeTauriCommand, isTauriDesktop } from "@/lib/runtime";
+import enCommon from "@/i18n/resources/en/common.json";
+import zhCNCommon from "@/i18n/resources/zh-CN/common.json";
+import { invokeTauriCommandOrThrow, isTauriDesktop } from "@/lib/runtime";
 import IconWorkbenchV2 from "./icon-workbench-v2";
 
 const iconApiMock = {
@@ -89,7 +93,7 @@ vi.mock("@/lib/runtime", () => ({
   getApiToken: () => "",
   isTauriDesktop: vi.fn(() => false),
   inspectPathsWithTauri: vi.fn(),
-  invokeTauriCommand: vi.fn(),
+  invokeTauriCommandOrThrow: vi.fn(),
   openDirectoryWithTauri: vi.fn(),
   pickDirectoriesWithTauri: vi.fn(),
 }));
@@ -331,7 +335,7 @@ beforeEach(() => {
   localStorage.clear();
     Object.values(iconApiMock).forEach((mockFn) => mockFn.mockReset());
     vi.mocked(isTauriDesktop).mockReturnValue(false);
-    vi.mocked(invokeTauriCommand).mockReset();
+    vi.mocked(invokeTauriCommandOrThrow).mockReset();
     iconApiMock.getConfig.mockResolvedValue({
       config: {
         text_model: { base_url: "https://text.example/v1", model: "gpt-text", configured: true },
@@ -672,6 +676,93 @@ beforeEach(() => {
     expect(screen.getByRole("button", { name: /重新连接/i })).toBeInTheDocument();
   });
 
+  it("localizes stream status in English without recreating the active stream when the UI language changes", async () => {
+    const testI18n = createInstance();
+    await testI18n.use(initReactI18next).init({
+      resources: {
+        en: { common: enCommon },
+        "zh-CN": { common: zhCNCommon },
+      },
+      lng: "en",
+      fallbackLng: "zh-CN",
+      defaultNS: "common",
+      interpolation: { escapeValue: false },
+    });
+    localStorage.setItem("icons_workspace_state", JSON.stringify({
+      sessionId: "icon-session-1",
+      selectedTemplateId: "",
+      expandedFolderId: null,
+    }));
+
+    render(<I18nextProvider i18n={testI18n}><IconWorkbenchV2 /></I18nextProvider>);
+
+    await waitFor(() => {
+      expect(latestStreamOptions).not.toBeNull();
+    });
+    const activeStreamOptions = latestStreamOptions;
+
+    act(() => {
+      latestStreamOptions?.onError?.(new Event("error"));
+    });
+
+    expect(await screen.findByText("Reconnecting")).toBeInTheDocument();
+    expect(screen.getByText("The live Icon Studio connection was interrupted. Progress may be out of date.")).toBeInTheDocument();
+
+    await act(async () => {
+      await testI18n.changeLanguage("zh-CN");
+    });
+
+    expect(await screen.findByText("重连中")).toBeInTheDocument();
+    expect(screen.getByText("The live Icon Studio connection was interrupted. Progress may be out of date.")).toBeInTheDocument();
+    expect(latestStreamOptions).toBe(activeStreamOptions);
+  });
+
+  it("keeps the icon analysis language captured when the batch starts", async () => {
+    const user = userEvent.setup();
+    const testI18n = createInstance();
+    await testI18n.use(initReactI18next).init({
+      resources: {
+        en: { common: enCommon },
+        "zh-CN": { common: zhCNCommon },
+      },
+      lng: "en",
+      fallbackLng: "zh-CN",
+      defaultNS: "common",
+      interpolation: { escapeValue: false },
+    });
+    const idleSession = createSession();
+    idleSession.folders[0].analysis_status = "idle";
+    iconApiMock.getSession.mockResolvedValue(idleSession);
+    let resolveAnalysis: ((session: ReturnType<typeof createSession>) => void) | undefined;
+    iconApiMock.analyzeFolders.mockImplementationOnce(() => new Promise((resolve) => {
+      resolveAnalysis = resolve;
+    }));
+    iconApiMock.applyTemplate.mockResolvedValue(createSession());
+    iconApiMock.generatePreviews.mockResolvedValue(createSession());
+    templateHookState.selectedTemplateId = "template-1";
+    templateHookState.selectedTemplate = { name: "Minimal line" };
+    localStorage.setItem("icons_workspace_state", JSON.stringify({
+      sessionId: "icon-session-1",
+      selectedTemplateId: "template-1",
+      expandedFolderId: null,
+    }));
+
+    render(<I18nextProvider i18n={testI18n}><IconWorkbenchV2 /></I18nextProvider>);
+    await waitFor(() => expect(screen.getByRole("button", { name: "生成 1 个预览" })).toBeInTheDocument());
+
+    await user.click(screen.getByRole("button", { name: "生成 1 个预览" }));
+    await waitFor(() => {
+      expect(iconApiMock.analyzeFolders).toHaveBeenCalledWith("icon-session-1", ["folder-1"], "en");
+    });
+
+    await act(async () => {
+      await testI18n.changeLanguage("zh-CN");
+    });
+    await act(async () => {
+      resolveAnalysis?.(createSession());
+    });
+  });
+
   it("shows the image-model banner when only the image model is missing", async () => {
     iconApiMock.getConfig.mockResolvedValueOnce({
       config: {
@@ -687,17 +778,17 @@ beforeEach(() => {
     render(<IconWorkbenchV2 />);
 
     await waitFor(() => {
-      expect(screen.getByText("AI 生图模型尚未配置")).toBeInTheDocument();
+      expect(screen.getByText("尚未配置生图模型")).toBeInTheDocument();
     });
 
-    expect(screen.getByText("去配置图标生图")).toBeInTheDocument();
-    expect(screen.queryByText("AI 文本模型尚未配置")).not.toBeInTheDocument();
+    expect(screen.getByText("打开图标生图设置")).toBeInTheDocument();
+    expect(screen.queryByText("尚未配置文本模型")).not.toBeInTheDocument();
   });
 
   it("rescans the session after a successful desktop apply if report sync fails", async () => {
     const user = userEvent.setup();
     vi.mocked(isTauriDesktop).mockReturnValue(true);
-    vi.mocked(invokeTauriCommand).mockResolvedValue("已将图标应用到文件夹");
+    vi.mocked(invokeTauriCommandOrThrow).mockResolvedValue(undefined);
     iconApiMock.selectVersion.mockRejectedValueOnce(new Error("select failed"));
     iconApiMock.reportClientAction.mockRejectedValueOnce(new Error("report failed"));
     iconApiMock.scanSession.mockResolvedValue(createSession());
@@ -718,23 +809,23 @@ beforeEach(() => {
     await waitFor(() => {
       expect(iconApiMock.scanSession).toHaveBeenCalledWith("icon-session-1");
     });
-    expect(vi.mocked(invokeTauriCommand)).toHaveBeenCalledWith("apply_folder_icon", {
+    expect(vi.mocked(invokeTauriCommandOrThrow)).toHaveBeenCalledWith("apply_folder_icon", {
       folderPath: "D:/Icons/Alpha",
       imagePath: "D:/preview-b.png",
-    });
+    }, "应用失败");
     expect(screen.getByText("「Alpha」图标已应用，工作区状态已重新同步。")).toBeInTheDocument();
   });
 
   it("reports skipped batch items and surfaces the merged summary", async () => {
     const user = userEvent.setup();
     vi.mocked(isTauriDesktop).mockReturnValue(true);
-    vi.mocked(invokeTauriCommand).mockResolvedValue([
+    vi.mocked(invokeTauriCommandOrThrow).mockResolvedValue([
       {
         folder_id: "folder-1",
         folder_name: "Alpha",
         folder_path: "D:/Icons/Alpha",
         status: "applied",
-        message: "已应用图标: D:/Icons/Alpha",
+        message: "",
       },
     ]);
     iconApiMock.prepareApplyReady.mockResolvedValue({
@@ -800,7 +891,7 @@ beforeEach(() => {
           folder_name: "Alpha",
           folder_path: "D:/Icons/Alpha",
           status: "applied",
-          message: "已应用图标: D:/Icons/Alpha",
+          message: "「Alpha」图标已更新",
           version_id: "version-current",
         },
       ],
@@ -821,7 +912,7 @@ beforeEach(() => {
   it("restores the previous icon state instead of clearing to default", async () => {
     const user = userEvent.setup();
     vi.mocked(isTauriDesktop).mockReturnValue(true);
-    vi.mocked(invokeTauriCommand).mockResolvedValue("已恢复最近一次图标状态");
+    vi.mocked(invokeTauriCommandOrThrow).mockResolvedValue(undefined);
     iconApiMock.reportClientAction.mockRejectedValueOnce(new Error("report failed"));
     iconApiMock.scanSession.mockResolvedValue(createSession());
     localStorage.setItem("icons_workspace_state", JSON.stringify({
@@ -841,9 +932,9 @@ beforeEach(() => {
     await user.click(screen.getByRole("button", { name: "确认" }));
 
     await waitFor(() => {
-      expect(vi.mocked(invokeTauriCommand)).toHaveBeenCalledWith("restore_last_folder_icon", {
+      expect(vi.mocked(invokeTauriCommandOrThrow)).toHaveBeenCalledWith("restore_last_folder_icon", {
         folderPath: "D:/Icons/Alpha",
-      });
+      }, "恢复失败");
     });
     expect(screen.getByText("「Alpha」已恢复上一次图标状态，工作区状态已重新同步。")).toBeInTheDocument();
   });
@@ -894,7 +985,7 @@ beforeEach(() => {
       expect(iconApiMock.generatePreviews).toHaveBeenCalledWith("icon-session-1", ["folder-1"]);
     });
     expect(screen.getByText("图标生成已完成：成功 0，失败 1，跳过 0。")).toBeInTheDocument();
-    expect(screen.getByText("生成失败：「Alpha」。")).toBeInTheDocument();
+    expect(screen.getByText("以下文件夹生成失败：“Alpha”。")).toBeInTheDocument();
   });
 
   it("skips the analyzing step in the progress rail when the folder is already analyzed", async () => {

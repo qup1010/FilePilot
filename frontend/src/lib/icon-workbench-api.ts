@@ -9,6 +9,7 @@ import type {
   IconWorkbenchSession,
   IconWorkbenchTargetUpdatePayload,
 } from "@/types/icon-workbench";
+import type { ContentLocale } from "@/types/session";
 
 export interface IconWorkbenchApiClient {
   createSession(target_paths: string[]): Promise<IconWorkbenchSession>;
@@ -18,7 +19,7 @@ export interface IconWorkbenchApiClient {
   scanSession(session_id: string): Promise<IconWorkbenchSession>;
   updateTargets(session_id: string, payload: IconWorkbenchTargetUpdatePayload): Promise<IconWorkbenchSession>;
   removeTarget(session_id: string, folder_id: string): Promise<IconWorkbenchSession>;
-  analyzeFolders(session_id: string, folder_ids: string[]): Promise<IconWorkbenchSession>;
+  analyzeFolders(session_id: string, folder_ids: string[], content_locale: ContentLocale): Promise<IconWorkbenchSession>;
   generatePreviews(session_id: string, folder_ids: string[]): Promise<IconWorkbenchSession>;
   updatePrompt(session_id: string, folder_id: string, prompt: string): Promise<IconWorkbenchSession>;
   selectVersion(session_id: string, folder_id: string, version_id: string): Promise<IconWorkbenchSession>;
@@ -104,14 +105,14 @@ export function createIconWorkbenchApiClient(baseUrl: string, apiToken?: string)
         apiToken,
       );
     },
-    async analyzeFolders(session_id, folder_ids) {
+    async analyzeFolders(session_id, folder_ids, content_locale) {
       return requestJson<IconWorkbenchSession>(
         baseUrl,
         `/api/icon-workbench/sessions/${session_id}/analyze`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ folder_ids }),
+          body: JSON.stringify({ folder_ids, content_locale }),
         },
         apiToken,
       );

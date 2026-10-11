@@ -4,6 +4,7 @@ import React, { ReactNode } from "react";
 import { PageTransition } from "@/components/page-transition";
 import { usePathname, useSearchParams } from "next/navigation";
 import { motion } from "motion/react";
+import { useTranslation } from "react-i18next";
 
 // ... (existing imports)
 import Link from "next/link";
@@ -39,115 +40,140 @@ function readStoredContext(key: string) {
       stage?: string;
       sessionId?: string;
       hasTargetPath?: boolean;
+      detail_code?: string;
+      target_count?: number;
+      stage_code?: string;
     };
   } catch {
     return null;
   }
 }
 
-function getWorkspaceLoadingLabel() {
+type CopyTranslator = (key: string, options?: Record<string, unknown>) => string;
+interface ModuleCopy {
+  title: string;
+  detail: string;
+  statusCode?: string;
+}
+
+function getWorkspaceLoadingLabel(t: CopyTranslator) {
   return {
-    title: "当前任务",
-    detail: "正在载入任务",
+    title: t("navigation.currentTask"),
+    detail: t("navigation.loadingTask"),
   };
 }
 
-function getBaseModuleLabel(pathname: string, searchParams: URLSearchParams) {
+function getBaseModuleLabel(pathname: string, searchParams: URLSearchParams, t: CopyTranslator): ModuleCopy {
   if (pathname === "/rules") {
     return {
-      title: "分类规则",
-      detail: "规则配置",
+      title: t("navigation.rules"),
+      detail: t("navigation.ruleConfig"),
     };
   }
   if (pathname === "/history") {
     return {
-      title: "整理历史",
-      detail: "历史记录",
+      title: t("navigation.history"),
+      detail: t("navigation.historyRecords"),
     };
   }
   if (pathname === "/settings") {
     return {
-      title: "设置",
-      detail: "模型配置",
+      title: t("navigation.settings"),
+      detail: t("navigation.modelConfig"),
     };
   }
   if (pathname === "/icons") {
     return {
-      title: "图标工坊",
-      detail: "图标生成",
+      title: t("navigation.icons"),
+      detail: t("navigation.iconGeneration"),
     };
   }
   if (pathname.startsWith("/workspace")) {
     const dirParam = searchParams.get("dir");
     const sessionId = searchParams.get("session_id");
     if (sessionId && !dirParam) {
-      return getWorkspaceLoadingLabel();
+      return getWorkspaceLoadingLabel(t);
     }
-    const dirName = getPathBasename(dirParam, "当前任务");
+    const dirName = getPathBasename(dirParam, t("navigation.currentTask"));
     return {
       title: dirName,
-      detail: "当前整理任务",
+      detail: t("navigation.currentOrganizeTask"),
     };
   }
-  return { title: "开始整理", detail: "新建整理任务" };
+  return { title: t("navigation.startOrganizing"), detail: t("navigation.newOrganizeTask") };
 }
 
-function getStoredModuleLabel(pathname: string, searchParams: URLSearchParams) {
+function getStoredModuleLabel(pathname: string, searchParams: URLSearchParams, t: CopyTranslator): ModuleCopy {
   if (pathname === "/rules") {
     const stored = readStoredContext(RULES_CONTEXT_KEY);
     const detail = stored?.detail;
     return {
-      title: "分类规则",
-      detail: detail && detail !== "规则配置" ? `配置: ${detail}` : "规则配置",
+      title: t("navigation.rules"),
+      detail: stored?.detail_code === "rule_config" || !detail || detail === "规则配置"
+        ? t("navigation.ruleConfig")
+        : `${t("navigation.configPrefix")}${detail}`,
     };
   }
   if (pathname === "/history") {
     const stored = readStoredContext(HISTORY_CONTEXT_KEY);
     return {
-      title: "整理历史",
-      detail: stored?.detail || "历史记录",
+      title: t("navigation.history"),
+      detail: !stored?.detail || stored.detail === "历史记录" ? t("navigation.historyRecords") : stored.detail,
     };
   }
   if (pathname === "/settings") {
     const stored = readStoredContext(SETTINGS_CONTEXT_KEY);
     return {
-      title: "设置",
-      detail: stored?.detail || "模型配置",
+      title: t("navigation.settings"),
+      detail: !stored?.detail || stored.detail === "模型配置" || stored.detail === "模型与工具配置"
+        ? t("navigation.settingsDetail")
+        : stored.detail,
     };
   }
   if (pathname === "/icons") {
     const stored = readStoredContext(ICONS_CONTEXT_KEY);
+    const detail = stored?.detail_code === "targets" && typeof stored.target_count === "number"
+      ? t("navigation.iconTargets", { count: stored.target_count })
+      : !stored?.detail || stored.detail === "图标生成"
+        ? t("navigation.iconGeneration")
+        : stored.detail;
     return {
-      title: "图标工坊",
-      detail: stored?.detail || "图标生成",
+      title: t("navigation.icons"),
+      detail,
     };
   }
   if (pathname.startsWith("/workspace")) {
     const stored = readStoredContext(WORKSPACE_CONTEXT_KEY);
+    const storedStage = stored?.stage_code
+      ? t(`workspaceStage.${stored.stage_code}`, { defaultValue: stored.stage })
+      : stored?.stage;
     const dirParam = searchParams.get("dir");
     const sessionId = searchParams.get("session_id");
     if (dirParam) {
-      const dirName = getPathBasename(dirParam, "当前任务");
+      const dirName = getPathBasename(dirParam, t("navigation.currentTask"));
       return {
         title: dirName,
-        detail: stored?.stage || "当前整理任务",
+        detail: storedStage || t("navigation.currentOrganizeTask"),
+        statusCode: stored?.stage_code,
       };
     }
     if (sessionId) {
       if (stored?.sessionId === sessionId && stored?.hasTargetPath && stored?.dirName) {
         return {
           title: stored.dirName,
-          detail: stored.stage || "当前整理任务",
+          detail: storedStage || t("navigation.currentOrganizeTask"),
+          statusCode: stored.stage_code,
         };
       }
-      return getWorkspaceLoadingLabel();
+      return getWorkspaceLoadingLabel(t);
     }
     return {
-      title: stored?.dirName || "当前任务",
-      detail: stored?.stage || "当前整理任务",
+      title: stored?.dirName || t("navigation.currentTask"),
+      detail: storedStage || t("navigation.currentOrganizeTask"),
+      statusCode: stored?.stage_code,
     };
   }
-  return { title: "开始整理", detail: "新建整理任务" };
+  return { title: t("navigation.startOrganizing"), detail: t("navigation.newOrganizeTask") };
 }
 
 function getWorkspaceRoute(pathname: string, searchParams: URLSearchParams) {
@@ -165,6 +191,7 @@ function getWorkspaceRoute(pathname: string, searchParams: URLSearchParams) {
 
 function ThemeToggle() {
   const { mode, setMode } = useTheme();
+  const { t } = useTranslation("common");
   // 主题模式来自 localStorage 懒初始化，SSR 首帧与客户端可能不同；挂载后再渲染具体状态避免水合不一致。
   const [mounted, setMounted] = React.useState(false);
   React.useEffect(() => {
@@ -177,13 +204,19 @@ function ThemeToggle() {
   };
 
   const Icon = !mounted ? Monitor : mode === "light" ? Sun : mode === "dark" ? Moon : Monitor;
-  const label = !mounted ? "主题" : mode === "light" ? "浅色" : mode === "dark" ? "深色" : "跟随系统";
+  const label = !mounted
+    ? t("theme.label")
+    : mode === "light"
+      ? t("theme.light")
+      : mode === "dark"
+        ? t("theme.dark")
+        : t("theme.system");
 
   return (
     <button
       type="button"
       onClick={cycle}
-      title={`当前：${label}，点击切换`}
+      title={t("theme.toggleTitle", { label })}
       suppressHydrationWarning
       className="flex h-7 items-center gap-1.5 rounded-[4px] px-2 text-[11px] font-bold text-on-surface-variant/60 transition-colors hover:bg-on-surface/5 hover:text-on-surface active:scale-95"
     >
@@ -193,8 +226,15 @@ function ThemeToggle() {
   );
 }
 
-function ModuleStatusBadge({ detail }: { detail: string }) {
-  const isSuccess = detail.includes("通过") || detail.toLowerCase().includes("success");
+export function isSuccessfulModuleStatus(detail: string, statusCode?: string): boolean {
+  if (statusCode) {
+    return statusCode.toLowerCase() === "ready_to_execute";
+  }
+  return detail.includes("通过") || detail.toLowerCase().includes("success");
+}
+
+function ModuleStatusBadge({ detail, statusCode }: { detail: string; statusCode?: string }) {
+  const isSuccess = isSuccessfulModuleStatus(detail, statusCode);
 
   return (
     <span
@@ -207,16 +247,18 @@ function ModuleStatusBadge({ detail }: { detail: string }) {
       title={detail}
     >
       {isSuccess ? <CheckCircle2 className="h-3 w-3" /> : <span className="h-1.5 w-1.5 rounded-full bg-current opacity-50" />}
-      <span className="truncate">{detail}</span>
+      <span className="min-w-0 max-w-0 overflow-hidden truncate lg:max-w-[160px]">{detail}</span>
     </span>
   );
 }
 
 export function AppShell({ children }: { children: ReactNode }) {
+  const { t, i18n } = useTranslation("common");
+  const locale = i18n.resolvedLanguage;
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [isHydrated, setIsHydrated] = React.useState(false);
-  const [moduleCopy, setModuleCopy] = React.useState(() => getBaseModuleLabel(pathname, searchParams));
+  const [moduleCopy, setModuleCopy] = React.useState(() => getBaseModuleLabel(pathname, searchParams, t));
   const [workspaceRoute, setWorkspaceRoute] = React.useState("/");
 
   React.useEffect(() => {
@@ -224,20 +266,20 @@ export function AppShell({ children }: { children: ReactNode }) {
   }, []);
 
   React.useEffect(() => {
-    setModuleCopy(getBaseModuleLabel(pathname, searchParams));
+    setModuleCopy(getBaseModuleLabel(pathname, searchParams, t));
     setWorkspaceRoute(isHydrated ? getWorkspaceRoute(pathname, searchParams) : "/");
-  }, [isHydrated, pathname, searchParams]);
+  }, [isHydrated, locale, pathname, searchParams, t]);
 
   React.useEffect(() => {
     if (!isHydrated) {
       return;
     }
     setWorkspaceRoute(getWorkspaceRoute(pathname, searchParams));
-  }, [pathname, searchParams]);
+  }, [locale, pathname, searchParams, t]);
 
   React.useEffect(() => {
     const syncModuleCopy = () => {
-      setModuleCopy(getStoredModuleLabel(pathname, searchParams));
+      setModuleCopy(getStoredModuleLabel(pathname, searchParams, t));
       setWorkspaceRoute(getWorkspaceRoute(pathname, searchParams));
     };
 
@@ -255,14 +297,14 @@ export function AppShell({ children }: { children: ReactNode }) {
     return () => {
       window.removeEventListener(APP_CONTEXT_EVENT, handleContextChange);
     };
-  }, [isHydrated, pathname, searchParams]);
+  }, [isHydrated, locale, pathname, searchParams, t]);
 
   const navItems = [
-    { href: workspaceRoute, icon: LayoutGrid, label: workspaceRoute === "/" ? "开始整理" : "当前任务" },
-    { href: "/rules", icon: BookOpenCheck, label: "分类规则" },
-    { href: "/history", icon: History, label: "整理历史" },
-    { href: "/icons", icon: Palette, label: "图标工坊" },
-    { href: "/settings", icon: Settings, label: "设置" },
+    { href: workspaceRoute, icon: LayoutGrid, label: workspaceRoute === "/" ? t("navigation.startOrganizing") : t("navigation.currentTask") },
+    { href: "/rules", icon: BookOpenCheck, label: t("navigation.rules") },
+    { href: "/history", icon: History, label: t("navigation.history") },
+    { href: "/icons", icon: Palette, label: t("navigation.icons") },
+    { href: "/settings", icon: Settings, label: t("navigation.settings") },
   ];
 
   const isNavActive = (href: string) => {
@@ -295,7 +337,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             <p className="min-w-0 truncate text-[14px] font-black tracking-[-0.025em] text-on-surface/88">
               {moduleCopy.title}
             </p>
-            <ModuleStatusBadge detail={moduleCopy.detail} />
+            <ModuleStatusBadge detail={moduleCopy.detail} statusCode={moduleCopy.statusCode} />
           </div>
         </div>
 

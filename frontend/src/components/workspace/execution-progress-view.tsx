@@ -3,6 +3,7 @@
 import { motion } from "motion/react";
 import { ArrowRight, FolderCheck, FolderOpen, Loader2, RotateCcw, ShieldCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useTranslation } from "react-i18next";
 
 interface ExecutionProgressViewProps {
   mode: "executing" | "rolling_back";
@@ -17,12 +18,13 @@ export function ExecutionProgressView({
   description,
   itemCount,
 }: ExecutionProgressViewProps) {
+  const { t } = useTranslation("common");
   const isRollingBack = mode === "rolling_back";
 
-  const defaultTitle = isRollingBack ? "正在还原本次整理" : "正在执行整理";
-  const defaultDescription = isRollingBack
-    ? "正在按记录恢复文件原始路径并清理空目录，请不要关闭窗口。"
-    : "正在将文件移动至目标分类目录，完成后将自动打开整理结果。";
+  const defaultTitle = t(isRollingBack ? "workspace.execution.titleRollback" : "workspace.execution.titleExecuting");
+  const defaultDescription = t(
+    isRollingBack ? "workspace.execution.descriptionRollback" : "workspace.execution.descriptionExecuting",
+  );
 
   return (
     <div className="flex h-full w-full flex-col items-center justify-center p-6 bg-surface">
@@ -69,7 +71,7 @@ export function ExecutionProgressView({
         {/* 状态徽标 */}
         <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/8 px-3 py-1 text-[11px] font-bold text-primary">
           <Loader2 className="h-3 w-3 animate-spin" />
-          <span>{isRollingBack ? "正在撤销整理变动" : "正在安全写入目标目录"}</span>
+          <span>{t(isRollingBack ? "workspace.execution.statusRollback" : "workspace.execution.statusExecuting")}</span>
         </div>
 
         {/* 标题与描述 */}
@@ -84,9 +86,7 @@ export function ExecutionProgressView({
         <div className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl border border-on-surface/6 bg-on-surface/[0.02] py-2.5 px-4 text-[11px] font-bold text-ui-muted/80">
           <ShieldCheck className="h-4 w-4 text-success-dim shrink-0" />
           <span>
-            {isRollingBack
-              ? "还原过程严格校验源路径完整性"
-              : "操作完成支持随时一键安全还原"}
+            {t(isRollingBack ? "workspace.execution.safetyRollback" : "workspace.execution.safetyExecuting")}
           </span>
         </div>
       </motion.div>

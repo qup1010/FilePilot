@@ -85,6 +85,7 @@ from file_pilot.organize.strategy_templates import (
 )
 from file_pilot.rollback import service as rollback_service
 from file_pilot.shared.config import get_text_stream_max_seconds
+from file_pilot.shared.content_locale import DEFAULT_CONTENT_LOCALE, normalize_content_locale
 from file_pilot.shared.logging_utils import append_debug_event
 from file_pilot.shared.path_utils import canonical_target_dir
 
@@ -984,6 +985,7 @@ class OrganizerSessionService:
             event_handler=event_handler,
             session_id=session_id,
             cancel_event=cancel_event,
+            content_locale=normalize_content_locale(session.content_locale),
         )
         entries = self._scan_entries(scan_lines)
         context_by_relpath = {
@@ -1111,6 +1113,7 @@ class OrganizerSessionService:
         selection = self._incremental_selection_snapshot(session)
         task, _ = self._build_organize_task(session)
         return {
+            "content_locale": normalize_content_locale(session.content_locale),
             "organize_method": self._normalize_organize_method(session.organize_method),
             "organize_mode": self._normalize_organize_mode(session.organize_mode),
             "scope_sources": self._planning_scope_sources(session),
@@ -1445,6 +1448,7 @@ class OrganizerSessionService:
         warnings: list[str],
         plan_moves: list[PlanMove],
         planner_by_source: dict[str, dict],
+        structured_warning_details: dict[int, dict] | None = None,
     ) -> list[dict]:
         issues: list[dict] = []
         for index, message in enumerate(blocking_errors):
@@ -1454,17 +1458,35 @@ class OrganizerSessionService:
                     "severity": "blocking",
                     "issue_type": "precheck_blocking_error",
                     "message": message,
+                    "code": "blocking_error",
+                    "params": {},
                     "related_item_ids": self._related_item_ids_for_message(message, planner_by_source, plan_moves),
                 }
             )
         for index, message in enumerate(warnings):
+            structured_detail = (structured_warning_details or {}).get(index)
             issues.append(
                 {
                     "id": f"warning-{index + 1}",
                     "severity": "warning",
                     "issue_type": "precheck_warning",
                     "message": message,
-                    "related_item_ids": self._related_item_ids_for_message(message, planner_by_source, plan_moves),
+                    "related_item_ids": (
+                        list(structured_detail.get("related_item_ids") or [])
+                        if structured_detail is not None
+                        else self._related_item_ids_for_message(message, planner_by_source, plan_moves)
+                    ),
+                    **(
+                        {
+                            "code": structured_detail["code"],
+                            "params": dict(structured_detail.get("params") or {}),
+                        }
+                        if structured_detail is not None
+                        else {
+                            "code": "warning",
+                            "params": {},
+                        }
+                    ),
                 }
             )
         review_item_ids = [
@@ -1479,6 +1501,8 @@ class OrganizerSessionService:
                     "severity": "review",
                     "issue_type": "review_items",
                     "message": f"这次有 {len(review_item_ids)} 项会先进入待确认区，建议执行前先核对。",
+                    "code": "review_items",
+                    "params": {"count": len(review_item_ids)},
                     "related_item_ids": review_item_ids,
                 }
             )
@@ -1588,8 +1612,11 @@ class OrganizerSessionService:
             "processed_count": total_count,
             "total_count": total_count,
             "current_item": discovery_entries[-1]["display_name"] if discovery_entries else None,
+            "current_item_kind": "entry" if discovery_entries else None,
             "recent_analysis_items": discovery_entries[-5:],
             "message": f"已发现 {total_count} 个根目录条目，请先选择目标目录。",
+            "message_code": "directory_discovered",
+            "message_params": {"count": total_count},
         }
         self.store.save(session)
         self._log_runtime_event("scan.completed", session, entry_count=total_count, mode="sync")
@@ -1629,6 +1656,7 @@ class OrganizerSessionService:
             source_scan_runner,
             target_dir,
             session_id=session.session_id,
+            content_locale=normalize_content_locale(session.content_locale),
         )
         filtered_scan_lines = self._filter_incremental_pending_scan_lines(full_scan_lines, normalized_selected)
         pending_entries = self._scan_entries(filtered_scan_lines)
@@ -1772,6 +1800,9 @@ class OrganizerSessionService:
                 if "unexpected keyword argument 'cancel_event'" in message and "cancel_event" in call_kwargs:
                     call_kwargs.pop("cancel_event", None)
                     continue
+                if "unexpected keyword argument 'content_locale'" in message and "content_locale" in call_kwargs:
+                    call_kwargs.pop("content_locale", None)
+                    continue
                 raise
 
         if include_session_id:
@@ -1792,6 +1823,7 @@ class OrganizerSessionService:
         new_directory_root: str = "",
         review_root: str = "",
         unattended: bool = False,
+        content_locale: str = DEFAULT_CONTENT_LOCALE,
     ) -> CreateSessionResult:
         normalized_sources = sources
         normalized_method = organize_method
@@ -1827,6 +1859,7 @@ class OrganizerSessionService:
             unattended=unattended,
             new_directory_root=new_directory_root,
             review_root=review_root,
+            content_locale=normalize_content_locale(content_locale),
         )
 
     def list_target_profiles(self) -> list[dict]:
@@ -1877,12 +1910,22 @@ class OrganizerSessionService:
                 target_dirs.append(parent)
 
         profiles = [rule_advisor.collect_directory_content_profile(directory) for directory in target_dirs]
-        drafts = rule_advisor.generate_rule_drafts(profiles, client=client, model=model)
+        drafts = rule_advisor.generate_rule_drafts(
+            profiles,
+            client=client,
+            model=model,
+            content_locale=normalize_content_locale(session.content_locale),
+        )
         drafts_by_path = {draft.path: draft for draft in drafts}
+        target_name = Path(session.target_dir).name
         return {
             "session_id": session.session_id,
             "journal_id": journal.execution_id,
-            "suggested_profile_name": f"{Path(session.target_dir).name} 的目录规则",
+            "suggested_profile_name": (
+                f"Rules for {target_name}"
+                if normalize_content_locale(session.content_locale) == "en"
+                else f"{target_name} 的目录规则"
+            ),
             "items": [
                 {
                     "path": content_profile.path,
@@ -1908,6 +1951,7 @@ class OrganizerSessionService:
         paths: list[str] | None = None,
         client=None,
         model: str | None = None,
+        content_locale: str = DEFAULT_CONTENT_LOCALE,
     ) -> dict:
         """为 profile 目录生成规则描述初稿（只返回，不落库；采纳由用户校订决定）。
 
@@ -1978,6 +2022,7 @@ class OrganizerSessionService:
             client=client,
             model=model,
             context_entries=context_entries if context_entries else None,
+            content_locale=normalize_content_locale(content_locale),
         )
         drafts_by_path = {draft.path: draft for draft in drafts}
         return {
@@ -2110,6 +2155,11 @@ class OrganizerSessionService:
             user_constraints=list(session.user_constraints),
             planning_context=self._planning_context(session),
         )
+        for message in session.messages:
+            if message.get("role") == "user":
+                message["visibility"] = "internal"
+                message["message_type"] = "initial_plan_request"
+                break
         self._ensure_message_ids(session.messages)
 
     def _normalized_target_directory(
@@ -2217,6 +2267,7 @@ class OrganizerSessionService:
                 "entry_type": self._detect_entry_type(target_dir, entry),
                 "suggested_purpose": "准备分析",
                 "summary": "等待分配并进行文件内容分析...",
+                "analysis_status": "queued",
             }
             for entry in entries
         ]
@@ -2225,12 +2276,15 @@ class OrganizerSessionService:
             "processed_count": 0,
             "total_count": self._count_visible_entries(target_dir),
             "current_item": "正在准备扫描任务",
+            "current_item_kind": "preparing",
             "recent_analysis_items": recent_items,
             "completed_batches": 0,
             "had_failed_batches": False,
             "unrecovered_failed_batches": False,
             "placeholder_count": 0,
             "message": "正在读取目录结构",
+            "message_code": "reading_directory",
+            "message_params": {},
         }
 
     def _initial_source_collection_scan_progress(self, session: OrganizerSession) -> dict:
@@ -2246,6 +2300,7 @@ class OrganizerSessionService:
                 "entry_type": str(item.get("entry_type") or "file"),
                 "suggested_purpose": "准备分析",
                 "summary": "等待分配并进行文件内容分析...",
+                "analysis_status": "queued",
             }
             for index, item in enumerate(list(entry_context.values())[:10], start=1)
         ]
@@ -2254,17 +2309,22 @@ class OrganizerSessionService:
             "processed_count": 0,
             "total_count": len(entry_context),
             "current_item": "正在准备扫描任务",
+            "current_item_kind": "preparing",
             "recent_analysis_items": recent_items,
             "completed_batches": 0,
             "had_failed_batches": False,
             "unrecovered_failed_batches": False,
             "placeholder_count": 0,
             "message": "正在读取本次整理来源",
+            "message_code": "reading_sources",
+            "message_params": {},
         }
 
     @staticmethod
     def _clear_scan_recovery_state(session: OrganizerSession) -> None:
         session.last_error = None
+        session.last_error_code = None
+        session.last_error_params = {}
         session.integrity_flags.pop("interrupted_during", None)
         session.integrity_flags.pop("scan_incomplete", None)
         session.integrity_flags.pop("scan_placeholder_count", None)
@@ -2287,19 +2347,6 @@ class OrganizerSessionService:
         if not relative.parts:
             return None
         return relative.parts[0]
-
-    @staticmethod
-    def _is_specific_scan_target(value: str | None) -> bool:
-        text = str(value or "").strip()
-        if not text:
-            return False
-        generic_prefixes = ("已启动 ", "第 ")
-        generic_labels = {
-            "当前目录",
-            "正在准备扫描任务",
-            "正在等待模型响应",
-        }
-        return text not in generic_labels and not text.startswith(generic_prefixes)
 
     def _update_single_scan_progress(
         self,
@@ -2324,6 +2371,7 @@ class OrganizerSessionService:
             set_field("message", data.get("message") or "正在分析目录内容")
             if not progress.get("current_item"):
                 set_field("current_item", "正在等待模型响应")
+                set_field("current_item_kind", "preparing")
         elif event_type == "api_retry":
             attempt = max(1, int(data.get("attempt") or 1))
             max_attempts = max(attempt, int(data.get("max_attempts") or attempt))
@@ -2343,6 +2391,7 @@ class OrganizerSessionService:
             set_field("retry_attempt", attempt)
             set_field("retry_max_attempts", max_attempts)
             set_field("current_item", "正在等待模型服务恢复")
+            set_field("current_item_kind", "preparing")
             if wait_seconds > 0:
                 set_field("message", f"{summary}，将在约 {wait_seconds} 秒后重试（{attempt}/{max_attempts}）")
             else:
@@ -2353,25 +2402,30 @@ class OrganizerSessionService:
             args = data.get("args") or {}
             tool_name = data.get("name") or ""
             target_name = None
+            target_kind = None
             message = "正在补充扫描证据"
 
             if tool_name == "read_local_file":
                 raw_filename = args.get("filename")
                 target_name = self._top_level_scan_entry(target_dir, raw_filename) or Path(str(raw_filename or "文件")).name
+                target_kind = "entry"
                 message = f"正在读取 {target_name}"
             elif tool_name == "list_local_files":
                 raw_directory = args.get("directory")
                 target_name = self._top_level_scan_entry(target_dir, raw_directory)
                 if target_name:
+                    target_kind = "entry"
                     message = f"正在查看 {target_name} 的目录内容"
                 else:
+                    target_kind = "directory"
                     target_name = "当前目录"
                     message = "正在读取目录结构"
 
             if target_name:
                 set_field("current_item", target_name)
+                set_field("current_item_kind", target_kind)
                 # 实时追加到最近分析项列表中，用于前端“正在看什么”的可视化
-                if target_name not in {"当前目录", "正在准备扫描任务"}:
+                if target_kind == "entry":
                     recent = list(progress.get("recent_analysis_items") or [])
                     # 避免重复添加同一个正在处理的项目
                     if not any(item.get("display_name") == target_name for item in recent):
@@ -2381,13 +2435,14 @@ class OrganizerSessionService:
                             "source_relpath": target_name,
                             "entry_type": self._detect_entry_type(target_dir, target_name),
                             "suggested_purpose": "分析中",
-                            "summary": "正在读取内容"
+                            "summary": "正在读取内容",
+                            "analysis_status": "in_progress",
                         })
                         set_field("recent_analysis_items", recent[:8]) # 保留最近 8 条
 
             set_field("message", message)
 
-            if target_name and target_name not in {"当前目录", "正在准备扫描任务"} and target_name not in seen_entries:
+            if target_name and target_kind == "entry" and target_name not in seen_entries:
                 seen_entries.add(target_name)
                 set_field("processed_count", min(total_count, len(seen_entries)) if total_count else len(seen_entries))
         elif event_type == "ai_streaming_start":
@@ -2417,6 +2472,7 @@ class OrganizerSessionService:
                         "entry_type": item.get("entry_type", ""),
                         "suggested_purpose": item.get("suggested_purpose", "待判断"),
                         "summary": item.get("summary", ""),
+                        "analysis_status": item.get("analysis_status", "completed"),
                     })
                 
                 # 合并并去重（优先使用最新的真实分析结果）
@@ -2455,8 +2511,10 @@ class OrganizerSessionService:
                     retry_size = max(0, int(data.get("batch_size") or 0))
                     if retry_size:
                         set_field("current_item", f"正在重试失败批次（{retry_size} 项）")
+                        set_field("current_item_kind", "preparing")
                     else:
                         set_field("current_item", "正在重试失败批次")
+                        set_field("current_item_kind", "preparing")
                 else:
                     is_retry_completion = (
                         total_batches > 0
@@ -2486,6 +2544,7 @@ class OrganizerSessionService:
         event_handler=None,
         session_id: str | None = None,
         cancel_event: threading.Event | None = None,
+        content_locale: str = DEFAULT_CONTENT_LOCALE,
     ) -> str:
         return self._call_with_optional_session_id(
             analysis_service.run_analysis_cycle,
@@ -2493,6 +2552,7 @@ class OrganizerSessionService:
             event_handler=event_handler,
             session_id=session_id,
             cancel_event=cancel_event,
+            content_locale=normalize_content_locale(content_locale),
         )
 
     def _handle_empty_scan_result(self, session: OrganizerSession, *, total_count: int, mode: str) -> str:
@@ -2522,8 +2582,11 @@ class OrganizerSessionService:
                 "processed_count": 0,
                 "total_count": 0,
                 "current_item": None,
+                "current_item_kind": None,
                 "recent_analysis_items": [],
                 "message": "目录为空，无需整理",
+                "message_code": "empty_directory",
+                "message_params": {},
             }
             self.store.save(session)
             self._log_runtime_event("scan.completed", session, entry_count=0, mode=mode, auto_plan_pending=False)
@@ -2539,13 +2602,18 @@ class OrganizerSessionService:
         session.scan_lines = ""
         session.source_tree_entries = []
         session.last_error = "scan_empty_result"
+        session.last_error_code = "scan_empty_result"
+        session.last_error_params = {}
         session.scanner_progress = {
             **dict(session.scanner_progress or {}),
             "status": "failed",
             "processed_count": 0,
             "current_item": None,
+            "current_item_kind": None,
             "recent_analysis_items": [],
             "message": "扫描未返回任何条目，请检查模型输出或调试日志",
+            "message_code": "scan_empty_result",
+            "message_params": {},
         }
         self.store.save(session)
         self._log_runtime_event("scan.failed", session, level=logging.ERROR, error="scan_empty_result", mode=mode)
@@ -2563,8 +2631,14 @@ class OrganizerSessionService:
         return sum(
             1
             for entry in entries
-            if str(entry.get("suggested_purpose") or "").strip() == "待判断"
-            and str(entry.get("summary") or "").strip() == "分析未覆盖，需手动确认"
+            if (
+                str(entry.get("analysis_status") or "").strip() == "needs_review"
+                or (
+                    not str(entry.get("analysis_status") or "").strip()
+                    and str(entry.get("suggested_purpose") or "").strip() == "待判断"
+                    and str(entry.get("summary") or "").strip() == "分析未覆盖，需手动确认"
+                )
+            )
         )
 
     @staticmethod
@@ -2590,6 +2664,23 @@ class OrganizerSessionService:
             return f"已完成 {batch_count}/{batch_count} 批并行分析"
         return "已完成并行扫描分析" if parallel else "已完成单线程扫描分析"
 
+    def _scan_completion_feedback(
+        self,
+        entries: list[dict],
+        *,
+        parallel: bool,
+        batch_count: int | None = None,
+        recovered_failed_batches: bool = False,
+    ) -> tuple[str, dict]:
+        placeholder_count = self._placeholder_scan_item_count(entries)
+        if placeholder_count > 0:
+            return "completed_with_review_items", {"placeholder_count": placeholder_count}
+        if recovered_failed_batches:
+            return "completed_with_recovered_batches", {"batch_count": int(batch_count or 0)}
+        if parallel:
+            return "parallel_scan_completed", {"batch_count": int(batch_count or 0)}
+        return "scan_completed", {}
+
     def _handle_incomplete_scan_result(
         self,
         session: OrganizerSession,
@@ -2609,10 +2700,14 @@ class OrganizerSessionService:
             reasons.append(f"{placeholder_count} 项未成功分析")
         detail = "，".join(reasons) if reasons else "扫描结果不完整"
         message = f"扫描结果不完整：{detail}。请稍后重试或降低并发后重新扫描。"
+        message_code = "scan_incomplete_batches" if unrecovered_failed_batches else "scan_incomplete_items"
+        message_params = {"placeholder_count": placeholder_count}
         recent_items = entries[-5:]
 
         session.stage = STAGE_INTERRUPTED
         session.last_error = message
+        session.last_error_code = message_code
+        session.last_error_params = dict(message_params)
         session.summary = ""
         session.pending_plan = self._pending_plan_payload({})
         session.plan_snapshot = self._plan_snapshot_payload({})
@@ -2627,11 +2722,14 @@ class OrganizerSessionService:
             "processed_count": len(entries),
             "total_count": total_count,
             "current_item": None,
+            "current_item_kind": None,
             "recent_analysis_items": recent_items,
             "placeholder_count": placeholder_count,
             "ai_thinking": False,
             "is_retrying": False,
             "message": message,
+            "message_code": message_code,
+            "message_params": message_params,
         }
         self.store.save(session)
         self._log_runtime_event(
@@ -2689,6 +2787,7 @@ class OrganizerSessionService:
                 "processed_count": len(all_entries),
                 "total_count": total_count,
                 "current_item": recent_items[-1]["display_name"] if recent_items else None,
+                "current_item_kind": "entry" if recent_items else None,
                 "recent_analysis_items": recent_items,
                 "placeholder_count": placeholder_count,
                 "ai_thinking": False,
@@ -2702,8 +2801,17 @@ class OrganizerSessionService:
                     batch_count=int(existing_progress.get("batch_count") or 0),
                     recovered_failed_batches=had_failed_batches and not unrecovered_failed_batches,
                 )
+                message_code, message_params = self._scan_completion_feedback(
+                    all_entries,
+                    parallel=True,
+                    batch_count=int(existing_progress.get("batch_count") or 0),
+                    recovered_failed_batches=had_failed_batches and not unrecovered_failed_batches,
+                )
             else:
                 session.scanner_progress["message"] = self._scan_completion_message(all_entries, parallel=False)
+                message_code, message_params = self._scan_completion_feedback(all_entries, parallel=False)
+            session.scanner_progress["message_code"] = message_code
+            session.scanner_progress["message_params"] = message_params
 
             if unrecovered_failed_batches or placeholder_count > 0:
                 self._handle_incomplete_scan_result(
@@ -2794,7 +2902,15 @@ class OrganizerSessionService:
             session = self._load_or_raise(session_id)
             session.stage = STAGE_INTERRUPTED
             session.last_error = str(exc)
-            session.scanner_progress = {**dict(session.scanner_progress or {}), "status": "failed", "message": str(exc)}
+            session.last_error_code = "scanner_failed"
+            session.last_error_params = {}
+            session.scanner_progress = {
+                **dict(session.scanner_progress or {}),
+                "status": "failed",
+                "message": str(exc),
+                "message_code": "scanner_failed",
+                "message_params": {},
+            }
             self.store.save(session)
             logger.exception(
                 "scan.failed session_id=%s target_dir=%s",
@@ -2829,6 +2945,7 @@ class OrganizerSessionService:
                     scan_runner,
                     Path(session.target_dir),
                     session_id=session.session_id,
+                    content_locale=normalize_content_locale(session.content_locale),
                 )
                 all_entries = self._scan_entries(result)
                 total_count = self._count_visible_entries(Path(session.target_dir))
@@ -2903,8 +3020,11 @@ class OrganizerSessionService:
                 "processed_count": len(all_entries),
                 "total_count": total_count,
                 "current_item": recent_items[-1]["display_name"] if recent_items else None,
+                "current_item_kind": "entry" if recent_items else None,
                 "recent_analysis_items": recent_items,
                 "message": self._scan_completion_message(all_entries, parallel=False),
+                "message_code": self._scan_completion_feedback(all_entries, parallel=False)[0],
+                "message_params": self._scan_completion_feedback(all_entries, parallel=False)[1],
             }
             self.store.save(session)
             self._log_runtime_event("scan.completed", session, entry_count=len(all_entries), mode="sync")
@@ -2981,6 +3101,8 @@ class OrganizerSessionService:
             return False
 
         session.last_error = session.last_error or "planning_interrupted"
+        session.last_error_code = session.last_error_code or "planning_interrupted"
+        session.last_error_params = dict(session.last_error_params or {})
         session.integrity_flags["interrupted_during"] = STAGE_PLANNING
         self._fail_planner_progress(session, session.last_error)
         if is_stage(session.stage, STAGE_PLANNING):
@@ -3020,6 +3142,7 @@ class OrganizerSessionService:
             "session_id": session.session_id,
             "session_title": self._session_title_for(session),
             "target_dir": str(session.target_dir),
+            "content_locale": normalize_content_locale(session.content_locale),
             "placement": copy.deepcopy(self._placement_payload(session.placement).__dict__),
             "stage": session.stage,
             "summary": session.summary,
@@ -3038,6 +3161,8 @@ class OrganizerSessionService:
             "stale_reason": session.stale_reason,
             "last_journal_id": session.last_journal_id,
             "last_error": session.last_error,
+            "last_error_code": session.last_error_code,
+            "last_error_params": copy.deepcopy(session.last_error_params or {}),
             "created_at": session.created_at,
             "updated_at": session.updated_at,
             "strategy": {
@@ -3076,6 +3201,10 @@ class OrganizerSessionService:
             "phase": None,
             "message": "",
             "detail": None,
+            "message_code": None,
+            "message_params": {},
+            "detail_code": None,
+            "detail_params": {},
             "attempt": 1,
             "started_at": None,
             "updated_at": None,
@@ -3160,6 +3289,18 @@ class OrganizerSessionService:
         if detail is not None or effective_phase is None:
             assign("detail", detail)
 
+        effective_status = status if status is not None else progress.get("status")
+        if effective_status in {"completed", "failed"}:
+            message_code = effective_status
+            detail_code = "failureDetail" if effective_status == "failed" else None
+        else:
+            message_code = str(effective_phase or "updating")
+            detail_code = f"{effective_phase}_detail" if effective_phase else None
+        assign("message_code", message_code)
+        assign("message_params", {})
+        assign("detail_code", detail_code)
+        assign("detail_params", {})
+
         if changed:
             progress["updated_at"] = now
             session.planner_progress = progress
@@ -3168,6 +3309,8 @@ class OrganizerSessionService:
     def _begin_planner_progress(self, session: OrganizerSession, *, preserving_previous_plan: bool | None = None) -> None:
         started_at = utc_now_iso()
         session.last_error = None
+        session.last_error_code = None
+        session.last_error_params = {}
         self._set_planner_progress(
             session,
             status="running",
@@ -3466,6 +3609,9 @@ class OrganizerSessionService:
             "timestamp": datetime.datetime.now().isoformat(),
             **kwargs
         }
+        if session is not None and event_type in {"session.error", "session.interrupted"}:
+            event["error_code"] = session.last_error_code
+            event["error_params"] = copy.deepcopy(session.last_error_params or {})
         if session is not None:
             event["stage"] = session.stage
         if session is not None and include_snapshot:
@@ -3539,6 +3685,7 @@ class OrganizerSessionService:
             "organize_mode": organize_mode,
             "destination_index_depth": self._normalize_destination_index_depth(session.destination_index_depth),
             "language": session.language,
+            "content_locale": normalize_content_locale(session.content_locale),
             "density": session.density,
             "prefix_style": session.prefix_style,
             "caution_level": session.caution_level,

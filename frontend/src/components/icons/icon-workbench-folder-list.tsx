@@ -3,9 +3,10 @@
 import React, { useMemo } from "react";
 import { FolderOpen, FolderPlus, Plus, Sparkles } from "lucide-react";
 import { motion, } from "motion/react";
+import { useTranslation } from "react-i18next";
 
 import { DropZoneOverlay, getDropZoneSurfaceClassName } from "@/components/ui/drop-zone-feedback";
-import type { FolderIconCandidate, IconPreviewVersion } from "@/types/icon-workbench";
+import type { FolderIconCandidate, IconGenerationBlockedReason, IconPreviewVersion } from "@/types/icon-workbench";
 import { IconWorkbenchFolderCard } from "./icon-workbench-folder-card";
 
 interface IconWorkbenchFolderListProps {
@@ -27,7 +28,7 @@ interface IconWorkbenchFolderListProps {
   activeProcessingId?: string | null;
   desktopReady: boolean;
   hasSelectedStyle: boolean;
-  generateBlockedReason?: string | null;
+  generateBlockedReason?: IconGenerationBlockedReason | null;
   isProcessing?: boolean;
   processingFolderId?: string | null;
   generateStage?: "analyzing" | "applying_template" | "generating" | null;
@@ -71,6 +72,7 @@ export function IconWorkbenchFolderList({
   dropZoneRef,
   isDraggingGlobal = false,
 }: IconWorkbenchFolderListProps) {
+  const { t } = useTranslation("common");
   const _hasReadyVersions = useMemo(
     () => folders.some((folder) => folder.versions.some((version) => version.status === "ready")),
     [folders],
@@ -95,8 +97,8 @@ export function IconWorkbenchFolderList({
         {isTargetDropActive && (
           <DropZoneOverlay
             icon={FolderPlus}
-            title="松手即可追加目标文件夹"
-            detail="支持一次拖入多个文件夹"
+            title={t("iconWorkbench.drop.appendTitle")}
+            detail={t("iconWorkbench.drop.appendDetail")}
             className="inset-3 rounded-2xl border-primary/18 bg-primary/[0.025] backdrop-blur-0"
             panelClassName="rounded-2xl border border-primary/15 bg-surface/96 px-8 py-7 shadow-[0_8px_32px_rgba(0,0,0,0.08)]"
             iconWrapClassName="h-14 w-14 rounded-2xl bg-primary/10"
@@ -127,9 +129,9 @@ export function IconWorkbenchFolderList({
 
             {/* 文案说明 */}
             <div className="max-w-[320px] mb-8">
-              <h2 className="text-[15px] font-black tracking-tight text-on-surface/90 mb-2">图标工坊</h2>
+              <h2 className="text-[15px] font-black tracking-tight text-on-surface/90 mb-2">{t("iconWorkbench.empty.title")}</h2>
               <p className="text-[12px] font-medium leading-relaxed text-on-surface/40">
-                添加需要美化的文件夹，AI 将自动提炼内容主题并生成专属图标。
+                {t("iconWorkbench.empty.description")}
               </p>
             </div>
 
@@ -146,7 +148,7 @@ export function IconWorkbenchFolderList({
                   className: "flex h-11 w-full items-center justify-center rounded-lg px-3 text-[12px] font-black uppercase tracking-wider select-none transition-all",
                 })}
               >
-                {isTargetDropActive ? "松手即可追加目标文件夹" : "拖入文件夹至此处，或点击添加"}
+                {isTargetDropActive ? t("iconWorkbench.drop.appendTitle") : t("iconWorkbench.drop.emptyAction")}
               </div>
             </div>
           </motion.div>
@@ -167,7 +169,7 @@ export function IconWorkbenchFolderList({
             >
               <Plus className="h-3.5 w-3.5 text-on-surface/20 group-hover/add-more:text-primary transition-colors" />
               <span className="text-[12px] font-black uppercase tracking-widest text-on-surface/30 group-hover/add-more:text-primary/60 transition-colors">
-                添加更多文件夹
+                {t("iconWorkbench.drop.addMore")}
               </span>
             </motion.div>
 

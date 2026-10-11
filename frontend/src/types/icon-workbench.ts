@@ -16,6 +16,13 @@ export interface IconWorkbenchConfig {
   save_mode: "in_folder" | "centralized";
 }
 
+export type IconGenerationBlockedReason =
+  | "no_targets"
+  | "no_selected_style"
+  | "text_model_unconfigured"
+  | "image_model_unconfigured"
+  | "busy";
+
 export interface IconWorkbenchConfigPayload {
   config: IconWorkbenchConfig;
   presets: Array<{ id: string; name: string }>;
@@ -71,9 +78,9 @@ export interface FolderIconCandidate {
 export interface IconWorkbenchClientActionSummary {
   action_type: string;
   summary: {
-    success_count: number;
-    failed_count: number;
-    skipped_count: number;
+    success_count: number | null;
+    failed_count: number | null;
+    skipped_count: number | null;
     message: string;
   };
   results: Record<string, unknown>[];
@@ -103,6 +110,9 @@ export interface IconWorkbenchHistoryItem {
   target_paths: string[];
   last_action_type?: string | null;
   last_action_message?: string | null;
+  last_action_success_count?: number | null;
+  last_action_failed_count?: number | null;
+  last_action_skipped_count?: number | null;
   last_action_at?: string | null;
 }
 
@@ -167,6 +177,9 @@ export interface IconWorkbenchClientActionResult {
   version_id?: string | null;
   status: string;
   message: string;
+  error_code?: string | null;
+  error_params?: Record<string, string | number | boolean | null> | null;
+  detail?: string | null;
 }
 
 export interface IconWorkbenchClientActionReportPayload {
@@ -182,6 +195,9 @@ export interface ApplyIconResult {
   version_id?: string | null;
   status: "applied" | "restored" | "failed" | string;
   message: string;
+  error_code?: string | null;
+  error_params?: Record<string, string | number | boolean | null> | null;
+  detail?: string | null;
 }
 
 export interface BackgroundRemovalBatchProgress {

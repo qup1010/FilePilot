@@ -22,11 +22,12 @@ import {
   Sparkles,
 } from "lucide-react";
 import Link from "next/link";
+import { useTranslation } from "react-i18next";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 
 import { ScannerProgress } from "@/types/session";
-import { deriveScannerProgressViewModel, type WorkspaceProgressPhase } from "@/lib/scanner-progress-view";
+import { deriveScannerProgressViewModel, type ProgressCopy, type WorkspaceProgressPhase } from "@/lib/scanner-progress-view";
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -84,6 +85,8 @@ export function MinimalScanningView({
   hiddenAutoPlanning = false,
   phase,
 }: MinimalScanningViewProps) {
+  const { t } = useTranslation("common");
+  const translateCopy = (copy: ProgressCopy) => t(copy.key, copy.values);
   const effectivePhase: WorkspaceProgressPhase = phase || (hiddenAutoPlanning ? "planning" : "analyzing");
   const viewModel = React.useMemo(
     () => deriveScannerProgressViewModel(scanner, progressPercent, effectivePhase),
@@ -108,16 +111,18 @@ export function MinimalScanningView({
     return `${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
   const isPlanning = effectivePhase === "planning";
-  const displayTitle = viewModel.title;
-  const displayEyebrow = isPlanning ? "方案生成中" : viewModel.eyebrow;
-  const displayStageLabel = viewModel.stageLabel;
-  const displayDescription = viewModel.description;
+  const displayTitle = translateCopy(viewModel.title);
+  const displayEyebrow = isPlanning ? t("scanner.eyebrow.planning") : translateCopy(viewModel.eyebrow);
+  const displayStageLabel = translateCopy(viewModel.stageLabel);
+  const displayDescription = translateCopy(viewModel.description);
   const displayMessage = isPlanning
-    ? "文件较多或模型分析较深时需要多等一会。你可以先最小化窗口，方案准备好后会通过系统通知提醒。"
-    : (viewModel.backendMessage || viewModel.batchDetail);
-  const metricLabel = isPlanning ? "待整理文件" : "分析进度";
-  const currentStatusLabel = isPlanning ? "正在规划方案" : "正在只读分析";
-  const primaryItemLabel = isPlanning ? "整理方案生成中" : viewModel.currentItem || "正在准备读取目录";
+    ? t("scanner.minimal.longPlanMessage")
+    : viewModel.backendMessage ? translateCopy(viewModel.backendMessage) : (viewModel.batchDetail ? translateCopy(viewModel.batchDetail) : null);
+  const metricLabel = isPlanning ? t("scanner.minimal.filesToOrganize") : t("scanner.minimal.analysisProgress");
+  const currentStatusLabel = isPlanning ? t("scanner.minimal.planningStatus") : t("scanner.minimal.readOnlyAnalysisStatus");
+  const primaryItemLabel = isPlanning ? t("scanner.minimal.planInProgress") : viewModel.currentItem || t("scanner.minimal.preparingDirectoryRead");
+  const countLabel = translateCopy(viewModel.countLabel);
+  const progressLabel = viewModel.progressText ? translateCopy(viewModel.progressText) : countLabel;
   const progressBarPercent = isPlanning ? 100 : viewModel.progressPercent;
 
   return (
@@ -147,11 +152,11 @@ export function MinimalScanningView({
             <div className="flex items-center gap-6">
               <div className="hidden flex-col items-end md:flex">
                 <span className="text-[11px] font-black tracking-widest text-ui-muted/40">{metricLabel}</span>
-                <span className="font-mono text-[16px] font-bold text-on-surface">{viewModel.countLabel}</span>
+                <span className="font-mono text-[16px] font-bold text-on-surface">{countLabel}</span>
               </div>
               <div className="hidden h-8 w-[1px] bg-on-surface/10 sm:block" />
               <div className="hidden flex-col items-end sm:flex">
-                <span className="text-[11px] font-black tracking-widest text-ui-muted/40">已用时间</span>
+                  <span className="text-[11px] font-black tracking-widest text-ui-muted/40">{t("scanner.minimal.elapsedTime")}</span>
                 <span className="font-mono text-[16px] font-bold text-on-surface">{formatElapsedLabel(elapsedSeconds)}</span>
               </div>
               {onAbort && (
@@ -164,7 +169,7 @@ export function MinimalScanningView({
                     className="group flex h-10 items-center gap-2 rounded-lg border border-on-surface/10 bg-surface-container-lowest px-4 text-[11px] font-black uppercase tracking-widest transition-all hover:bg-error/5 hover:text-error hover:border-error/20 active:scale-95 disabled:opacity-40"
                   >
                     {aborting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <StopCircle className="h-3.5 w-3.5" />}
-                    <span>{aborting ? "正在停止" : isPlanning ? "停止并结束任务" : "停止扫描"}</span>
+                    <span>{aborting ? t("scanner.minimal.stopping") : isPlanning ? t("scanner.minimal.stopAndEnd") : t("scanner.minimal.stopScan")}</span>
                   </button>
                 </>
               )}
@@ -206,7 +211,7 @@ export function MinimalScanningView({
                          {isPlanning ? <Sparkles className="h-3 w-3" /> : <Activity className="h-3 w-3" />}
                        </span>
                        <span className="text-[11px] font-black tracking-widest text-primary/70">
-                         {isPlanning ? "方案规划中" : "当前正在分析"}
+                         {isPlanning ? t("scanner.minimal.planningNow") : t("scanner.minimal.analyzingNow")}
                        </span>
                     </div>
                     
@@ -226,7 +231,7 @@ export function MinimalScanningView({
                           <div className="mt-2 flex flex-wrap items-center gap-3">
                              <div className="flex items-center gap-1.5 rounded-full border border-on-surface/8 px-2.5 py-0.5 text-[11px] font-bold text-ui-muted opacity-80">
                                 <Activity className="h-3 w-3" />
-                                {viewModel.progressText || viewModel.countLabel}
+                                {progressLabel}
                              </div>
                              <span className="text-[11px] font-medium text-ui-muted/40 italic">{displayDescription}</span>
                           </div>
@@ -240,11 +245,11 @@ export function MinimalScanningView({
                       
                       <div className="mt-6 grid grid-cols-2 gap-4 border-t border-on-surface/5 pt-6">
                          <div>
-                            <span className="text-[11px] font-black tracking-widest text-ui-muted/40">已发现文件</span>
-                            <p className="mt-1 text-[13px] font-bold text-on-surface/80">{viewModel.countLabel}</p>
+                            <span className="text-[11px] font-black tracking-widest text-ui-muted/40">{t("scanner.minimal.itemsFound")}</span>
+                            <p className="mt-1 text-[13px] font-bold text-on-surface/80">{countLabel}</p>
                          </div>
                          <div>
-                            <span className="text-[11px] font-black tracking-widest text-ui-muted/40">当前状态</span>
+                            <span className="text-[11px] font-black tracking-widest text-ui-muted/40">{t("scanner.minimal.currentStatus")}</span>
                             <div className="mt-1 flex items-center gap-1.5 text-[13px] font-bold text-success-dim">
                                <div className="h-1.5 w-1.5 rounded-full bg-success-dim animate-pulse" />
                                {currentStatusLabel}
@@ -259,9 +264,9 @@ export function MinimalScanningView({
                           <Bell className="h-4 w-4" />
                         </div>
                         <div className="min-w-0">
-                          <p className="text-[12px] font-black tracking-tight text-on-surface">可以先最小化等待</p>
+                          <p className="text-[12px] font-black tracking-tight text-on-surface">{t("scanner.minimal.minimizeTitle")}</p>
                           <p className="mt-0.5 text-[12px] font-medium leading-5 text-on-surface/68">
-                            文件较多时会自动在后台规划；方案完成后，FilePilot 会通过系统通知提醒你回来查看结果。
+                            {t("scanner.minimal.minimizeDescription")}
                           </p>
                         </div>
                       </div>
@@ -273,10 +278,10 @@ export function MinimalScanningView({
                        <span className="flex h-5 w-5 items-center justify-center rounded-md bg-on-surface/5 text-on-surface/40">
                          <CheckCircle2 className="h-3 w-3" />
                        </span>
-                       <span className="text-[11px] font-black tracking-tight text-on-surface/70">只读安全说明</span>
+                       <span className="text-[11px] font-black tracking-tight text-on-surface/70">{t("scanner.minimal.readOnlyTitle")}</span>
                     </div>
                     <p className="mt-2 text-[12px] leading-5 text-ui-muted/70">
-                      扫描阶段只读取文件信息和必要摘要，不会移动或改写原文件。真正移动前还会先做安全检查。
+                      {t("scanner.minimal.readOnlyDescription")}
                     </p>
                   </div>
                 </motion.div>
@@ -288,10 +293,10 @@ export function MinimalScanningView({
           <div className="flex flex-col bg-surface">
             <div className="border-b border-on-surface/5 px-6 py-4">
                <div className="flex items-center justify-between">
-                  <h3 className="text-[11px] font-black tracking-widest text-ui-muted">{isPlanning ? "生成状态" : "扫描记录"}</h3>
+                  <h3 className="text-[11px] font-black tracking-widest text-ui-muted">{isPlanning ? t("scanner.minimal.planningStatusTitle") : t("scanner.minimal.scanLogTitle")}</h3>
                   <div className="flex items-center gap-1.5">
                     <span className="rounded-full bg-on-surface/5 px-2 py-0.5 text-[11px] font-bold text-ui-muted">
-                      {viewModel.countLabel}
+                      {countLabel}
                     </span>
                   </div>
                </div>
@@ -318,7 +323,7 @@ export function MinimalScanningView({
                             <div className="min-w-0 flex-1">
                               <p className="truncate text-[12px] font-bold text-on-surface/80">{item.display_name}</p>
                               <p className="truncate text-[11px] font-medium text-ui-muted/45 tracking-tight">
-                                {completed ? (item.suggested_purpose || "已完成分析") : "等待分析结果"}
+                                {completed ? (item.suggested_purpose || t("scanner.minimal.analysisComplete")) : t("scanner.minimal.waitingAnalysisResult")}
                               </p>
                               {completed && item.summary && (
                                 <p className="mt-0.5 line-clamp-1 text-[11px] font-medium text-ui-muted/35">
@@ -341,7 +346,7 @@ export function MinimalScanningView({
                         </div>
                         <div className="min-w-0 flex-1">
                           <p className="truncate text-[12px] font-bold text-on-surface/80">{viewModel.currentItem}</p>
-                          <p className="truncate text-[11px] font-medium text-primary/60 tracking-tight">{viewModel.progressText || "正在读取"}</p>
+                          <p className="truncate text-[11px] font-medium text-primary/60 tracking-tight">{viewModel.progressText ? translateCopy(viewModel.progressText) : t("scanner.minimal.reading")}</p>
                         </div>
                       </motion.div>
                     ) : viewModel.totalCount > 0 ? (
@@ -353,10 +358,10 @@ export function MinimalScanningView({
                             </div>
                             <div className="min-w-0 flex-1">
                               <p className="truncate text-[12px] font-bold text-on-surface/55">
-                                {index === 0 ? "正在等待首批分析结果" : `已发现项目队列 ${index + 1}`}
+                                {index === 0 ? t("scanner.minimal.waitingFirstBatch") : t("scanner.minimal.discoveredQueue", { queue: index + 1 })}
                               </p>
                               <p className="truncate text-[11px] font-medium text-ui-muted/35 tracking-tight">
-                                {index === 0 ? `已发现 ${viewModel.totalCount} 项` : "即将显示具体条目"}
+                                {index === 0 ? t("scanner.metrics.countFound", { count: viewModel.totalCount }) : t("scanner.minimal.queueItemsSoon")}
                               </p>
                             </div>
                           </div>
@@ -367,7 +372,7 @@ export function MinimalScanningView({
                          <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-full border border-on-surface/10">
                             <Loader2 className="h-5 w-5 animate-spin text-primary/60" />
                          </div>
-                         <p className="text-[12px] font-bold tracking-widest text-ui-muted">正在读取目录...</p>
+                         <p className="text-[12px] font-bold tracking-widest text-ui-muted">{t("scanner.minimal.readingDirectory")}</p>
                       </div>
                     )}
                   </AnimatePresence>
@@ -379,8 +384,8 @@ export function MinimalScanningView({
                 <div className="flex gap-3">
                   <AlertCircle className="h-4 w-4 shrink-0 text-warning" />
                   <div className="space-y-1">
-                    <p className="text-[12px] font-black text-warning">未配置 AI 模型</p>
-                    <p className="text-[11px] leading-tight text-warning/60 font-medium">当前仅支持读取目录结构，如需进行自动分类规划，请先在设置中配置文本模型。</p>
+                    <p className="text-[12px] font-black text-warning">{t("scanner.minimal.modelNotConfigured")}</p>
+                    <p className="text-[11px] leading-tight text-warning/60 font-medium">{t("scanner.minimal.modelNotConfiguredDescription")}</p>
                   </div>
                 </div>
               </Link>
@@ -404,7 +409,7 @@ export function MinimalScanningView({
                    <span className={cn(
                      "text-[11px] font-bold uppercase tracking-wider",
                      s.state === "done" || s.state === "active" ? "text-on-surface/60" : "text-ui-muted/30"
-                   )}>{s.title}</span>
+                   )}>{translateCopy(s.title)}</span>
                    {index < viewModel.steps.length - 1 && <div className="ml-4 h-px w-8 bg-on-surface/5" />}
                 </div>
               ))}

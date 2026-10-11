@@ -11,6 +11,7 @@ import {
   Sparkles,
   User,
 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 
@@ -87,9 +88,15 @@ interface ConversationPanelProps {
   progressPercent?: number;
   plannerStatus?: {
     label: string;
+    labelCode?: string;
+    labelParams?: Record<string, string | number>;
     detail: string | null;
-    elapsedLabel: string | null;
-    reassureText: string | null;
+    detailCode?: string | null;
+    detailParams?: Record<string, string | number>;
+    elapsedSeconds?: number | null;
+    reassure?: boolean;
+    elapsedLabel?: string | null;
+    reassureText?: string | null;
     attempt: number;
     phase: string | null;
     isRunning: boolean;
@@ -121,6 +128,7 @@ export function ConversationPanel({
   revealMessageId = null,
   onRevealComplete,
 }: ConversationPanelProps) {
+  const { t } = useTranslation("common");
   const stageView = getSessionStageView(stage);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [isPinnedToBottom, setIsPinnedToBottom] = useState(true);
@@ -386,17 +394,17 @@ export function ConversationPanel({
             </div>
             <div className="max-w-[400px] space-y-3">
               <h3 className="text-[1.25rem] font-black tracking-tight text-on-surface">
-                {isBusy ? "正在准备任务" : "开始读取目录"}
+                {isBusy ? t("workspace.conversation.preparingTask") : t("workspace.conversation.startReading")}
               </h3>
               <p className="text-[13px] font-medium leading-relaxed text-ui-muted opacity-70">
                 {isBusy
-                  ? "正在读取你选择的文件和文件夹，完成后会生成整理建议。"
-                  : "先只读扫描目录，确认本次要整理的项目，再决定怎么移动。"}
+                  ? t("workspace.conversation.readingSources")
+                  : t("workspace.conversation.readOnlyScanIntro")}
               </p>
               <div className="pt-4 flex justify-center">
                 {isBusy ? (
                    <div className="inline-flex items-center gap-3 rounded-lg border border-primary/20 bg-primary/[0.05] px-6 py-3 text-[13px] font-black text-primary">
-                    <Loader2 className="w-4 h-4 animate-spin" /> 正在自动执行
+                    <Loader2 className="w-4 h-4 animate-spin" /> {t("workspace.conversation.automaticStart")}
                   </div>
                 ) : (
                   <button
@@ -405,7 +413,7 @@ export function ConversationPanel({
                     className="group relative inline-flex items-center gap-3 overflow-hidden rounded-lg bg-primary px-8 py-3.5 text-[13px] font-black text-white transition-all hover:bg-primary-dim active:scale-95 disabled:opacity-50"
                   >
                     <Sparkles className="w-4 h-4" />
-                    <span>立即开始扫描</span>
+                    <span>{t("workspace.conversation.startScan")}</span>
                     <div className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/10 to-transparent transition-transform duration-1000 group-hover:translate-x-full" />
                   </button>
                 )}
@@ -427,9 +435,9 @@ export function ConversationPanel({
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2 mb-2">
                    <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[11px] font-black uppercase tracking-widest text-primary">
-                     {scanningView.stageLabel}
+                     {t(scanningView.stageLabel.key, scanningView.stageLabel.values)}
                    </span>
-                   <span className="text-[11px] font-bold text-on-surface/60">{scanningView.title}</span>
+                   <span className="text-[11px] font-bold text-on-surface/60">{t(scanningView.title.key, scanningView.title.values)}</span>
                 </div>
                 <div className="h-1.5 w-full rounded-full bg-on-surface/5 overflow-hidden">
                   <motion.div 
@@ -439,7 +447,7 @@ export function ConversationPanel({
                   />
                 </div>
                 <div className="mt-2 flex items-center justify-between">
-                   <span className="text-[11px] font-black uppercase tracking-widest text-ui-muted opacity-40">实时同步中</span>
+                   <span className="text-[11px] font-black uppercase tracking-widest text-ui-muted opacity-40">{t("workspace.conversation.liveSync")}</span>
                    <span className="font-mono text-[11px] font-black text-primary">{Math.round(scanningView.progressPercent)}%</span>
                 </div>
               </div>
@@ -463,7 +471,7 @@ export function ConversationPanel({
               return (
                 <div key={message.id} className="ml-11 py-2 flex items-center gap-3">
                   <div className="h-px w-6 bg-on-surface/10" />
-                  <span className="text-[11px] font-black tracking-widest text-ui-muted opacity-40">任务记录已更新</span>
+                  <span className="text-[11px] font-black tracking-widest text-ui-muted opacity-40">{t("workspace.conversation.taskRecordUpdated")}</span>
                 </div>
               );
             }
@@ -551,7 +559,7 @@ export function ConversationPanel({
               type="button"
               onClick={handleJumpToBottom}
               className="flex h-10 w-10 items-center justify-center rounded-full border border-primary/20 bg-surface transition-all hover:scale-110 hover:border-primary/40 active:scale-95 text-primary backdrop-blur-sm"
-              title="回到底部"
+              title={t("workspace.conversation.jumpToBottom")}
             >
               <ChevronDown className="h-5 w-5" />
             </button>

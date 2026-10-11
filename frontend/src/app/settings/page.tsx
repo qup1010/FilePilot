@@ -51,8 +51,12 @@ import { SystemTab, type UpdateCheckResult } from "@/app/settings/system-tab";
 import { TextTab } from "@/app/settings/text-tab";
 import { createApiClient } from "@/lib/api";
 import { notifyAppContextChange } from "@/lib/app-context-store";
-import { getApiBaseUrl, getApiToken, invokeTauriCommand, isTauriDesktop, pickDirectoryWithTauri, openUrlWithTauri } from "@/lib/runtime";
+import { getApiBaseUrl, getApiToken, invokeTauriCommandOrThrow, isTauriDesktop, pickDirectoryWithTauri, openUrlWithTauri } from "@/lib/runtime";
 import { cn } from "@/lib/utils";
+import { getUserFacingErrorCode, localizeUserFacingError } from "@/lib/user-facing-copy";
+import { useUiLocale } from "@/i18n/locale-provider";
+import { normalizeSavedUiLanguage } from "@/i18n/locales";
+import { useTranslation } from "react-i18next";
 import type {
   SettingsFamily,
   SettingsSnapshot,
@@ -80,6 +84,8 @@ const SETTINGS_CONTEXT_KEY = "settings_header_context";
 const COMPACT_SETTINGS_BREAKPOINT = 960;
 
 export default function SettingsPage() {
+  const { t } = useTranslation("common");
+  const { saveUiLanguage, resolvedUiLocale } = useUiLocale();
   const searchParams = useSearchParams();
   const initialTab = searchParams.get("tab");
   const normalizedInitialTab =
@@ -171,7 +177,7 @@ export default function SettingsPage() {
         },
       });
       if (!res.ok) {
-        throw new Error(`GitHub API 返回状态 ${res.status}`);
+        throw new Error(`GitHub API returned status ${res.status}`);
       }
       const data = await res.json();
       const latestVersion = data.tag_name; // 例如 "v0.1.2"
@@ -194,26 +200,39 @@ export default function SettingsPage() {
       }
     } catch (err: any) {
       console.error("Check update failed:", err);
-      setUpdateError(err.message || "无法连接至 GitHub 获取最新发布版本，请检查代理或网络连接。");
+      const status = err instanceof Error ? err.message.match(/GitHub API returned status (\d+)/)?.[1] : undefined;
+      setUpdateError(
+        status
+          ? t("settingsPage.systemTab.updateRequestFailed", { status })
+          : t("settingsPage.systemTab.updateConnectionFailed"),
+      );
     } finally {
       setCheckingUpdate(false);
     }
-  }, [checkingUpdate, cooldown, appVersion]);
+  }, [checkingUpdate, cooldown, appVersion, t]);
 
   const handleOpenLink = useCallback((url: string, e: React.MouseEvent) => {
     if (isTauriDesktop()) {
       e.preventDefault();
-      void openUrlWithTauri(url);
+      void openUrlWithTauri(url, t("settingsPage.errors.openLink")).catch((err) => {
+        setError(localizeUserFacingError(err, t("settingsPage.errors.openLink")));
+      });
     }
-  }, []);
+  }, [t]);
 
-  const categories = [
-    { id: "text", label: "整理模型配置", icon: Layers3, description: "配置文本分析与图片理解模型" },
-    { id: "launch", label: "任务默认策略", icon: SettingsIcon, description: "配置新建任务时的默认分类与放置规则" },
-    { id: "icon_image", label: "图标生图配置", icon: ImageIcon, description: "配置图标工坊的 AI 生图模型与参数" },
-    { id: "bg_removal", label: "透明抠图配置", icon: Scissors, description: "配置图标背景去除服务与端点" },
-    { id: "system", label: "关于与运行日志", icon: ShieldCheck, description: "项目版本、检查更新与系统日志" },
-  ];
+  const categories = useMemo(
+    () => [
+      { id: "text", label: t("settingsPage.categories.text.label"), icon: Layers3, description: t("settingsPage.categories.text.description") },
+      { id: "launch", label: t("settingsPage.categories.launch.label"), icon: SettingsIcon, description: t("settingsPage.categories.launch.description") },
+      { id: "icon_image", label: t("settingsPage.categories.iconImage.label"), icon: ImageIcon, description: t("settingsPage.categories.iconImage.description") },
+      { id: "bg_removal", label: t("settingsPage.categories.bgRemoval.label"), icon: Scissors, description: t("settingsPage.categories.bgRemoval.description") },
+      { id: "system", label: t("settingsPage.categories.system.label"), icon: ShieldCheck, description: t("settingsPage.categories.system.description") },
+    ],
+    [t],
+  );
+
+  const getPresetDisplayName = (family: "text" | "vision" | "icon_image", id: string, name: string) =>
+    id === "default" ? t(`settingsPage.defaultPresets.${family}`) : name;
 
   const secretMap = useMemo(
     () => ({
@@ -260,42 +279,43 @@ export default function SettingsPage() {
     () => categories.filter((item) => dirtyTabs[item.id]).map((item) => item.label),
     [categories, dirtyTabs],
   );
+  const dirtyTabList = new Intl.ListFormat(resolvedUiLocale, { style: "long", type: "conjunction" }).format(dirtyTabLabels);
   const healthItems = useMemo(
     () => [
       {
         id: "text" as const,
-        label: "文本分析",
-        description: "整理规划必需",
+        label: t("settingsPage.health.textAnalysis.label"),
+        description: t("settingsPage.health.textAnalysis.description"),
         configured: Boolean(snapshot?.status.text_configured),
         optional: false,
         icon: Layers3,
       },
       {
         id: "text" as const,
-        label: "图片理解",
-        description: "图片/截图增强",
+        label: t("settingsPage.health.vision.label"),
+        description: t("settingsPage.health.vision.description"),
         configured: Boolean(snapshot?.status.vision_configured),
         optional: true,
         icon: Globe,
       },
       {
         id: "icon_image" as const,
-        label: "图标生成",
-        description: "图标工坊需要",
+        label: t("settingsPage.health.iconImage.label"),
+        description: t("settingsPage.health.iconImage.description"),
         configured: Boolean(snapshot?.status.icon_image_configured),
         optional: true,
         icon: ImageIcon,
       },
       {
         id: "bg_removal" as const,
-        label: "背景处理",
-        description: "透明图标增强",
+        label: t("settingsPage.health.bgRemoval.label"),
+        description: t("settingsPage.health.bgRemoval.description"),
         configured: Boolean(snapshot?.status.bg_removal_configured),
         optional: true,
         icon: Scissors,
       },
     ],
-    [snapshot?.status.bg_removal_configured, snapshot?.status.icon_image_configured, snapshot?.status.text_configured, snapshot?.status.vision_configured],
+    [snapshot?.status.bg_removal_configured, snapshot?.status.icon_image_configured, snapshot?.status.text_configured, snapshot?.status.vision_configured, t],
   );
   const configuredHealthCount = healthItems.filter((item) => item.configured).length;
 
@@ -342,7 +362,7 @@ export default function SettingsPage() {
         }
       } catch (err) {
         if (!cancelled) {
-          setError(err instanceof Error ? err.message : "读取设置失败");
+          setError(err instanceof Error ? err.message : "settingsPage.feedback.loadSettingsFailed");
         }
       } finally {
         if (!cancelled) {
@@ -364,12 +384,12 @@ export default function SettingsPage() {
     window.localStorage.setItem(
       SETTINGS_CONTEXT_KEY,
       JSON.stringify({
-        title: "设置",
-        detail: "模型与工具配置",
+        title: t("settingsPage.context.title"),
+        detail: t("settingsPage.context.detail"),
       }),
     );
     notifyAppContextChange();
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -511,7 +531,7 @@ export default function SettingsPage() {
           status: "error",
           family,
           code: "request_failed",
-          message: err instanceof Error ? err.message : "获取模型列表失败",
+          message: err instanceof Error ? err.message : "settingsPage.feedback.fetchModelListFailed",
           models: [],
         },
       }));
@@ -534,9 +554,9 @@ export default function SettingsPage() {
     try {
       await api.activateSettingsPreset(family, presetId);
       hydrate(await api.getSettings());
-      setSuccess("预设已切换");
+      setSuccess("settingsPage.feedback.presetSwitched");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "切换预设失败");
+      setError(err instanceof Error ? err.message : "settingsPage.feedback.switchPresetFailed");
     } finally {
       setLoading(false);
     }
@@ -587,9 +607,9 @@ export default function SettingsPage() {
         });
       }
       hydrate(await api.getSettings());
-      setSuccess("新预设已创建并激活");
+      setSuccess("settingsPage.feedback.presetCreated");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "创建预设失败");
+      setError(err instanceof Error ? err.message : "settingsPage.feedback.createPresetFailed");
     } finally {
       setLoading(false);
     }
@@ -598,7 +618,12 @@ export default function SettingsPage() {
   const handleCreatePreset = (family: PresetConfigFamily) => {
     setCreatePresetDialog({
       family,
-      value: family === "text" ? "新的文本预设" : family === "vision" ? "新的图片理解预设" : "新的图标生图预设",
+      value:
+        family === "text"
+          ? t("settingsPage.feedback.newTextPreset")
+          : family === "vision"
+            ? t("settingsPage.feedback.newVisionPreset")
+            : t("settingsPage.feedback.newIconPreset"),
     });
   };
 
@@ -613,9 +638,9 @@ export default function SettingsPage() {
     try {
       await api.deleteSettingsPreset(family, presetId);
       hydrate(await api.getSettings());
-      setSuccess("预设已删除");
+      setSuccess("settingsPage.feedback.presetDeleted");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "删除预设失败");
+      setError(err instanceof Error ? err.message : "settingsPage.feedback.deletePresetFailed");
     } finally {
       setLoading(false);
     }
@@ -701,9 +726,10 @@ export default function SettingsPage() {
     try {
       const nextSnapshot = await api.updateSettings(payload);
       hydrate(nextSnapshot);
-      setSuccess("设置已保存并生效");
+      saveUiLanguage(normalizeSavedUiLanguage(nextSnapshot.global_config.UI_LANGUAGE));
+      setSuccess("settingsPage.feedback.settingsSaved");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "保存失败");
+      setError(err instanceof Error ? err.message : "settingsPage.feedback.saveFailed");
     } finally {
       setSaving(false);
     }
@@ -752,27 +778,33 @@ export default function SettingsPage() {
     try {
       if (family === "bg_removal") {
         if (!desktopReady) {
-          throw new Error("抠图服务测试仅支持桌面端。");
-        }
-        const runtimeConfig = await resolveBgRemovalRuntimeConfig();
-        const tauriResult = await invokeTauriCommand<{ status: string; message: string }>("test_bg_removal_connection", {
-          config: runtimeConfig,
-        });
-        setTestResults((current) => ({
-          ...current,
-          bg_removal: tauriResult
-            ? {
-              status: tauriResult.status === "ok" ? "ok" : "error",
-              family: "bg_removal",
-              code: tauriResult.status === "ok" ? "ok" : "unknown",
-              message: tauriResult.message,
-            }
-            : {
+          setTestResults((current) => ({
+            ...current,
+            bg_removal: {
               status: "error",
               family: "bg_removal",
               code: "desktop_unavailable",
-              message: "桌面端不可用，无法执行抠图连接测试。",
+              message: t("diagnostics.settingsTests.errors.desktopUnavailable"),
             },
+          }));
+          return;
+        }
+        const runtimeConfig = await resolveBgRemovalRuntimeConfig();
+        const tauriResult = await invokeTauriCommandOrThrow<{ status: string; message_code: string }>(
+          "test_bg_removal_connection",
+          { config: runtimeConfig },
+          t("diagnostics.settingsTests.errors.bgRemovalFailed"),
+        );
+        setTestResults((current) => ({
+          ...current,
+          bg_removal: {
+            status: tauriResult.status === "ok" && tauriResult.message_code === "BG_REMOVAL_CONNECTION_OK" ? "ok" : "error",
+            family: "bg_removal",
+            code: tauriResult.message_code === "BG_REMOVAL_CONNECTION_OK" ? "ok" : "unknown",
+            message: tauriResult.message_code === "BG_REMOVAL_CONNECTION_OK"
+              ? t("diagnostics.settingsTests.success.bg_removal")
+              : t("diagnostics.settingsTests.errors.bgRemovalFailed"),
+          },
         }));
         return;
       }
@@ -818,13 +850,13 @@ export default function SettingsPage() {
             });
       setTestResults((current) => ({ ...current, [family]: result }));
     } catch (err) {
-      const message = err instanceof Error ? err.message : "连接测试失败";
+      const message = localizeUserFacingError(err, t("diagnostics.settingsTests.errors.requestFailed"));
       setTestResults((current) => ({
         ...current,
         [family]: {
           status: "error",
           family,
-          code: "request_failed",
+          code: getUserFacingErrorCode(err) || "request_failed",
           message,
         },
       }));
@@ -851,7 +883,9 @@ export default function SettingsPage() {
       <div className="flex flex-1 items-center justify-center bg-surface">
         <div className="flex flex-col items-center gap-4">
           <RefreshCw className="h-9 w-9 animate-spin text-primary/45" />
-          <p className="text-[13px] font-semibold text-on-surface-variant/70">正在读取统一设置快照</p>
+          <p className="text-[13px] font-semibold text-on-surface-variant/70">
+            {t("settingsPage.feedback.loadingSettings")}
+          </p>
         </div>
       </div>
     );
@@ -867,7 +901,7 @@ export default function SettingsPage() {
           <aside className="w-[260px] 2xl:w-[280px] shrink-0 overflow-y-auto border-r border-on-surface/10 bg-surface-container-lowest px-3 py-4 scrollbar-none flex flex-col justify-between">
             <div className="space-y-1">
               <div className="px-3 pb-1 text-[11px] font-bold tracking-wider text-on-surface-variant/50">
-                设置选项
+                {t("settingsPage.categoriesHeading")}
               </div>
               {categories.map((cat) => {
                 const active = activeTab === cat.id;
@@ -892,7 +926,7 @@ export default function SettingsPage() {
                       <div className="flex items-center gap-2">
                         <p className={cn("text-[13px] font-bold leading-tight", active ? "text-primary font-bold" : "text-on-surface")}>{cat.label}</p>
                         {dirtyTabs[cat.id] ? (
-                          <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary" aria-label={`${cat.label} 有未保存修改`} />
+                          <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary" aria-label={t("settingsPage.unsaved.categoryLabel", { category: cat.label })} />
                         ) : null}
                       </div>
                       <p className={cn("mt-1 truncate text-[11px] leading-tight font-medium", active ? "text-primary/70" : "text-on-surface-variant/65")}>{cat.description}</p>
@@ -906,10 +940,10 @@ export default function SettingsPage() {
               <div className="flex items-center justify-between text-primary">
                 <div className="flex items-center gap-1.5">
                   <Cpu className="h-3.5 w-3.5 text-primary" />
-                  <span className="text-[11px] font-bold text-on-surface/75">核心能力状态</span>
+                  <span className="text-[11px] font-bold text-on-surface/75">{t("settingsPage.health.title")}</span>
                 </div>
                 <span className="text-[11px] font-bold font-mono text-primary bg-primary/10 rounded-full px-2 py-0.5">
-                  {configuredHealthCount}/{healthItems.length} 就绪
+                  {t("settingsPage.health.ready", { count: configuredHealthCount, total: healthItems.length })}
                 </span>
               </div>
               <div className="mt-2.5 space-y-1.5">
@@ -919,7 +953,7 @@ export default function SettingsPage() {
                     type="button"
                     onClick={() => handleSelectTab(item.id)}
                     className="flex w-full items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-on-surface/[0.05]"
-                    title={`前往${item.label}配置`}
+                    title={t("settingsPage.health.goToSettings", { label: item.label })}
                   >
                     <div className="flex items-center gap-2 min-w-0">
                       <item.icon className="h-3.5 w-3.5 shrink-0 text-on-surface-variant/50" />
@@ -928,11 +962,11 @@ export default function SettingsPage() {
                     {item.configured ? (
                       <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
                         <Check className="h-2.5 w-2.5" />
-                        已配置
+                        {t("settingsPage.health.configured")}
                       </span>
                     ) : (
                       <span className="text-[10px] font-medium text-on-surface-variant/45">
-                        {item.optional ? "可选" : "未配置"}
+                        {item.optional ? t("settingsPage.health.optional") : t("settingsPage.health.notConfigured")}
                       </span>
                     )}
                   </button>
@@ -955,19 +989,26 @@ export default function SettingsPage() {
               <div className="mb-6 rounded-[8px] border border-on-surface/8 bg-surface-container-lowest px-4 py-3">
                 <div className="flex items-center justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="text-[11px] font-bold uppercase tracking-wider text-ui-muted">当前分类</p>
+                    <p className="text-[11px] font-bold uppercase tracking-wider text-ui-muted">{t("settingsPage.compact.currentCategory")}</p>
                     <div className="flex items-center gap-2">
                       <p className="truncate text-[14px] font-bold text-on-surface">{activeCategory.label}</p>
-                      {dirtyTabs[activeCategory.id] ? <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary" /> : null}
+                      {dirtyTabs[activeCategory.id] ? (
+                        <span
+                          className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary"
+                          aria-label={t("settingsPage.unsaved.categoryLabel", { category: activeCategory.label })}
+                        />
+                      ) : null}
                     </div>
                   </div>
                   <Button variant="secondary" size="sm" onClick={() => setCategoryDialogOpen(true)}>
-                    切换分类
+                    {t("settingsPage.compact.switchCategory")}
                   </Button>
                 </div>
                 <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-on-surface/6 pt-3">
-                  <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-primary/55">配置健康</span>
-                  <span className="text-[11px] font-bold text-on-surface/50">{configuredHealthCount}/{healthItems.length} 可用</span>
+                  <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-primary/55">{t("settingsPage.compact.health")}</span>
+                  <span className="text-[11px] font-bold text-on-surface/50">
+                    {t("settingsPage.health.available", { count: configuredHealthCount, total: healthItems.length })}
+                  </span>
                   {healthItems.map((item) => (
                     <button
                       key={item.label}
@@ -986,13 +1027,17 @@ export default function SettingsPage() {
             )}
             {error && (
               <div className="mb-6 animate-in fade-in slide-in-from-top-2 duration-300">
-                <ErrorAlert title="操作执行失败" message={error} onClose={() => setError(null)} />
+                <ErrorAlert
+                  title={t("settingsPage.feedback.actionFailed")}
+                  message={error.startsWith("settingsPage.") ? t(error) : error}
+                  onClose={() => setError(null)}
+                />
               </div>
             )}
             {success && (
               <div className="mb-6 flex items-center gap-2.5 rounded-[6px] border border-success/15 bg-success/5 px-4 py-3 text-[13px] font-bold text-success-dim animate-in fade-in slide-in-from-top-2 duration-300">
                 <CheckCircle2 className="h-4 w-4" />
-                {success}
+                {t(success)}
               </div>
             )}
 
@@ -1002,9 +1047,15 @@ export default function SettingsPage() {
                 visionDraft={draft.vision}
                 visionEnabled={Boolean(draft.global_config.IMAGE_ANALYSIS_ENABLED)}
                 visionMode={visionMode}
-                textPresets={snapshot.families.text.presets.map((item) => ({ id: item.id, name: item.name }))}
+                textPresets={snapshot.families.text.presets.map((item) => ({
+                  id: item.id,
+                  name: getPresetDisplayName("text", item.id, item.name),
+                }))}
                 textActivePresetId={snapshot.families.text.active_preset_id}
-                visionPresets={snapshot.families.vision.presets.map((item) => ({ id: item.id, name: item.name }))}
+                visionPresets={snapshot.families.vision.presets.map((item) => ({
+                  id: item.id,
+                  name: getPresetDisplayName("vision", item.id, item.name),
+                }))}
                 visionActivePresetId={snapshot.families.vision.active_preset_id}
                 textSecret={textSecret}
                 setTextSecret={setTextSecret}
@@ -1024,7 +1075,10 @@ export default function SettingsPage() {
             {activeTab === "icon_image" && (
               <IconImageTab
                 iconImage={draft.icon_image}
-                presets={snapshot.families.icon_image.presets.map((item) => ({ id: item.id, name: item.name }))}
+                presets={snapshot.families.icon_image.presets.map((item) => ({
+                  id: item.id,
+                  name: getPresetDisplayName("icon_image", item.id, item.name),
+                }))}
                 activePresetId={snapshot.families.icon_image.active_preset_id}
                 textConfigured={Boolean(snapshot.status.text_configured)}
                 iconImageConfigured={Boolean(snapshot.status.icon_image_configured)}
@@ -1055,7 +1109,7 @@ export default function SettingsPage() {
                 onUpdate={(updater) => updateDraft("bg_removal", updater)}
                 secretField={
                   <SecretField
-                    label="Hugging Face Token（可选）"
+                    label={t("settingsPage.feedback.huggingFaceTokenOptional")}
                     state={draft.bg_removal.custom.secret_state}
                     secret={bgRemovalSecret}
                     setSecret={setBgRemovalSecret}
@@ -1097,12 +1151,20 @@ export default function SettingsPage() {
                 updateResult={updateResult}
                 updateError={updateError}
                 debugMode={Boolean(draft.global_config.DEBUG_MODE)}
+                uiLanguage={normalizeSavedUiLanguage(draft.global_config.UI_LANGUAGE)}
                 runtimeLogPath={snapshot?.runtime.log_paths.runtime_log || ""}
                 debugLogPath={snapshot?.runtime.log_paths.debug_log || ""}
                 onCheckUpdate={() => void handleCheckUpdate()}
                 onOpenLink={handleOpenLink}
                 onToggleDebugMode={() => updateGlobal("DEBUG_MODE", !draft.global_config.DEBUG_MODE)}
-                onCopyPath={(path) => copyTextToClipboard(path, setSuccess, setError)}
+                onChangeUiLanguage={(language) => updateGlobal("UI_LANGUAGE", language)}
+                onCopyPath={(path) =>
+                  copyTextToClipboard(path, setSuccess, setError, {
+                    unsupported: "settingsPage.feedback.clipboardUnavailable",
+                    copied: "settingsPage.feedback.pathCopied",
+                    failed: "settingsPage.feedback.pathCopyFailed",
+                  })
+                }
               />
             )}
           </motion.div>
@@ -1119,17 +1181,19 @@ export default function SettingsPage() {
                 )}
               >
                 <div className="mr-4 flex flex-col">
-                  <span className="text-[11px] font-bold uppercase tracking-wider text-primary">有未保存的配置更改</span>
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-primary">{t("settingsPage.unsaved.title")}</span>
                   <span className="text-[11px] font-medium text-on-surface/40">
-                    {dirtyTabLabels.length ? `涉及分类：${dirtyTabLabels.join("、")}` : "会保存本页未提交的修改"}
+                    {dirtyTabLabels.length
+                      ? t("settingsPage.unsaved.categories", { categories: dirtyTabList })
+                      : t("settingsPage.unsaved.fallback")}
                   </span>
                 </div>
                 <div className="h-8 w-px bg-primary/10" />
                 <Button variant="secondary" onClick={discardChanges} disabled={saving} className="h-9 px-4 text-[13px] font-bold">
-                  放弃修改
+                  {t("settingsPage.unsaved.discard")}
                 </Button>
                 <Button onClick={() => void handleSave()} loading={saving} disabled={saving} className="h-9 px-5 text-[13px] font-bold border border-primary/20 bg-primary active:bg-primary-dim">
-                  保存当前修改
+                  {t("settingsPage.unsaved.save")}
                 </Button>
               </motion.div>
             )}
@@ -1140,7 +1204,7 @@ export default function SettingsPage() {
       <Dialog open={categoryDialogOpen} onOpenChange={setCategoryDialogOpen}>
         <DialogContent className="max-w-[420px]">
           <DialogHeader>
-            <DialogTitle>切换设置分类</DialogTitle>
+            <DialogTitle>{t("settingsPage.categoryDialogTitle")}</DialogTitle>
           </DialogHeader>
           <div className="grid gap-2">
             {categories.map((cat) => {
@@ -1161,7 +1225,12 @@ export default function SettingsPage() {
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
                       <p className="text-[13px] font-bold">{cat.label}</p>
-                      {dirtyTabs[cat.id] ? <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary" /> : null}
+                      {dirtyTabs[cat.id] ? (
+                        <span
+                          className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary"
+                          aria-label={t("settingsPage.unsaved.categoryLabel", { category: cat.label })}
+                        />
+                      ) : null}
                     </div>
                     <p className="mt-1 text-[11px] font-medium text-ui-muted">{cat.description}</p>
                   </div>
@@ -1176,18 +1245,18 @@ export default function SettingsPage() {
         open={Boolean(createPresetDialog)}
         title={
           createPresetDialog?.family === "text"
-            ? "新建文本预设"
+            ? t("settingsPage.feedback.createTextPresetTitle")
             : createPresetDialog?.family === "vision"
-              ? "新建图片理解预设"
-              : "新建图标生图预设"
+              ? t("settingsPage.feedback.createVisionPresetTitle")
+              : t("settingsPage.feedback.createIconPresetTitle")
         }
-        description="输入一个清晰的预设名称。创建后会基于当前草稿生成新的激活预设。"
-        confirmLabel="创建并切换"
-        cancelLabel="取消"
+        description={t("settingsPage.feedback.createPresetDescription")}
+        confirmLabel={t("settingsPage.feedback.createAndSwitch")}
+        cancelLabel={t("settingsPage.feedback.cancel")}
         loading={loading}
         onConfirm={async () => {
           if (!createPresetDialog?.value.trim()) {
-            setError("请输入预设名称");
+            setError("settingsPage.feedback.presetNameRequired");
             return;
           }
           const dialog = createPresetDialog;
@@ -1197,7 +1266,9 @@ export default function SettingsPage() {
         onCancel={() => setCreatePresetDialog(null)}
       >
         <div className="space-y-2">
-          <label className="text-[12px] font-semibold text-on-surface-variant/70">预设名称</label>
+          <label className="text-[12px] font-semibold text-on-surface-variant/70">
+            {t("settingsPage.feedback.presetNameLabel")}
+          </label>
           <input
             autoFocus
             value={createPresetDialog?.value ?? ""}
@@ -1213,17 +1284,21 @@ export default function SettingsPage() {
               }
             }}
             className="w-full rounded-[8px] border border-on-surface/8 bg-surface-container-lowest px-4 py-3 text-[14px] font-semibold text-on-surface outline-none transition-all placeholder:text-on-surface-variant/35 focus:border-primary focus:ring-4 focus:ring-primary/5"
-            placeholder="请输入预设名称"
+            placeholder={t("settingsPage.feedback.presetNamePlaceholder")}
           />
         </div>
       </ConfirmDialog>
 
       <ConfirmDialog
         open={Boolean(deletePresetDialog)}
-        title="删除预设"
-        description={deletePresetDialog ? `确定删除“${deletePresetDialog.presetName}”吗？删除后不能恢复。` : ""}
-        confirmLabel="删除"
-        cancelLabel="取消"
+        title={t("settingsPage.feedback.deletePresetTitle")}
+        description={
+          deletePresetDialog
+            ? t("settingsPage.feedback.deletePresetDescription", { name: deletePresetDialog.presetName })
+            : ""
+        }
+        confirmLabel={t("settingsPage.feedback.delete")}
+        cancelLabel={t("settingsPage.feedback.cancel")}
         loading={loading}
         onConfirm={async () => {
           if (!deletePresetDialog) return;
@@ -1236,10 +1311,10 @@ export default function SettingsPage() {
 
       <ConfirmDialog
         open={Boolean(switchPresetDialog)}
-        title="放弃修改并切换预设？"
-        description="当前预设中有未保存的配置更改，切换后这些修改将丢失，确定继续切换吗？"
-        confirmLabel="确认切换"
-        cancelLabel="取消"
+        title={t("settingsPage.unsaved.switchTitle")}
+        description={t("settingsPage.unsaved.switchDescription")}
+        confirmLabel={t("settingsPage.unsaved.confirmSwitch")}
+        cancelLabel={t("settingsPage.unsaved.cancel")}
         loading={loading}
         onConfirm={async () => {
           if (!switchPresetDialog) return;

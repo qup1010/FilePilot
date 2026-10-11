@@ -17,6 +17,7 @@ from file_pilot.app.session_constants import (
 from file_pilot.organize import service as organize_service
 from file_pilot.organize.models import PendingPlan
 from file_pilot.organize.strategy_templates import normalize_strategy_selection
+from file_pilot.shared.content_locale import DEFAULT_CONTENT_LOCALE, normalize_content_locale
 from file_pilot.shared.path_utils import canonical_target_dir
 
 if TYPE_CHECKING:
@@ -173,6 +174,8 @@ class SessionOrchestrator:
             )
         except Exception as exc:
             session.last_error = str(exc)
+            session.last_error_code = "planner_failed"
+            session.last_error_params = {}
             self.helpers._fail_planner_progress(session, str(exc))
             raise
 
@@ -230,6 +233,8 @@ class SessionOrchestrator:
                 session.target_dir,
             )
             session.last_error = f"自动规划失败: {str(exc)}"
+            session.last_error_code = "planner_failed"
+            session.last_error_params = {}
             self.helpers._fail_planner_progress(session, session.last_error)
             session.stage = STAGE_INTERRUPTED
             self.helpers._sync_session_views(session)
@@ -298,7 +303,9 @@ class SessionOrchestrator:
         unattended: bool = False,
         new_directory_root: str = "",
         review_root: str = "",
+        content_locale: str = DEFAULT_CONTENT_LOCALE,
     ) -> CreateSessionResult:
+        normalized_content_locale = normalize_content_locale(content_locale)
         normalized_strategy = normalize_strategy_selection(
             {
                 **(strategy or {}),
@@ -458,6 +465,7 @@ class SessionOrchestrator:
             normalized_strategy.get("destination_index_depth")
         )
         session.language = normalized_strategy["language"]
+        session.content_locale = normalized_content_locale
         session.density = normalized_strategy["density"]
         session.prefix_style = normalized_strategy["prefix_style"]
         session.caution_level = normalized_strategy["caution_level"]

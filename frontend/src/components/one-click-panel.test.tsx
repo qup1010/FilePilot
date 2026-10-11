@@ -1,6 +1,7 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import i18n from "@/i18n/instance";
 import { OneClickPanel } from "./one-click-panel";
 import type { TargetProfile } from "@/types/session";
 
@@ -46,8 +47,9 @@ describe("OneClickPanel", () => {
     window.localStorage.clear();
   });
 
-  afterEach(() => {
+  afterEach(async () => {
     cleanup();
+    await i18n.changeLanguage("zh-CN");
   });
 
   it("guides to rules page when no profile exists", async () => {
@@ -76,7 +78,8 @@ describe("OneClickPanel", () => {
 
     fireEvent.click(await screen.findByText("选择目录"));
     await waitFor(() => expect(screen.getByText("Downloads")).toBeInTheDocument());
-    fireEvent.click(screen.getByRole("button", { name: "一键整理" }));
+    await i18n.changeLanguage("en");
+    fireEvent.click(await screen.findByRole("button", { name: "Organize now" }));
 
     await waitFor(() => expect(createSessionMock).toHaveBeenCalled());
     const payload = createSessionMock.mock.calls[0][0];
@@ -84,6 +87,7 @@ describe("OneClickPanel", () => {
     expect(payload.organize_method).toBe("assign_into_existing_categories");
     expect(payload.target_profile_id).toBe("p1");
     expect(payload.sources[0].path).toBe("D:/Downloads");
+    expect(payload.content_locale).toBe("en");
     await waitFor(() => expect(pushMock).toHaveBeenCalled());
     expect(String(pushMock.mock.calls[0][0])).toContain("/workspace/progress");
   });

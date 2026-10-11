@@ -1,8 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState, type Dispatch, type SetStateAction } from "react";
+import { useTranslation } from "react-i18next";
 
 import { createIconWorkbenchApiClient } from "@/lib/icon-workbench-api";
+import { localizeUserFacingError } from "@/lib/user-facing-copy";
 import type { IconTemplate } from "@/types/icon-workbench";
 
 interface UseIconTemplatesOptions {
@@ -16,6 +18,7 @@ export function useIconTemplates({
   setError,
   showNotice,
 }: UseIconTemplatesOptions) {
+  const { t } = useTranslation("common");
   const [templates, setTemplates] = useState<IconTemplate[]>([]);
   const [templatesLoading, setTemplatesLoading] = useState(true);
   const [templatesInitialized, setTemplatesInitialized] = useState(false);
@@ -36,7 +39,7 @@ export function useIconTemplates({
       })
       .catch((err) => {
         if (!cancelled) {
-          setError(err instanceof Error ? err.message : "加载模板失败");
+          setError(localizeUserFacingError(err, t("iconWorkbench.errors.loadTemplates")));
         }
       })
       .finally(() => {
@@ -49,7 +52,7 @@ export function useIconTemplates({
     return () => {
       cancelled = true;
     };
-  }, [iconApi, setError]);
+  }, [iconApi, setError, t]);
 
   useEffect(() => {
     const current = templates.find((template) => template.template_id === selectedTemplateId);
@@ -79,15 +82,15 @@ export function useIconTemplates({
         : (selectedTemplateId && items.some((template) => template.template_id === selectedTemplateId) ? selectedTemplateId : "");
       setSelectedTemplateId(nextSelectedId);
     } catch {
-      setError("刷新模板失败");
+      setError(t("iconWorkbench.errors.reloadTemplates"));
     } finally {
       setTemplatesLoading(false);
     }
-  }, [iconApi, selectedTemplateId, setError]);
+  }, [iconApi, selectedTemplateId, setError, t]);
 
   const createTemplate = useCallback(async () => {
     if (!templateNameDraft.trim() || !templatePromptDraft.trim()) {
-      setError("名称和提示词不能为空");
+      setError(t("iconWorkbench.errors.templateFieldsRequired"));
       return;
     }
     setTemplateActionLoading(true);
@@ -98,9 +101,9 @@ export function useIconTemplates({
         prompt_template: templatePromptDraft.trim(),
       });
       await reloadTemplates(created.template_id);
-      showNotice("模板创建成功");
+      showNotice(t("iconWorkbench.notices.templateCreated"));
     } catch {
-      setError("创建模板失败");
+      setError(t("iconWorkbench.errors.createTemplate"));
     } finally {
       setTemplateActionLoading(false);
     }
@@ -112,6 +115,7 @@ export function useIconTemplates({
     templateDescriptionDraft,
     templateNameDraft,
     templatePromptDraft,
+    t,
   ]);
 
   const updateTemplate = useCallback(async () => {
@@ -126,9 +130,9 @@ export function useIconTemplates({
         prompt_template: templatePromptDraft.trim(),
       });
       await reloadTemplates(updated.template_id);
-      showNotice("模板更新成功");
+      showNotice(t("iconWorkbench.notices.templateUpdated"));
     } catch {
-      setError("更新模板失败");
+      setError(t("iconWorkbench.errors.updateTemplate"));
     } finally {
       setTemplateActionLoading(false);
     }
@@ -141,6 +145,7 @@ export function useIconTemplates({
     templateDescriptionDraft,
     templateNameDraft,
     templatePromptDraft,
+    t,
   ]);
 
   const deleteTemplate = useCallback(async () => {
@@ -151,13 +156,13 @@ export function useIconTemplates({
     try {
       await iconApi.deleteTemplate(selectedTemplate.template_id);
       await reloadTemplates();
-      showNotice("模板已删除");
+      showNotice(t("iconWorkbench.notices.templateDeleted"));
     } catch {
-      setError("删除模板失败");
+      setError(t("iconWorkbench.errors.deleteTemplate"));
     } finally {
       setTemplateActionLoading(false);
     }
-  }, [iconApi, reloadTemplates, selectedTemplate, setError, showNotice]);
+  }, [iconApi, reloadTemplates, selectedTemplate, setError, showNotice, t]);
 
   return {
     templates,

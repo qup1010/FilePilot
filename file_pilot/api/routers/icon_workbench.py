@@ -131,7 +131,11 @@ def remove_icon_workbench_target(session_id: str, folder_id: str, request: Reque
 @router.post("/sessions/{session_id}/analyze")
 def analyze_icon_workbench_session(session_id: str, payload: IconWorkbenchFolderBatchPayload, request: Request):
     try:
-        return _service(request).analyze_folders(session_id, payload.folder_ids)
+        return _service(request).analyze_folders(
+            session_id,
+            payload.folder_ids,
+            content_locale=payload.content_locale,
+        )
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="ICON_FOLDER_NOT_FOUND")
     except ValueError as exc:

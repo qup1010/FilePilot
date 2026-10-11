@@ -2,9 +2,11 @@
 
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { Clock, FolderOpen, LoaderCircle, RefreshCw, Trash2, X } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 import { cn } from "@/lib/utils";
 import type { IconWorkbenchHistoryItem } from "@/types/icon-workbench";
+import { getIconWorkbenchHistoryActionMessage } from "./icon-workbench-utils";
 
 interface IconWorkbenchHistoryDrawerProps {
   open: boolean;
@@ -20,19 +22,15 @@ interface IconWorkbenchHistoryDrawerProps {
   onDeleteSession: (sessionId: string) => void;
 }
 
-function formatUpdatedAt(value: string): string {
+function formatUpdatedAt(value: string, locale: string, unknownTime: string): string {
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value || "未知时间";
-  return new Intl.DateTimeFormat("zh-CN", {
+  if (Number.isNaN(date.getTime())) return unknownTime;
+  return new Intl.DateTimeFormat(locale, {
     month: "2-digit",
     day: "2-digit",
     hour: "2-digit",
     minute: "2-digit",
   }).format(date);
-}
-
-function countSummary(item: IconWorkbenchHistoryItem): string {
-  return `${item.folder_count} 个文件夹 · ${item.ready_count} 个预览图 · ${item.applied_count} 个已应用`;
 }
 
 export function IconWorkbenchHistoryDrawer({
@@ -48,6 +46,9 @@ export function IconWorkbenchHistoryDrawer({
   onOpenSession,
   onDeleteSession,
 }: IconWorkbenchHistoryDrawerProps) {
+  const { t, i18n } = useTranslation("common");
+  const locale = i18n.resolvedLanguage || i18n.language;
+  const formatCount = (key: string, count: number) => t(key, { count });
   return (
     <DialogPrimitive.Root
       open={open}
@@ -65,10 +66,10 @@ export function IconWorkbenchHistoryDrawer({
               </div>
               <div className="min-w-0">
                 <DialogPrimitive.Title asChild>
-                  <h2 className="truncate text-[16px] font-black tracking-tight text-on-surface">历史工作区</h2>
+                  <h2 className="truncate text-[16px] font-black tracking-tight text-on-surface">{t("iconWorkbench.history.title")}</h2>
                 </DialogPrimitive.Title>
                 <DialogPrimitive.Description asChild>
-                  <p className="mt-0.5 text-[11px] text-ui-muted">按上次修改时间显示最近 20 条记录</p>
+                  <p className="mt-0.5 text-[11px] text-ui-muted">{t("iconWorkbench.history.description")}</p>
                 </DialogPrimitive.Description>
               </div>
             </div>
@@ -76,14 +77,14 @@ export function IconWorkbenchHistoryDrawer({
               <button
                 onClick={onReload}
                 className="flex h-9 w-9 items-center justify-center rounded-[8px] text-ui-muted transition-colors hover:bg-on-surface/4 hover:text-on-surface"
-                title="刷新历史工作区"
+                title={t("iconWorkbench.history.refresh")}
               >
                 <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
               </button>
               <button
                 onClick={onClose}
                 className="flex h-9 w-9 items-center justify-center rounded-[8px] text-ui-muted transition-colors hover:bg-on-surface/4 hover:text-on-surface"
-                title="关闭"
+                title={t("iconWorkbench.common.close")}
               >
                 <X className="h-4 w-4" />
               </button>
@@ -100,12 +101,12 @@ export function IconWorkbenchHistoryDrawer({
             {loading && items.length === 0 ? (
               <div className="flex h-40 flex-col items-center justify-center gap-2 text-ui-muted">
                 <LoaderCircle className="h-5 w-5 animate-spin text-primary/50" />
-                <p className="text-[12px] font-bold">正在读取历史工作区...</p>
+                <p className="text-[12px] font-bold">{t("iconWorkbench.history.loading")}</p>
               </div>
             ) : items.length === 0 ? (
               <div className="flex h-40 flex-col items-center justify-center gap-2 text-center text-ui-muted">
                 <FolderOpen className="h-6 w-6 text-on-surface/20" />
-                <p className="text-[12px] font-bold">还没有可恢复的图标工作区</p>
+                <p className="text-[12px] font-bold">{t("iconWorkbench.history.empty")}</p>
               </div>
             ) : (
               <div className="flex flex-col gap-2">
@@ -113,7 +114,8 @@ export function IconWorkbenchHistoryDrawer({
                   const isActive = item.session_id === activeSessionId;
                   const isOpening = openingSessionId === item.session_id;
                   const isDeleting = deletingSessionId === item.session_id;
-                  const targetPreview = item.target_paths.length > 0 ? item.target_paths.join(" · ") : "尚未记录目标路径";
+                  const targetPreview = item.target_paths.length > 0 ? item.target_paths.join(" · ") : t("iconWorkbench.history.targetPathMissing");
+                  const lastActionMessage = getIconWorkbenchHistoryActionMessage(item, t, locale);
                   return (
                     <div
                       key={item.session_id}
@@ -128,11 +130,11 @@ export function IconWorkbenchHistoryDrawer({
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2">
                             <p className="truncate text-[13px] font-black text-on-surface">
-                              上次修改 {formatUpdatedAt(item.updated_at)}
+                              {t("iconWorkbench.history.lastUpdated", { time: formatUpdatedAt(item.updated_at, locale, t("iconWorkbench.history.unknownTime")) })}
                             </p>
                             {isActive ? (
                               <span className="shrink-0 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-black text-primary">
-                                当前
+                                {t("iconWorkbench.history.current")}
                               </span>
                             ) : null}
                           </div>
@@ -140,12 +142,16 @@ export function IconWorkbenchHistoryDrawer({
                             {targetPreview}
                           </p>
                           <p className="mt-2 text-[11px] font-bold text-ui-muted/80">
-                            {countSummary(item)}
-                            {item.error_count > 0 ? ` · ${item.error_count} 异常` : ""}
+                            {t("iconWorkbench.history.countSummary", {
+                              folders: formatCount("iconWorkbench.history.folderCount", item.folder_count),
+                              previews: formatCount("iconWorkbench.history.previewCount", item.ready_count),
+                              applied: formatCount("iconWorkbench.history.appliedCount", item.applied_count),
+                            })}
+                            {item.error_count > 0 ? ` · ${formatCount("iconWorkbench.history.errorCount", item.error_count)}` : ""}
                           </p>
-                          {item.last_action_message ? (
-                            <p className="mt-1 truncate text-[11px] text-ui-muted/70" title={item.last_action_message}>
-                              {item.last_action_message}
+                          {lastActionMessage ? (
+                            <p className="mt-1 truncate text-[11px] text-ui-muted/70" title={lastActionMessage}>
+                              {lastActionMessage}
                             </p>
                           ) : null}
                         </div>
@@ -155,13 +161,13 @@ export function IconWorkbenchHistoryDrawer({
                             disabled={isOpening || isDeleting}
                             className="flex h-8 items-center justify-center rounded-[8px] border border-primary/12 bg-primary/8 px-2.5 text-[11px] font-black text-primary transition-colors hover:bg-primary/14 disabled:cursor-not-allowed disabled:opacity-50"
                           >
-                            {isOpening ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : "打开"}
+                            {isOpening ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : t("iconWorkbench.history.open")}
                           </button>
                           <button
                             onClick={() => onDeleteSession(item.session_id)}
                             disabled={isOpening || isDeleting}
                             className="flex h-8 w-8 items-center justify-center rounded-[8px] border border-on-surface/8 bg-on-surface/[0.02] text-ui-muted/45 transition-colors hover:bg-error/10 hover:text-error disabled:cursor-not-allowed disabled:opacity-50"
-                            title="删除历史工作区"
+                            title={t("iconWorkbench.history.delete")}
                           >
                             {isDeleting ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
                           </button>

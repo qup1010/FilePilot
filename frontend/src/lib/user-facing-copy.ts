@@ -1,3 +1,6 @@
+import i18n from "@/i18n/instance";
+import type { TFunction } from "i18next";
+
 export class UserFacingError extends Error {
   code?: string;
   status?: number;
@@ -12,7 +15,7 @@ export class UserFacingError extends Error {
   }
 }
 
-function parseErrorPayload(errorText: string): { detail?: string; message?: string; error_code?: string } | null {
+function parseErrorPayload(errorText: string): { detail?: string; error_code?: string; code?: string } | null {
   const trimmed = String(errorText || "").trim();
   if (!trimmed) {
     return null;
@@ -24,9 +27,9 @@ function parseErrorPayload(errorText: string): { detail?: string; message?: stri
     }
     if (parsed && typeof parsed === "object") {
       const detail = typeof parsed.detail === "string" ? parsed.detail : undefined;
-      const message = typeof parsed.message === "string" ? parsed.message : undefined;
       const errorCode = typeof parsed.error_code === "string" ? parsed.error_code : undefined;
-      return { detail, message, error_code: errorCode };
+      const code = typeof parsed.code === "string" ? parsed.code : undefined;
+      return { detail, error_code: errorCode, code };
     }
   } catch {
     return { detail: trimmed };
@@ -34,148 +37,231 @@ function parseErrorPayload(errorText: string): { detail?: string; message?: stri
   return null;
 }
 
+const REQUEST_ERROR_COPY_KEYS: Record<string, string> = {
+  SESSION_NOT_FOUND: "sessionNotFound",
+  SESSION_STAGE_CONFLICT: "sessionStageConflict",
+  SESSION_LOCKED: "sessionLocked",
+  CONFIRMATION_REQUIRED: "confirmationRequired",
+  OUTPUT_DIR_REQUIRED: "outputDirectoryRequired",
+  NEW_DIRECTORY_ROOT_REQUIRED: "outputDirectoryRequired",
+  REVIEW_ROOT_REQUIRED: "reviewDirectoryRequired",
+  REVIEW_ROOT_CONFLICT: "reviewDirectoryConflict",
+  TARGET_DIRECTORIES_REQUIRED: "targetDirectoriesRequired",
+  TARGET_PROFILE_NOT_FOUND: "targetProfileNotFound",
+  SOURCE_PATH_DRIVE_ROOT: "sourceDriveRoot",
+  SOURCE_PATH_SYSTEM_PROTECTED: "sourceSystemProtected",
+  SOURCE_PATH_PROJECT_ROOT: "sourceProjectRoot",
+  SOURCE_PATH_EMPTY: "sourceRequired",
+  INCREMENTAL_TARGET_NOT_ALLOWED: "incrementalTargetNotAllowed",
+  ABSOLUTE_TARGET_DIR_NOT_ALLOWED: "absoluteTargetNotAllowed",
+  TARGET_DIR_OUTSIDE_ROOT: "targetOutsideRoot",
+  REVIEW_SUBDIRECTORY_NOT_ALLOWED: "reviewSubdirectoryNotAllowed",
+  RULE_DRAFTS_THINKING_TOOL_UNSUPPORTED: "ruleDraftThinkingUnsupported",
+  RULE_DRAFTS_TOOL_UNSUPPORTED: "ruleDraftToolUnsupported",
+  RULE_DRAFTS_MODEL_AUTH: "ruleDraftModelAuth",
+  RULE_DRAFTS_MODEL_RATE_LIMIT: "ruleDraftModelRateLimit",
+  RULE_DRAFTS_MODEL_TIMEOUT: "ruleDraftModelTimeout",
+  RULE_DRAFTS_MODEL_NETWORK: "ruleDraftModelNetwork",
+  RULE_DRAFTS_MODEL_REJECTED: "ruleDraftModelRejected",
+  RULE_DRAFTS_MODEL_ERROR: "ruleDraftModelError",
+  RULE_DRAFTS_MISSING_TOOL_CALL: "ruleDraftMissingToolCall",
+  RULE_DRAFTS_PATHS_NOT_IN_PROFILE: "ruleDraftPathsNotInProfile",
+  UI_LANGUAGE_INVALID: "uiLanguageInvalid",
+  HISTORY_ENTRY_NOT_FOUND: "historyEntryNotFound",
+  ICON_SESSION_NOT_FOUND: "iconSessionNotFound",
+  ICON_FOLDER_NOT_FOUND: "iconFolderNotFound",
+  SETTINGS_FAMILY_INVALID: "settingsFamilyInvalid",
+  SETTINGS_SECRET_ACTION_INVALID: "settingsSecretActionInvalid",
+  SETTINGS_PRESET_TYPE_INVALID: "settingsPresetTypeInvalid",
+  SETTINGS_PRESET_NOT_FOUND: "settingsPresetNotFound",
+  UNAUTHORIZED: "unauthorized",
+};
+
+const NATIVE_COMMAND_COPY_KEYS: Record<string, string> = {
+  TAURI_PATH_NOT_FOUND: "diagnostics.nativeCommands.pathNotFound",
+  TAURI_PERMISSION_DENIED: "diagnostics.nativeCommands.permissionDenied",
+  TAURI_ICON_BACKUP_NOT_FOUND: "diagnostics.nativeCommands.iconBackupNotFound",
+  TAURI_UNSUPPORTED_PLATFORM: "diagnostics.nativeCommands.unsupportedPlatform",
+  TAURI_SHELL_OPEN_FAILED: "diagnostics.nativeCommands.shellOpenFailed",
+  TAURI_BACKGROUND_REMOVAL_FAILED: "diagnostics.nativeCommands.backgroundRemovalFailed",
+  TAURI_ICON_OPERATION_FAILED: "diagnostics.nativeCommands.iconOperationFailed",
+  TAURI_FILE_SAVE_FAILED: "diagnostics.nativeCommands.fileSaveFailed",
+  TAURI_NOTIFICATION_FAILED: "diagnostics.nativeCommands.notificationFailed",
+  TAURI_INVALID_ARGUMENT: "diagnostics.nativeCommands.invalidArgument",
+  TAURI_OPERATION_FAILED: "diagnostics.nativeCommands.operationFailed",
+};
+
+export interface NativeCommandFailure {
+  code: string;
+  params: Record<string, string | number | boolean | null>;
+  detail: string;
+}
+
+function nativeCommandFailureFromValue(value: unknown): NativeCommandFailure | null {
+  if (typeof value === "string") {
+    try {
+      return nativeCommandFailureFromValue(JSON.parse(value));
+    } catch {
+      return null;
+    }
+  }
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const candidate = value as Record<string, unknown>;
+  const code = typeof candidate.code === "string"
+    ? candidate.code
+    : typeof candidate.error_code === "string"
+      ? candidate.error_code
+      : "";
+  if (!code) {
+    return null;
+  }
+  const params = candidate.params && typeof candidate.params === "object" && !Array.isArray(candidate.params)
+    ? candidate.params as NativeCommandFailure["params"]
+    : {};
+  const detail = typeof candidate.detail === "string"
+    ? candidate.detail
+    : typeof candidate.message === "string"
+      ? candidate.message
+      : "";
+  return { code, params, detail };
+}
+
+export function parseNativeCommandFailure(error: unknown): NativeCommandFailure | null {
+  const direct = nativeCommandFailureFromValue(error);
+  if (direct) {
+    return direct;
+  }
+  if (error instanceof Error) {
+    return nativeCommandFailureFromValue(error.message);
+  }
+  return null;
+}
+
+export function getNativeCommandErrorCopyKey(code: string | null | undefined): string | null {
+  return NATIVE_COMMAND_COPY_KEYS[String(code || "").trim()] || null;
+}
+
+export function localizeNativeCommandError(
+  code: string,
+  params: NativeCommandFailure["params"],
+  fallbackMessage: string,
+  t: TFunction<"common"> = i18n.t,
+): string {
+  const copyKey = getNativeCommandErrorCopyKey(code);
+  return copyKey ? t(copyKey, params) : fallbackMessage;
+}
+
+export function createUserFacingTauriCommandError(error: unknown, fallbackMessage: string): UserFacingError {
+  const failure = parseNativeCommandFailure(error);
+  if (!failure) {
+    return new UserFacingError(fallbackMessage, {
+      rawMessage: error instanceof Error ? error.message : String(error ?? ""),
+    });
+  }
+  return new UserFacingError(
+    localizeNativeCommandError(failure.code, failure.params, fallbackMessage),
+    { code: failure.code, rawMessage: failure.detail || JSON.stringify(failure) },
+  );
+}
+
 function requestErrorMessage(status: number, detail?: string): string {
   const normalizedDetail = String(detail || "").trim().toUpperCase();
-  if (normalizedDetail === "SESSION_NOT_FOUND") {
-    return "这条任务记录已不存在或已被删除。";
-  }
-  if (normalizedDetail === "SESSION_STAGE_CONFLICT") {
-    return "当前任务状态已变化，请刷新后重试。";
-  }
-  if (normalizedDetail === "SESSION_LOCKED") {
-    return "当前任务正在被其他操作占用，请稍后再试。";
-  }
-  if (normalizedDetail === "CONFIRMATION_REQUIRED") {
-    return "请先确认当前操作，再继续执行。";
-  }
-  if (normalizedDetail === "OUTPUT_DIR_REQUIRED" || normalizedDetail === "NEW_DIRECTORY_ROOT_REQUIRED") {
-    return "请先指定新目录生成位置，再开始整理。";
-  }
-  if (normalizedDetail === "REVIEW_ROOT_REQUIRED") {
-    return "请先指定待确认区位置，再开始整理。";
-  }
-  if (normalizedDetail === "REVIEW_ROOT_CONFLICT") {
-    return "待确认区位置不能与新目录生成位置或目标目录重合、互相包含。请改选一个独立目录。";
-  }
-  if (normalizedDetail === "TARGET_DIRECTORIES_REQUIRED") {
-    return "归入已有目录时，请先选择至少一个目标目录。";
-  }
-  if (normalizedDetail === "TARGET_PROFILE_NOT_FOUND") {
-    return "当前目录配置已不存在，请重新选择目标目录配置。";
-  }
-  if (normalizedDetail === "SOURCE_PATH_DRIVE_ROOT") {
-    return "不能直接整理磁盘根目录。请改选下载、桌面、照片或某个明确的个人资料文件夹。";
-  }
-  if (normalizedDetail === "SOURCE_PATH_SYSTEM_PROTECTED") {
-    return "这个位置属于系统或软件配置目录，FilePilot 已阻止本次整理以避免破坏系统或应用。";
-  }
-  if (normalizedDetail === "SOURCE_PATH_PROJECT_ROOT") {
-    return "不能直接整理 FilePilot 当前项目目录。请改选一个明确的待整理文件夹或单个文件。";
-  }
-  if (normalizedDetail === "SOURCE_PATH_EMPTY") {
-    return "请先选择有效的整理来源。";
-  }
-  if (normalizedDetail === "INCREMENTAL_TARGET_NOT_ALLOWED") {
-    return "归入已有目录时，只能移动到已选择的目标目录。";
-  }
-  if (normalizedDetail === "ABSOLUTE_TARGET_DIR_NOT_ALLOWED") {
-    return "目标路径需要填写相对目录，不能直接填写绝对路径。";
-  }
-  if (normalizedDetail === "TARGET_DIR_OUTSIDE_ROOT") {
-    return "目标路径不能跳出新目录生成位置，请填写它下面的相对目录。";
-  }
-  if (normalizedDetail === "REVIEW_SUBDIRECTORY_NOT_ALLOWED") {
-    return "待确认区只作为统一暂存位置，不能再指定它的子目录。";
-  }
-  if (normalizedDetail === "RULE_DRAFTS_THINKING_TOOL_UNSUPPORTED") {
-    return "当前模型处于思考模式，不支持强制工具调用。请关闭 thinking，或换用支持工具调用的非思考模型。";
-  }
-  if (normalizedDetail === "RULE_DRAFTS_TOOL_UNSUPPORTED") {
-    return "当前模型不支持工具调用，无法自动生成规则初稿。请在设置中换用支持 function calling 的文本模型。";
-  }
-  if (normalizedDetail === "RULE_DRAFTS_MODEL_AUTH") {
-    return "模型服务认证失败，请检查设置中的 API 密钥。";
-  }
-  if (normalizedDetail === "RULE_DRAFTS_MODEL_RATE_LIMIT") {
-    return "模型服务请求过于频繁，请稍后再试。";
-  }
-  if (normalizedDetail === "RULE_DRAFTS_MODEL_TIMEOUT") {
-    return "模型服务响应超时，请稍后重试。";
-  }
-  if (normalizedDetail === "RULE_DRAFTS_MODEL_NETWORK") {
-    return "无法连接到模型服务，请检查网络与接口地址。";
-  }
-  if (normalizedDetail === "RULE_DRAFTS_MODEL_REJECTED") {
-    return "模型服务拒绝了规则生成请求，请稍后再试。";
-  }
-  if (normalizedDetail === "RULE_DRAFTS_MODEL_ERROR") {
-    return "生成规则初稿失败，请确认模型配置后重试。";
-  }
-  if (normalizedDetail === "RULE_DRAFTS_MISSING_TOOL_CALL") {
-    return "模型未返回可用的规则初稿，请稍后重试。";
-  }
-  if (normalizedDetail === "RULE_DRAFTS_PATHS_NOT_IN_PROFILE") {
-    return "指定的目录不在当前规则配置中。";
+  const copyKey = REQUEST_ERROR_COPY_KEYS[normalizedDetail];
+  if (copyKey) {
+    return i18n.t(`diagnostics.http.${copyKey}`);
   }
   if (normalizedDetail.startsWith("RULE_DRAFTS_INVALID_JSON")) {
-    return "模型返回的规则格式无效，请稍后重试。";
+    return i18n.t("diagnostics.http.ruleDraftInvalidJson");
   }
 
   if (status === 401 || status === 403) {
-    return "当前连接已失效，请重新启动应用后再试。";
+    return i18n.t("diagnostics.http.unauthorized");
   }
   if (status === 404) {
-    return "这条任务记录已不存在或已被删除。";
+    return i18n.t("diagnostics.http.notFound");
   }
   if (status === 409) {
-    return "当前任务状态已变化，请刷新后重试。";
+    return i18n.t("diagnostics.http.conflict");
   }
   if (status >= 500) {
-    return "本地服务处理请求时出错，请稍后再试。";
+    return i18n.t("diagnostics.http.serverError");
   }
   if (status >= 400) {
-    return "当前请求暂时无法完成，请刷新后重试。";
+    return i18n.t("diagnostics.http.requestRejected");
   }
-  return "操作失败，请稍后再试。";
+  return i18n.t("diagnostics.http.operationFailed");
 }
-
-const GENERIC_REQUEST_ERROR_MESSAGES = new Set([
-  "本地服务处理请求时出错，请稍后再试。",
-  "当前请求暂时无法完成，请刷新后重试。",
-  "操作失败，请稍后再试。",
-]);
 
 export function createUserFacingRequestError(status: number, statusText: string, errorText: string): UserFacingError {
   const payload = parseErrorPayload(errorText);
-  // Prefer machine codes for mapping; keep backend Chinese message as fallback.
-  const code = payload?.error_code || payload?.detail || "";
-  const mapped = requestErrorMessage(status, code || payload?.message || "");
-  const backendMessage = String(payload?.message || "").trim();
-  const message =
-    GENERIC_REQUEST_ERROR_MESSAGES.has(mapped) && backendMessage
-      ? backendMessage
-      : mapped;
+  // Use machine-readable codes for copy; backend messages are retained only in rawMessage.
+  const detailCode = payload?.detail && /^[A-Z][A-Z0-9_]*(?::[A-Z0-9_-]+)?$/.test(payload.detail.trim())
+    ? payload.detail
+    : "";
+  const code = payload?.error_code || payload?.code || detailCode;
+  const message = requestErrorMessage(status, code);
   const rawMessage = `Request failed (${status} ${statusText}): ${errorText}`;
   return new UserFacingError(message, {
-    code: code || backendMessage || undefined,
+    code: code || undefined,
     status,
     rawMessage,
   });
 }
 
-export function localizeSessionLastError(lastError: string | null | undefined, fallback = "任务处理中断，请重新扫描后再继续。"): string {
+export function localizeSessionLastError(
+  lastError: string | null | undefined,
+  fallback?: string,
+  errorCode?: string | null,
+  errorParams?: Record<string, string | number | boolean | null> | null,
+): string {
+  const translatedFallback = fallback ?? i18n.t("workspace.fallback.interrupted");
+  const codeKeys: Record<string, string> = {
+    scanner_failed: "scannerFailed",
+    scan_empty_result: "scanEmpty",
+    scan_incomplete_batches: "scanIncompleteBatches",
+    scan_incomplete_items: "scanIncompleteItems",
+    planner_failed: "plannerFailed",
+    execution_failed: "executionFailed",
+    execution_journal_missing: "executionJournalMissing",
+    rollback_failed: "rollbackFailed",
+  };
+  const code = String(errorCode || "").trim().toLowerCase();
+  if (codeKeys[code]) {
+    return i18n.t(`diagnostics.sessionErrors.${codeKeys[code]}`, errorParams || {});
+  }
+  const stage = String(errorParams?.stage || (code.endsWith("_interrupted") ? code.slice(0, -"_interrupted".length) : ""));
+  if (stage) {
+    if (stage === "scanning") {
+      return i18n.t("workspace.fallback.scanningInterrupted");
+    }
+    const stageKeys: Record<string, string> = {
+      scanning: "stageScanning",
+      planning: "stagePlanning",
+      executing: "stageExecuting",
+      rolling_back: "stageRollingBack",
+      draft: "stageDraft",
+      selecting_incremental_scope: "stageSelectingTargets",
+    };
+    const stageLabel = stageKeys[stage]
+      ? i18n.t(`diagnostics.sessionErrors.${stageKeys[stage]}`)
+      : i18n.t("diagnostics.sessionErrors.stageTask");
+    return i18n.t("diagnostics.sessionErrors.sessionInterrupted", { stage: stageLabel });
+  }
   const normalized = String(lastError || "").trim().toLowerCase();
   if (!normalized) {
-    return fallback;
+    return translatedFallback;
   }
   if (normalized === "scanning_interrupted") {
-    return "扫描过程中已中断，请重新扫描后再继续。";
+    return i18n.t("workspace.fallback.scanningInterrupted");
   }
   if (normalized === "missing_execution_journal") {
-    return "没有找到这次整理的执行记录。";
+    return i18n.t("workspace.fallback.missingJournal");
   }
   if (normalized === "directory_changed") {
-    return "目录内容已变化，请重新扫描后再继续。";
+    return i18n.t("workspace.fallback.directoryChanged");
   }
   if (
     normalized.includes("504")
@@ -184,12 +270,12 @@ export function localizeSessionLastError(lastError: string | null | undefined, f
     || normalized.includes("api timeout")
     || normalized.includes("apitimeouterror")
   ) {
-    return "模型服务响应超时，扫描已经停止。建议稍后重试，或在设置中切换到更稳定的模型服务。";
+    return i18n.t("workspace.fallback.modelTimeout");
   }
   if (normalized.includes("rate limit") || normalized.includes("429")) {
-    return "模型服务请求过于频繁，扫描已经停止。请稍后重试。";
+    return i18n.t("workspace.fallback.modelRateLimit");
   }
-  return fallback;
+  return translatedFallback;
 }
 
 export function localizeUserFacingError(error: unknown, fallback: string): string {
@@ -197,7 +283,7 @@ export function localizeUserFacingError(error: unknown, fallback: string): strin
     return error.message || fallback;
   }
   if (error instanceof TypeError) {
-    return "暂时无法连接本地服务，请确认 FilePilot 后台仍在运行。";
+    return i18n.t("workspace.fallback.localServiceUnavailable");
   }
   if (error instanceof Error && error.message) {
     return error.message;

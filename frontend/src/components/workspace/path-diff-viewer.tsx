@@ -2,6 +2,7 @@
 
 import { useMemo } from "react";
 import { Folder } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 
 interface PathDiffViewerProps {
@@ -13,6 +14,7 @@ interface PathDiffViewerProps {
 }
 
 export function PathDiffViewer({ source, target, compact = false, targetKind, isReview }: PathDiffViewerProps) {
+  const { t } = useTranslation("common");
   const diff = useMemo(() => {
     if (!source || !target) {
       return {
@@ -92,7 +94,7 @@ export function PathDiffViewer({ source, target, compact = false, targetKind, is
       <div className="flex flex-col gap-1 w-full text-[11px] font-mono leading-normal">
         {/* 源路径 */}
         <div className="flex items-center gap-1.5 text-on-surface/40 min-w-0" title={source}>
-          <span className="shrink-0 w-8 text-[11px] font-black text-ui-muted/50">原</span>
+          <span className="shrink-0 w-8 text-[11px] font-black text-ui-muted/50">{t("workspace.pathDiff.sourceShort")}</span>
           <div className="truncate flex items-center">
             {displayCommonRoot && (
               <span className="opacity-60 select-none truncate max-w-[120px]">{displayCommonRoot}</span>
@@ -112,7 +114,7 @@ export function PathDiffViewer({ source, target, compact = false, targetKind, is
 
         {/* 目标路径 */}
         <div className="flex items-center gap-1.5 min-w-0" title={target}>
-          <span className="shrink-0 w-8 text-[11px] font-black text-primary/65">新</span>
+          <span className="shrink-0 w-8 text-[11px] font-black text-primary/65">{t("workspace.pathDiff.targetShort")}</span>
           <div className="truncate flex items-center">
             {displayCommonRoot && (
               <span className="opacity-30 select-none truncate max-w-[120px]">{displayCommonRoot}</span>
@@ -153,7 +155,7 @@ export function PathDiffViewer({ source, target, compact = false, targetKind, is
         </div>
         <div className="flex-1 min-w-0">
           <span className="block text-[11px] font-black text-ui-muted opacity-40 mb-1 leading-none">
-            源路径
+            {t("workspace.pathDiff.sourcePath")}
           </span>
           <div className="flex flex-wrap items-center text-on-surface/70">
             {displayCommonRoot && (
@@ -193,7 +195,7 @@ export function PathDiffViewer({ source, target, compact = false, targetKind, is
         </div>
         <div className="flex-1 min-w-0">
           <span className="block text-[11px] font-black text-ui-muted opacity-40 mb-1 leading-none">
-            目标路径
+            {t("workspace.pathDiff.targetPath")}
           </span>
           <div className="flex flex-wrap items-center">
             {displayCommonRoot && (

@@ -31,11 +31,10 @@ function _nowLabel(): string {
   });
 }
 
-const INITIAL_PLAN_REQUEST_PREFIX = "请基于上述的目录扫描结果和整理规则，为我生成整理计划。简要聊聊你为何这样计划，以及你对此目录的理解和分析。";
 const TOOL_ONLY_PLAN_FALLBACK_REPLY = "我已经更新了整理计划，请您查看。";
 const PLAN_FALLBACK_MESSAGE_ID = "local-plan-fallback";
 
-function isInternalPlanRequest(content: string): boolean {
+function isLegacyInternalPlanRequest(content: string): boolean {
   return content.includes("请基于上述")
     && content.includes("目录扫描结果")
     && content.includes("整理规则")
@@ -48,7 +47,7 @@ function shouldDisplayMessage(message: AssistantMessage): boolean {
   const content = String(message.content || "").trim();
   const visibility = String(message.visibility || "public").trim();
 
-  if (visibility === "internal") {
+  if (visibility === "internal" || message.message_type === "initial_plan_request") {
     return false;
   }
 
@@ -56,7 +55,7 @@ function shouldDisplayMessage(message: AssistantMessage): boolean {
     return false;
   }
 
-  if (role === "user" && (content.startsWith(INITIAL_PLAN_REQUEST_PREFIX) || isInternalPlanRequest(content))) {
+  if (role === "user" && isLegacyInternalPlanRequest(content)) {
     return false;
   }
 
@@ -177,27 +176,38 @@ function assistantRuntimeFromAction(event: SessionEvent): AssistantRuntimeStatus
       mode: "tool",
       label: phase === "scan" ? "正在读取文件内容" : "正在补充文件证据",
       detail: humanizeActionTarget(action.args?.filename) || "正在读取文件内容",
+      labelCode: phase === "scan" ? "readFileScan" : "readFilePlan",
+      detailCode: "readFileDetail",
+      detailParams: { item: humanizeActionTarget(action.args?.filename) || "" },
     };
   }
 
   if (action?.name === "list_local_files") {
+    const directory = humanizeActionTarget(action.args?.directory);
     return {
       phase,
       mode: "tool",
       label: phase === "scan" ? "正在读取目录结构" : "正在检查目录上下文",
-      detail: humanizeActionTarget(action.args?.directory) || "当前目录",
+      detail: directory || "当前目录",
+      labelCode: phase === "scan" ? "listFilesScan" : "listFilesPlan",
+      detailCode: directory ? "directoryDetail" : "currentFolder",
+      detailParams: directory ? { item: directory } : undefined,
     };
   }
 
   if (action?.message) {
+    const item = humanizeActionTarget(action.args?.filename);
     const detail = phase === "scan"
-      ? (action.args?.filename ? `正在处理 ${humanizeActionTarget(action.args.filename)}` : "正在处理文件，请稍候")
+      ? (item ? `正在处理 ${item}` : "正在处理文件，请稍候")
       : "正在整理目录结构与最新要求";
     return {
       phase,
       mode: "waiting",
       label: action.message,
       detail,
+      labelCode: phase === "scan" ? "waitingToolScan" : "waitingToolPlan",
+      detailCode: phase === "scan" ? (item ? "processingFileDetail" : "processingFile") : "updatingFolderStructure",
+      detailParams: item ? { item } : undefined,
     };
   }
 
@@ -211,12 +221,16 @@ function assistantRuntimeFromTyping(phase: "scan" | "plan"): AssistantRuntimeSta
         mode: "streaming",
         label: "正在输出扫描结果",
         detail: "正在整理结果",
+        labelCode: "typingScan",
+        detailCode: "typingScanDetail",
       }
     : {
         phase,
         mode: "streaming",
         label: "正在生成整理建议",
         detail: "内容会持续更新到对话区",
+        labelCode: "typingPlan",
+        detailCode: "typingPlanDetail",
       };
 }
 
@@ -225,6 +239,10 @@ const IDLE_PLANNER_PROGRESS: PlannerProgress = {
   phase: null,
   message: "",
   detail: null,
+  message_code: "",
+  message_params: {},
+  detail_code: "",
+  detail_params: {},
   attempt: 1,
   started_at: null,
   updated_at: null,
@@ -236,10 +254,14 @@ export interface PlannerStatusViewModel {
   status: string;
   phase: string | null;
   label: string;
+  labelCode: string;
+  labelParams: Record<string, string | number>;
   detail: string | null;
+  detailCode: string | null;
+  detailParams: Record<string, string | number>;
   attempt: number;
-  elapsedLabel: string | null;
-  reassureText: string | null;
+  elapsedSeconds: number | null;
+  reassure: boolean;
   preservingPreviousPlan: boolean;
   isRunning: boolean;
 }
@@ -253,7 +275,7 @@ function normalizePlannerProgress(progress?: PlannerProgress | null): PlannerPro
   };
 }
 
-function formatElapsedLabel(startedAt: string | null | undefined, nowMs: number): string | null {
+function getElapsedSeconds(startedAt: string | null | undefined, nowMs: number): number | null {
   if (!startedAt) {
     return null;
   }
@@ -261,39 +283,28 @@ function formatElapsedLabel(startedAt: string | null | undefined, nowMs: number)
   if (!Number.isFinite(startedMs)) {
     return null;
   }
-  const elapsedSeconds = Math.max(0, Math.floor((nowMs - startedMs) / 1000));
-  if (elapsedSeconds < 60) {
-    return `已耗时 ${elapsedSeconds} 秒`;
-  }
-  const minutes = Math.floor(elapsedSeconds / 60);
-  const seconds = elapsedSeconds % 60;
-  return `已耗时 ${minutes} 分 ${seconds} 秒`;
+  return Math.max(0, Math.floor((nowMs - startedMs) / 1000));
 }
 
 function buildPlannerStatus(progress: PlannerProgress, nowMs: number): PlannerStatusViewModel {
   const normalized = normalizePlannerProgress(progress);
   const isRunning = normalized.status === "running";
-  const elapsedLabel = isRunning ? formatElapsedLabel(normalized.started_at, nowMs) : null;
-  const reassureText = (() => {
-    if (!isRunning || !normalized.started_at) {
-      return null;
-    }
-    const startedMs = Date.parse(normalized.started_at);
-    if (!Number.isFinite(startedMs)) {
-      return null;
-    }
-    const elapsedSeconds = Math.max(0, Math.floor((nowMs - startedMs) / 1000));
-    return elapsedSeconds >= 30 ? "系统仍在处理中，请不要重复提交" : null;
-  })();
+  const elapsedSeconds = isRunning ? getElapsedSeconds(normalized.started_at, nowMs) : null;
+  const labelCode = normalized.message_code || (normalized.status === "completed" ? "completed" : normalized.status === "failed" ? "failed" : normalized.phase || "updating");
+  const detailCode = normalized.detail_code || (normalized.status === "failed" ? "failureDetail" : normalized.phase ? `${normalized.phase}_detail` : null);
 
   return {
     status: String(normalized.status || "idle"),
     phase: normalized.phase ? String(normalized.phase) : null,
     label: String(normalized.message || ""),
+    labelCode: String(labelCode),
+    labelParams: (normalized.message_params || {}) as Record<string, string | number>,
     detail: normalized.detail ? String(normalized.detail) : null,
+    detailCode,
+    detailParams: (normalized.detail_params || {}) as Record<string, string | number>,
     attempt: Math.max(1, Number(normalized.attempt || 1)),
-    elapsedLabel,
-    reassureText,
+    elapsedSeconds,
+    reassure: elapsedSeconds !== null && elapsedSeconds >= 30,
     preservingPreviousPlan: Boolean(normalized.preserving_previous_plan),
     isRunning,
   };
@@ -392,6 +403,8 @@ export function useSession(sessionId: string | null) {
         mode: "waiting",
         label: "初始化扫描会话",
         detail: "正在连接后端并准备文件索引...",
+        labelCode: "scanStarted",
+        detailCode: "scanStartedDetail",
       });
     }
 
@@ -438,11 +451,13 @@ export function useSession(sessionId: string | null) {
     if (event.event_type === "session.error" || event.event_type === "session.interrupted") {
       setAssistantRuntime(null);
       const snapshotError = event.session_snapshot?.last_error;
+      const snapshotErrorCode = event.error_code || event.session_snapshot?.last_error_code;
+      const snapshotErrorParams = event.error_params || event.session_snapshot?.last_error_params;
       if (snapshotError) {
-        setChatError(localizeSessionLastError(snapshotError));
+        setChatError(localizeSessionLastError(snapshotError, undefined, snapshotErrorCode, snapshotErrorParams));
         setChatErrorCode(null);
       } else if (event.event_type === "session.error") {
-        setChatError("会话处理失败");
+        setChatError(localizeSessionLastError(null, undefined, snapshotErrorCode, snapshotErrorParams));
         setChatErrorCode(null);
       }
     } else if (event.event_type === "scan.completed") {
@@ -580,7 +595,11 @@ export function useSession(sessionId: string | null) {
         phase: "plan",
         mode: plannerStatus.phase === "streaming_reply" ? "streaming" : "waiting",
         label: plannerStatus.label,
-        detail: [plannerStatus.detail, plannerStatus.elapsedLabel].filter(Boolean).join(" · ") || undefined,
+        detail: plannerStatus.detail || undefined,
+        labelCode: plannerStatus.labelCode,
+        labelParams: plannerStatus.labelParams,
+        detailCode: plannerStatus.detailCode || undefined,
+        detailParams: plannerStatus.detailParams,
       };
     }
     if (assistantRuntime?.phase === "plan") {
@@ -671,6 +690,8 @@ export function useSession(sessionId: string | null) {
       mode: "waiting",
       label: "正在整理新的调整意见",
       detail: "正在结合目录状态与最新要求更新方案",
+      labelCode: "waitingToolPlan",
+      detailCode: "updatingFolderStructure",
     });
 
     try {
@@ -699,6 +720,8 @@ export function useSession(sessionId: string | null) {
       mode: "waiting",
       label: "正在建立扫描任务",
       detail: "正在读取目录结构并建立文件索引",
+      labelCode: "scanStarted",
+      detailCode: "scanStartedDetail",
     });
     try {
       const response = await api.scanSession(sessionId);
@@ -741,6 +764,8 @@ export function useSession(sessionId: string | null) {
       mode: "waiting",
       label: "正在确认目标目录",
       detail: "系统会按显式目标目录配置扫描剩余待整理项",
+      labelCode: "confirmTargets",
+      detailCode: "confirmTargetsDetail",
     });
     try {
       const response = await api.confirmTargetDirectories(sessionId, {

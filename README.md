@@ -7,6 +7,8 @@
   </p>
 </div>
 
+[简体中文](README.md) | [English](README.en.md) · [隐私政策](PRIVACY.md)
+
 FilePilot 是一款 Windows 文件整理工具。它使用你配置的模型分析文件，并根据整理方式生成或执行归档方案。
 
 ![FilePilot 整理流程演示](./frontend/public/screenshots/filepilot-workflow.gif)

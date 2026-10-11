@@ -14,6 +14,7 @@ from PIL import ExifTags, Image
 
 from file_pilot.analysis.archive_reader import read_archive_index
 from file_pilot.analysis.image_describer import describe_image, format_image_description_result
+from file_pilot.shared.content_locale import DEFAULT_CONTENT_LOCALE, normalize_content_locale
 
 DEFAULT_MAX_LEN = 300
 DEFAULT_LIST_DEPTH = 1
@@ -543,8 +544,14 @@ def list_local_files(directory=".", max_depth=DEFAULT_LIST_DEPTH, char_limit=DEF
         return f"无法列出目录 {directory}: {exc}"
 
 
-def read_local_file(filename, max_len=DEFAULT_MAX_LEN, allowed_base_dir: str | None = None):
+def read_local_file(
+    filename,
+    max_len=DEFAULT_MAX_LEN,
+    allowed_base_dir: str | None = None,
+    content_locale: str = DEFAULT_CONTENT_LOCALE,
+):
     """读取本地文件内容。"""
+    content_locale = normalize_content_locale(content_locale)
     try:
         filename = _normalize_local_path(filename)
         if not _is_allowed_local_path(filename, allowed_base_dir=allowed_base_dir):
@@ -574,7 +581,8 @@ def read_local_file(filename, max_len=DEFAULT_MAX_LEN, allowed_base_dir: str | N
         elif ext == ".zip":
             content = read_archive_index(filename, max_entries=max_len)
         elif ext in IMAGE_EXTENSIONS:
-            content = read_image_metadata(filename) + "\n" + format_image_description_result(describe_image(filename))
+            image_description = describe_image(filename, content_locale=content_locale)
+            content = read_image_metadata(filename) + "\n" + format_image_description_result(image_description, content_locale)
         elif ext in AUDIO_EXTENSIONS:
             content = read_audio_metadata(filename)
         elif ext in VIDEO_EXTENSIONS:
@@ -604,8 +612,10 @@ def read_local_files_batch(
     filenames: list[str],
     max_len: int = DEFAULT_MAX_LEN,
     allowed_base_dir: str | None = None,
+    content_locale: str = DEFAULT_CONTENT_LOCALE,
 ) -> str:
     """批量探查多个条目的内容摘要或目录结构，减少多次工具调用开销。"""
+    content_locale = normalize_content_locale(content_locale)
     if not filenames:
         return "错误：未提供任何文件名。"
 
@@ -613,7 +623,13 @@ def read_local_files_batch(
     results: list[str] = [""] * len(filenames)
     with ThreadPoolExecutor(max_workers=worker_count) as executor:
         futures = {
-            executor.submit(read_local_file, filename, max_len=max_len, allowed_base_dir=allowed_base_dir): index
+            executor.submit(
+                read_local_file,
+                filename,
+                max_len=max_len,
+                allowed_base_dir=allowed_base_dir,
+                content_locale=content_locale,
+            ): index
             for index, filename in enumerate(filenames)
         }
         for future in as_completed(futures):

@@ -11,10 +11,12 @@ import json
 import logging
 import os
 from collections import Counter
+from copy import deepcopy
 from dataclasses import dataclass, field
 from pathlib import Path
 
 from file_pilot.shared.config import create_openai_client, get_organizer_model_name
+from file_pilot.shared.content_locale import DEFAULT_CONTENT_LOCALE, normalize_content_locale
 
 logger = logging.getLogger(__name__)
 
@@ -100,9 +102,12 @@ class ContextEntry:
     description: str = ""  # 已确认的规则描述（非 draft）
     relation: str = ""  # 与当前分析目标的关系，如 "[父目录]" 或 "[子目录]"
 
-    def to_context_line(self) -> str:
+    def to_context_line(self, *, content_locale: str = DEFAULT_CONTENT_LOCALE) -> str:
         label_part = f'「{self.label}」' if self.label else ""
         relation_part = f"{self.relation} " if self.relation else ""
+        if normalize_content_locale(content_locale) == "en":
+            relation_part = relation_part.replace("[父目录]", "[parent folder]").replace("[子目录]", "[child folder]")
+            return f"- {relation_part}{label_part}{self.path}: {self.description or '(no current rule)'}"
         return f"- {relation_part}{label_part}{self.path}：{self.description or '（暂无规则）'}"
 
 
@@ -197,12 +202,27 @@ def collect_directory_content_profile(
 def _build_topology_lines(
     nested_pairs: list[tuple[str, str]],
     *,
-    header: str = "【目录层级关系提示】",
+    content_locale: str = DEFAULT_CONTENT_LOCALE,
 ) -> list[str]:
     """将嵌套对列表格式化为 Prompt 拓扑说明段落。"""
+    if normalize_content_locale(content_locale) == "en":
+        lines = [
+            "",
+            "Folder nesting relationships",
+            "The following folders have parent-child relationships. Keep their rules clearly separated:",
+        ]
+        for parent, child in nested_pairs:
+            lines.append(f"- {parent} (parent) contains {child} (child)")
+        lines += [
+            "Nesting rules:",
+            "- When a file matches both a parent and child rule, prefer the most specific child folder.",
+            "- A parent rule should cover only general files that do not belong in any child folder.",
+        ]
+        return lines
+
     lines = [
         "",
-        header,
+        "【目录层级关系提示】",
         "以下目录之间存在父子包含关系，生成规则时必须明确区分边界：",
     ]
     for parent, child in nested_pairs:
@@ -219,16 +239,30 @@ def build_rule_draft_prompt(
     profiles: list[DirectoryContentProfile],
     *,
     context_entries: list[ContextEntry] | None = None,
+    content_locale: str = DEFAULT_CONTENT_LOCALE,
 ) -> list[dict]:
-    lines = [
-        "你在帮用户为一组「目标目录」撰写归类规则初稿。",
-        "每个目录给出一句话规则（什么样的文件应该放进这里）和依据（基于现有内容观察到了什么）。",
-        "要求：",
-        "- 规则写给未来的分类器看，描述文件特征而不是复述文件名。",
-        "- 重点写边界：如果两个目录语义相近，规则必须写清它们的区分标准。",
-        "- 目录为空或不可读时，依据如实写明，规则基于目录名与标签保守推断。",
-        "- 使用与目录标签一致的语言（默认中文）。",
-    ]
+    is_english = normalize_content_locale(content_locale) == "en"
+    if is_english:
+        lines = [
+            "Draft categorization rules for the requested target folders.",
+            "For each folder, provide a one-sentence rule describing which files belong there and the evidence observed in its current contents.",
+            "Requirements:",
+            "- Write every generated text field in English, including the rule, evidence, and overlap note, regardless of the folder label language.",
+            "- Write rules for a future classifier. Describe file characteristics instead of repeating sample filenames.",
+            "- Make boundaries explicit when two folders have similar meanings.",
+            "- If a folder is empty or unreadable, say so in the evidence and make a conservative inference from its name and label.",
+            "- Preserve all supplied paths, labels, descriptions, and filenames as input data; do not translate or alter them.",
+        ]
+    else:
+        lines = [
+            "你在帮用户为一组「目标目录」撰写归类规则初稿。",
+            "每个目录给出一句话规则（什么样的文件应该放进这里）和依据（基于现有内容观察到了什么）。",
+            "要求：",
+            "- 规则写给未来的分类器看，描述文件特征而不是复述文件名。",
+            "- 重点写边界：如果两个目录语义相近，规则必须写清它们的区分标准。",
+            "- 目录为空或不可读时，依据如实写明，规则基于目录名与标签保守推断。",
+            "- 使用与目录标签一致的语言（默认中文）。",
+        ]
 
     # 收集所有路径，统一做一次拓扑检测
     profile_paths = [p.path for p in profiles]
@@ -237,28 +271,36 @@ def build_rule_draft_prompt(
     all_nested = detect_nested_pairs(all_paths)
 
     if all_nested:
-        lines += _build_topology_lines(all_nested)
+        lines += _build_topology_lines(all_nested, content_locale=content_locale)
 
     if context_entries:
-        lines += [
-            "",
-            "【同一配置中其他目录（勿重复，注意边界）】",
-        ]
+        if is_english:
+            lines += ["", "Other folders in this profile (avoid duplication and keep boundaries clear):"]
+        else:
+            lines += ["", "【同一配置中其他目录（勿重复，注意边界）】"]
         for entry in context_entries:
-            lines.append(entry.to_context_line())
-        lines += [
-            "",
-            "冲突检测规则：",
-            "- 若「分析任务」中某目录与上方已有规则的某目录语义高度重叠，",
-            "  请在该目录的 overlap_paths 中列出被重叠目录的完整路径，",
-            "  并在 overlap_note 中用一句话说明重叠原因。",
-            "- draft_description 照常给出建议规则，即使存在重叠。",
-        ]
+            lines.append(entry.to_context_line(content_locale=content_locale))
+        if is_english:
+            lines += [
+                "",
+                "Overlap detection:",
+                "- If a target folder has substantially the same meaning as an existing folder above, list that existing folder's exact path in overlap_paths and explain the overlap in one sentence in overlap_note.",
+                "- Still provide draft_description even when an overlap exists.",
+            ]
+        else:
+            lines += [
+                "",
+                "冲突检测规则：",
+                "- 若「分析任务」中某目录与上方已有规则的某目录语义高度重叠，",
+                "  请在该目录的 overlap_paths 中列出被重叠目录的完整路径，",
+                "  并在 overlap_note 中用一句话说明重叠原因。",
+                "- draft_description 照常给出建议规则，即使存在重叠。",
+            ]
 
-    lines += [
-        "",
-        "【分析任务】（为以下目录生成规则）：",
-    ]
+    if is_english:
+        lines += ["", "Task: draft rules for these folders:"]
+    else:
+        lines += ["", "【分析任务】（为以下目录生成规则）："]
     for profile in profiles:
         lines.append(json.dumps(profile.to_dict(), ensure_ascii=False))
     return [{"role": "user", "content": "\n".join(lines)}]
@@ -339,12 +381,13 @@ def build_rule_draft_completion_kwargs(
     model: str,
     messages: list[dict],
     base_url: str | None = None,
+    content_locale: str = DEFAULT_CONTENT_LOCALE,
 ) -> dict:
     """构造规则初稿 completion 参数；DeepSeek 关闭 thinking 以兼容强制 tool_choice。"""
     kwargs: dict = {
         "model": model,
         "messages": messages,
-        "tools": [_RULE_DRAFT_TOOL],
+        "tools": [_rule_draft_tool_for_content_locale(content_locale)],
         "tool_choice": {"type": "function", "function": {"name": "submit_rule_drafts"}},
         "stream": False,
     }
@@ -353,6 +396,27 @@ def build_rule_draft_completion_kwargs(
         # 官方：extra_body={"thinking": {"type": "disabled"}}
         kwargs["extra_body"] = {"thinking": {"type": "disabled"}}
     return kwargs
+
+
+def _rule_draft_tool_for_content_locale(content_locale: str) -> dict:
+    if normalize_content_locale(content_locale) != "en":
+        return _RULE_DRAFT_TOOL
+
+    tool = deepcopy(_RULE_DRAFT_TOOL)
+    tool["function"]["description"] = "Submit a draft categorization rule for each target folder."
+    properties = tool["function"]["parameters"]["properties"]["drafts"]["items"]["properties"]
+    properties["path"]["description"] = "Folder path; it must exactly match an input path."
+    properties["draft_description"]["description"] = (
+        "One-sentence rule in English describing which files belong in this folder."
+    )
+    properties["basis"]["description"] = "Evidence observed in the folder's current contents, explained in English."
+    properties["overlap_paths"]["description"] = (
+        "Optional. Exact paths of existing folders from the supplied context whose rules substantially overlap."
+    )
+    properties["overlap_note"]["description"] = (
+        "Optional. When overlap_paths is not empty, explain the overlap in one sentence in English."
+    )
+    return tool
 
 
 def classify_rule_draft_error(exc: BaseException) -> tuple[str, str]:
@@ -391,6 +455,7 @@ def generate_rule_drafts(
     client=None,
     model: str | None = None,
     context_entries: list[ContextEntry] | None = None,
+    content_locale: str = DEFAULT_CONTENT_LOCALE,
 ) -> list[RuleDraft]:
     """生成规则初稿。
 
@@ -401,7 +466,12 @@ def generate_rule_drafts(
     client = client or create_openai_client()
     model = model or get_organizer_model_name()
 
-    messages = build_rule_draft_prompt(profiles, context_entries=context_entries)
+    normalized_content_locale = normalize_content_locale(content_locale)
+    messages = build_rule_draft_prompt(
+        profiles,
+        context_entries=context_entries,
+        content_locale=normalized_content_locale,
+    )
     context_paths = {entry.path for entry in context_entries} if context_entries else None
 
     response = client.chat.completions.create(
@@ -409,6 +479,7 @@ def generate_rule_drafts(
             model=model,
             messages=messages,
             base_url=_client_base_url(client),
+            content_locale=normalized_content_locale,
         )
     )
     tool_calls = response.choices[0].message.tool_calls or []

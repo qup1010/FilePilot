@@ -26,7 +26,9 @@ if (-not $PythonExe) {
 Push-Location $projectRootPath
 try {
     if (Test-Path -LiteralPath $backendResourceDir) {
-        Remove-Item -LiteralPath $backendResourceDir -Recurse -Force
+        Get-ChildItem -LiteralPath $backendResourceDir -Force |
+        Where-Object { $_.Name -ne ".gitkeep" } |
+        Remove-Item -Recurse -Force
     }
 
     & $PythonExe -m PyInstaller `
@@ -47,6 +49,10 @@ try {
 
     if ($LASTEXITCODE -ne 0) {
         throw "PyInstaller failed with exit code $LASTEXITCODE."
+    }
+
+    if (-not (Test-Path -LiteralPath $backendExe -PathType Leaf)) {
+        throw "PyInstaller succeeded but the backend executable was not found: $backendExe"
     }
 
     New-Item -ItemType Directory -Force -Path $backendResourceDir | Out-Null

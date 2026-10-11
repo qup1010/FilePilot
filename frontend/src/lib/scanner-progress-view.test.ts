@@ -11,8 +11,26 @@ describe("scanner-progress-view", () => {
     );
 
     expect(view.phase).toBe("discovering");
-    expect(view.title).toBe("正在读取目录结构");
+    expect(view.title.key).toBe("scanner.title.readingDirectory");
     expect(view.steps.map((step) => step.state)).toEqual(["active", "pending", "pending"]);
+  });
+
+  it("uses stable scanner message codes and parameters instead of backend prose", () => {
+    const view = deriveScannerProgressViewModel(
+      {
+        status: "completed",
+        message: "已发现源文件夹中的 4 个条目，请选择目标目录以继续。",
+        message_code: "directory_discovered",
+        message_params: { count: 4 },
+      },
+      100,
+      "discovering",
+    );
+
+    expect(view.backendMessage).toEqual({
+      key: "diagnostics.scannerProgress.directoryDiscovered",
+      values: { count: 4 },
+    });
   });
 
   it("labels content analysis when entries are known", () => {
@@ -23,7 +41,7 @@ describe("scanner-progress-view", () => {
     );
 
     expect(view.phase).toBe("analyzing");
-    expect(view.title).toBe("正在分析文件内容");
+    expect(view.title.key).toBe("scanner.title.analyzingFiles");
     expect(view.steps.map((step) => step.state)).toEqual(["done", "active", "pending"]);
   });
 
@@ -35,8 +53,8 @@ describe("scanner-progress-view", () => {
     );
 
     expect(view.phase).toBe("planning");
-    expect(view.title).toBe("正在生成第一版整理方案");
-    expect(view.description).toContain("可执行建议");
+    expect(view.title.key).toBe("scanner.title.creatingInitialPlan");
+    expect(view.description.key).toBe("scanner.description.initialPlan");
     expect(view.steps.map((step) => step.state)).toEqual(["done", "done", "active"]);
   });
 
@@ -48,8 +66,8 @@ describe("scanner-progress-view", () => {
     );
 
     expect(view.phase).toBe("stranded");
-    expect(view.title).toBe("目录读取已完成");
-    expect(view.description).toContain("自动方案没有继续生成");
+    expect(view.title.key).toBe("scanner.title.directoryReadComplete");
+    expect(view.description.key).toBe("scanner.description.stranded");
     expect(view.steps.map((step) => step.state)).toEqual(["done", "done", "aborted"]);
   });
 
@@ -62,5 +80,39 @@ describe("scanner-progress-view", () => {
 
     expect(view.phase).toBe("ready");
     expect(view.steps.map((step) => step.state)).toEqual(["done", "done", "done"]);
+  });
+
+  it("uses explicit scan states instead of the analysis text language", () => {
+    const view = deriveScannerProgressViewModel(
+      {
+        status: "running",
+        processed_count: 1,
+        total_count: 2,
+        current_item: "当前目录",
+        current_item_kind: "entry",
+        recent_analysis_items: [
+          {
+            item_id: "F001",
+            display_name: "unknown.txt",
+            source_relpath: "unknown.txt",
+            suggested_purpose: "待判断",
+            summary: "摘要本身已完成",
+            analysis_status: "completed",
+          },
+          {
+            item_id: "F002",
+            display_name: "uncovered.txt",
+            source_relpath: "uncovered.txt",
+            suggested_purpose: "Needs review",
+            summary: "Analysis was not covered",
+            analysis_status: "needs_review",
+          },
+        ],
+      },
+      50,
+    );
+
+    expect(view.currentItem).toBe("当前目录");
+    expect(view.recentCompletedItems.map((item) => item.item_id)).toEqual(["F001"]);
   });
 });

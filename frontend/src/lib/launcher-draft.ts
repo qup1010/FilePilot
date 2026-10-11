@@ -5,12 +5,13 @@ import {
   type SourceImportGroup,
   type TargetDirectoryDraft,
 } from "@/lib/launcher-sources";
-import type { SessionSourceSelection, SessionStrategySelection } from "@/types/session";
+import type { LauncherStrategySelection, SessionSourceSelection } from "@/types/session";
+import { isFolderNameLanguagePreference } from "@/lib/folder-name-language";
 
 export type LauncherDraftState = {
   version: 1;
   step?: 1 | 2 | 3;
-  strategy?: SessionStrategySelection;
+  strategy?: LauncherStrategySelection;
   sources?: SessionSourceSelection[];
   sourceImportGroups?: SourceImportGroup[];
   sourceDraftType?: SourceDraftType;
@@ -50,8 +51,17 @@ export function sanitizeLauncherDraft(draft: LauncherDraftState | null): Launche
   }
   const sources = dedupeSources(draft.sources || []);
   const sourceKeys = new Set(sources.map((item) => sourceSelectionKey(item)));
+  const strategy = draft.strategy
+    ? {
+        ...draft.strategy,
+        language_preference: isFolderNameLanguagePreference(draft.strategy.language_preference)
+          ? draft.strategy.language_preference
+          : draft.strategy.language,
+      }
+    : undefined;
   return {
     ...draft,
+    strategy,
     step: draft.step === 2 || draft.step === 3 ? draft.step : 1,
     sources,
     sourceImportGroups: (draft.sourceImportGroups || [])

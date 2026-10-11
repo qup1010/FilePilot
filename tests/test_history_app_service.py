@@ -176,10 +176,22 @@ class HistoryAppServiceTests(unittest.TestCase):
         self.store.save(session)
         self.service.execute(session.session_id, confirm=True)
 
-        summary = self.service.history_app.get_journal_summary(session.session_id)
+        with unittest.mock.patch.object(
+            self.service,
+            "_session_planner_items",
+            return_value=[
+                {
+                    "planner_id": "F002",
+                    "entry_type": "file",
+                    "source_relpath": "left.txt",
+                    "display_name": "left.txt",
+                }
+            ],
+        ):
+            summary = self.service.history_app.get_journal_summary(session.session_id)
 
         self.assertEqual(summary["status"], "completed")
-        self.assertEqual(summary["item_count"], 2)
+        self.assertEqual(summary["item_count"], 3)
         mkdir_item = next(item for item in summary["items"] if item["action_type"] == "MKDIR")
         self.assertTrue(str(mkdir_item["target"]).replace("\\", "/").endswith("/Docs"))
         move_item = next(item for item in summary["items"] if item["action_type"] == "MOVE")
@@ -188,6 +200,8 @@ class HistoryAppServiceTests(unittest.TestCase):
         self.assertEqual(move_item["source_ref_id"], "F001")
         self.assertEqual(move_item["target_kind"], "directory")
         self.assertFalse(move_item["is_review"])
+        skipped_item = next(item for item in summary["items"] if item["status"] == "skipped")
+        self.assertEqual(skipped_item["message_code"], "unmatched_kept_in_place")
 
     def test_get_journal_summary_marks_review_items_with_explicit_metadata(self):
         (self.target_dir / "a.txt").write_text("hello", encoding="utf-8")

@@ -2,6 +2,7 @@ import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { PrecheckView } from "./precheck-view";
+import i18n from "@/i18n/instance";
 
 vi.mock("./directory-tree-diff", () => ({
   DirectoryTreeDiff: ({ after }: { after: { leafEntries: { path: string }[] } }) => (
@@ -15,8 +16,34 @@ vi.mock("./directory-tree-diff", () => ({
 }));
 
 describe("PrecheckView", () => {
-  afterEach(() => {
+  afterEach(async () => {
     cleanup();
+    await i18n.changeLanguage("zh-CN");
+  });
+
+  it("renders the safety summary in English", async () => {
+    await i18n.changeLanguage("en");
+    render(
+      <PrecheckView
+        summary={{
+          can_execute: true,
+          blocking_errors: [],
+          warnings: [],
+          mkdir_preview: [],
+          move_preview: [],
+          issues: [],
+        }}
+        planItems={[]}
+        targetSlots={[]}
+        isBusy={false}
+        onRequestExecute={() => {}}
+        onBack={() => {}}
+      />,
+    );
+
+    expect(screen.getByText("Safety check passed")).toBeInTheDocument();
+    expect(screen.getByText("Before and after")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Move files" })).toBeInTheDocument();
   });
 
   it("renders item metadata from plan items and target slots", () => {
@@ -143,6 +170,60 @@ describe("PrecheckView", () => {
 
     expect(screen.getAllByText(/待确认区/).length).toBeGreaterThan(0);
     expect(screen.queryByText("D:/custom-review-root/unknown.pdf")).not.toBeInTheDocument();
+  });
+
+  it("translates the structured risk code without exposing backend prose", async () => {
+    await i18n.changeLanguage("en");
+    render(
+      <PrecheckView
+        summary={{
+          can_execute: true,
+          blocking_errors: [],
+          warnings: ["A high-impact move needs review."],
+          mkdir_preview: [],
+          move_preview: [
+            {
+              item_id: "F001",
+              source: "D:/project/package-lock.json",
+              target: "D:/archive/package-lock.json",
+            },
+          ],
+          issues: [
+            {
+              id: "warning-1",
+              severity: "warning",
+              issue_type: "precheck_warning",
+              code: "risky_move",
+              params: {
+                reason_code: "RISKY_MOVE_PROJECT_ENTRY",
+                display_name: "package-lock.json",
+                source: "D:/project/package-lock.json",
+                target: "D:/archive/package-lock.json",
+              },
+              message: "A high-impact move needs review.",
+              related_item_ids: ["F001"],
+            },
+          ],
+        }}
+        planItems={[
+          {
+            item_id: "F001",
+            display_name: "package-lock.json",
+            source_relpath: "package-lock.json",
+            target_slot_id: "D001",
+            status: "planned",
+            mapping_status: "planned",
+          },
+        ]}
+        targetSlots={[]}
+        isBusy={false}
+        onRequestExecute={() => {}}
+        onBack={() => {}}
+      />,
+    );
+
+    expect(screen.getByText(/package-lock\.json appears to contain project or hidden configuration files/)).toBeInTheDocument();
+    expect(screen.queryByText("A high-impact move needs review.")).not.toBeInTheDocument();
   });
 
   it("falls back to source file names instead of internal item ids", () => {

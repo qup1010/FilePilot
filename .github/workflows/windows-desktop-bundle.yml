@@ -99,24 +99,8 @@ jobs:
         run: python -m pip install -r requirements.txt "pyinstaller>=6.0,<7"
 
       - name: Build bundled Python backend
-        run: |
-          if (Test-Path dist\backend) {
-            Remove-Item -LiteralPath dist\backend -Recurse -Force
-          }
-          python -m PyInstaller `
-            --noconfirm `
-            --clean `
-            --onefile `
-            --noconsole `
-            --name file_pilot_api `
-            --paths . `
-            --add-data "frontend/src/lib/strategy-catalog.json;frontend/src/lib" `
-            --collect-submodules file_pilot `
-            --collect-submodules uvicorn `
-            --collect-submodules fastapi `
-            file_pilot/api/__main__.py
-          New-Item -ItemType Directory -Force -Path dist\backend | Out-Null
-          Copy-Item -LiteralPath dist\file_pilot_api.exe -Destination dist\backend\file_pilot_api.exe -Force
+        shell: pwsh
+        run: ./scripts/build_bundled_backend.ps1
 
       - name: Build Windows desktop bundle
         working-directory: desktop
@@ -124,8 +108,34 @@ jobs:
           CI: "true"
         run: npm run tauri:build
 
+      - name: Verify localized frontend resources
+        shell: pwsh
+        run: ./scripts/verify_localized_frontend.ps1
+
+      - name: Verify localized Windows installers
+        shell: pwsh
+        run: |
+          $msiDirectory = 'desktop/src-tauri/target/release/bundle/msi'
+          $msis = @(Get-ChildItem $msiDirectory -Recurse -Filter *.msi)
+          foreach ($language in @('en-US', 'zh-CN')) {
+            $localizedMsi = @($msis | Where-Object { $_.BaseName.Contains($language) })
+            if ($localizedMsi.Count -eq 0) {
+              throw "WiX installer for $language was not generated."
+            }
+            Write-Output "Found WiX installer for ${language}: $($localizedMsi[0].Name)"
+          }
+
+          $nsisDirectory = 'desktop/src-tauri/target/release/bundle/nsis'
+          $nsisInstallers = @(Get-ChildItem $nsisDirectory -Recurse -Filter 'FilePilot_*_x64-setup.exe')
+          if ($nsisInstallers.Count -eq 0) {
+            throw 'NSIS installer was not generated.'
+          }
+          Write-Output "Found NSIS multilingual installer: $($nsisInstallers[0].Name)"
+
       - name: Smoke test installed desktop bundle
         shell: pwsh
+        env:
+          CI: "true"
         run: |
           $builtExe = Get-ChildItem 'desktop/src-tauri/target/release' -Filter *.exe |
             Where-Object { $_.Name -ne 'file_pilot_api.exe' } |
@@ -135,39 +145,222 @@ jobs:
           }
           $desktopExeName = $builtExe.Name
 
-          $msi = Get-ChildItem 'desktop/src-tauri/target/release/bundle/msi' -Recurse -Filter *.msi | Select-Object -First 1
-          if (-not $msi) {
-            throw "MSI bundle was not found."
-          }
+          foreach ($language in @('en-US', 'zh-CN')) {
+            $msi = Get-ChildItem 'desktop/src-tauri/target/release/bundle/msi' -Recurse -Filter *.msi |
+              Where-Object { $_.BaseName.Contains($language) } |
+              Select-Object -First 1
+            if (-not $msi) {
+              throw "$language MSI bundle was not found."
+            }
 
-          $install = Start-Process msiexec.exe -ArgumentList '/i', $msi.FullName, '/qn', '/norestart' -PassThru -Wait
-          if ($install.ExitCode -ne 0) {
-            throw "MSI install failed with exit code $($install.ExitCode)"
-          }
+            Write-Output "Installing $language MSI: $($msi.Name)"
+            $install = Start-Process msiexec.exe -ArgumentList '/i', $msi.FullName, '/qn', '/norestart' -PassThru -Wait
+            if ($install.ExitCode -ne 0) {
+              throw "$language MSI install failed with exit code $($install.ExitCode)"
+            }
 
-          $candidates = @(
-            (Join-Path $env:LOCALAPPDATA "Programs\FilePilot\$desktopExeName"),
-            (Join-Path $env:ProgramFiles "FilePilot\$desktopExeName"),
-            (Join-Path ${env:ProgramFiles(x86)} "FilePilot\$desktopExeName")
-          ) | Where-Object { $_ -and (Test-Path -LiteralPath $_) }
+            try {
+              $candidates = @(
+                (Join-Path $env:LOCALAPPDATA "Programs\FilePilot\$desktopExeName"),
+                (Join-Path $env:ProgramFiles "FilePilot\$desktopExeName"),
+                (Join-Path ${env:ProgramFiles(x86)} "FilePilot\$desktopExeName")
+              ) | Where-Object { $_ -and (Test-Path -LiteralPath $_) }
 
-          $app = $candidates | Select-Object -First 1
-          if (-not $app) {
-            $searchRoots = @($env:LOCALAPPDATA, $env:ProgramFiles, ${env:ProgramFiles(x86)}) | Where-Object { $_ -and (Test-Path -LiteralPath $_) }
-            foreach ($root in $searchRoots) {
-              $match = Get-ChildItem $root -Recurse -Filter $desktopExeName -ErrorAction SilentlyContinue | Select-Object -First 1
-              if ($match) {
-                $app = $match.FullName
-                break
+              $app = $candidates | Select-Object -First 1
+              if (-not $app) {
+                $searchRoots = @($env:LOCALAPPDATA, $env:ProgramFiles, ${env:ProgramFiles(x86)}) | Where-Object { $_ -and (Test-Path -LiteralPath $_) }
+                foreach ($root in $searchRoots) {
+                  $match = Get-ChildItem $root -Recurse -Filter $desktopExeName -ErrorAction SilentlyContinue | Select-Object -First 1
+                  if ($match) {
+                    $app = $match.FullName
+                    break
+                  }
+                }
+              }
+
+              if (-not $app) {
+                throw "Installed $desktopExeName was not found after $language MSI install."
+              }
+
+              & powershell -ExecutionPolicy Bypass -File scripts\smoke_desktop_bundle.ps1 -AppPath $app -VerifyUiLanguages -VerifyOrganizationFlow
+              if ($LASTEXITCODE -ne 0) {
+                throw "$language desktop smoke test failed with exit code $LASTEXITCODE"
+              }
+            } finally {
+              $uninstall = Start-Process msiexec.exe -ArgumentList '/x', $msi.FullName, '/qn', '/norestart' -PassThru -Wait
+              if ($uninstall.ExitCode -ne 0) {
+                throw "$language MSI uninstall failed with exit code $($uninstall.ExitCode)"
               }
             }
           }
 
-          if (-not $app) {
-            throw "Installed $desktopExeName was not found after MSI install."
+      - name: Smoke test multilingual NSIS installer
+        shell: pwsh
+        env:
+          CI: "true"
+        run: |
+          $builtExe = Get-ChildItem 'desktop/src-tauri/target/release' -Filter *.exe |
+            Where-Object { $_.Name -ne 'file_pilot_api.exe' } |
+            Select-Object -First 1
+          if (-not $builtExe) {
+            throw 'Built desktop executable was not found.'
+          }
+          $desktopExeName = $builtExe.Name
+
+          $installer = Get-ChildItem 'desktop/src-tauri/target/release/bundle/nsis' -Recurse -Filter 'FilePilot_*_x64-setup.exe' |
+            Select-Object -First 1
+          if (-not $installer) {
+            throw 'Multilingual NSIS installer was not found.'
           }
 
-          powershell -ExecutionPolicy Bypass -File scripts\smoke_desktop_bundle.ps1 -AppPath $app
+          foreach ($language in @(@{ Name = 'en-US'; Id = '1033' }, @{ Name = 'zh-CN'; Id = '2052' })) {
+            $installDir = Join-Path $env:RUNNER_TEMP "filepilot-nsis-$($language.Name)"
+            if (Test-Path -LiteralPath $installDir) {
+              Remove-Item -LiteralPath $installDir -Recurse -Force
+            }
+
+            Write-Output "Installing NSIS bundle in $($language.Name): $($installer.Name)"
+            $install = Start-Process -FilePath $installer.FullName -ArgumentList @('/S', "/LANG=$($language.Id)", "/D=$installDir") -PassThru -Wait
+            if ($install.ExitCode -ne 0) {
+              throw "NSIS $($language.Name) install failed with exit code $($install.ExitCode)."
+            }
+
+            try {
+              $app = Join-Path $installDir $desktopExeName
+              if (-not (Test-Path -LiteralPath $app)) {
+                throw "Installed $desktopExeName was not found after NSIS $($language.Name) install."
+              }
+
+              & powershell -ExecutionPolicy Bypass -File scripts\smoke_desktop_bundle.ps1 -AppPath $app -VerifyUiLanguages -VerifyOrganizationFlow
+              if ($LASTEXITCODE -ne 0) {
+                throw "NSIS $($language.Name) desktop smoke test failed with exit code $LASTEXITCODE."
+              }
+            } finally {
+              $uninstaller = Join-Path $installDir 'uninstall.exe'
+              if (-not (Test-Path -LiteralPath $uninstaller)) {
+                throw "NSIS uninstaller was not found after $($language.Name) install."
+              }
+
+              $uninstall = Start-Process -FilePath $uninstaller -ArgumentList '/S' -PassThru -Wait
+              if ($uninstall.ExitCode -ne 0) {
+                throw "NSIS $($language.Name) uninstall failed with exit code $($uninstall.ExitCode)."
+              }
+            }
+          }
+
+      - name: Download previous Windows installers for upgrade smoke
+        shell: pwsh
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          $tauriConfig = Get-Content 'desktop/src-tauri/tauri.conf.json' -Raw -Encoding utf8 | ConvertFrom-Json
+          if ([version]$tauriConfig.version -le [version]'1.0.5') {
+            Write-Output "Skipping upgrade smoke: no release older than $($tauriConfig.version) is configured."
+            exit 0
+          }
+
+          $release = Invoke-RestMethod `
+            -Uri "https://api.github.com/repos/$env:GITHUB_REPOSITORY/releases/tags/v1.0.5" `
+            -Headers @{
+              Accept = 'application/vnd.github+json'
+              Authorization = "Bearer $env:GITHUB_TOKEN"
+              'X-GitHub-Api-Version' = '2022-11-28'
+            }
+          $previousMsi = @($release.assets | Where-Object { $_.name -match '^FilePilot_1\.0\.5_x64(?:_.*)?\.msi$' } | Sort-Object { if ($_.name -match '_en-US\.msi$') { 0 } else { 1 } } | Select-Object -First 1)
+          $previousNsis = @($release.assets | Where-Object { $_.name -eq 'FilePilot_1.0.5_x64-setup.exe' } | Select-Object -First 1)
+          if (-not $previousMsi) {
+            throw 'Previous WiX MSI release asset for v1.0.5 was not found.'
+          }
+          if (-not $previousNsis) {
+            throw 'Previous NSIS release asset for v1.0.5 was not found.'
+          }
+
+          foreach ($asset in @($previousMsi[0], $previousNsis[0])) {
+            $assetName = $asset.name
+            $installerPath = Join-Path $env:RUNNER_TEMP $assetName
+            Invoke-WebRequest -Uri $asset.browser_download_url -OutFile $installerPath
+            $download = Get-Item -LiteralPath $installerPath
+            if ($download.Length -lt 10MB) {
+              throw "Previous Windows installer download is unexpectedly small: $($download.Length) bytes"
+            }
+            $hash = (Get-FileHash -LiteralPath $installerPath -Algorithm SHA256).Hash
+            Write-Output "Downloaded $assetName ($($download.Length) bytes, SHA-256 $hash)."
+          }
+
+      - name: Smoke test WiX MSI upgrade and data preservation
+        shell: pwsh
+        env:
+          CI: "true"
+        run: |
+          $tauriConfig = Get-Content 'desktop/src-tauri/tauri.conf.json' -Raw -Encoding utf8 | ConvertFrom-Json
+          if ([version]$tauriConfig.version -le [version]'1.0.5') {
+            Write-Output "Skipping MSI upgrade smoke: no release older than $($tauriConfig.version) is configured."
+            exit 0
+          }
+
+          $builtExe = Get-ChildItem 'desktop/src-tauri/target/release' -Filter *.exe |
+            Where-Object { $_.Name -ne 'file_pilot_api.exe' } |
+            Select-Object -First 1
+          $currentMsi = Get-ChildItem 'desktop/src-tauri/target/release/bundle/msi' -Recurse -Filter 'FilePilot_*_x64_en-US.msi' |
+            Select-Object -First 1
+          $previousMsi = Get-ChildItem $env:RUNNER_TEMP -Filter 'FilePilot_1.0.5_x64*.msi' -File |
+            Select-Object -First 1
+          if (-not $builtExe -or -not $currentMsi -or -not $previousMsi) {
+            throw 'A previous MSI, current desktop executable, or current en-US MSI was not found for the upgrade smoke test.'
+          }
+
+          & scripts/smoke_msi_upgrade.ps1 `
+            -PreviousInstallerPath $previousMsi.FullName `
+            -CurrentInstallerPath $currentMsi.FullName `
+            -PreviousVersion '1.0.5' `
+            -CurrentVersion ([string]$tauriConfig.version) `
+            -DesktopExecutableName $builtExe.Name `
+            -VerifyUiLanguages `
+            -VerifyOrganizationFlow
+          if (-not $?) {
+            throw 'WiX MSI upgrade smoke test failed.'
+          }
+
+      - name: Smoke test NSIS upgrade and data preservation
+        shell: pwsh
+        env:
+          CI: "true"
+        run: |
+          $tauriConfig = Get-Content 'desktop/src-tauri/tauri.conf.json' -Raw -Encoding utf8 | ConvertFrom-Json
+          if ([version]$tauriConfig.version -le [version]'1.0.5') {
+            Write-Output "Skipping NSIS upgrade smoke: no release older than $($tauriConfig.version) is configured."
+            exit 0
+          }
+
+          $builtExe = Get-ChildItem 'desktop/src-tauri/target/release' -Filter *.exe |
+            Where-Object { $_.Name -ne 'file_pilot_api.exe' } |
+            Select-Object -First 1
+          if (-not $builtExe) {
+            throw 'Built desktop executable was not found.'
+          }
+
+          $previousNsis = Join-Path $env:RUNNER_TEMP 'FilePilot_1.0.5_x64-setup.exe'
+          if (-not (Test-Path -LiteralPath $previousNsis)) {
+            throw "Previous NSIS installer was not downloaded: $previousNsis"
+          }
+
+          $currentInstaller = Get-ChildItem 'desktop/src-tauri/target/release/bundle/nsis' -Recurse -Filter 'FilePilot_*_x64-setup.exe' |
+            Select-Object -First 1
+          if (-not $currentInstaller) {
+            throw 'Current multilingual NSIS installer was not found.'
+          }
+
+          & scripts/smoke_nsis_upgrade.ps1 `
+            -PreviousInstallerPath $previousNsis `
+            -CurrentInstallerPath $currentInstaller.FullName `
+            -PreviousVersion '1.0.5' `
+            -CurrentVersion ([string]$tauriConfig.version) `
+            -DesktopExecutableName $builtExe.Name `
+            -VerifyUiLanguages `
+            -VerifyOrganizationFlow
+          if (-not $?) {
+            throw 'NSIS upgrade smoke test failed.'
+          }
 
       - name: Dump desktop smoke diagnostics on failure
         if: failure()

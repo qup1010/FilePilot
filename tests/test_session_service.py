@@ -77,6 +77,94 @@ class OrganizerSessionServiceTests(unittest.TestCase):
         self.assertEqual(result.session.stage, "draft")
         self.assertIsNone(result.restorable_session)
 
+    def test_content_locale_round_trips_and_legacy_sessions_default_to_chinese(self):
+        created = self.service.create_session(
+            str(self.target_dir),
+            resume_if_exists=False,
+            content_locale="en",
+        ).session
+        self.assertEqual(created.content_locale, "en")
+        self.assertEqual(self.service._planning_context(created)["content_locale"], "en")
+        self.assertEqual(self.store.load(created.session_id).content_locale, "en")
+
+        legacy_payload = created.to_dict()
+        legacy_payload.pop("content_locale")
+        legacy = OrganizerSession.from_dict(legacy_payload)
+        self.assertEqual(legacy.content_locale, "zh-CN")
+
+    def test_planner_cycles_keep_locale_isolated_per_restored_session(self):
+        english = self.service.create_session(
+            str(self.target_dir),
+            resume_if_exists=False,
+            content_locale="en",
+        ).session
+        assert english is not None
+
+        # Simulate switching the UI to Chinese and starting another task before
+        # the English task reaches its planner.
+        chinese_target_dir = self.root / "OtherInbox"
+        chinese_target_dir.mkdir(parents=True, exist_ok=True)
+        chinese = self.service.create_session(
+            str(chinese_target_dir),
+            resume_if_exists=False,
+            content_locale="zh-CN",
+        ).session
+        assert chinese is not None
+
+        restored_english = self.store.load(english.session_id)
+        restored_chinese = self.store.load(chinese.session_id)
+        self.assertIsNotNone(restored_english)
+        self.assertIsNotNone(restored_chinese)
+        assert restored_english is not None
+        assert restored_chinese is not None
+
+        cycle_result = (
+            "Plan updated",
+            {
+                "pending_plan": PendingPlan(),
+                "assistant_message": {"role": "assistant", "content": "Plan updated"},
+            },
+        )
+        with mock.patch(
+            "file_pilot.app.session_orchestrator.organize_service.run_organizer_cycle",
+            return_value=cycle_result,
+        ) as run_organizer_cycle:
+            self.service.orchestrator.run_planner_cycle_for_session(restored_english, source="test")
+            self.service.orchestrator.run_planner_cycle_for_session(restored_chinese, source="test")
+
+        self.assertEqual(
+            [call.kwargs["planning_context"]["content_locale"] for call in run_organizer_cycle.call_args_list],
+            ["en", "zh-CN"],
+        )
+        self.assertEqual(self.store.load(english.session_id).content_locale, "en")
+        self.assertEqual(self.store.load(chinese.session_id).content_locale, "zh-CN")
+
+    def test_default_scan_runner_receives_the_session_content_locale(self):
+        with mock.patch("file_pilot.app.session_service.analysis_service.run_analysis_cycle", return_value="scan") as run_analysis:
+            result = self.service._default_scan_runner(self.target_dir, content_locale="en")
+
+        self.assertEqual(result, "scan")
+        self.assertEqual(run_analysis.call_args.kwargs["content_locale"], "en")
+
+    def test_seeded_initial_plan_request_has_structured_internal_visibility(self):
+        session = self.service.create_session(str(self.target_dir), resume_if_exists=False).session
+        session.scan_lines = "F001 | file | report.pdf | document | annual report"
+
+        self.service._seed_initial_messages(session)
+
+        initial_request = next(message for message in session.messages if message.get("role") == "user")
+        self.assertEqual(initial_request.get("visibility"), "internal")
+        self.assertEqual(initial_request.get("message_type"), "initial_plan_request")
+
+    def test_placeholder_scan_count_prefers_structured_status_and_keeps_legacy_fallback(self):
+        entries = [
+            {"analysis_status": "needs_review", "suggested_purpose": "Needs review", "summary": "Not covered"},
+            {"analysis_status": "completed", "suggested_purpose": "待判断", "summary": "分析未覆盖，需手动确认"},
+            {"suggested_purpose": "待判断", "summary": "分析未覆盖，需手动确认"},
+        ]
+
+        self.assertEqual(self.service._placeholder_scan_item_count(entries), 2)
+
     def test_create_session_returns_resume_available_when_session_exists(self):
         created = self.service.create_session(str(self.target_dir), resume_if_exists=False)
         self.store.save(created.session)
@@ -86,6 +174,24 @@ class OrganizerSessionServiceTests(unittest.TestCase):
         self.assertEqual(resumed.mode, "resume_available")
         self.assertIsNotNone(resumed.restorable_session)
         self.assertEqual(resumed.restorable_session.session_id, created.session.session_id)
+
+    def test_resume_matching_keeps_existing_content_locale_when_ui_language_changes(self):
+        created = self.service.create_session(
+            str(self.target_dir),
+            resume_if_exists=False,
+            content_locale="zh-CN",
+        )
+        self.store.save(created.session)
+
+        resumed = self.service.create_session(
+            str(self.target_dir),
+            resume_if_exists=True,
+            content_locale="en",
+        )
+
+        self.assertEqual(resumed.mode, "resume_available")
+        self.assertEqual(resumed.restorable_session.session_id, created.session.session_id)
+        self.assertEqual(resumed.restorable_session.content_locale, "zh-CN")
 
     def test_build_id_registry_persists_legacy_scan_line_ids(self):
         session = OrganizerSession(
@@ -937,11 +1043,15 @@ class OrganizerSessionServiceTests(unittest.TestCase):
         assert scanned is not None
         self.assertEqual(scanned.stage, "interrupted")
         self.assertEqual(scanned.last_error, "scan_empty_result")
+        self.assertEqual(scanned.last_error_code, "scan_empty_result")
         self.assertEqual(scanned.scanner_progress["status"], "failed")
+        self.assertEqual(scanned.scanner_progress["message_code"], "scan_empty_result")
         self.assertEqual(scanned.scanner_progress["message"], "扫描未返回任何条目，请检查模型输出或调试日志")
         organizer_cycle_mock.assert_not_called()
         error_events = [event for event in service.read_events(session.session_id) if event["event_type"] == "session.error"]
         self.assertTrue(error_events)
+        self.assertEqual(error_events[-1]["error_code"], "scan_empty_result")
+        self.assertEqual(error_events[-1]["session_snapshot"]["last_error_code"], "scan_empty_result")
 
     def test_start_scan_sync_runner_raises_when_scan_returns_empty_for_nonempty_directory(self):
         (self.target_dir / "a.txt").write_text("hello", encoding="utf-8")
@@ -1379,6 +1489,7 @@ class OrganizerSessionServiceTests(unittest.TestCase):
             result = self.service.submit_user_intent(session.session_id, "放到文档")
 
         self.assertEqual(result.session_snapshot["planner_progress"]["status"], "completed")
+        self.assertEqual(result.session_snapshot["planner_progress"]["message_code"], "completed")
         self.assertIsNotNone(result.session_snapshot["planner_progress"]["last_completed_at"])
         self.assertFalse(result.session_snapshot["planner_progress"]["preserving_previous_plan"])
 
@@ -1390,6 +1501,11 @@ class OrganizerSessionServiceTests(unittest.TestCase):
         self.assertIn("streaming_reply", phases)
         self.assertIn("validating", phases)
         self.assertIn("applying", phases)
+        waiting_event = next(
+            event for event in progress_events
+            if event["session_snapshot"]["planner_progress"]["phase"] == "waiting_model"
+        )
+        self.assertEqual(waiting_event["session_snapshot"]["planner_progress"]["message_code"], "waiting_model")
 
     def test_submit_user_intent_marks_retrying_and_repairing_planner_progress(self):
         created = self.service.create_session(str(self.target_dir), resume_if_exists=False)

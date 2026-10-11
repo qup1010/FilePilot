@@ -1,4 +1,6 @@
-import type { FolderIconCandidate, IconPreviewVersion, } from "@/types/icon-workbench";
+import type { TFunction } from "i18next";
+
+import type { FolderIconCandidate, IconPreviewVersion, IconTemplate, IconWorkbenchHistoryItem } from "@/types/icon-workbench";
 
 export type GenerateFlowStage = "analyzing" | "applying_template" | "generating";
 export interface GenerateFlowStepItem {
@@ -6,10 +8,10 @@ export interface GenerateFlowStepItem {
   label: string;
 }
 
-const GENERATE_STEP_LABELS: Record<GenerateFlowStage, string> = {
-  analyzing: "分析目录",
-  applying_template: "套用风格",
-  generating: "生成预览",
+const GENERATE_STEP_KEYS: Record<GenerateFlowStage, string> = {
+  analyzing: "iconWorkbench.progress.steps.analyzing",
+  applying_template: "iconWorkbench.progress.steps.applying_template",
+  generating: "iconWorkbench.progress.steps.generating",
 };
 
 export interface GenerateFlowProgress {
@@ -27,6 +29,57 @@ export interface GenerateFlowPresentation {
   percent: number;
   counter: string;
   steps: GenerateFlowStepItem[];
+}
+
+export function getIconTemplateDisplayName(template: IconTemplate | null | undefined, t: TFunction<"common">): string {
+  if (!template) return "";
+  if (!template.is_builtin) return template.name;
+  return t(`iconWorkbench.builtinStyles.${template.template_id}.name`, { defaultValue: template.name });
+}
+
+export function getIconTemplateDisplayDescription(template: IconTemplate, t: TFunction<"common">): string {
+  if (!template.is_builtin) return template.description || t("iconWorkbench.stylePicker.fallbackDescription");
+  return t(`iconWorkbench.builtinStyles.${template.template_id}.description`, {
+    defaultValue: template.description || t("iconWorkbench.stylePicker.fallbackDescription"),
+  });
+}
+
+export function getIconWorkbenchHistoryActionMessage(
+  item: IconWorkbenchHistoryItem,
+  t: TFunction<"common">,
+  locale: string,
+): string {
+  const actionType = String(item.last_action_type || "").trim().toLowerCase();
+  const summaryKeys: Record<string, { summary: string; generic: string }> = {
+    apply_icons: {
+      summary: "iconWorkbench.notices.batchAppliedSummary",
+      generic: "iconWorkbench.notices.batchApplied",
+    },
+    restore_icons: {
+      summary: "iconWorkbench.notices.batchRestoredSummary",
+      generic: "iconWorkbench.notices.batchRestored",
+    },
+  };
+  const actionCopy = summaryKeys[actionType];
+  if (actionCopy) {
+    const counts = [
+      item.last_action_success_count,
+      item.last_action_failed_count,
+      item.last_action_skipped_count,
+    ];
+    if (counts.every((count) => typeof count === "number" && Number.isFinite(count))) {
+      return t(actionCopy.summary, {
+        success: counts[0],
+        failed: counts[1],
+        skipped: counts[2],
+      });
+    }
+    return t(actionCopy.generic);
+  }
+
+  if (!item.last_action_type && !item.last_action_message) return "";
+  if (/^zh(?:-|$)/i.test(locale) && item.last_action_message) return item.last_action_message;
+  return t("iconWorkbench.history.actionCompleted");
 }
 
 /**
@@ -82,19 +135,19 @@ export function buildGenerateFlowSteps(needsAnalyze: boolean): GenerateFlowStage
     : ["applying_template", "generating"];
 }
 
-export function getGenerateFlowPresentation(progress: GenerateFlowProgress): GenerateFlowPresentation {
+export function getGenerateFlowPresentation(progress: GenerateFlowProgress, t: TFunction<"common">): GenerateFlowPresentation {
   const totalFolders = Math.max(progress.totalFolders, 1);
   const steps = (progress.steps?.length ? progress.steps : [progress.stage]).map((stage) => ({
     key: stage,
-    label: GENERATE_STEP_LABELS[stage],
+    label: t(GENERATE_STEP_KEYS[stage]),
   }));
   const stepKeys = steps.map((step) => step.key);
   const currentStepIndex = Math.max(stepKeys.indexOf(progress.stage), 0);
 
   if (progress.stage === "analyzing") {
     return {
-      title: `正在分析 ${progress.totalFolders} 个目标文件夹`,
-      detail: "先读取目录结构，整理每个文件夹的图标主题。",
+      title: t("iconWorkbench.progress.analyzingTitle", { count: progress.totalFolders }),
+      detail: t("iconWorkbench.progress.analyzingDetail"),
       percent: Math.max(12, Math.round(((currentStepIndex + 0.35) / Math.max(stepKeys.length, 1)) * 100)),
       counter: `${progress.completedFolders} / ${progress.totalFolders}`,
       steps,
@@ -104,10 +157,10 @@ export function getGenerateFlowPresentation(progress: GenerateFlowProgress): Gen
   if (progress.stage === "applying_template") {
     const skipsAnalyze = !stepKeys.includes("analyzing");
     return {
-      title: skipsAnalyze ? "正在更新当前风格并准备生成" : "正在套用当前风格模板",
-      detail: skipsAnalyze ? "已复用目录分析结果，只更新本轮风格与提示词。" : "把你选择的风格写入每个目标的生成提示词。",
+      title: t(skipsAnalyze ? "iconWorkbench.progress.applyingTitleReusing" : "iconWorkbench.progress.applyingTitle"),
+      detail: t(skipsAnalyze ? "iconWorkbench.progress.applyingDetailReusing" : "iconWorkbench.progress.applyingDetail"),
       percent: Math.max(28, Math.round(((currentStepIndex + 0.5) / Math.max(stepKeys.length, 1)) * 100)),
-      counter: `${progress.totalFolders} 个目标`,
+      counter: t("iconWorkbench.progress.targetCount", { count: progress.totalFolders }),
       steps,
     };
   }
@@ -124,17 +177,18 @@ export function getGenerateFlowPresentation(progress: GenerateFlowProgress): Gen
 
   return {
     title: finished
-      ? "图标预览已全部生成"
-      : reusingAnalysis
-        ? `正在重新生成第 ${nextIndex} / ${progress.totalFolders} 个图标`
-        : `正在生成第 ${nextIndex} / ${progress.totalFolders} 个图标`,
+      ? t("iconWorkbench.progress.completedTitle")
+      : t(reusingAnalysis ? "iconWorkbench.progress.regeneratingTitle" : "iconWorkbench.progress.generatingTitle", {
+          index: nextIndex,
+          total: progress.totalFolders,
+        }),
     detail: finished
-      ? `${progress.totalFolders} 个目标文件夹都已经完成本轮预览生成。`
+      ? t("iconWorkbench.progress.completedDetail", { count: progress.totalFolders })
       : progress.currentFolderName
-        ? `当前目标：${progress.currentFolderName}`
+        ? t("iconWorkbench.progress.currentTarget", { folderName: progress.currentFolderName })
         : reusingAnalysis
-          ? `已复用目录分析结果，已完成 ${completedFolders} / ${progress.totalFolders}。`
-          : `已完成 ${completedFolders} / ${progress.totalFolders} 个目标文件夹。`,
+          ? t("iconWorkbench.progress.reusedProgress", { completed: completedFolders, total: progress.totalFolders })
+          : t("iconWorkbench.progress.folderProgress", { completed: completedFolders, total: progress.totalFolders }),
     percent,
     counter: `${completedFolders} / ${progress.totalFolders}`,
     steps,

@@ -159,6 +159,43 @@ class ApiConfigTests(unittest.TestCase):
         self.assertEqual(response.json(), expected_snapshot)
         update_mock.assert_called_once_with(payload)
 
+    def test_patch_settings_returns_validation_code_for_unsupported_ui_language(self):
+        with mock.patch(
+            "file_pilot.shared.config_manager.config_manager.service.update_settings",
+            side_effect=ValueError("UI_LANGUAGE_INVALID"),
+        ):
+            response = self.client.patch("/api/settings", json={"global_config": {"UI_LANGUAGE": "fr"}})
+
+        self.assertEqual(response.status_code, 422)
+        self.assertEqual(response.json(), {"error_code": "UI_LANGUAGE_INVALID"})
+
+    def test_settings_routes_return_codes_for_validation_errors(self):
+        with mock.patch(
+            "file_pilot.shared.config_manager.config_manager.service.update_settings",
+            side_effect=ValueError("不支持的密钥操作"),
+        ):
+            update_response = self.client.patch(
+                "/api/settings",
+                json={"families": {"text": {"secret": {"action": "invalid"}}}},
+            )
+        with mock.patch(
+            "file_pilot.shared.config_manager.config_manager.service.add_preset",
+            side_effect=ValueError("不支持的预设类型"),
+        ):
+            create_response = self.client.post("/api/settings/presets/unknown", json={"name": "test"})
+        with mock.patch(
+            "file_pilot.shared.config_manager.config_manager.service.activate_preset",
+            side_effect=ValueError("图标生图预设不存在"),
+        ):
+            activate_response = self.client.post("/api/settings/presets/icon_image/missing/activate")
+
+        self.assertEqual(update_response.status_code, 400)
+        self.assertEqual(update_response.json(), {"error_code": "SETTINGS_SECRET_ACTION_INVALID"})
+        self.assertEqual(create_response.status_code, 400)
+        self.assertEqual(create_response.json(), {"error_code": "SETTINGS_PRESET_TYPE_INVALID"})
+        self.assertEqual(activate_response.status_code, 400)
+        self.assertEqual(activate_response.json(), {"error_code": "SETTINGS_PRESET_NOT_FOUND"})
+
     def test_get_runtime_family_returns_live_runtime_config(self):
         with mock.patch(
             "file_pilot.shared.config_manager.config_manager.service.get_runtime_family_config",

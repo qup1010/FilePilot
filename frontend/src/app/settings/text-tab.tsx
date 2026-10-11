@@ -23,6 +23,7 @@ import {
 } from "@/app/settings/preset-form-fields";
 import type { SecretDraft } from "@/app/settings/settings-draft";
 import { cn } from "@/lib/utils";
+import { useTranslation } from "react-i18next";
 import type { TextSettingsPreset, VisionSettingsPreset, VisionSourceMode } from "@/types/settings";
 
 export interface TextTabProps {
@@ -70,6 +71,7 @@ export function TextTab({
   connectionTest,
   modelLookup,
 }: TextTabProps) {
+  const { t } = useTranslation("common");
   const textPresetEditable = isEditablePreset(textActivePresetId);
   const visionPresetEditable = isEditablePreset(visionActivePresetId);
   const visionUsesSharedText = visionMode === "shared_text";
@@ -77,18 +79,18 @@ export function TextTab({
   return (
     <SettingsSection
       icon={Layers3}
-      title="文本模型与图片理解"
-      description="配置文本分析模型与可选的图片理解模型。"
+      title={t("settingsPage.textTab.title")}
+      description={t("settingsPage.textTab.description")}
     >
       <SettingsMinPath
         items={[
-          "基础必备：填写接口地址、模型 ID 和 API 密钥（文件整理核心依赖）",
-          "图片理解：默认复用上述文本模型；若文本模型不支持看图，可切换为「单独图片模型」",
-          "填写后点击「测试文本连接」确认可用；支持保存多套预设随时切换",
+          t("settingsPage.textTab.guideRequired"),
+          t("settingsPage.textTab.guideImage"),
+          t("settingsPage.textTab.guideTest"),
         ]}
       />
       <PresetSelector
-        label="文本预设"
+        label={t("settingsPage.textTab.textPreset")}
         presets={textPresets}
         activeId={textActivePresetId}
         onSwitch={(id) => onActivatePreset("text", id)}
@@ -97,12 +99,12 @@ export function TextTab({
       />
       {!textPresetEditable ? (
         <p className="text-[11px] leading-5 text-ui-muted">
-          首次使用请直接在下方填写配置，首次保存时会自动创建可编辑预设。
+          {t("settingsPage.textTab.firstUse")}
         </p>
       ) : null}
       <div className="grid gap-4 xl:grid-cols-2">
         <ModelIdField
-          label="模型 ID"
+          label={t("settingsPage.textTab.modelId")}
           icon={Terminal}
           value={textDraft.OPENAI_MODEL}
           placeholder="gpt-5.4"
@@ -111,16 +113,16 @@ export function TextTab({
           isLoadingModels={modelLookup.loadingFamily === "text"}
           onFetchModels={() => modelLookup.onFetch("text")}
         />
-        <FieldGroup label="接口地址" hint="填写 OpenAI 兼容地址，通常以 /v1 结尾。">
+        <FieldGroup label={t("settingsPage.textTab.endpoint")} hint={t("settingsPage.textTab.endpointHint")}>
           <InputShell icon={Globe}>
             <input value={textDraft.OPENAI_BASE_URL} onChange={(event) => onUpdateText((current) => ({ ...current, OPENAI_BASE_URL: event.target.value }))} className="w-full bg-transparent py-2 text-sm font-mono font-medium text-on-surface outline-none" placeholder="https://api.openai.com/v1" />
           </InputShell>
         </FieldGroup>
         <div className="xl:col-span-2">
-          <SecretField label="接口密钥" state={textDraft.secret_state} secret={textSecret} setSecret={setTextSecret} family="text" />
+          <SecretField label={t("settingsPage.textTab.apiKey")} state={textDraft.secret_state} secret={textSecret} setSecret={setTextSecret} family="text" />
         </div>
         <ProviderCapabilitySummary
-          title="当前连接方式"
+          title={t("settingsPage.formFields.currentConnection")}
           kind="text"
           provider={textDraft.provider}
           apiFormat={textDraft.api_format}
@@ -130,9 +132,9 @@ export function TextTab({
         <div className="xl:col-span-2">
           <ConnectionTestPanel
             family="text"
-            title="文本连接测试"
-            description="验证当前配置的连通性与可用性。"
-            buttonLabel="测试文本连接"
+            title={t("settingsPage.textTab.textConnectionTest")}
+            description={t("settingsPage.formFields.connectionTestDescription")}
+            buttonLabel={t("settingsPage.textTab.testTextConnection")}
             isTesting={connectionTest.testingFamily === "text"}
             result={connectionTest.results.text}
             onTest={() => connectionTest.onTest("text")}
@@ -144,35 +146,35 @@ export function TextTab({
           <div className="min-w-0">
             <div className="flex items-center gap-2">
               <Globe className="h-4 w-4 text-primary" />
-              <h3 className="text-[14px] font-bold text-on-surface">图片理解能力</h3>
+              <h3 className="text-[14px] font-bold text-on-surface">{t("settingsPage.textTab.imageUnderstanding")}</h3>
             </div>
             <p className="mt-1 text-[12px] leading-relaxed text-on-surface-variant/70">
-              开启后，模型可在必要时查看图片内容；关闭时只按文件名判断。
+              {t("settingsPage.textTab.imageUnderstandingDescription")}
             </p>
           </div>
           <div className="flex items-center gap-2.5 rounded-lg border border-on-surface/10 bg-surface-container-lowest px-3 py-1.5 shadow-sm">
-            <span className="text-[12px] font-bold text-on-surface/80">启用</span>
+            <span className="text-[12px] font-bold text-on-surface/80">{t("settingsPage.textTab.enabled")}</span>
             <ToggleSwitch
               checked={visionEnabled}
               onClick={() => onUpdateGlobal("IMAGE_ANALYSIS_ENABLED", !visionEnabled)}
-              ariaLabel="启用图片理解能力"
+              ariaLabel={t("settingsPage.textTab.imageUnderstandingAria")}
             />
           </div>
         </div>
 
         <div className="mt-4">
-          <p className="text-[12px] font-bold text-on-surface/80">当前来源</p>
+          <p className="text-[12px] font-bold text-on-surface/80">{t("settingsPage.textTab.currentSource")}</p>
           <div className="mt-2 grid gap-2.5 xl:grid-cols-2">
             {([
               {
                 id: "shared_text" as const,
-                label: "复用文本模型",
-                description: "默认方案，直接使用当前文本模型的端点、模型与密钥。",
+                label: t("settingsPage.textTab.reuseTextModel"),
+                description: t("settingsPage.textTab.reuseTextDescription"),
               },
               {
                 id: "separate" as const,
-                label: "单独图片模型",
-                description: "适合文本模型不带视觉能力、或希望单独配置视觉多模态模型时选用。",
+                label: t("settingsPage.textTab.separateImageModel"),
+                description: t("settingsPage.textTab.separateImageDescription"),
               },
             ] as const).map((item) => {
               const active = visionMode === item.id;
@@ -201,27 +203,27 @@ export function TextTab({
             <div className="rounded-xl border border-on-surface/10 bg-surface-container-lowest p-4 shadow-sm">
               <div className="flex items-center gap-2">
                 <Layers3 className="h-4 w-4 text-primary" />
-                <p className="text-[13px] font-bold text-on-surface">当前复用文本模型</p>
+                <p className="text-[13px] font-bold text-on-surface">{t("settingsPage.textTab.currentlyUsingTextModel")}</p>
               </div>
               <div className="mt-3 grid gap-3 xl:grid-cols-2">
                 <div className="rounded-lg border border-on-surface/8 bg-surface/50 px-3.5 py-2.5">
-                  <p className="text-[11px] font-bold text-on-surface-variant/60">模型 ID</p>
-                  <p className="mt-0.5 text-[12px] font-bold text-on-surface">{textDraft.OPENAI_MODEL || "未填写"}</p>
+                  <p className="text-[11px] font-bold text-on-surface-variant/60">{t("settingsPage.textTab.modelId")}</p>
+                  <p className="mt-0.5 text-[12px] font-bold text-on-surface">{textDraft.OPENAI_MODEL || t("settingsPage.textTab.notSet")}</p>
                 </div>
                 <div className="rounded-lg border border-on-surface/8 bg-surface/50 px-3.5 py-2.5">
-                  <p className="text-[11px] font-bold text-on-surface-variant/60">接口地址</p>
-                  <p className="mt-0.5 break-all font-mono text-[11px] font-medium text-on-surface">{textDraft.OPENAI_BASE_URL || "未填写"}</p>
+                  <p className="text-[11px] font-bold text-on-surface-variant/60">{t("settingsPage.textTab.endpoint")}</p>
+                  <p className="mt-0.5 break-all font-mono text-[11px] font-medium text-on-surface">{textDraft.OPENAI_BASE_URL || t("settingsPage.textTab.notSet")}</p>
                 </div>
               </div>
               <p className="mt-3 text-[11px] leading-relaxed text-ui-muted">
-                图片理解测试将复用文本模型的配置，并验证其是否支持图片输入。
+                {t("settingsPage.textTab.imageTestDescription")}
               </p>
             </div>
             <ConnectionTestPanel
               family="vision"
-              title="图片理解能力测试"
-              description="验证当前模型是否支持图片理解功能。"
-              buttonLabel="测试图片理解能力"
+              title={t("settingsPage.textTab.imageConnectionTest")}
+              description={t("settingsPage.textTab.imageTestDescription")}
+              buttonLabel={t("settingsPage.textTab.testImageUnderstanding")}
               isTesting={connectionTest.testingFamily === "vision"}
               result={connectionTest.results.vision}
               onTest={() => connectionTest.onTest("vision")}
@@ -230,7 +232,7 @@ export function TextTab({
         ) : (
           <div className="mt-4 space-y-4">
             <PresetSelector
-              label="图片理解预设"
+              label={t("settingsPage.textTab.imagePreset")}
               presets={visionPresets}
               activeId={visionActivePresetId}
               onSwitch={(id) => onActivatePreset("vision", id)}
@@ -239,12 +241,12 @@ export function TextTab({
             />
             {!visionPresetEditable ? (
               <p className="text-[11px] leading-5 text-ui-muted">
-                可直接填写下方字段；首次保存时会自动创建图片理解预设。
+                {t("settingsPage.textTab.imageFirstUse")}
               </p>
             ) : null}
             <div className="grid gap-4 xl:grid-cols-2">
               <ModelIdField
-                label="模型 ID"
+                label={t("settingsPage.textTab.imageModelId")}
                 icon={ImageIcon}
                 value={visionDraft.IMAGE_ANALYSIS_MODEL}
                 placeholder="gpt-4o-mini"
@@ -253,16 +255,16 @@ export function TextTab({
                 isLoadingModels={modelLookup.loadingFamily === "vision"}
                 onFetchModels={() => modelLookup.onFetch("vision")}
               />
-              <FieldGroup label="接口地址" hint="填写 OpenAI 兼容地址，通常以 /v1 结尾；该模型还需要支持图片输入。">
+              <FieldGroup label={t("settingsPage.textTab.imageEndpoint")} hint={t("settingsPage.textTab.imageEndpointHint")}>
                 <InputShell icon={Globe}>
                   <input value={visionDraft.IMAGE_ANALYSIS_BASE_URL} onChange={(event) => onUpdateVision((current) => ({ ...current, IMAGE_ANALYSIS_BASE_URL: event.target.value }))} className="w-full bg-transparent py-2 text-sm font-mono font-medium text-on-surface outline-none" placeholder="https://host.example/v1" />
                 </InputShell>
               </FieldGroup>
               <div className="xl:col-span-2">
-                <SecretField label="图片理解密钥" state={visionDraft.secret_state} secret={visionSecret} setSecret={setVisionSecret} family="vision" />
+                <SecretField label={t("settingsPage.textTab.imageApiKey")} state={visionDraft.secret_state} secret={visionSecret} setSecret={setVisionSecret} family="vision" />
               </div>
               <ProviderCapabilitySummary
-                title="当前连接方式"
+                title={t("settingsPage.formFields.currentConnection")}
                 kind="vision"
                 provider={visionDraft.provider}
                 apiFormat={visionDraft.api_format}
@@ -272,9 +274,9 @@ export function TextTab({
               <div className="xl:col-span-2">
                 <ConnectionTestPanel
                   family="vision"
-                  title="图片理解能力测试"
-                  description="验证当前图片模型的连通性与可用性。"
-                  buttonLabel="测试图片理解能力"
+                  title={t("settingsPage.textTab.imageConnectionTest")}
+                  description={t("settingsPage.textTab.imageConnectionDescription")}
+                  buttonLabel={t("settingsPage.textTab.testImageUnderstanding")}
                   isTesting={connectionTest.testingFamily === "vision"}
                   result={connectionTest.results.vision}
                   onTest={() => connectionTest.onTest("vision")}

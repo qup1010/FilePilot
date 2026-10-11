@@ -76,6 +76,27 @@ class OrganizerServiceTests(unittest.TestCase):
         self.assertIn("如果界面已显示可检查，请点击‘检查移动风险’", prompt)
         self.assertNotIn("当前整理草案已满足预检条件", prompt)
 
+    def test_english_planner_tools_localize_descriptions_without_changing_contract(self):
+        context = {"organize_mode": "incremental", "content_locale": "en"}
+        english_tools = organizer_service.build_organizer_tools(context)
+        chinese_tools = organizer_service.build_organizer_tools({"organize_mode": "incremental"})
+
+        self.assertEqual(
+            [tool["function"]["name"] for tool in english_tools],
+            [tool["function"]["name"] for tool in chinese_tools],
+        )
+        self.assertIn("Submit incremental changes", english_tools[0]["function"]["description"])
+        self.assertEqual(
+            english_tools[0]["function"]["parameters"],
+            chinese_tools[0]["function"]["parameters"],
+        )
+        english_repair_tool = organizer_service.repair_final_plan_tool_for_content_locale("en")
+        self.assertIn("Submit one complete final plan", english_repair_tool["function"]["description"])
+        self.assertEqual(
+            english_repair_tool["function"]["parameters"],
+            organizer_service.repair_final_plan_tool["function"]["parameters"],
+        )
+
     def test_build_prompt_incremental_forbids_new_target_directories(self):
         prompt = build_prompt(
             "F001 | file | 合同.pdf | 财务合同 | 付款协议",

@@ -41,6 +41,7 @@ from file_pilot.organize.strategy_templates import (
     organize_method_for_organize_mode,
     task_type_for_organize_mode,
 )
+from file_pilot.shared.content_locale import DEFAULT_CONTENT_LOCALE, normalize_content_locale
 
 
 def utc_now_iso() -> str:
@@ -600,6 +601,7 @@ class OrganizerSession:
     organize_mode: str = "initial"
     destination_index_depth: int = 2
     language: str = DEFAULT_LANGUAGE
+    content_locale: str = DEFAULT_CONTENT_LOCALE
     density: str = DEFAULT_DENSITY
     prefix_style: str = DEFAULT_PREFIX_STYLE
     caution_level: str = DEFAULT_CAUTION_LEVEL
@@ -625,6 +627,8 @@ class OrganizerSession:
     updated_at: str = field(default_factory=utc_now_iso)
     stale_reason: str | None = None
     last_error: str | None = None
+    last_error_code: str | None = None
+    last_error_params: dict = field(default_factory=dict)
     last_ai_pending_plan: AIPendingBaseline | None = None
     summary: str = ""
     id_registry_state: IdRegistryState | None = None
@@ -686,6 +690,7 @@ class OrganizerSession:
                 "organize_mode": self.organize_mode,
                 "destination_index_depth": self.destination_index_depth,
                 "language": self.language,
+                "content_locale": normalize_content_locale(self.content_locale),
                 "density": self.density,
                 "prefix_style": self.prefix_style,
                 "caution_level": self.caution_level,
@@ -796,6 +801,7 @@ class OrganizerSession:
             organize_mode=organize_mode,
             destination_index_depth=int(data.get("destination_index_depth", 2) or 2),
             language=data.get("language", DEFAULT_LANGUAGE),
+            content_locale=normalize_content_locale(data.get("content_locale")),
             density=data.get("density", DEFAULT_DENSITY),
             prefix_style=data.get("prefix_style", DEFAULT_PREFIX_STYLE),
             caution_level=data.get("caution_level", DEFAULT_CAUTION_LEVEL),
@@ -821,6 +827,8 @@ class OrganizerSession:
             updated_at=data.get("updated_at", utc_now_iso()),
             stale_reason=data.get("stale_reason"),
             last_error=data.get("last_error"),
+            last_error_code=data.get("last_error_code"),
+            last_error_params=dict(data.get("last_error_params") or {}),
             last_ai_pending_plan=AIPendingBaseline.from_dict(data.get("last_ai_pending_plan")),
             summary=data.get("summary", ""),
             id_registry_state=IdRegistryState.from_dict(data.get("id_registry_state")),

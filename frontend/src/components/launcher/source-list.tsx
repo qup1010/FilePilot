@@ -1,9 +1,9 @@
 import { memo, useRef } from "react";
 import { ChevronDown, FileText, FolderOpen, Layers3, ListTree, Trash2 } from "lucide-react";
 import { useVirtualizer } from "@tanstack/react-virtual";
+import { useTranslation } from "react-i18next";
 
 import {
-  getSourceBehaviorLabel,
   normalizeDirectoryMode,
   type SourceImportGroupView,
 } from "@/lib/launcher-sources";
@@ -33,6 +33,7 @@ const SourceRow = memo(function SourceRow({
   onImportInternal,
   onSetAtomicMode,
 }: SourceRowProps) {
+  const { t } = useTranslation("common");
   const isDirectory = item.source_type === "directory";
   const isAtomic = normalizeDirectoryMode(item) === "atomic";
 
@@ -62,7 +63,9 @@ const SourceRow = memo(function SourceRow({
               {item.path.split(/[\\/]/).pop() || item.path}
             </span>
             <span className="shrink-0 rounded bg-on-surface/5 px-1 py-0.2 text-[11px] font-black uppercase tracking-wider text-ui-muted opacity-80 scale-90 origin-left">
-              {getSourceBehaviorLabel(item)}
+              {isDirectory
+                ? t(isAtomic ? "source.behaviorMoveWhole" : "source.behaviorImportContents")
+                : t("source.behaviorFile")}
             </span>
           </div>
           <div className="flex items-center gap-1.5 mt-0.5 leading-none">
@@ -84,7 +87,7 @@ const SourceRow = memo(function SourceRow({
                   }}
                   className="shrink-0 text-[11px] font-bold text-primary hover:underline transition-colors leading-none"
                 >
-                  {isAtomic ? "导入内部项" : "改为整体移动"}
+                  {isAtomic ? t("source.importInternal") : t("source.switchToWholeFolder")}
                 </button>
               </>
             )}
@@ -96,7 +99,7 @@ const SourceRow = memo(function SourceRow({
         onClick={() => onRemove(item.path, item.source_type)}
         disabled={loading}
         className="shrink-0 rounded-[4px] p-1.5 text-on-surface-variant/40 transition-colors hover:bg-error/10 hover:text-error opacity-0 group-hover:opacity-100 focus:opacity-100"
-        title="移除"
+        title={t("source.remove")}
       >
         <Trash2 className="h-4 w-4" />
       </button>
@@ -123,6 +126,7 @@ const SourceGroupHeader = memo(function SourceGroupHeader({
   onToggleExpanded,
   onRemoveGroup,
 }: SourceGroupHeaderProps) {
+  const { t } = useTranslation("common");
   return (
     <div
       onClick={() => onToggleExpanded(groupId)}
@@ -136,11 +140,11 @@ const SourceGroupHeader = memo(function SourceGroupHeader({
           <div className="flex items-center gap-2">
             <Layers3 className="h-4 w-4 text-primary/70 shrink-0" />
             <p className="text-[13px] font-black tracking-tight text-on-surface">
-              已从 {sourcePath.split(/[\\/]/).pop()} 导入 {itemCount} 项
+              {t("source.groupImported", { count: itemCount, name: sourcePath.split(/[\\/]/).pop() })}
             </p>
           </div>
           <p className="mt-1 truncate font-mono text-[11px] font-bold text-ui-muted opacity-40 uppercase tracking-widest">
-            批量导入 · {sourcePath}
+            {t("source.batchImport")} · {sourcePath}
           </p>
         </div>
       </div>
@@ -154,7 +158,7 @@ const SourceGroupHeader = memo(function SourceGroupHeader({
           }}
           className="rounded-[6px] px-2.5 py-1.5 text-[11px] font-bold text-ui-muted/55 transition-colors hover:bg-error/10 hover:text-error"
         >
-          移除整组
+          {t("source.removeGroup")}
         </button>
       </div>
     </div>
@@ -186,6 +190,7 @@ export function SourceListPanel({
   onToggleGroupExpanded,
   onRemoveGroup,
 }: SourceListPanelProps) {
+  const { t } = useTranslation("common");
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const virtualizer = useVirtualizer({
     count: items.length,
@@ -203,13 +208,13 @@ export function SourceListPanel({
             <ListTree className="h-3.5 w-3.5" />
           </span>
           <span className="text-[11px] font-black tracking-widest text-ui-muted flex items-center gap-1.5">
-            <span>已加入来源</span>
-            <span className="text-[11px] font-medium text-ui-muted opacity-50 tracking-normal font-sans">（文件夹已优先置顶显示）</span>
+            <span>{t("source.addedSources")}</span>
+            <span className="text-[11px] font-medium text-ui-muted opacity-50 tracking-normal font-sans">{t("source.foldersFirst")}</span>
           </span>
         </div>
         <div className="flex items-center gap-2">
           <span className="text-[11px] font-bold text-ui-muted/55">
-            文件夹 {stats.directoryCount} · 文件 {stats.fileCount}
+            {t("source.folderCount", { count: stats.directoryCount })} · {t("source.fileCount", { count: stats.fileCount })}
           </span>
           <button
             type="button"
@@ -221,10 +226,10 @@ export function SourceListPanel({
                 ? "border-error/30 bg-error/10 text-error animate-pulse"
                 : "border-on-surface/8 bg-surface text-on-surface/55 hover:border-error/20 hover:bg-error/5 hover:text-error"
             )}
-            title={showClearConfirm ? "再次点击以确认清空" : "一键清空当前来源列表"}
+            title={showClearConfirm ? t("source.clearAgainToConfirm") : t("source.clearAllTitle")}
           >
             <Trash2 className="h-3.5 w-3.5" />
-            {showClearConfirm ? "确认清空？" : "清空来源"}
+            {showClearConfirm ? t("source.confirmClear") : t("source.clearSources")}
           </button>
         </div>
       </div>

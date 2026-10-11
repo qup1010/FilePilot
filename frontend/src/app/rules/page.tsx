@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
+import { useTranslation } from "react-i18next";
 import {
   BookOpenCheck,
   Check,
@@ -19,6 +20,7 @@ import {
 } from "lucide-react";
 
 import { createApiClient } from "@/lib/api";
+import { contentLocaleForUiLanguage } from "@/lib/content-locale";
 import { getApiBaseUrl, getApiToken, inspectPathsWithTauri, isTauriDesktop, pickDirectoryWithTauri, pickDirectoriesWithTauri } from "@/lib/runtime";
 import {
   findDropZoneForPosition,
@@ -43,14 +45,19 @@ interface DraftState {
 
 const SELECTED_PROFILE_STORAGE_KEY = "filepilot.rules.selected_profile_id";
 
-const RULE_INSPIRATIONS = [
-  { label: "+ 文档材料", text: "包含办公文档、PDF、报表等文书材料，文件以文本说明和数据报告为主。" },
-  { label: "+ 素材与图片", text: "包含图片、矢量图、视频、音频等设计媒体素材，典型扩展名为 .jpg、.png、.mp4 等。" },
-  { label: "+ 软件与压缩包", text: "包含软件安装包（.exe、.msi）与压缩归档（.zip、.rar、.7z）等可执行分发文件。" },
-  { label: "+ 代码与配置", text: "包含源代码、配置文件、样式表等开发文件，文件内容以程序代码或配置为主。" },
-];
+const RULE_INSPIRATION_IDS = ["documents", "media", "software", "code"] as const;
+const RULE_ERROR_PREFIX = "rules:i18n:";
+
+function ruleError(key: string): string {
+  return `${RULE_ERROR_PREFIX}${key}`;
+}
+
+function displayRuleMessage(message: string, t: (key: string) => string): string {
+  return message.startsWith(RULE_ERROR_PREFIX) ? t(message.slice(RULE_ERROR_PREFIX.length)) : message;
+}
 
 function CopyPathButton({ path }: { path: string }) {
+  const { t } = useTranslation("common");
   const [copied, setCopied] = useState(false);
 
   const handleCopy = (e: React.MouseEvent) => {
@@ -66,11 +73,11 @@ function CopyPathButton({ path }: { path: string }) {
     <button
       type="button"
       onClick={handleCopy}
-      title={copied ? "已复制完整路径" : "点击复制完整路径"}
+      title={copied ? t("rules.copiedPathTitle") : t("rules.copyPathTitle")}
       className="inline-flex h-4.5 items-center gap-1 rounded px-1.5 text-[10px] font-semibold text-on-surface-variant/50 hover:bg-on-surface/5 hover:text-on-surface transition-colors"
     >
       {copied ? <Check className="h-2.5 w-2.5 text-emerald-500" /> : <Copy className="h-2.5 w-2.5" />}
-      <span>{copied ? "已复制" : "复制路径"}</span>
+      <span>{copied ? t("rules.copied") : t("rules.copyPath")}</span>
     </button>
   );
 }
@@ -148,6 +155,7 @@ function extractDroppedPaths(event: React.DragEvent): string[] {
 }
 
 export default function RulesPage() {
+  const { t, i18n } = useTranslation("common");
   const api = useMemo(() => createApiClient(getApiBaseUrl(), getApiToken()), []);
   const desktopReady = isTauriDesktop();
 
@@ -199,11 +207,11 @@ export default function RulesPage() {
         "";
       setSelectedProfileId(nextSelected);
     } catch (err: unknown) {
-      setLoadError(localizeUserFacingError(err, "读取分类规则失败，请稍后重试。"));
+      setLoadError(localizeUserFacingError(err, t("rules.errors.load")));
       setProfiles([]);
       setSelectedProfileId("");
     }
-  }, [api]);
+  }, [api, t]);
 
   useEffect(() => {
     void loadProfiles();
@@ -224,7 +232,7 @@ export default function RulesPage() {
     } else {
       window.localStorage.setItem(
         RULES_CONTEXT_KEY,
-        JSON.stringify({ detail: "规则配置" }),
+        JSON.stringify({ detail_code: "rule_config" }),
       );
     }
     notifyAppContextChange();
@@ -293,7 +301,7 @@ export default function RulesPage() {
   }
 
   async function handleCreateProfile() {
-    const name = newProfileName.trim() || "未命名规则";
+    const name = newProfileName.trim() || t("rules.starterProfile");
     setBusy(true);
     setActionError(null);
     try {
@@ -303,7 +311,7 @@ export default function RulesPage() {
       await loadProfiles();
       setSelectedProfileId(created.profile_id);
     } catch (err: unknown) {
-      setActionError(localizeUserFacingError(err, "创建规则配置失败，请再试一次。"));
+      setActionError(localizeUserFacingError(err, t("rules.errors.create")));
     } finally {
       setBusy(false);
     }
@@ -336,7 +344,7 @@ export default function RulesPage() {
       });
       await loadProfiles();
     } catch (err: unknown) {
-      setActionError(localizeUserFacingError(err, "删除规则配置失败，请再试一次。"));
+      setActionError(localizeUserFacingError(err, t("rules.errors.delete")));
     } finally {
       setBusy(false);
     }
@@ -353,7 +361,7 @@ export default function RulesPage() {
       });
       setDefaultProfileId(nextId);
     } catch (err: unknown) {
-      setActionError(localizeUserFacingError(err, "设置默认配置失败，请再试一次。"));
+      setActionError(localizeUserFacingError(err, t("rules.errors.setDefault")));
     } finally {
       setBusy(false);
     }
@@ -378,7 +386,7 @@ export default function RulesPage() {
       });
     }
     if (additions.length === 0) {
-      setActionError("这些目录已在当前配置中，或路径无效。");
+      setActionError(ruleError("errors.duplicateFolders"));
       return false;
     }
 
@@ -411,13 +419,13 @@ export default function RulesPage() {
           if (single) paths = [single];
         }
       } else {
-        const manual = window.prompt("请输入要添加的目标目录完整路径");
+        const manual = window.prompt(t("rules.errors.manualPathPrompt"));
         if (manual?.trim()) paths = [manual.trim()];
       }
       if (paths.length === 0) return;
       await addDirectoryPaths(paths);
     } catch (err: unknown) {
-      setActionError(localizeUserFacingError(err, "添加目录失败，请再试一次。"));
+      setActionError(localizeUserFacingError(err, t("rules.errors.addFolder")));
     } finally {
       setBusy(false);
     }
@@ -500,17 +508,17 @@ export default function RulesPage() {
       void (async () => {
         const handlers = dropHandlersRef.current;
         if (!handlers.hasProfile) {
-          handlers.setError("请先选择或新建一个规则配置，再拖入文件夹。");
+          handlers.setError(ruleError("errors.selectOrCreate"));
           return;
         }
         if (handlers.busy || handlers.draftLoading) {
-          handlers.setError("正在处理其他操作，请稍候再试。");
+          handlers.setError(ruleError("errors.busy"));
           return;
         }
         const dirs = await handlers.resolveDirectories(payload.paths);
         if (cancelled) return;
         if (!dirs.length) {
-          handlers.setError("拖入的内容里没有文件夹。请拖入文件夹（目录），或点击「添加目录」选择。");
+          handlers.setError(ruleError("errors.noFolderDrop"));
           return;
         }
         await handlers.addDirectories(dirs);
@@ -554,16 +562,16 @@ export default function RulesPage() {
     dragDepthRef.current = 0;
     setIsDropActive(false);
     if (!selectedProfile) {
-      setActionError("请先选择或新建一个规则配置，再拖入文件夹。");
+      setActionError(ruleError("errors.selectOrCreate"));
       return;
     }
     if (busy || draftState.loading) {
-      setActionError("正在处理其他操作，请稍候再试。");
+      setActionError(ruleError("errors.busy"));
       return;
     }
     const paths = extractDroppedPaths(event);
     if (!paths.length) {
-      setActionError("没有识别到文件夹。请直接从文件管理器拖入文件夹，或点击「添加目录」选择。");
+      setActionError(ruleError("errors.noFolderDrop"));
       return;
     }
     setBusy(true);
@@ -571,12 +579,12 @@ export default function RulesPage() {
     try {
       const dirs = await resolveDroppedDirectories(paths);
       if (!dirs.length) {
-        setActionError("拖入的内容里没有文件夹。请拖入文件夹（目录），或点击「添加目录」选择。");
+        setActionError(ruleError("errors.noFolderDrop"));
         return;
       }
       await addDirectoryPaths(dirs);
     } catch (err: unknown) {
-      setActionError(localizeUserFacingError(err, "添加目录失败，请再试一次。"));
+      setActionError(localizeUserFacingError(err, t("rules.errors.addFolder")));
     } finally {
       setBusy(false);
     }
@@ -614,7 +622,7 @@ export default function RulesPage() {
       await loadProfiles();
       setSelectedProfileId(selectedProfile.profile_id);
     } catch (err: unknown) {
-      setActionError(localizeUserFacingError(err, "移除目录失败，请再试一次。"));
+      setActionError(localizeUserFacingError(err, t("rules.errors.removeFolder")));
     } finally {
       setBusy(false);
     }
@@ -630,7 +638,8 @@ export default function RulesPage() {
       error: null,
     }));
     try {
-      const result = await api.generateProfileRuleDrafts(selectedProfile.profile_id, paths);
+      const contentLocale = contentLocaleForUiLanguage(i18n.resolvedLanguage || i18n.language);
+      const result = await api.generateProfileRuleDrafts(selectedProfile.profile_id, paths, contentLocale);
       setDraftState((prev) => {
         const items = { ...prev.items };
         for (const item of result.items) {
@@ -643,7 +652,7 @@ export default function RulesPage() {
         ...prev,
         loading: false,
         loadingPath: null,
-        error: localizeUserFacingError(err, "生成规则初稿失败，请确认模型配置后重试。"),
+        error: localizeUserFacingError(err, t("rules.errors.generateDraft")),
       }));
     }
   }
@@ -672,7 +681,7 @@ export default function RulesPage() {
       setSelectedProfileId(selectedProfile.profile_id);
       setSavedFlash(true);
     } catch (err: unknown) {
-      setActionError(localizeUserFacingError(err, "保存规则失败，请再试一次。"));
+      setActionError(localizeUserFacingError(err, t("rules.errors.save")));
     } finally {
       setSaving(false);
     }
@@ -710,10 +719,10 @@ export default function RulesPage() {
               <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
                 <BookOpenCheck className="h-4.5 w-4.5" aria-hidden />
               </div>
-              分类规则
+              {t("rules.title")}
             </h1>
             <p className="mt-1 text-[13px] leading-relaxed text-on-surface-variant/75">
-              为每个目标目录配置归类规则。AI 在组织和整理文件时将严格依据规则精准归档。
+              {t("rules.description")}
             </p>
           </div>
         </div>
@@ -722,34 +731,34 @@ export default function RulesPage() {
         {(loadError || actionError) ? (
           <div className="mt-4 flex items-center gap-2 rounded-xl border border-error/25 bg-error/5 px-3.5 py-2.5 text-[12px] font-semibold text-error shadow-sm">
             <TriangleAlert className="h-4 w-4 shrink-0" aria-hidden />
-            <span className="flex-1">{actionError || loadError}</span>
+            <span className="flex-1">{displayRuleMessage(actionError || loadError || "", t)}</span>
           </div>
         ) : null}
 
         {profiles === null ? (
           <div className="mt-16 flex flex-col items-center justify-center gap-3 py-12 text-[13px] font-medium text-on-surface-variant/60">
             <Loader2 className="h-6 w-6 animate-spin text-primary" aria-hidden />
-            <span>正在载入分类规则配置…</span>
+            <span>{t("rules.loading")}</span>
           </div>
         ) : profiles.length === 0 && !creating ? (
           <div className="mt-8 rounded-2xl border border-dashed border-on-surface/15 bg-surface-container-lowest/50 px-6 py-12 text-center shadow-sm">
             <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary">
               <FolderPlus className="h-6 w-6" />
             </div>
-            <p className="mt-3 text-[15px] font-bold text-on-surface">先建立一套分类规则</p>
+            <p className="mt-3 text-[15px] font-bold text-on-surface">{t("rules.emptyTitle")}</p>
             <p className="mx-auto mt-2 max-w-[460px] text-[13px] leading-6 text-on-surface-variant/70">
-              例如配置一套「常用分类」：添加几个目标目录，并为每个目录写一句归档规则即可。
+              {t("rules.emptyDescription")}
             </p>
             <button
               type="button"
               onClick={() => {
                 setCreating(true);
-                setNewProfileName("常用分类");
+                setNewProfileName(t("rules.starterProfile"));
               }}
               className="mt-5 inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-[13px] font-bold text-on-primary shadow-sm transition-all hover:bg-primary-dim active:scale-95"
             >
               <Plus className="h-4 w-4" aria-hidden />
-              新建规则配置
+              {t("rules.createProfile")}
             </button>
           </div>
         ) : (
@@ -769,7 +778,7 @@ export default function RulesPage() {
                     >
                       {profiles.map((profile) => {
                         const done = ruleCompletion(profile);
-                        const mark = profile.profile_id === defaultProfileId ? " [默认]" : "";
+                        const mark = profile.profile_id === defaultProfileId ? t("rules.defaultMarker") : "";
                         return (
                           <option key={profile.profile_id} value={profile.profile_id}>
                             {profile.name}
@@ -789,10 +798,10 @@ export default function RulesPage() {
                     }}
                     disabled={busy}
                     className="flex h-9 items-center gap-1 rounded-lg border border-on-surface/10 bg-surface-container-lowest px-2.5 text-[12px] font-bold text-on-surface shadow-sm transition-all hover:border-primary/30 hover:text-primary active:scale-95 disabled:opacity-50"
-                    title="新建一套规则配置"
+                    title={t("rules.newProfileTitle")}
                   >
                     <Plus className="h-3.5 w-3.5" aria-hidden />
-                    新建
+                    {t("rules.new")}
                   </button>
 
                   <button
@@ -805,10 +814,10 @@ export default function RulesPage() {
                         ? "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300 font-bold"
                         : "border-on-surface/10 bg-surface-container-lowest text-on-surface hover:border-amber-500/30 hover:text-amber-600",
                     )}
-                    title={isDefault ? "当前已是默认配置" : "设为一键默认配置"}
+                    title={isDefault ? t("rules.isDefaultTitle") : t("rules.setDefaultTitle")}
                   >
                     <Star className={cn("h-3.5 w-3.5", isDefault ? "fill-amber-500 text-amber-500" : "")} aria-hidden />
-                    {isDefault ? "默认" : "设默认"}
+                    {isDefault ? t("rules.currentDefault") : t("rules.setDefault")}
                   </button>
 
                   <button
@@ -816,7 +825,7 @@ export default function RulesPage() {
                     onClick={() => void handleDeleteProfile()}
                     disabled={!selectedProfile || busy}
                     className="flex h-9 items-center gap-1 rounded-lg border border-transparent px-2 text-[12px] font-bold text-on-surface-variant/60 transition-all hover:border-error/20 hover:bg-error/5 hover:text-error active:scale-95 disabled:opacity-50"
-                    title="删除当前规则配置"
+                    title={t("rules.deleteProfile")}
                   >
                     <Trash2 className="h-3.5 w-3.5" aria-hidden />
                   </button>
@@ -839,7 +848,7 @@ export default function RulesPage() {
                       ) : (
                         <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
                       )}
-                      <span>规则 {completion.filled}/{completion.total}</span>
+                      <span>{t("rules.completion", { filled: completion.filled, total: completion.total })}</span>
                     </div>
                   )}
 
@@ -850,7 +859,7 @@ export default function RulesPage() {
                     className="flex h-8 items-center gap-1.5 rounded-lg border border-on-surface/10 bg-surface-container-lowest px-2.5 text-[12px] font-bold text-on-surface shadow-sm transition-all hover:border-primary/30 hover:text-primary active:scale-95 disabled:opacity-50"
                   >
                     <FolderPlus className="h-3.5 w-3.5 text-primary" aria-hidden />
-                    添加目录
+                    {t("rules.addDirectory")}
                   </button>
 
                   <button
@@ -864,7 +873,7 @@ export default function RulesPage() {
                     ) : (
                       <Sparkles className="h-3.5 w-3.5" aria-hidden />
                     )}
-                    {draftState.loading && !draftState.loadingPath ? "阅读目录中…" : "整套 AI 初稿"}
+                    {draftState.loading && !draftState.loadingPath ? t("rules.readingFolders") : t("rules.generateAllDrafts")}
                   </button>
 
                   {Object.keys(draftState.items).length > 0 && !draftState.loading ? (
@@ -875,7 +884,7 @@ export default function RulesPage() {
                       className="flex h-8 items-center gap-1 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2.5 text-[12px] font-bold text-emerald-600 dark:text-emerald-400 shadow-sm transition-all hover:bg-emerald-500/20 active:scale-95 disabled:opacity-50"
                     >
                       <Check className="h-3.5 w-3.5" aria-hidden />
-                      全部采纳
+                      {t("rules.acceptAll")}
                     </button>
                   ) : null}
 
@@ -898,7 +907,7 @@ export default function RulesPage() {
                     ) : hasEdits ? (
                       <span className="h-1.5 w-1.5 rounded-full bg-amber-300 animate-pulse" />
                     ) : null}
-                    <span>{hasEdits ? "保存修改" : savedFlash ? "已保存" : "保存"}</span>
+                    <span>{hasEdits ? t("rules.saveChanges") : savedFlash ? t("rules.saved") : t("rules.save")}</span>
                   </button>
                 </div>
               </div>
@@ -910,7 +919,7 @@ export default function RulesPage() {
                     value={newProfileName}
                     onChange={(event) => setNewProfileName(event.target.value)}
                     onKeyDown={(e) => { if (e.key === "Enter") void handleCreateProfile(); }}
-                    placeholder="新配置名称，例如：下载常用"
+                    placeholder={t("rules.newProfilePlaceholder")}
                     autoFocus
                     className="h-8 min-w-[200px] flex-1 rounded-lg border border-on-surface/10 bg-surface-container-lowest px-3 text-[13px] font-semibold text-on-surface outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10"
                   />
@@ -920,7 +929,7 @@ export default function RulesPage() {
                     disabled={busy}
                     className="h-8 rounded-lg bg-primary px-3 text-[12px] font-bold text-on-primary shadow-sm hover:bg-primary-dim active:scale-95 disabled:opacity-50"
                   >
-                    {busy ? "创建中…" : "创建"}
+                    {busy ? t("rules.creating") : t("rules.create")}
                   </button>
                   <button
                     type="button"
@@ -930,7 +939,7 @@ export default function RulesPage() {
                     }}
                     className="h-8 rounded-lg border border-on-surface/10 bg-surface-container-lowest px-2.5 text-[12px] font-bold text-on-surface-variant hover:bg-on-surface/5"
                   >
-                    取消
+                    {t("rules.cancel")}
                   </button>
                 </div>
               ) : null}
@@ -940,21 +949,21 @@ export default function RulesPage() {
             {selectedProfile ? (
               <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-on-surface/8 bg-surface-container-lowest px-4 py-3 shadow-[0_1px_3px_rgba(0,0,0,0.02)]">
                 <div className="flex min-w-[220px] flex-1 items-center gap-2">
-                  <span className="text-[12px] font-bold text-on-surface-variant/60 shrink-0">配置名称:</span>
+                  <span className="text-[12px] font-bold text-on-surface-variant/60 shrink-0">{t("rules.profileName")}</span>
                   <input
                     value={profileName}
                     onChange={(event) => setEditedName(event.target.value)}
-                    placeholder="配置名称"
+                    placeholder={t("rules.profileNamePlaceholder")}
                     className="h-8 max-w-[260px] flex-1 rounded-lg border border-on-surface/10 bg-surface px-2.5 text-[13px] font-bold text-on-surface outline-none transition-colors focus:border-primary/40 focus:ring-2 focus:ring-primary/10"
                   />
                   {editedName !== null && editedName.trim() !== selectedProfile.name && (
-                    <span className="text-[11px] font-semibold text-amber-600 dark:text-amber-400">未保存</span>
+                    <span className="text-[11px] font-semibold text-amber-600 dark:text-amber-400">{t("rules.unsaved")}</span>
                   )}
                 </div>
                 <div className="text-[12px] text-on-surface-variant/65">
-                  共 <span className="font-bold text-on-surface">{selectedProfile.directories.length}</span> 个目标目录
+                  {t("rules.directoryCount", { count: selectedProfile.directories.length })}
                   {!isComplete && completion.total > 0 && (
-                    <span className="ml-2 font-medium text-amber-600 dark:text-amber-400">（请补全所有规则以启用一键整理）</span>
+                    <span className="ml-2 font-medium text-amber-600 dark:text-amber-400">{t("rules.completeForOneClick")}</span>
                   )}
                 </div>
               </div>
@@ -993,22 +1002,22 @@ export default function RulesPage() {
                         <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary">
                           <FolderPlus className="h-6 w-6 animate-pulse" />
                         </div>
-                        <p className="text-sm font-bold text-on-surface">释放以添加目标文件夹</p>
-                        <p className="text-[11px] text-on-surface-variant/65">可一次拖入多个文件夹，文件会被自动忽略</p>
+                        <p className="text-sm font-bold text-on-surface">{t("rules.dropTitle")}</p>
+                        <p className="text-[11px] text-on-surface-variant/65">{t("rules.dropDescription")}</p>
                       </motion.div>
                     </motion.div>
                   ) : null}
                 </AnimatePresence>
 
                 {draftState.error ? (
-                  <p className="mb-3 text-[12px] font-semibold text-error">{draftState.error}</p>
+                  <p className="mb-3 text-[12px] font-semibold text-error">{displayRuleMessage(draftState.error, t)}</p>
                 ) : null}
 
                 {selectedProfile.directories.length === 0 ? (
                   <div className="rounded-xl border-2 border-dashed border-on-surface/15 px-4 py-10 text-center">
-                    <p className="text-[13px] font-bold text-on-surface">当前配置暂无目标目录</p>
+                    <p className="text-[13px] font-bold text-on-surface">{t("rules.noTargetsTitle")}</p>
                     <p className="mt-1 text-[12px] text-on-surface-variant/65">
-                      可直接从系统拖入文件夹，或点击按钮手动添加目标目录并撰写规则。
+                      {t("rules.noTargetsDescription")}
                     </p>
                     <button
                       type="button"
@@ -1017,7 +1026,7 @@ export default function RulesPage() {
                       className="mt-4 inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-[12px] font-bold text-on-primary shadow-sm hover:bg-primary-dim active:scale-95 disabled:opacity-50"
                     >
                       <FolderPlus className="h-3.5 w-3.5" aria-hidden />
-                      添加目标目录
+                      {t("rules.addTargetFolders")}
                     </button>
                   </div>
                 ) : (
@@ -1044,11 +1053,11 @@ export default function RulesPage() {
                               {currentValue.trim() ? (
                                 <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[11px] font-bold text-emerald-600 dark:text-emerald-400">
                                   <Check className="h-3 w-3" />
-                                  已配置
+                                  {t("rules.configured")}
                                 </span>
                               ) : (
                                 <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-amber-500/10 px-2 py-0.5 text-[11px] font-bold text-amber-600 dark:text-amber-400">
-                                  待配置规则
+                                  {t("rules.needsRule")}
                                 </span>
                               )}
                             </div>
@@ -1059,24 +1068,24 @@ export default function RulesPage() {
                                 onClick={() => void handleGenerateDrafts([directory.path])}
                                 disabled={busy || draftState.loading}
                                 className="flex items-center gap-1 rounded-lg border border-primary/25 bg-primary/5 px-2.5 py-1 text-[11px] font-bold text-primary transition-all hover:bg-primary/10 active:scale-95 disabled:opacity-50"
-                                title="分析该目录并生成专属规则建议"
+                                title={t("rules.analyzeFolderTitle")}
                               >
                                 {pathLoading ? (
                                   <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
                                 ) : (
                                   <Sparkles className="h-3 w-3" aria-hidden />
                                 )}
-                                <span>{pathLoading ? "分析中…" : currentValue.trim() ? "AI 重写建议" : "AI 分析生成"}</span>
+                                <span>{pathLoading ? t("rules.analyzing") : currentValue.trim() ? t("rules.rewriteSuggestion") : t("rules.analyzeGenerate")}</span>
                               </button>
                               <button
                                 type="button"
                                 onClick={() => void handleRemoveDirectory(directory.path)}
                                 disabled={busy || draftState.loading}
                                 className="flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-bold text-on-surface-variant/50 transition-colors hover:bg-error/10 hover:text-error active:scale-95 disabled:opacity-50"
-                                title="从配置中移除该目录"
+                                title={t("rules.removeFolderTitle")}
                               >
                                 <Trash2 className="h-3 w-3" aria-hidden />
-                                <span>移除</span>
+                                <span>{t("rules.remove")}</span>
                               </button>
                             </div>
                           </div>
@@ -1098,26 +1107,26 @@ export default function RulesPage() {
                                 }))
                               }
                               disabled={batchLoading || pathLoading}
-                              placeholder="描述放入该目录的文件特征，如：PDF办公文档、报表、安装包、图片设计素材等..."
+                              placeholder={t("rules.rulePlaceholder")}
                               className="w-full text-[13px] leading-relaxed text-on-surface placeholder:text-on-surface-variant/35"
                             />
                             {/* 空规则时的灵感快捷参考 */}
                             {!currentValue.trim() && (
                               <div className="mt-2 flex flex-wrap items-center gap-1.5 border-t border-on-surface/5 pt-2">
-                                <span className="text-[10px] font-bold text-on-surface-variant/45">💡 快捷填入参考:</span>
-                                {RULE_INSPIRATIONS.map((chip) => (
+                                <span className="text-[10px] font-bold text-on-surface-variant/45">{t("rules.inspirationLabel")}</span>
+                                {RULE_INSPIRATION_IDS.map((inspirationId) => (
                                   <button
-                                    key={chip.label}
+                                    key={inspirationId}
                                     type="button"
                                     onClick={() => {
                                       setEditedDescriptions((prev) => ({
                                         ...prev,
-                                        [editKey(selectedProfile.profile_id, directory.path)]: chip.text,
+                                        [editKey(selectedProfile.profile_id, directory.path)]: t(`rules.inspirations.${inspirationId}.text`),
                                       }));
                                     }}
                                     className="rounded-md border border-on-surface/8 bg-surface-container-lowest px-1.5 py-0.5 text-[10px] font-semibold text-on-surface-variant/70 hover:border-primary/30 hover:text-primary transition-all active:scale-95"
                                   >
-                                    {chip.label}
+                                    {t(`rules.inspirations.${inspirationId}.label`)}
                                   </button>
                                 ))}
                               </div>
@@ -1132,10 +1141,10 @@ export default function RulesPage() {
                                 <div className="rounded-lg border border-amber-500/25 bg-amber-500/[0.04] p-3">
                                   <p className="flex items-center gap-1.5 text-[11px] font-bold text-amber-600 dark:text-amber-400">
                                     <TriangleAlert className="h-3.5 w-3.5 shrink-0" aria-hidden />
-                                    AI 发现潜在规则重叠
+                                    {t("rules.overlapTitle")}
                                   </p>
                                   <p className="mt-1 text-[12px] font-medium leading-relaxed text-on-surface/80">
-                                    {draft.overlap_note || "与以下目录收录范围可能重合，建议确认规则边界或是否合并。"}
+                                    {draft.overlap_note || t("rules.overlapDescription")}
                                   </p>
                                   <div className="mt-2 flex flex-wrap gap-1.5">
                                     {draft.overlap_paths.map((op) => {
@@ -1162,7 +1171,7 @@ export default function RulesPage() {
                                 <div className="flex items-center justify-between">
                                   <div className="flex items-center gap-1.5 text-[11px] font-bold text-primary">
                                     <Sparkles className="h-3.5 w-3.5" aria-hidden />
-                                    <span>AI 推荐规则</span>
+                                    <span>{t("rules.draftTitle")}</span>
                                   </div>
                                   <button
                                     type="button"
@@ -1170,7 +1179,7 @@ export default function RulesPage() {
                                     className="flex items-center gap-1 rounded-md bg-primary/10 px-2.5 py-1 text-[11px] font-bold text-primary transition-all hover:bg-primary hover:text-on-primary active:scale-95"
                                   >
                                     <Check className="h-3 w-3" aria-hidden />
-                                    采纳此建议
+                                    {t("rules.acceptDraft")}
                                   </button>
                                 </div>
                                 <p className="mt-1.5 text-[12px] font-semibold leading-relaxed text-on-surface">
@@ -1178,7 +1187,7 @@ export default function RulesPage() {
                                 </p>
                                 {draft.basis ? (
                                   <p className="mt-1 text-[11px] leading-5 text-on-surface-variant/70">
-                                    依据：{draft.basis}
+                                    {t("rules.basisPrefix")}{draft.basis}
                                   </p>
                                 ) : null}
                               </div>
@@ -1196,7 +1205,7 @@ export default function RulesPage() {
                       className="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-on-surface/12 bg-surface-container-lowest/30 py-3.5 text-[12px] font-bold text-on-surface-variant/60 transition-all hover:border-primary/40 hover:bg-primary/[0.02] hover:text-primary active:scale-[0.99] disabled:opacity-50"
                     >
                       <FolderPlus className="h-4 w-4" />
-                      <span>拖入新文件夹至此处，或点击添加目标目录</span>
+                      <span>{t("rules.bottomAdd")}</span>
                     </button>
                   </div>
                 )}
@@ -1210,10 +1219,10 @@ export default function RulesPage() {
     {/* 删除规则配置确认 */}
     <ConfirmDialog
       open={deleteProfileConfirm}
-      title={`删除「${selectedProfile?.name || ""}」`}
-      description="配置下的目录与规则将被移除，不会删除磁盘文件。"
-      confirmLabel="确认删除"
-      cancelLabel="取消"
+      title={t("rules.confirmDeleteTitle", { name: selectedProfile?.name || "" })}
+      description={t("rules.deleteDescription")}
+      confirmLabel={t("rules.confirmDelete")}
+      cancelLabel={t("rules.cancel")}
       tone="danger"
       loading={busy}
       onConfirm={() => void doDeleteProfile()}
@@ -1223,10 +1232,10 @@ export default function RulesPage() {
     {/* 移除目录确认 */}
     <ConfirmDialog
       open={removeDirectoryConfirm !== null}
-      title={`移除「${removeDirectoryConfirm ? directoryTitle(selectedProfile?.directories.find((d) => d.path === removeDirectoryConfirm) || { path: removeDirectoryConfirm }) : ""}」`}
-      description="从当前配置移除该目录，不会删除磁盘文件。"
-      confirmLabel="确认移除"
-      cancelLabel="取消"
+      title={t("rules.confirmRemoveTitle", { name: removeDirectoryConfirm ? directoryTitle(selectedProfile?.directories.find((d) => d.path === removeDirectoryConfirm) || { path: removeDirectoryConfirm }) : "" })}
+      description={t("rules.removeDescription")}
+      confirmLabel={t("rules.confirmRemove")}
+      cancelLabel={t("rules.cancel")}
       tone="danger"
       loading={busy}
       onConfirm={() => { if (removeDirectoryConfirm) void doRemoveDirectory(removeDirectoryConfirm); }}
@@ -1236,10 +1245,10 @@ export default function RulesPage() {
     {/* 丢弃未保存修改确认 */}
     <ConfirmDialog
       open={discardEditsConfirm !== null}
-      title="丢弃未保存的修改？"
-      description="切换配置将丢弃未保存的修改。"
-      confirmLabel="丢弃并切换"
-      cancelLabel="继续编辑"
+      title={t("rules.discardTitle")}
+      description={t("rules.discardDescription")}
+      confirmLabel={t("rules.discardAndSwitch")}
+      cancelLabel={t("rules.keepEditing")}
       tone="primary"
       onConfirm={() => {
         const targetId = discardEditsConfirm;
