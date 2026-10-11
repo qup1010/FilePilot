@@ -43,7 +43,14 @@ async function getPageTarget(port) {
     throw new Error(`WebView2 DevTools returned HTTP ${response.status}.`);
   }
   const targets = await response.json();
-  const target = targets.find((item) => item.type === "page" && item.url.startsWith("http://tauri.localhost/"));
+  const target = targets.find((item) => {
+    if (item.type !== "page") return false;
+    try {
+      return new URL(item.url).hostname === "tauri.localhost";
+    } catch {
+      return false;
+    }
+  });
   if (!target) {
     throw new Error("The installed FilePilot WebView2 page target was not found.");
   }

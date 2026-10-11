@@ -317,12 +317,27 @@ if ($VerifyUiLanguages -or $VerifyOrganizationFlow) {
         throw "Cannot run the installed UI or organization-flow smoke while WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS already defines a remote debugging port."
     }
 
-    $portListener = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopback, 0)
-    try {
-        $portListener.Start()
-        $webViewDebugPort = [int]$portListener.LocalEndpoint.Port
-    } finally {
-        $portListener.Stop()
+    if ($env:FILE_PILOT_WEBVIEW_DEBUG_PORT) {
+        $webViewDebugPort = 0
+        if (-not [int]::TryParse($env:FILE_PILOT_WEBVIEW_DEBUG_PORT, [ref]$webViewDebugPort) -or $webViewDebugPort -lt 1 -or $webViewDebugPort -gt 65535) {
+            throw "FILE_PILOT_WEBVIEW_DEBUG_PORT must be a valid TCP port."
+        }
+        $portListener = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopback, $webViewDebugPort)
+        try {
+            $portListener.Start()
+        } catch {
+            throw "Configured WebView2 debug port $webViewDebugPort is not available: $($_.Exception.Message)"
+        } finally {
+            $portListener.Stop()
+        }
+    } else {
+        $portListener = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopback, 0)
+        try {
+            $portListener.Start()
+            $webViewDebugPort = [int]$portListener.LocalEndpoint.Port
+        } finally {
+            $portListener.Stop()
+        }
     }
     $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = "--remote-debugging-port=$webViewDebugPort"
 }

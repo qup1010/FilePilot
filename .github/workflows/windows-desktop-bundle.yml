@@ -102,7 +102,37 @@ jobs:
         shell: pwsh
         run: ./scripts/build_bundled_backend.ps1
 
-      - name: Build Windows desktop bundle
+      - name: Prepare test-only WebView2 debugging config
+        shell: pwsh
+        run: |
+          $configPath = 'desktop/src-tauri/tauri.conf.json'
+          $config = Get-Content $configPath -Raw -Encoding utf8 | ConvertFrom-Json
+          $mainWindows = @($config.app.windows | Where-Object { $_.label -eq 'main' })
+          if ($mainWindows.Count -ne 1) {
+            throw "Expected one main window in $configPath."
+          }
+
+          $portListener = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopback, 0)
+          try {
+            $portListener.Start()
+            $debugPort = [int]$portListener.LocalEndpoint.Port
+          } finally {
+            $portListener.Stop()
+          }
+
+          $mainWindows[0] | Add-Member -MemberType NoteProperty -Name additionalBrowserArgs -Value "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --remote-debugging-port=$debugPort" -Force
+          $smokeConfigPath = 'desktop/src-tauri/tauri.smoke.generated.conf.json'
+          $smokeConfig = [System.IO.Path]::GetFullPath($smokeConfigPath)
+          $json = $config | ConvertTo-Json -Depth 100
+          [System.IO.File]::WriteAllText($smokeConfig, $json, [System.Text.UTF8Encoding]::new($false))
+
+          @(
+            'FILE_PILOT_TAURI_CONFIG=src-tauri/tauri.smoke.generated.conf.json'
+            "FILE_PILOT_WEBVIEW_DEBUG_PORT=$debugPort"
+          ) | Add-Content -LiteralPath $env:GITHUB_ENV -Encoding utf8
+          Write-Output "Prepared an isolated WebView2 smoke build on port $debugPort."
+
+      - name: Build Windows desktop smoke bundle
         working-directory: desktop
         env:
           CI: "true"
@@ -361,6 +391,67 @@ jobs:
           if (-not $?) {
             throw 'NSIS upgrade smoke test failed.'
           }
+
+      - name: Build production desktop bundle without WebView2 debugging
+        working-directory: desktop
+        env:
+          CI: "true"
+          FILE_PILOT_TAURI_CONFIG: src-tauri/tauri.conf.json
+        run: npm run tauri:build
+
+      - name: Remove test-only Tauri configuration
+        if: always()
+        shell: pwsh
+        run: |
+          $smokeConfigPath = 'desktop/src-tauri/tauri.smoke.generated.conf.json'
+          if (Test-Path -LiteralPath $smokeConfigPath) {
+            $resolvedPath = [System.IO.Path]::GetFullPath($smokeConfigPath)
+            $expectedDirectory = [System.IO.Path]::GetFullPath('desktop/src-tauri')
+            if ([System.IO.Path]::GetDirectoryName($resolvedPath) -ne $expectedDirectory) {
+              throw "Refusing to remove generated smoke config outside desktop/src-tauri: $resolvedPath"
+            }
+            Remove-Item -LiteralPath $resolvedPath -Force
+          }
+
+      - name: Verify production localized frontend resources
+        shell: pwsh
+        run: ./scripts/verify_localized_frontend.ps1
+
+      - name: Verify production localized Windows installers
+        shell: pwsh
+        run: |
+          $msiDirectory = 'desktop/src-tauri/target/release/bundle/msi'
+          $msis = @(Get-ChildItem $msiDirectory -Recurse -Filter *.msi)
+          foreach ($language in @('en-US', 'zh-CN')) {
+            $localizedMsi = @($msis | Where-Object { $_.BaseName.Contains($language) })
+            if ($localizedMsi.Count -eq 0) {
+              throw "Production WiX installer for $language was not generated."
+            }
+            Write-Output "Found production WiX installer for ${language}: $($localizedMsi[0].Name)"
+          }
+
+          $nsisDirectory = 'desktop/src-tauri/target/release/bundle/nsis'
+          $nsisInstallers = @(Get-ChildItem $nsisDirectory -Recurse -Filter 'FilePilot_*_x64-setup.exe')
+          if ($nsisInstallers.Count -eq 0) {
+            throw 'Production NSIS multilingual installer was not generated.'
+          }
+          Write-Output "Found production NSIS multilingual installer: $($nsisInstallers[0].Name)"
+
+      - name: Verify production executable has no WebView2 debug port
+        shell: pwsh
+        run: |
+          $builtExe = Get-ChildItem 'desktop/src-tauri/target/release' -Filter *.exe |
+            Where-Object { $_.Name -ne 'file_pilot_api.exe' } |
+            Select-Object -First 1
+          if (-not $builtExe) {
+            throw 'Production desktop executable was not found.'
+          }
+
+          $binaryText = [System.Text.Encoding]::ASCII.GetString([System.IO.File]::ReadAllBytes($builtExe.FullName))
+          if ($binaryText.Contains('--remote-debugging-port=')) {
+            throw 'Production desktop executable unexpectedly contains WebView2 remote-debugging arguments.'
+          }
+          Write-Output 'Production desktop executable contains no WebView2 remote-debugging port.'
 
       - name: Dump desktop smoke diagnostics on failure
         if: failure()
