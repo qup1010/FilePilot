@@ -111,7 +111,7 @@ function Invoke-Msi {
 function Invoke-InstalledAppSmoke {
     param([Parameter(Mandatory = $true)][string]$Label)
 
-    & powershell.exe -ExecutionPolicy Bypass -File $smokeScript -AppPath $appPath
+    & powershell.exe -ExecutionPolicy Bypass -File $smokeScript -AppPath $appPath -AppIdentifier $AppIdentifier
     if ($LASTEXITCODE -ne 0) {
         throw "$Label desktop smoke test failed with exit code $LASTEXITCODE."
     }
