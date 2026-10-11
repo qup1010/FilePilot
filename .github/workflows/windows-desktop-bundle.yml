@@ -182,7 +182,7 @@ jobs:
                 throw "Installed $desktopExeName was not found after $language MSI install."
               }
 
-              & powershell -ExecutionPolicy Bypass -File scripts\smoke_desktop_bundle.ps1 -AppPath $app -VerifyUiLanguages
+              & powershell -ExecutionPolicy Bypass -File scripts\smoke_desktop_bundle.ps1 -AppPath $app -VerifyUiLanguages -VerifyOrganizationFlow
               if ($LASTEXITCODE -ne 0) {
                 throw "$language desktop smoke test failed with exit code $LASTEXITCODE"
               }
@@ -231,7 +231,7 @@ jobs:
                 throw "Installed $desktopExeName was not found after NSIS $($language.Name) install."
               }
 
-              & powershell -ExecutionPolicy Bypass -File scripts\smoke_desktop_bundle.ps1 -AppPath $app -VerifyUiLanguages
+              & powershell -ExecutionPolicy Bypass -File scripts\smoke_desktop_bundle.ps1 -AppPath $app -VerifyUiLanguages -VerifyOrganizationFlow
               if ($LASTEXITCODE -ne 0) {
                 throw "NSIS $($language.Name) desktop smoke test failed with exit code $LASTEXITCODE."
               }
@@ -315,7 +315,8 @@ jobs:
             -PreviousVersion '1.0.5' `
             -CurrentVersion ([string]$tauriConfig.version) `
             -DesktopExecutableName $builtExe.Name `
-            -VerifyUiLanguages
+            -VerifyUiLanguages `
+            -VerifyOrganizationFlow
           if (-not $?) {
             throw 'WiX MSI upgrade smoke test failed.'
           }
@@ -355,7 +356,8 @@ jobs:
             -PreviousVersion '1.0.5' `
             -CurrentVersion ([string]$tauriConfig.version) `
             -DesktopExecutableName $builtExe.Name `
-            -VerifyUiLanguages
+            -VerifyUiLanguages `
+            -VerifyOrganizationFlow
           if (-not $?) {
             throw 'NSIS upgrade smoke test failed.'
           }

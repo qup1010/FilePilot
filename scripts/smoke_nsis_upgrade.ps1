@@ -25,7 +25,9 @@ param(
 
     [string]$LanguageId = "1033",
 
-    [switch]$VerifyUiLanguages
+    [switch]$VerifyUiLanguages,
+
+    [switch]$VerifyOrganizationFlow
 )
 
 $ErrorActionPreference = "Stop"
@@ -103,12 +105,16 @@ function Install-NsisPackage {
 function Invoke-InstalledAppSmoke {
     param(
         [Parameter(Mandatory = $true)][string]$Label,
-        [switch]$VerifyUiLanguages
+        [switch]$VerifyUiLanguages,
+        [switch]$VerifyOrganizationFlow
     )
 
     $arguments = @("-ExecutionPolicy", "Bypass", "-File", $smokeScript, "-AppPath", $appPath, "-AppIdentifier", $AppIdentifier)
     if ($VerifyUiLanguages) {
         $arguments += "-VerifyUiLanguages"
+    }
+    if ($VerifyOrganizationFlow) {
+        $arguments += "-VerifyOrganizationFlow"
     }
     & powershell.exe @arguments
     if ($LASTEXITCODE -ne 0) {
@@ -144,7 +150,7 @@ try {
         throw "Application data was not preserved while upgrading from $PreviousVersion to $CurrentVersion."
     }
     Write-Output "Application data sentinel survived the upgrade."
-    Invoke-InstalledAppSmoke -Label "Upgraded version" -VerifyUiLanguages:$VerifyUiLanguages
+    Invoke-InstalledAppSmoke -Label "Upgraded version" -VerifyUiLanguages:$VerifyUiLanguages -VerifyOrganizationFlow:$VerifyOrganizationFlow
 
     Uninstall-NsisPackage
     if (Test-Path -LiteralPath $appPath) {

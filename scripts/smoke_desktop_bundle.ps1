@@ -25,6 +25,9 @@
 
 .PARAMETER VerifyUiLanguages
 通过隔离的 WebView2 DevTools 端口检查已安装窗口的英语和简体中文页面。
+
+.PARAMETER VerifyOrganizationFlow
+通过本机模拟模型在隔离目录中验证安装版扫描、规划、预检、实际移动和回退。
 #>
 param(
     [Parameter(Mandatory = $true)]
@@ -40,13 +43,21 @@ param(
 
     [switch]$SkipDynamicPortCheck,
 
-    [switch]$VerifyUiLanguages
+    [switch]$VerifyUiLanguages,
+
+    [switch]$VerifyOrganizationFlow
 )
 
 $ErrorActionPreference = "Stop"
 
 if ($VerifyUiLanguages -and $env:CI -ne "true") {
     throw "The installed UI language smoke test is restricted to an isolated CI runner."
+}
+if ($VerifyOrganizationFlow -and $env:CI -ne "true") {
+    throw "The installed organization-flow smoke test is restricted to an isolated CI runner."
+}
+if ($VerifyOrganizationFlow -and -not $env:RUNNER_TEMP) {
+    throw "RUNNER_TEMP must be set for the installed organization-flow smoke test."
 }
 
 function Wait-Until {
@@ -293,11 +304,17 @@ $backendLogPath = Get-BackendLogPath -Identifier $AppIdentifier
 $primary = $null
 $secondary = $null
 $originalWebViewBrowserArguments = $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS
+$originalOrganizerChatStream = $env:ORGANIZER_CHAT_STREAM
+$originalProxyEnvironment = @{}
+foreach ($name in @("ALL_PROXY", "HTTP_PROXY", "HTTPS_PROXY")) {
+    $originalProxyEnvironment[$name] = [Environment]::GetEnvironmentVariable($name, "Process")
+}
 $webViewDebugPort = $null
+$flowTestRoot = $null
 
-if ($VerifyUiLanguages) {
+if ($VerifyUiLanguages -or $VerifyOrganizationFlow) {
     if ($originalWebViewBrowserArguments -match "--remote-debugging-port") {
-        throw "Cannot run the UI language smoke while WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS already defines a remote debugging port."
+        throw "Cannot run the installed UI or organization-flow smoke while WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS already defines a remote debugging port."
     }
 
     $portListener = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopback, 0)
@@ -311,7 +328,22 @@ if ($VerifyUiLanguages) {
 }
 
 try {
+    if ($VerifyOrganizationFlow) {
+        $env:ORGANIZER_CHAT_STREAM = "false"
+        foreach ($name in $originalProxyEnvironment.Keys) {
+            [Environment]::SetEnvironmentVariable($name, $null, "Process")
+        }
+        $runnerTemp = [System.IO.Path]::GetFullPath($env:RUNNER_TEMP)
+        $flowTestRoot = Join-Path $runnerTemp "filepilot-organization-flow-$([guid]::NewGuid().ToString('N'))"
+    }
+
     $primary = Start-AndValidateApp -ExecutablePath $resolvedAppPath -RuntimePath $runtimePath -StartupTimeoutSeconds $StartupTimeoutSeconds -SkipDynamicPortCheck:$SkipDynamicPortCheck
+    if ($VerifyOrganizationFlow) {
+        & node.exe (Join-Path $PSScriptRoot "smoke_desktop_organization_flow.cjs") $webViewDebugPort $flowTestRoot
+        if ($LASTEXITCODE -ne 0) {
+            throw "Installed organization-flow smoke failed with exit code $LASTEXITCODE."
+        }
+    }
     if ($VerifyUiLanguages) {
         & node.exe (Join-Path $PSScriptRoot "smoke_desktop_ui.cjs") $webViewDebugPort
         if ($LASTEXITCODE -ne 0) {
@@ -349,11 +381,30 @@ try {
     if ($primary -and $primary.Config) {
         Stop-TrackedBackendProcess -ProcessId ([int]$primary.Config.pid)
     }
-    if ($VerifyUiLanguages) {
+    if ($flowTestRoot -and (Test-Path -LiteralPath $flowTestRoot)) {
+        $runnerTemp = [System.IO.Path]::GetFullPath($env:RUNNER_TEMP)
+        $resolvedFlowRoot = [System.IO.Path]::GetFullPath($flowTestRoot)
+        $runnerTempPrefix = $runnerTemp.TrimEnd([char]'\', [char]'/') + [System.IO.Path]::DirectorySeparatorChar
+        if (-not $resolvedFlowRoot.StartsWith($runnerTempPrefix, [StringComparison]::OrdinalIgnoreCase)) {
+            throw "Refusing to clean organization-flow data outside RUNNER_TEMP: $resolvedFlowRoot"
+        }
+        Remove-Item -LiteralPath $resolvedFlowRoot -Recurse -Force
+    }
+    if ($VerifyUiLanguages -or $VerifyOrganizationFlow) {
         if ($null -eq $originalWebViewBrowserArguments) {
             Remove-Item Env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS -ErrorAction SilentlyContinue
         } else {
             $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = $originalWebViewBrowserArguments
+        }
+    }
+    if ($VerifyOrganizationFlow) {
+        if ($null -eq $originalOrganizerChatStream) {
+            Remove-Item Env:ORGANIZER_CHAT_STREAM -ErrorAction SilentlyContinue
+        } else {
+            $env:ORGANIZER_CHAT_STREAM = $originalOrganizerChatStream
+        }
+        foreach ($name in $originalProxyEnvironment.Keys) {
+            [Environment]::SetEnvironmentVariable($name, $originalProxyEnvironment[$name], "Process")
         }
     }
 }
