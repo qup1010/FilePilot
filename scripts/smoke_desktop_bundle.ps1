@@ -22,6 +22,9 @@
 
 .PARAMETER SkipDynamicPortCheck
 跳过“安装包态不应固定使用 8765”这项检查。
+
+.PARAMETER VerifyUiLanguages
+通过隔离的 WebView2 DevTools 端口检查已安装窗口的英语和简体中文页面。
 #>
 param(
     [Parameter(Mandatory = $true)]
@@ -35,10 +38,16 @@ param(
 
     [int]$ShutdownTimeoutSeconds = 20,
 
-    [switch]$SkipDynamicPortCheck
+    [switch]$SkipDynamicPortCheck,
+
+    [switch]$VerifyUiLanguages
 )
 
 $ErrorActionPreference = "Stop"
+
+if ($VerifyUiLanguages -and $env:CI -ne "true") {
+    throw "The installed UI language smoke test is restricted to an isolated CI runner."
+}
 
 function Wait-Until {
     param(
@@ -283,9 +292,32 @@ $runtimePath = Get-RuntimePath -Identifier $AppIdentifier
 $backendLogPath = Get-BackendLogPath -Identifier $AppIdentifier
 $primary = $null
 $secondary = $null
+$originalWebViewBrowserArguments = $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS
+$webViewDebugPort = $null
+
+if ($VerifyUiLanguages) {
+    if ($originalWebViewBrowserArguments -match "--remote-debugging-port") {
+        throw "Cannot run the UI language smoke while WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS already defines a remote debugging port."
+    }
+
+    $portListener = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopback, 0)
+    try {
+        $portListener.Start()
+        $webViewDebugPort = [int]$portListener.LocalEndpoint.Port
+    } finally {
+        $portListener.Stop()
+    }
+    $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = "--remote-debugging-port=$webViewDebugPort"
+}
 
 try {
     $primary = Start-AndValidateApp -ExecutablePath $resolvedAppPath -RuntimePath $runtimePath -StartupTimeoutSeconds $StartupTimeoutSeconds -SkipDynamicPortCheck:$SkipDynamicPortCheck
+    if ($VerifyUiLanguages) {
+        & node.exe (Join-Path $PSScriptRoot "smoke_desktop_ui.cjs") $webViewDebugPort
+        if ($LASTEXITCODE -ne 0) {
+            throw "Installed desktop UI language smoke failed with exit code $LASTEXITCODE."
+        }
+    }
     Assert-SingleInstance -ExecutablePath $resolvedAppPath
 
     Stop-AppProcessTree -Process $primary.Process
@@ -316,5 +348,12 @@ try {
     }
     if ($primary -and $primary.Config) {
         Stop-TrackedBackendProcess -ProcessId ([int]$primary.Config.pid)
+    }
+    if ($VerifyUiLanguages) {
+        if ($null -eq $originalWebViewBrowserArguments) {
+            Remove-Item Env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS -ErrorAction SilentlyContinue
+        } else {
+            $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = $originalWebViewBrowserArguments
+        }
     }
 }

@@ -23,7 +23,9 @@ param(
 
     [string]$AppIdentifier = "com.filepilot.desktop",
 
-    [string]$LanguageId = "1033"
+    [string]$LanguageId = "1033",
+
+    [switch]$VerifyUiLanguages
 )
 
 $ErrorActionPreference = "Stop"
@@ -99,9 +101,16 @@ function Install-NsisPackage {
 }
 
 function Invoke-InstalledAppSmoke {
-    param([Parameter(Mandatory = $true)][string]$Label)
+    param(
+        [Parameter(Mandatory = $true)][string]$Label,
+        [switch]$VerifyUiLanguages
+    )
 
-    & powershell.exe -ExecutionPolicy Bypass -File $smokeScript -AppPath $appPath -AppIdentifier $AppIdentifier
+    $arguments = @("-ExecutionPolicy", "Bypass", "-File", $smokeScript, "-AppPath", $appPath, "-AppIdentifier", $AppIdentifier)
+    if ($VerifyUiLanguages) {
+        $arguments += "-VerifyUiLanguages"
+    }
+    & powershell.exe @arguments
     if ($LASTEXITCODE -ne 0) {
         throw "$Label desktop smoke test failed with exit code $LASTEXITCODE."
     }
@@ -135,7 +144,7 @@ try {
         throw "Application data was not preserved while upgrading from $PreviousVersion to $CurrentVersion."
     }
     Write-Output "Application data sentinel survived the upgrade."
-    Invoke-InstalledAppSmoke -Label "Upgraded version"
+    Invoke-InstalledAppSmoke -Label "Upgraded version" -VerifyUiLanguages:$VerifyUiLanguages
 
     Uninstall-NsisPackage
     if (Test-Path -LiteralPath $appPath) {

@@ -134,6 +134,8 @@ jobs:
 
       - name: Smoke test installed desktop bundle
         shell: pwsh
+        env:
+          CI: "true"
         run: |
           $builtExe = Get-ChildItem 'desktop/src-tauri/target/release' -Filter *.exe |
             Where-Object { $_.Name -ne 'file_pilot_api.exe' } |
@@ -180,7 +182,7 @@ jobs:
                 throw "Installed $desktopExeName was not found after $language MSI install."
               }
 
-              & powershell -ExecutionPolicy Bypass -File scripts\smoke_desktop_bundle.ps1 -AppPath $app
+              & powershell -ExecutionPolicy Bypass -File scripts\smoke_desktop_bundle.ps1 -AppPath $app -VerifyUiLanguages
               if ($LASTEXITCODE -ne 0) {
                 throw "$language desktop smoke test failed with exit code $LASTEXITCODE"
               }
@@ -194,6 +196,8 @@ jobs:
 
       - name: Smoke test multilingual NSIS installer
         shell: pwsh
+        env:
+          CI: "true"
         run: |
           $builtExe = Get-ChildItem 'desktop/src-tauri/target/release' -Filter *.exe |
             Where-Object { $_.Name -ne 'file_pilot_api.exe' } |
@@ -227,7 +231,7 @@ jobs:
                 throw "Installed $desktopExeName was not found after NSIS $($language.Name) install."
               }
 
-              & powershell -ExecutionPolicy Bypass -File scripts\smoke_desktop_bundle.ps1 -AppPath $app
+              & powershell -ExecutionPolicy Bypass -File scripts\smoke_desktop_bundle.ps1 -AppPath $app -VerifyUiLanguages
               if ($LASTEXITCODE -ne 0) {
                 throw "NSIS $($language.Name) desktop smoke test failed with exit code $LASTEXITCODE."
               }
@@ -310,7 +314,8 @@ jobs:
             -CurrentInstallerPath $currentMsi.FullName `
             -PreviousVersion '1.0.5' `
             -CurrentVersion ([string]$tauriConfig.version) `
-            -DesktopExecutableName $builtExe.Name
+            -DesktopExecutableName $builtExe.Name `
+            -VerifyUiLanguages
           if (-not $?) {
             throw 'WiX MSI upgrade smoke test failed.'
           }
@@ -349,7 +354,8 @@ jobs:
             -CurrentInstallerPath $currentInstaller.FullName `
             -PreviousVersion '1.0.5' `
             -CurrentVersion ([string]$tauriConfig.version) `
-            -DesktopExecutableName $builtExe.Name
+            -DesktopExecutableName $builtExe.Name `
+            -VerifyUiLanguages
           if (-not $?) {
             throw 'NSIS upgrade smoke test failed.'
           }
