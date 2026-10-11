@@ -121,10 +121,12 @@ if ($Mode -eq "check-env") {
     exit 0
 }
 
+$tauriConfig = if ($env:FILE_PILOT_TAURI_CONFIG) { $env:FILE_PILOT_TAURI_CONFIG } else { "src-tauri/tauri.conf.json" }
+
 if ($Mode -eq "dev") {
-    & tauri dev --config src-tauri/tauri.conf.json
+    & tauri dev --config $tauriConfig
 } else {
-    & tauri build --config src-tauri/tauri.conf.json
+    & tauri build --config $tauriConfig
 }
 
 exit $LASTEXITCODE
