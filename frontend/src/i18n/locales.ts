@@ -30,5 +30,5 @@ export function resolveUiLocale(preference: UiLanguagePreference, languages?: re
 }
 
 export function normalizeSavedUiLanguage(value: unknown): UiLanguagePreference {
-  return isUiLanguagePreference(value) ? value : "zh-CN";
+  return isUiLanguagePreference(value) ? value : DEFAULT_UI_LANGUAGE;
 }

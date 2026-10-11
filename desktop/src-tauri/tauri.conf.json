@@ -4,10 +4,10 @@
   "version": "1.0.6",
   "identifier": "com.filepilot.desktop",
   "build": {
-    "beforeDevCommand": "npm.cmd --prefix ../frontend run dev -- --hostname 127.0.0.1 --port 3000",
+    "beforeDevCommand": "npm.cmd --prefix ../frontend run dev -- --hostname 127.0.0.1 --port 3100",
     "beforeBuildCommand": "npm.cmd --prefix ../frontend run build",
     "frontendDist": "../../frontend/out",
-    "devUrl": "http://127.0.0.1:3000"
+    "devUrl": "http://127.0.0.1:3100"
   },
   "app": {
     "windows": [

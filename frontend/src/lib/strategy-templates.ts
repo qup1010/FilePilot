@@ -4,6 +4,8 @@ import type {
   LaunchStrategyConfig,
   OrganizeMethod,
   SessionStrategySelection,
+  LauncherStrategySelection,
+  FolderNameLanguagePreference,
   SessionStrategySummary,
   StrategyCautionLevel,
   StrategyDensity,
@@ -12,6 +14,7 @@ import type {
   TaskType,
   StrategyTemplateId,
 } from "@/types/session";
+import { isFolderNameLanguagePreference, resolveFolderNameLanguage } from "@/lib/folder-name-language";
 
 type DirectoryCatalogEntry = {
   id: string;
@@ -89,6 +92,11 @@ export const DEFAULT_STRATEGY_SELECTION: SessionStrategySelection = {
   note: "",
 };
 
+export const DEFAULT_LAUNCHER_STRATEGY_SELECTION: LauncherStrategySelection = {
+  ...DEFAULT_STRATEGY_SELECTION,
+  language_preference: "auto",
+};
+
 export function getTemplateMeta(templateId: StrategyTemplateId): StrategyTemplateMeta {
   return STRATEGY_TEMPLATES.find((template) => template.id === templateId) || STRATEGY_TEMPLATES[0];
 }
@@ -137,10 +145,6 @@ function isValidTemplateId(value: unknown): value is StrategyTemplateId {
   return STRATEGY_TEMPLATES.some((template) => template.id === value);
 }
 
-function isValidLanguage(value: unknown): value is StrategyLanguage {
-  return LANGUAGE_OPTIONS.some((option) => option.id === value);
-}
-
 function isValidDensity(value: unknown): value is StrategyDensity {
   return DENSITY_OPTIONS.some((option) => option.id === value);
 }
@@ -157,7 +161,10 @@ function isValidOrganizeMethod(value: unknown): value is OrganizeMethod {
   return value === "categorize_into_new_structure" || value === "assign_into_existing_categories";
 }
 
-export function getLaunchStrategyFromConfig(config?: LaunchStrategyConfig | null): SessionStrategySelection {
+export function getLaunchStrategyFromConfig(
+  config?: LaunchStrategyConfig | null,
+  uiLanguage: string | null | undefined = "zh-CN",
+): LauncherStrategySelection {
   const templateId = isValidTemplateId(config?.LAUNCH_DEFAULT_TEMPLATE_ID)
     ? config.LAUNCH_DEFAULT_TEMPLATE_ID
     : DEFAULT_STRATEGY_SELECTION.template_id;
@@ -167,15 +174,18 @@ export function getLaunchStrategyFromConfig(config?: LaunchStrategyConfig | null
     : DEFAULT_STRATEGY_SELECTION.organize_method;
   const organizeMode = organizeMethod === "assign_into_existing_categories" ? "incremental" : "initial";
 
+  const languagePreference: FolderNameLanguagePreference = isFolderNameLanguagePreference(config?.LAUNCH_DEFAULT_LANGUAGE)
+    ? config.LAUNCH_DEFAULT_LANGUAGE
+    : "auto";
+
   return {
     template_id: templateId,
     organize_mode: organizeMode,
     task_type: taskTypeForOrganizeMode(organizeMode),
     organize_method: organizeMethod,
     destination_index_depth: 2,
-    language: isValidLanguage(config?.LAUNCH_DEFAULT_LANGUAGE)
-      ? config.LAUNCH_DEFAULT_LANGUAGE
-      : suggested.language,
+    language: resolveFolderNameLanguage(languagePreference, uiLanguage),
+    language_preference: languagePreference,
     density: isValidDensity(config?.LAUNCH_DEFAULT_DENSITY)
       ? config.LAUNCH_DEFAULT_DENSITY
       : suggested.density,

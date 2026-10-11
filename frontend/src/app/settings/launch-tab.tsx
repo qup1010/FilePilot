@@ -21,10 +21,10 @@ import {
   DENSITY_OPTIONS,
   getSuggestedSelection,
   getTemplateMeta,
-  LANGUAGE_OPTIONS,
   PREFIX_STYLE_OPTIONS,
   STRATEGY_TEMPLATES,
 } from "@/lib/strategy-templates";
+import { FOLDER_NAME_LANGUAGE_OPTIONS, resolveFolderNameLanguage } from "@/lib/folder-name-language";
 import { cn } from "@/lib/utils";
 import type { SettingsSnapshot } from "@/types/settings";
 import type { OrganizeMethod } from "@/types/session";
@@ -57,7 +57,7 @@ export function LaunchTab({
   onUpdateGlobal,
   onPickDirectory,
 }: LaunchTabProps) {
-  const { t } = useTranslation("common");
+  const { t, i18n } = useTranslation("common");
   const launchTemplate = getTemplateMeta(globalConfig.LAUNCH_DEFAULT_TEMPLATE_ID ?? "general_downloads");
   const launchDefaultOrganizeMethod = (
     globalConfig.LAUNCH_DEFAULT_ORGANIZE_METHOD === "assign_into_existing_categories"
@@ -72,6 +72,11 @@ export function LaunchTab({
   const launchDerivedReviewRoot = launchDefaultNewDirectoryRoot
     ? `${launchDefaultNewDirectoryRoot.replace(/[\\/]$/, "")}/Review`
     : t("settingsPage.launchTab.newFolderReviewPath");
+  const folderNameLanguagePreference = globalConfig.LAUNCH_DEFAULT_LANGUAGE ?? "auto";
+  const resolvedFolderNameLanguage = resolveFolderNameLanguage(
+    folderNameLanguagePreference,
+    i18n.resolvedLanguage || i18n.language,
+  );
   const launchStrategyPreview = buildStrategySummary({
     template_id: globalConfig.LAUNCH_DEFAULT_TEMPLATE_ID ?? "general_downloads",
     organize_mode: launchDefaultOrganizeMode,
@@ -79,7 +84,7 @@ export function LaunchTab({
     organize_method: launchDefaultOrganizeMethod,
     target_profile_id: launchDefaultTargetProfileId || undefined,
     destination_index_depth: 2,
-    language: globalConfig.LAUNCH_DEFAULT_LANGUAGE ?? "zh",
+    language: resolvedFolderNameLanguage,
     density: globalConfig.LAUNCH_DEFAULT_DENSITY ?? "normal",
     prefix_style: globalConfig.LAUNCH_DEFAULT_PREFIX_STYLE ?? "none",
     caution_level: globalConfig.LAUNCH_DEFAULT_CAUTION_LEVEL ?? "balanced",
@@ -132,7 +137,11 @@ export function LaunchTab({
                 {t(`strategy.taskType.${launchStrategyPreview.task_type}`)}
               </span>
               <span className="rounded-full border border-on-surface/8 bg-surface-container-low px-3 py-1 text-[12px] font-medium text-on-surface-variant">
-                {t(`strategy.languageOptions.${globalConfig.LAUNCH_DEFAULT_LANGUAGE ?? "zh"}`)}
+                {folderNameLanguagePreference === "auto"
+                  ? t("strategy.languageOptions.autoResolved", {
+                      language: t(`strategy.languageOptions.${resolvedFolderNameLanguage}`),
+                    })
+                  : t(`strategy.languageOptions.${folderNameLanguagePreference}`)}
               </span>
               <span className="rounded-full border border-on-surface/8 bg-surface-container-low px-3 py-1 text-[12px] font-medium text-on-surface-variant">
                 {t(`strategy.densityOptions.${globalConfig.LAUNCH_DEFAULT_DENSITY ?? "normal"}`)}
@@ -195,7 +204,6 @@ export function LaunchTab({
                   onClick={() => {
                     const suggested = getSuggestedSelection(template.id);
                     onUpdateGlobal("LAUNCH_DEFAULT_TEMPLATE_ID", template.id);
-                    onUpdateGlobal("LAUNCH_DEFAULT_LANGUAGE", suggested.language);
                     onUpdateGlobal("LAUNCH_DEFAULT_DENSITY", suggested.density);
                     onUpdateGlobal("LAUNCH_DEFAULT_PREFIX_STYLE", suggested.prefix_style);
                     onUpdateGlobal("LAUNCH_DEFAULT_CAUTION_LEVEL", suggested.caution_level);
@@ -206,12 +214,16 @@ export function LaunchTab({
           </FieldGroup>
           <div className="grid gap-3 xl:grid-cols-4">
             {[
-              { labelKey: "folderNameLanguage", key: "LAUNCH_DEFAULT_LANGUAGE", options: LANGUAGE_OPTIONS, optionNamespace: "languageOptions" },
+              { labelKey: "folderNameLanguage", hintKey: "folderNameLanguageHint", key: "LAUNCH_DEFAULT_LANGUAGE", options: FOLDER_NAME_LANGUAGE_OPTIONS, optionNamespace: "languageOptions" },
               { labelKey: "categoryDetail", key: "LAUNCH_DEFAULT_DENSITY", options: DENSITY_OPTIONS, optionNamespace: "densityOptions" },
               { labelKey: "prefixStyle", key: "LAUNCH_DEFAULT_PREFIX_STYLE", options: PREFIX_STYLE_OPTIONS, optionNamespace: "prefixOptions" },
               { labelKey: "cautionLevel", key: "LAUNCH_DEFAULT_CAUTION_LEVEL", options: CAUTION_LEVEL_OPTIONS, optionNamespace: "cautionOptions" },
             ].map((group) => (
-              <FieldGroup key={group.key} label={t(`settingsPage.launchTab.${group.labelKey}`)}>
+              <FieldGroup
+                key={group.key}
+                label={t(`settingsPage.launchTab.${group.labelKey}`)}
+                hint={group.hintKey ? t(`settingsPage.launchTab.${group.hintKey}`) : undefined}
+              >
                 <div className="grid gap-1.5">
                   {group.options.map((option) => {
                     const active = globalConfig[group.key] === option.id;

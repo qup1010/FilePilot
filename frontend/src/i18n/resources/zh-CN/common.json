@@ -949,7 +949,12 @@
       "media_assets": { "label": "媒体素材", "description": "适合截图、照片、视频、音频、设计源文件和内容创作素材。" },
       "unknown": { "label": "整理模板", "description": "选择模板以预览文件夹结构。" }
     },
-    "languageOptions": { "zh": "中文", "en": "英文" },
+    "languageOptions": {
+      "auto": "跟随界面语言",
+      "autoResolved": "跟随界面语言（当前{{language}}）",
+      "zh": "中文",
+      "en": "英文"
+    },
     "densityOptions": { "minimal": "极简分类", "normal": "常规分类" },
     "densityDescriptions": { "minimal": "目录更少更宽泛，减少层级和分类粒度。", "normal": "保留清晰、易理解的常规目录层级，适合大多数整理任务。" },
     "prefixOptions": { "none": "无前缀", "numeric": "数字编号", "category": "类别前缀" },
@@ -1542,6 +1547,7 @@
       "openRules": "打开分类规则",
       "defaultTemplate": "默认模板",
       "folderNameLanguage": "目录语言",
+      "folderNameLanguageHint": "默认跟随界面语言；也可以单独指定中文或英文。",
       "categoryDetail": "分类精细度",
       "prefixStyle": "目录前缀",
       "cautionLevel": "归档严格度",

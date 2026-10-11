@@ -988,7 +988,12 @@
       "media_assets": { "label": "Media assets", "description": "For screenshots, photos, video, audio, design source files, and creative assets." },
       "unknown": { "label": "Organization template", "description": "Choose a template to preview the folder structure." }
     },
-    "languageOptions": { "zh": "Chinese", "en": "English" },
+    "languageOptions": {
+      "auto": "Match app language",
+      "autoResolved": "Matches app language ({{language}})",
+      "zh": "Chinese",
+      "en": "English"
+    },
     "densityOptions": { "minimal": "Minimal", "normal": "Standard" },
     "densityDescriptions": { "minimal": "Create fewer, broader folder categories with less nesting.", "normal": "Keep a clear, familiar folder hierarchy for most tasks." },
     "prefixOptions": { "none": "No prefix", "numeric": "Numbered", "category": "Category label" },
@@ -1586,6 +1591,7 @@
       "openRules": "Open organization rules",
       "defaultTemplate": "Default template",
       "folderNameLanguage": "Folder name language",
+      "folderNameLanguageHint": "By default, folder names match the app language. You can choose Chinese or English separately.",
       "categoryDetail": "Category detail",
       "prefixStyle": "Folder prefix",
       "cautionLevel": "Review policy",

@@ -23,6 +23,7 @@ VISION_SOURCE_SHARED_TEXT = "shared_text"
 VISION_SOURCE_SEPARATE = "separate"
 VISION_SOURCE_MODES = {VISION_SOURCE_SHARED_TEXT, VISION_SOURCE_SEPARATE}
 UI_LANGUAGE_VALUES = {"system", "zh-CN", "en"}
+FOLDER_NAME_LANGUAGE_VALUES = {"auto", "zh", "en"}
 
 
 def _is_supported_ui_language(value: Any) -> bool:
@@ -58,7 +59,7 @@ DEFAULT_GLOBAL_CONFIG = {
     "LAUNCH_DEFAULT_ORGANIZE_METHOD": "categorize_into_new_structure",
     "LAUNCH_DEFAULT_TARGET_PROFILE_ID": "",
     "LAUNCH_DEFAULT_TEMPLATE_ID": "general_downloads",
-    "LAUNCH_DEFAULT_LANGUAGE": "zh",
+    "LAUNCH_DEFAULT_LANGUAGE": "auto",
     "LAUNCH_DEFAULT_DENSITY": "normal",
     "LAUNCH_DEFAULT_PREFIX_STYLE": "none",
     "LAUNCH_DEFAULT_CAUTION_LEVEL": "balanced",
@@ -218,6 +219,8 @@ class SettingsService:
                 config[key] = self._sanitize_vision_mode(value)
             elif key == "UI_LANGUAGE":
                 config[key] = value if _is_supported_ui_language(value) else "zh-CN"
+            elif key == "LAUNCH_DEFAULT_LANGUAGE":
+                config[key] = value if isinstance(value, str) and value in FOLDER_NAME_LANGUAGE_VALUES else "auto"
             else:
                 config[key] = value
         return config
@@ -451,6 +454,8 @@ class SettingsService:
         global_config = dict(data.get("global_config") or {})
         # Existing installs keep their established Chinese UI when the field is absent.
         global_config.setdefault("UI_LANGUAGE", "zh-CN")
+        # Existing installs keep their established folder-name language when the field is absent.
+        global_config.setdefault("LAUNCH_DEFAULT_LANGUAGE", "zh")
         self._global_config = self._sanitize_global(global_config)
         self._text_presets = {
             str(preset_id): self._sanitize_text_preset(preset)
@@ -482,6 +487,7 @@ class SettingsService:
         if "global_config" in data or "text_presets" in data or "vision_presets" in data:
             global_config = dict(data.get("global_config") or {})
             global_config.setdefault("UI_LANGUAGE", "zh-CN")
+            global_config.setdefault("LAUNCH_DEFAULT_LANGUAGE", "zh")
             self._global_config = self._sanitize_global(global_config)
             self._text_presets = {
                 str(preset_id): self._sanitize_text_preset(preset)
@@ -502,6 +508,7 @@ class SettingsService:
             profiles = dict(data.get("profiles", {}) or {})
             flat = dict(profiles.get(active_profile_id) or profiles.get(DEFAULT_PRESET_ID) or {})
         flat.setdefault("UI_LANGUAGE", "zh-CN")
+        flat.setdefault("LAUNCH_DEFAULT_LANGUAGE", "zh")
         self._global_config = self._sanitize_global(flat)
         self._text_presets = {DEFAULT_PRESET_ID: self._sanitize_text_preset(flat)}
         self._vision_presets = {DEFAULT_PRESET_ID: self._sanitize_vision_preset(flat)}

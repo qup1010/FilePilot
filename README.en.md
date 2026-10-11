@@ -43,7 +43,7 @@ On first launch:
 
 ### Choose your interface language
 
-Open **Settings → About and logs → Interface language**, choose **Follow system**, **Simplified Chinese**, or **English**, and save the settings. The interface language is separate from the language used for task content and generated folder names. Changing the interface language does not translate existing folder names or task content.
+New installs follow the system language by default. The interface currently supports Simplified Chinese and English; other system languages fall back to Simplified Chinese. You can also choose a language in **Settings → About and logs → Interface language**. Folder names match the app language by default, with separate Chinese and English overrides. Changing the app language does not rename existing folders, and tasks keep the folder-name language resolved when they started.
 
 ![FilePilot interface language setting with English selected](./frontend/public/screenshots/settings-language-en.jpg)
 

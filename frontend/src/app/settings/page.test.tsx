@@ -529,6 +529,17 @@ describe("SettingsPage preset flow", () => {
     expect(screen.getByRole("button", { name: /Custom service/ })).toBeInTheDocument();
   });
 
+  it("shows the automatic folder language and its current resolution", async () => {
+    const snapshot = createSnapshot();
+    snapshot.global_config.LAUNCH_DEFAULT_LANGUAGE = "auto";
+    await renderEnglishSettings(snapshot);
+    await clickSettingsCategory("Task defaults");
+
+    expect(screen.getByText("Matches app language (English)")).toBeInTheDocument();
+    expect(screen.getByText("By default, folder names match the app language. You can choose Chinese or English separately.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Match app language" })).toBeInTheDocument();
+  });
+
   it("localizes settings categories and default preset names without changing custom names", async () => {
     const user = userEvent.setup();
     const snapshot = createSnapshot();
@@ -637,7 +648,7 @@ describe("SettingsPage preset flow", () => {
     expect(localStorage.getItem("filepilot-ui-language")).toBe("zh-CN");
   });
 
-  it("keeps general organize as the selected default template and applies template suggestions", async () => {
+  it("keeps the folder language preference when changing the default template", async () => {
     const user = userEvent.setup();
 
     render(<SettingsPage />);
@@ -653,7 +664,7 @@ describe("SettingsPage preset flow", () => {
         expect.objectContaining({
           global_config: expect.objectContaining({
             LAUNCH_DEFAULT_TEMPLATE_ID: "project_workspace",
-            LAUNCH_DEFAULT_LANGUAGE: "en",
+            LAUNCH_DEFAULT_LANGUAGE: "zh",
             LAUNCH_DEFAULT_DENSITY: "normal",
             LAUNCH_DEFAULT_PREFIX_STYLE: "none",
             LAUNCH_DEFAULT_CAUTION_LEVEL: "balanced",

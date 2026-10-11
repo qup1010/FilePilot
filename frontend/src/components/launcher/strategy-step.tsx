@@ -4,24 +4,24 @@ import { useTranslation } from "react-i18next";
 import {
   CAUTION_LEVEL_OPTIONS,
   getSuggestedSelection,
-  LANGUAGE_OPTIONS,
   PREFIX_STYLE_OPTIONS,
   STRATEGY_TEMPLATES,
 } from "@/lib/strategy-templates";
+import { FOLDER_NAME_LANGUAGE_OPTIONS, resolveFolderNameLanguage } from "@/lib/folder-name-language";
 import { cn } from "@/lib/utils";
 import type {
-  SessionStrategySelection,
+  LauncherStrategySelection,
   StrategyPrefixStyle,
   StrategyTemplateId,
 } from "@/types/session";
 
 interface StrategyStepProps {
-  strategy: SessionStrategySelection;
+  strategy: LauncherStrategySelection;
   loading: boolean;
   isFullCategorize: boolean;
   newDirectoryRoot: string;
   previewDirectories: string[] | undefined;
-  onUpdateStrategy: (updater: (previous: SessionStrategySelection) => SessionStrategySelection) => void;
+  onUpdateStrategy: (updater: (previous: LauncherStrategySelection) => LauncherStrategySelection) => void;
   onOpenAdvancedSettings: () => void;
 }
 
@@ -34,7 +34,12 @@ export function StrategyStep({
   onUpdateStrategy,
   onOpenAdvancedSettings,
 }: StrategyStepProps) {
-  const { t } = useTranslation("common");
+  const { t, i18n } = useTranslation("common");
+  const languagePreference = strategy.language_preference ?? strategy.language;
+  const resolvedFolderNameLanguage = resolveFolderNameLanguage(
+    languagePreference,
+    i18n.resolvedLanguage || i18n.language,
+  );
   const templateDescription = t(`strategy.templates.${strategy.template_id}.description`, {
     defaultValue: "",
   });
@@ -60,10 +65,13 @@ export function StrategyStep({
                     value={strategy.template_id}
                     onChange={(event) => {
                       const tid = event.target.value as StrategyTemplateId;
+                      const suggested = getSuggestedSelection(tid);
                       onUpdateStrategy((previous) => ({
                         ...previous,
                         template_id: tid,
-                        ...getSuggestedSelection(tid),
+                        density: suggested.density,
+                        prefix_style: suggested.prefix_style,
+                        caution_level: suggested.caution_level,
                       }));
                     }}
                     disabled={loading}
@@ -80,26 +88,33 @@ export function StrategyStep({
                 {/* 目录语言 */}
                 <div className="space-y-1">
                   <div className="text-[11px] font-bold text-on-surface/60">{t("strategy.outputLanguage")}</div>
-                  <div className="flex h-8.5 rounded-[6px] border border-on-surface/8 bg-surface p-0.5 items-center">
-                    {LANGUAGE_OPTIONS.map((option) => {
-                      const active = strategy.language === option.id;
-                      return (
-                        <button
-                          key={option.id}
-                          type="button"
-                          onClick={() => onUpdateStrategy((prev) => ({ ...prev, language: option.id }))}
-                          className={cn(
-                            "flex-1 rounded-[4px] h-full text-[12px] transition-all",
-                            active
-                              ? "bg-primary/10 text-primary font-semibold"
-                              : "text-on-surface/60 font-medium hover:text-on-surface"
-                          )}
-                        >
-                          {t(`strategy.languageOptions.${option.id}`, { defaultValue: option.label.replace("目录", "") })}
-                        </button>
-                      );
-                    })}
-                  </div>
+                  <select
+                    aria-label={t("strategy.outputLanguage")}
+                    value={languagePreference}
+                    onChange={(event) => {
+                      const preference = event.target.value as LauncherStrategySelection["language_preference"];
+                      onUpdateStrategy((prev) => ({
+                        ...prev,
+                        language_preference: preference,
+                        language: resolveFolderNameLanguage(preference, i18n.resolvedLanguage || i18n.language),
+                      }));
+                    }}
+                    disabled={loading}
+                    className="h-8.5 w-full rounded-[6px] border border-on-surface/8 bg-surface px-2 text-[12px] font-medium text-on-surface outline-none transition-all focus:border-primary/45 focus:ring-2 focus:ring-primary/5"
+                  >
+                    {FOLDER_NAME_LANGUAGE_OPTIONS.map((option) => (
+                      <option key={option.id} value={option.id}>
+                        {t(`strategy.languageOptions.${option.id}`, { defaultValue: option.label })}
+                      </option>
+                    ))}
+                  </select>
+                  {languagePreference === "auto" ? (
+                    <p className="text-[10px] leading-4 text-on-surface/55">
+                      {t("strategy.languageOptions.autoResolved", {
+                        language: t(`strategy.languageOptions.${resolvedFolderNameLanguage}`),
+                      })}
+                    </p>
+                  ) : null}
                 </div>
               </div>
 

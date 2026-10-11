@@ -1,15 +1,16 @@
 import { describe, expect, it } from "vitest";
 
-import { resolveSystemUiLocale, resolveUiLocale } from "./locales";
+import { normalizeSavedUiLanguage, resolveSystemUiLocale } from "./locales";
 
-describe("UI locale resolution", () => {
-  it("uses the first supported language in browser preference order", () => {
-    expect(resolveSystemUiLocale(["fr-FR", "en-GB", "zh-CN"])).toBe("en");
-    expect(resolveSystemUiLocale(["fr-FR", "zh-TW", "en"])).toBe("zh-CN");
+describe("UI locale defaults", () => {
+  it("uses the system preference when no saved preference is present", () => {
+    expect(normalizeSavedUiLanguage(undefined)).toBe("system");
+    expect(normalizeSavedUiLanguage("invalid")).toBe("system");
   });
 
-  it("falls back to Simplified Chinese when the system language is unsupported", () => {
-    expect(resolveSystemUiLocale(["fr-FR", "ja-JP"])).toBe("zh-CN");
-    expect(resolveUiLocale("en", ["zh-CN"])).toBe("en");
+  it("resolves supported system languages and falls back to Simplified Chinese", () => {
+    expect(resolveSystemUiLocale(["en-US"])).toBe("en");
+    expect(resolveSystemUiLocale(["zh-TW"])).toBe("zh-CN");
+    expect(resolveSystemUiLocale(["fr-FR"])).toBe("zh-CN");
   });
 });

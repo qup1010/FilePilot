@@ -26,6 +26,7 @@ export type StrategyTemplateId =
   | "media_assets";
 
 export type StrategyLanguage = "zh" | "en";
+export type FolderNameLanguagePreference = "auto" | StrategyLanguage;
 export type StrategyDensity = "normal" | "minimal";
 export type StrategyPrefixStyle = "none" | "numeric" | "category";
 export type StrategyCautionLevel = "conservative" | "balanced";
@@ -120,6 +121,10 @@ export interface SessionStrategySelection {
   note: string;
 }
 
+export interface LauncherStrategySelection extends SessionStrategySelection {
+  language_preference: FolderNameLanguagePreference;
+}
+
 export interface SessionStrategySummary extends SessionStrategySelection {
   template_label: string;
   template_description?: string;
@@ -140,7 +145,7 @@ export interface LaunchStrategyConfig {
   LAUNCH_DEFAULT_ORGANIZE_METHOD?: OrganizeMethod;
   LAUNCH_DEFAULT_TARGET_PROFILE_ID?: string;
   LAUNCH_DEFAULT_TEMPLATE_ID?: StrategyTemplateId;
-  LAUNCH_DEFAULT_LANGUAGE?: StrategyLanguage;
+  LAUNCH_DEFAULT_LANGUAGE?: FolderNameLanguagePreference;
   LAUNCH_DEFAULT_DENSITY?: StrategyDensity;
   LAUNCH_DEFAULT_PREFIX_STYLE?: StrategyPrefixStyle;
   LAUNCH_DEFAULT_CAUTION_LEVEL?: StrategyCautionLevel;

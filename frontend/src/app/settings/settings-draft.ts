@@ -186,7 +186,7 @@ export function buildSettingsTabFingerprint(
   if (tabId === "system") {
     return JSON.stringify({
       DEBUG_MODE: Boolean(draft.global_config.DEBUG_MODE),
-      UI_LANGUAGE: draft.global_config.UI_LANGUAGE ?? "zh-CN",
+      UI_LANGUAGE: draft.global_config.UI_LANGUAGE ?? "system",
     });
   }
   return "";

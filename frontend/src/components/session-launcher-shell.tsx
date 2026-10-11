@@ -87,14 +87,16 @@ import {
 import {
   buildStrategySummary,
   CAUTION_LEVEL_OPTIONS,
-  DEFAULT_STRATEGY_SELECTION,
+  DEFAULT_LAUNCHER_STRATEGY_SELECTION,
   DENSITY_OPTIONS,
   getLaunchStrategyFromConfig,
   shouldSkipLaunchStrategyPrompt,
 } from "@/lib/strategy-templates";
+import { resolveFolderNameLanguage } from "@/lib/folder-name-language";
 import { cn } from "@/lib/utils";
 import type {
   DirectorySourceMode,
+  LauncherStrategySelection,
   LaunchStrategyConfig,
   OrganizeMethod,
   SessionSnapshot,
@@ -152,7 +154,7 @@ type LaunchRequestState = {
   display_path: string;
 };
 
-function strategyForMethod(previous: SessionStrategySelection, organizeMethod: OrganizeMethod): SessionStrategySelection {
+function strategyForMethod(previous: LauncherStrategySelection, organizeMethod: OrganizeMethod): LauncherStrategySelection {
   if (organizeMethod === "assign_into_existing_categories") {
     return {
       ...previous,
@@ -206,7 +208,7 @@ export function SessionLauncherShell() {
 
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [launchFlowOpen, setLaunchFlowOpen] = useState(false);
-  const [strategy, setStrategy] = useState<SessionStrategySelection>(DEFAULT_STRATEGY_SELECTION);
+  const [strategy, setStrategy] = useState<LauncherStrategySelection>(DEFAULT_LAUNCHER_STRATEGY_SELECTION);
   const [launchConfig, setLaunchConfig] = useState<LaunchStrategyConfig | null>(null);
   const [sources, setSources] = useState<SessionSourceSelection[]>([]);
   const [sourceImportGroups, setSourceImportGroups] = useState<SourceImportGroup[]>([]);
@@ -437,19 +439,19 @@ export function SessionLauncherShell() {
     return items;
   }, [displaySources, sourceImportGroupByKey, sourceKeyMap]);
 
-  const currentSummary = useMemo(
-    () =>
-      buildStrategySummary({
-        ...strategy,
-        organize_method: organizeMethod,
-        output_dir: effectiveOutputDir || undefined,
-        target_profile_id: selectedTargetProfileId || undefined,
-        target_directory_details: isAssignExisting ? effectiveTargetDirectories : undefined,
-        new_directory_root: effectiveNewDirectoryRoot || undefined,
-        review_root: effectiveReviewRoot || undefined,
-      }),
-    [effectiveNewDirectoryRoot, effectiveOutputDir, effectiveReviewRoot, effectiveTargetDirectories, isAssignExisting, organizeMethod, selectedTargetProfileId, strategy],
-  );
+  const currentSummary = useMemo(() => {
+    const { language_preference, ...sessionStrategy } = strategy;
+    return buildStrategySummary({
+      ...sessionStrategy,
+      language: resolveFolderNameLanguage(language_preference, i18n.resolvedLanguage || i18n.language),
+      organize_method: organizeMethod,
+      output_dir: effectiveOutputDir || undefined,
+      target_profile_id: selectedTargetProfileId || undefined,
+      target_directory_details: isAssignExisting ? effectiveTargetDirectories : undefined,
+      new_directory_root: effectiveNewDirectoryRoot || undefined,
+      review_root: effectiveReviewRoot || undefined,
+    });
+  }, [effectiveNewDirectoryRoot, effectiveOutputDir, effectiveReviewRoot, effectiveTargetDirectories, i18n.language, i18n.resolvedLanguage, isAssignExisting, organizeMethod, selectedTargetProfileId, strategy]);
 
   const resumeStrategy = resumePrompt?.snapshot.strategy || currentSummary;
   const resumeStage = resumePrompt?.snapshot.stage;
@@ -628,7 +630,7 @@ export function SessionLauncherShell() {
       } catch {
         if (!cancelled) {
           if (!launcherDraft?.strategy) {
-            setStrategy(DEFAULT_STRATEGY_SELECTION);
+            setStrategy(DEFAULT_LAUNCHER_STRATEGY_SELECTION);
           }
           setLaunchConfig(null);
           if (launcherDraft?.reviewFollowsNewRoot === undefined) {
@@ -742,7 +744,7 @@ export function SessionLauncherShell() {
     }
   }, [launchConfig?.LAUNCH_DEFAULT_TARGET_PROFILE_ID, selectedTargetProfileId, targetProfiles]);
 
-  function updateStrategy(updater: (previous: SessionStrategySelection) => SessionStrategySelection) {
+  function updateStrategy(updater: (previous: LauncherStrategySelection) => LauncherStrategySelection) {
     setStrategy((previous) => updater(previous));
   }
 
@@ -1303,8 +1305,10 @@ export function SessionLauncherShell() {
   }
 
   function buildLaunchRequest(resumeIfExists: boolean): LaunchRequestState {
+    const { language_preference, ...sessionStrategy } = strategy;
     const normalizedStrategy: SessionStrategySelection = {
-      ...strategy,
+      ...sessionStrategy,
+      language: resolveFolderNameLanguage(language_preference, i18n.resolvedLanguage || i18n.language),
       organize_method: organizeMethod,
       output_dir: effectiveOutputDir || undefined,
       target_profile_id: selectedTargetProfileId.trim() || undefined,

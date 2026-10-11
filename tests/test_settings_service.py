@@ -22,13 +22,15 @@ class SettingsServiceTests(unittest.TestCase):
         if self.root.exists():
             shutil.rmtree(self.root)
 
-    def test_new_install_uses_system_ui_language(self):
-        service = SettingsService(
-            config_path=self.config_path,
-            legacy_icon_config_path=self.legacy_icon_path,
-        )
+    def test_new_install_uses_system_ui_and_auto_folder_name_language(self):
+        with mock.patch.dict(os.environ, {}, clear=True):
+            service = SettingsService(
+                config_path=self.config_path,
+                legacy_icon_config_path=self.legacy_icon_path,
+            )
 
-        self.assertEqual(service.get_settings_snapshot()["global_config"]["UI_LANGUAGE"], "system")
+            self.assertEqual(service.get_settings_snapshot()["global_config"]["UI_LANGUAGE"], "system")
+            self.assertEqual(service.get_settings_snapshot()["global_config"]["LAUNCH_DEFAULT_LANGUAGE"], "auto")
 
     def test_existing_settings_without_ui_language_migrate_to_chinese(self):
         self.config_path.write_text(
@@ -42,7 +44,19 @@ class SettingsServiceTests(unittest.TestCase):
         )
 
         self.assertEqual(service.get_settings_snapshot()["global_config"]["UI_LANGUAGE"], "zh-CN")
+        self.assertEqual(service.get_settings_snapshot()["global_config"]["LAUNCH_DEFAULT_LANGUAGE"], "zh")
         self.assertEqual(json.loads(self.config_path.read_text(encoding="utf-8"))["global_config"]["UI_LANGUAGE"], "zh-CN")
+        self.assertEqual(json.loads(self.config_path.read_text(encoding="utf-8"))["global_config"]["LAUNCH_DEFAULT_LANGUAGE"], "zh")
+
+    def test_folder_name_language_setting_accepts_auto_and_explicit_languages(self):
+        service = SettingsService(
+            config_path=self.config_path,
+            legacy_icon_config_path=self.legacy_icon_path,
+        )
+
+        for language in ("auto", "zh", "en"):
+            snapshot = service.update_settings({"global_config": {"LAUNCH_DEFAULT_LANGUAGE": language}})
+            self.assertEqual(snapshot["global_config"]["LAUNCH_DEFAULT_LANGUAGE"], language)
 
     def test_corrupted_ui_language_falls_back_to_chinese_and_invalid_updates_are_rejected(self):
         self.config_path.write_text(

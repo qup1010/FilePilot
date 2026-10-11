@@ -284,6 +284,7 @@ describe("SessionLauncher", () => {
           content_locale: "en",
           strategy: expect.objectContaining({
             template_id: "general_downloads",
+            language: "en",
             organize_mode: "initial",
             task_type: "organize_full_directory",
             organize_method: "categorize_into_new_structure",
@@ -291,6 +292,7 @@ describe("SessionLauncher", () => {
           }),
         }),
       );
+      expect(createLaunchSessionMock.mock.calls[0][1].strategy).not.toHaveProperty("language_preference");
     });
   });
 
