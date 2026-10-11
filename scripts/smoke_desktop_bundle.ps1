@@ -217,19 +217,25 @@ function Stop-AppProcessTree {
 function Wait-ForBackendExit {
     param(
         [Parameter(Mandatory = $true)]
-        [string]$ProcessName,
+        [int]$ProcessId,
 
         [Parameter(Mandatory = $true)]
         [int]$TimeoutSeconds
     )
 
-    Wait-Until -TimeoutSeconds $TimeoutSeconds -FailureMessage "Backend process still running after app exit: $ProcessName" -Condition {
-        $running = @(Get-Process -Name $ProcessName -ErrorAction SilentlyContinue)
-        if ($running.Count -eq 0) {
-            return $true
-        }
-        return $false
+    Wait-Until -TimeoutSeconds $TimeoutSeconds -FailureMessage "Backend process still running after app exit: $ProcessId" -Condition {
+        $process = Get-Process -Id $ProcessId -ErrorAction SilentlyContinue
+        return (-not $process -or $process.ProcessName -ne $BackendProcessName)
     } | Out-Null
+}
+
+function Stop-TrackedBackendProcess {
+    param([Parameter(Mandatory = $true)][int]$ProcessId)
+
+    $process = Get-Process -Id $ProcessId -ErrorAction SilentlyContinue
+    if ($process -and $process.ProcessName -eq $BackendProcessName) {
+        Stop-Process -Id $ProcessId -Force -ErrorAction SilentlyContinue
+    }
 }
 
 function Start-AndValidateApp {
@@ -279,17 +285,15 @@ $primary = $null
 $secondary = $null
 
 try {
-    Get-Process -Name $BackendProcessName -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
-
     $primary = Start-AndValidateApp -ExecutablePath $resolvedAppPath -RuntimePath $runtimePath -StartupTimeoutSeconds $StartupTimeoutSeconds -SkipDynamicPortCheck:$SkipDynamicPortCheck
     Assert-SingleInstance -ExecutablePath $resolvedAppPath
 
     Stop-AppProcessTree -Process $primary.Process
-    Wait-ForBackendExit -ProcessName $BackendProcessName -TimeoutSeconds $ShutdownTimeoutSeconds
+    Wait-ForBackendExit -ProcessId ([int]$primary.Config.pid) -TimeoutSeconds $ShutdownTimeoutSeconds
 
     $secondary = Start-AndValidateApp -ExecutablePath $resolvedAppPath -RuntimePath $runtimePath -StartupTimeoutSeconds $StartupTimeoutSeconds -SkipDynamicPortCheck:$SkipDynamicPortCheck
     Stop-AppProcessTree -Process $secondary.Process
-    Wait-ForBackendExit -ProcessName $BackendProcessName -TimeoutSeconds $ShutdownTimeoutSeconds
+    Wait-ForBackendExit -ProcessId ([int]$secondary.Config.pid) -TimeoutSeconds $ShutdownTimeoutSeconds
 
     Write-Output "Smoke test passed for $resolvedAppPath"
 } finally {
@@ -307,5 +311,10 @@ try {
     if ($primary -and $primary.Process -and -not $primary.Process.HasExited) {
         Stop-Process -Id $primary.Process.Id -Force -ErrorAction SilentlyContinue
     }
-    Get-Process -Name $BackendProcessName -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+    if ($secondary -and $secondary.Config) {
+        Stop-TrackedBackendProcess -ProcessId ([int]$secondary.Config.pid)
+    }
+    if ($primary -and $primary.Config) {
+        Stop-TrackedBackendProcess -ProcessId ([int]$primary.Config.pid)
+    }
 }
