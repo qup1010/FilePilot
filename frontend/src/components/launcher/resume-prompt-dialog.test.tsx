@@ -1,7 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
-import i18n from "@/i18n/instance";
 import { ResumePromptDialog } from "./resume-prompt-dialog";
 
 const baseProps = {
@@ -61,10 +60,6 @@ const baseProps = {
 };
 
 describe("ResumePromptDialog", () => {
-  afterEach(async () => {
-    await i18n.changeLanguage("zh-CN");
-  });
-
   it("uses readonly result viewing as the primary action for completed sessions", () => {
     render(<ResumePromptDialog {...baseProps} isCompletedResume />);
 
