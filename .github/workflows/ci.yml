@@ -6,6 +6,7 @@ on:
     branches:
       - main
       - master
+      - codex/english-localization-e32-gates
 
 jobs:
   verify:
