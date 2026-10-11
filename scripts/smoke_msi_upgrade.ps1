@@ -55,7 +55,33 @@ $msiexecPath = Join-Path $env:SystemRoot "System32\msiexec.exe"
 $appDataRoot = Join-Path $env:APPDATA $AppIdentifier
 $sentinelPath = Join-Path $appDataRoot "msi-upgrade-smoke-$([guid]::NewGuid().ToString('N')).txt"
 $sentinelContent = [guid]::NewGuid().ToString("N")
-$appPath = Join-Path $installDirectory $DesktopExecutableName
+$appPath = $null
+
+function Resolve-InstalledAppPath {
+    $candidates = @(
+        (Join-Path $installDirectory $DesktopExecutableName),
+        (Join-Path $env:LOCALAPPDATA "Programs\FilePilot\$DesktopExecutableName"),
+        (Join-Path $env:ProgramFiles "FilePilot\$DesktopExecutableName"),
+        (Join-Path ${env:ProgramFiles(x86)} "FilePilot\$DesktopExecutableName")
+    ) | Where-Object { $_ -and (Test-Path -LiteralPath $_) }
+
+    $match = $candidates | Select-Object -First 1
+    if ($match) {
+        return $match
+    }
+
+    $searchRoots = @($env:LOCALAPPDATA, $env:ProgramFiles, ${env:ProgramFiles(x86)}) |
+        Where-Object { $_ -and (Test-Path -LiteralPath $_) }
+    foreach ($root in $searchRoots) {
+        $match = Get-ChildItem $root -Recurse -Filter $DesktopExecutableName -ErrorAction SilentlyContinue |
+            Select-Object -First 1
+        if ($match) {
+            return $match.FullName
+        }
+    }
+
+    throw "Installed desktop executable was not found in the standard install locations: $DesktopExecutableName"
+}
 
 function Get-InstalledAppVersion {
     param([Parameter(Mandatory = $true)][string]$Path)
@@ -138,6 +164,7 @@ if (Test-Path -LiteralPath $installDirectory) {
 
 try {
     Invoke-Msi -Action Install -InstallerPath $previousInstaller -Label $PreviousVersion
+    $appPath = Resolve-InstalledAppPath
     Assert-AppVersion -Path $appPath -ExpectedVersion $PreviousVersion -Label "Previous"
     Invoke-InstalledAppSmoke -Label "Previous version"
 
@@ -145,6 +172,7 @@ try {
     [System.IO.File]::WriteAllText($sentinelPath, $sentinelContent, [System.Text.UTF8Encoding]::new($false))
 
     Invoke-Msi -Action Install -InstallerPath $currentInstaller -Label $CurrentVersion
+    $appPath = Resolve-InstalledAppPath
     Assert-AppVersion -Path $appPath -ExpectedVersion $CurrentVersion -Label "Upgraded"
     if (-not (Test-Path -LiteralPath $sentinelPath) -or [System.IO.File]::ReadAllText($sentinelPath) -ne $sentinelContent) {
         throw "Application data was not preserved while upgrading from $PreviousVersion to $CurrentVersion."
