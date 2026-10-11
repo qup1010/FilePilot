@@ -138,20 +138,52 @@ async function cdpEvaluate(socketUrl, expression) {
 }
 
 async function waitForRuntime() {
-  const deadline = Date.now() + 30000;
+  const deadline = Date.now() + 60000;
+  let targets = [];
+  let lastProbe = "No matching WebView2 page target was found.";
+  let lastCommandProbe = 0;
+
   while (Date.now() < deadline) {
     try {
-      const targets = await (await fetch(`http://127.0.0.1:${debugPort}/json/list`)).json();
-      const page = targets.find((target) => target.type === "page" && target.url.startsWith("http://tauri.localhost/"));
+      const response = await fetch(`http://127.0.0.1:${debugPort}/json/list`);
+      if (!response.ok) throw new Error(`WebView2 DevTools returned HTTP ${response.status}.`);
+      targets = await response.json();
+      const page = targets.find((target) => {
+        if (target.type !== "page") return false;
+        try {
+          return new URL(target.url).hostname === "tauri.localhost";
+        } catch {
+          return false;
+        }
+      });
       if (page) {
-        const raw = await cdpEvaluate(page.webSocketDebuggerUrl,
-          "JSON.stringify(window.__FILE_PILOT_RUNTIME__ || null)");
-        if (raw && raw !== "null") return { page, runtime: JSON.parse(raw) };
+        const injected = await cdpEvaluate(page.webSocketDebuggerUrl,
+          "JSON.stringify(window.__FILE_PILOT_RUNTIME__?.base_url ? window.__FILE_PILOT_RUNTIME__ : null)");
+        if (injected && injected !== "null") {
+          return { page, runtime: JSON.parse(injected), source: "window injection" };
+        }
+
+        if (Date.now() - lastCommandProbe >= 1000) {
+          lastCommandProbe = Date.now();
+          const commandResult = await cdpEvaluate(page.webSocketDebuggerUrl,
+            "JSON.stringify(await (async () => { try { const runtime = await window.__TAURI_INTERNALS__?.invoke?.('get_runtime_config'); return runtime?.base_url ? { available: true, runtime } : { available: false, reason: 'Tauri command returned no runtime config' }; } catch (error) { return { available: false, reason: String(error) }; } })())");
+          const probe = JSON.parse(commandResult || "null");
+          if (probe?.available) {
+            return { page, runtime: probe.runtime, source: "Tauri get_runtime_config command" };
+          }
+          lastProbe = probe?.reason || "Neither runtime injection nor the Tauri runtime command is available yet.";
+        }
       }
-    } catch {}
+    } catch (error) {
+      lastProbe = error.message;
+    }
     await new Promise((resolve) => setTimeout(resolve, 250));
   }
-  throw new Error("The installed app did not expose its backend runtime to the WebView.");
+
+  const targetSummary = targets
+    .map((target) => `${target.type}: ${target.url || target.title || "<no URL>"}`)
+    .join("; ") || "<none>";
+  throw new Error(`The installed app did not expose its backend runtime to the WebView. Last probe: ${lastProbe}. DevTools targets: ${targetSummary}`);
 }
 
 async function api(runtime, route, options = {}) {
@@ -379,7 +411,8 @@ async function main() {
     await new Promise((resolve, reject) => mockModel.listen(0, "127.0.0.1", (error) => error ? reject(error) : resolve()));
     mockIsListening = true;
     const mockAddress = mockModel.address();
-    const { runtime } = await waitForRuntime();
+    const { runtime, source } = await waitForRuntime();
+    process.stdout.write(`Installed app runtime reached through ${source}.\n`);
     await api(runtime, "/api/settings", {
       method: "PATCH",
       body: JSON.stringify({ families: { text: {
