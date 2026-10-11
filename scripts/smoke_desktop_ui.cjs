@@ -71,12 +71,67 @@ async function getUiPreference(port) {
   return settings.preference || "system";
 }
 
-async function setUiPreference(port, preference) {
-  const expression = `(async () => { const runtime = window.__FILE_PILOT_RUNTIME__; const response = await fetch(runtime.base_url + '/api/settings', { method: 'PATCH', headers: { Authorization: 'Bearer ' + runtime.api_token, 'Content-Type': 'application/json' }, body: JSON.stringify({ global_config: { UI_LANGUAGE: ${JSON.stringify(preference)} } }) }); return response.status; })()`;
-  const status = await evaluate(port, expression);
-  if (status !== 200) {
-    throw new Error(`Could not set the installed app UI preference (HTTP ${status}).`);
+async function waitForDomCondition(port, expression, failureMessage) {
+  const deadline = Date.now() + 30000;
+  let lastError;
+  while (Date.now() < deadline) {
+    try {
+      if (await evaluate(port, expression)) return;
+    } catch (error) {
+      lastError = error;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 250));
   }
+  const detail = lastError ? " Last WebView2 response: " + lastError.message : "";
+  throw new Error(failureMessage + detail);
+}
+
+async function saveUiPreferenceFromSettings(port, preference) {
+  await navigate(port, "/settings");
+  await waitForDomCondition(
+    port,
+    "Boolean(document.documentElement.lang && document.body?.innerText)",
+    "The settings page did not finish rendering before changing the UI language.",
+  );
+
+  const locale = await evaluate(port, "document.documentElement.lang");
+  const copy = locale === "en"
+    ? { systemCategory: "About and logs", languageLabel: "Interface language", saveLabel: "Save changes" }
+    : { systemCategory: "关于与运行日志", languageLabel: "界面语言", saveLabel: "保存当前修改" };
+
+  const selectSystemCategory = "(() => { const button = Array.from(document.querySelectorAll('aside button')).find((item) => item.innerText.includes(" + JSON.stringify(copy.systemCategory) + ")); if (!button) return false; button.click(); return true; })()";
+  await waitForDomCondition(port, selectSystemCategory, "Could not open the system settings category in " + locale + ".");
+
+  const selectExpression = "(() => { const select = Array.from(document.querySelectorAll('select')).find((item) => item.getAttribute('aria-label') === " + JSON.stringify(copy.languageLabel) + "); return select ? select.value : false; })()";
+  await waitForDomCondition(port, selectExpression, "The UI language selector was not found in " + locale + " settings.");
+  const currentSelection = await evaluate(port, selectExpression);
+  if (currentSelection !== preference) {
+    const changeExpression = "(() => { const select = Array.from(document.querySelectorAll('select')).find((item) => item.getAttribute('aria-label') === " + JSON.stringify(copy.languageLabel) + "); if (!select) return false; const setter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set; setter.call(select, " + JSON.stringify(preference) + "); select.dispatchEvent(new Event('change', { bubbles: true })); return true; })()";
+    if (!await evaluate(port, changeExpression)) {
+      throw new Error("Could not select " + preference + " in the installed settings UI.");
+    }
+
+    const clickSaveExpression = "(() => { const button = Array.from(document.querySelectorAll('button')).find((item) => item.innerText.trim() === " + JSON.stringify(copy.saveLabel) + "); if (!button || button.disabled) return false; button.click(); return true; })()";
+    await waitForDomCondition(port, clickSaveExpression, "The settings save button did not become available in " + locale + ".");
+    await waitForDomCondition(
+      port,
+      "document.documentElement.lang && !Array.from(document.querySelectorAll('button')).some((item) => ['Save changes', '保存当前修改'].includes(item.innerText.trim()))",
+      "The settings UI did not finish saving the language preference " + preference + ".",
+    );
+    if (preference !== "system") {
+      await waitForDomCondition(
+        port,
+        "document.documentElement.lang === " + JSON.stringify(preference),
+        "The installed UI did not switch to " + preference + " after saving from settings.",
+      );
+    }
+  }
+
+  const savedPreference = await getUiPreference(port);
+  if (savedPreference !== preference) {
+    throw new Error("The settings UI saved " + savedPreference + ", expected " + preference + ".");
+  }
+  console.log("Installed settings UI saved language preference: " + preference + ".");
 }
 
 async function navigate(port, route) {
@@ -163,7 +218,7 @@ async function main() {
         ],
       },
     ]) {
-      await setUiPreference(port, testCase.preference);
+      await saveUiPreferenceFromSettings(port, testCase.preference);
       for (const page of testCase.pages) {
         await verifyPage(port, page.route, testCase.locale, page.text, page.label);
       }
@@ -173,7 +228,7 @@ async function main() {
   }
 
   try {
-    await setUiPreference(port, initialPreference);
+    await saveUiPreferenceFromSettings(port, initialPreference);
     await navigate(port, "/");
     await waitForLocalizedText(port, "/", initialState.lang, initialState.lang === "en" ? "Settings" : "设置");
     console.log(`Installed UI preference restored: ${initialPreference}.`);
