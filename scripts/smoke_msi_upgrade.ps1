@@ -70,6 +70,37 @@ function Resolve-InstalledAppPath {
         return $match
     }
 
+    $uninstallRoots = @(
+        "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*",
+        "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*",
+        "HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*"
+    )
+    $registeredApps = foreach ($root in $uninstallRoots) {
+        Get-ItemProperty -Path $root -ErrorAction SilentlyContinue |
+            Where-Object { [string]$_.DisplayName -match "^FilePilot(?:\s|$)" }
+    }
+    foreach ($registeredApp in $registeredApps) {
+        $installLocation = [string]$registeredApp.InstallLocation
+        if ($installLocation -and (Test-Path -LiteralPath $installLocation -PathType Container)) {
+            $registeredExe = Join-Path $installLocation $DesktopExecutableName
+            if (Test-Path -LiteralPath $registeredExe) {
+                return $registeredExe
+            }
+        }
+
+        $displayIcon = [Environment]::ExpandEnvironmentVariables([string]$registeredApp.DisplayIcon).Trim()
+        if ($displayIcon -match '^"(?<path>[^"]+\.exe)"') {
+            $registeredExe = $Matches.path
+        } elseif ($displayIcon -match '^(?<path>.*?\.exe)(?:,\s*\d+)?\s*$') {
+            $registeredExe = $Matches.path.Trim('"')
+        } else {
+            $registeredExe = $null
+        }
+        if ($registeredExe -and (Test-Path -LiteralPath $registeredExe -PathType Leaf)) {
+            return $registeredExe
+        }
+    }
+
     $searchRoots = @($env:LOCALAPPDATA, $env:ProgramFiles, ${env:ProgramFiles(x86)}) |
         Where-Object { $_ -and (Test-Path -LiteralPath $_) }
     foreach ($root in $searchRoots) {
@@ -80,7 +111,13 @@ function Resolve-InstalledAppPath {
         }
     }
 
-    throw "Installed desktop executable was not found in the standard install locations: $DesktopExecutableName"
+    $registrationSummary = @($registeredApps | ForEach-Object {
+        "DisplayName='$($_.DisplayName)'; InstallLocation='$($_.InstallLocation)'; DisplayIcon='$($_.DisplayIcon)'"
+    }) -join " | "
+    if (-not $registrationSummary) {
+        $registrationSummary = "<no FilePilot uninstall entries found>"
+    }
+    throw "Installed desktop executable was not found in the standard install locations: $DesktopExecutableName. MSI registration: $registrationSummary"
 }
 
 function Get-InstalledAppVersion {
